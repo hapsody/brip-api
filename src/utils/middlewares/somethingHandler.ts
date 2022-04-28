@@ -5,11 +5,11 @@ const somethingHandler = (
   res: Response,
   //   next: NextFunction,
 ): void => {
-  const {
-    locals: { resMessages },
-  } = req;
+  // const {
+  //   locals: { resMessages },
+  // } = req;
 
-  if (resMessages) res.status(200).json(resMessages);
+  if (req.locals?.resMessages) res.status(200).json(req.locals?.resMessages);
 };
 
 export default somethingHandler;

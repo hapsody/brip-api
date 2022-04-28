@@ -21,19 +21,19 @@ export default (passport: PassportStatic): void => {
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     async (email, password, done: LocalStrategyCBFunc): Promise<void> => {
       try {
-        const user: User = await prisma.user.findFirst({
+        const user: User | null = await prisma.user.findFirst({
           where: {
             email,
           },
         });
 
         if (isEmpty(user) || isNull(user)) {
-          done(null, null, { message: 'Incorrect username.' });
+          done(null, undefined, { message: 'Incorrect username.' });
           return;
         }
         const compareResult: Boolean = await compare(password, user.password);
         if (!compareResult) {
-          done(null, null, {
+          done(null, undefined, {
             message: 'Incorrect password.',
           });
           return;

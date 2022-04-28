@@ -32,7 +32,13 @@ ce43b2497247   mysql     "docker-entrypoint.s…"   10 days ago    Up 10 days   
 ### 3. 서버실행
 
 ```shell
-$ yarn start default dev 모드 실행(= yarn start:dev)
+$ yarn # node_module 설치
+
+$ yarn migrate # prisma model -> db migrationg
+$ yarn generate # prisma/client 스키마 생성
+$ yarn seed # 기본 db data seeding
+
+$ yarn start # default dev 모드 실행(= yarn start:dev)
 ```
 
 ### 4. 서버 재시작 및 중지 명령어
@@ -138,4 +144,46 @@ CREATE DATABASE IF NOT EXISTS `shadowdb`;
 -- CREATE USER 'root'@'localhost' IDENTIFIED BY 'local';
 GRANT ALL PRIVILEGES ON shadowdb.* TO 'idealbloom'@'%';
 FLUSH privileges;
+```
+
+### ts-prisma-restful-bp MySQL docker 볼륨 re-clean & start up
+
+```shell
+$ docker ps -a # running 중이지 않은 container 포함 리스트 출력
+
+base)  ✘ hjkang  ~/Documents/idealbloom/ts-prisma-restful-bp   main  docker ps -a
+CONTAINER ID   IMAGE     COMMAND                  CREATED        STATUS        PORTS                               NAMES
+267f8650e1b3   mysql     "docker-entrypoint.s…"   2 weeks ago    Up 22 hours   33060/tcp, 0.0.0.0:3322->3306/tcp   ts-prisma-boilerplate_mysql_1
+7dddf263c8a8   mysql     "docker-entrypoint.s…"   2 months ago   Up 22 hours   33060/tcp, 0.0.0.0:3312->3306/tcp   locomotionapi_mysql_1
+46e103370dd1   mysql     "docker-entrypoint.s…"   5 months ago   Up 22 hours   33060/tcp, 0.0.0.0:3308->3306/tcp   stiapi_mysql_1
+240
+
+$ docker-compose down # (= docker stop <CONTAINER ID or CONTAINER NAMES>)
+
+(base)  hjkang  ~/Documents/idealbloom/ts-prisma-restful-bp   main  docker-compose down
+Removing network ts-prisma-restful-bp_default
+WARNING: Network ts-prisma-restful-bp_default not found.
+
+$ docker rm <CONTAINER ID or CONTAINER NAMES>
+
+(base)  hjkang  ~/Documents/idealbloom/ts-prisma-restful-bp   main  docker rm ts-prisma-boilerplate_mysql_1
+ts-prisma-boilerplate_mysql_1
+
+
+$ docker volume ls
+
+(base)  hjkang  ~/Documents/idealbloom/ts-prisma-restful-bp   main  docker volume ls
+DRIVER    VOLUME NAME
+local     locomotionapi_db
+local     pineappleapi_app_db
+local     pineappleapi_db
+local     stiapi_db
+local     ts-prisma-boilerplate_db
+
+$ docker volume rm ts-prisma-boilerplate_db
+
+(base)  hjkang  ~/Documents/idealbloom/ts-prisma-restful-bp   main  docker volume rm ts-prisma-boilerplate_db
+ts-prisma-boilerplate_db
+
+$ docker-compose up -d # 이미지 & 컨테이너 & 볼륨 재생성
 ```

@@ -1,0 +1,72 @@
+# This workflow will do a clean install of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: ts-prisma-restful-bp prod code test and deployment
+
+on:
+  # pull_request:
+  #   branches: [master]
+  push:
+    branches: [prod]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [14.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    steps:
+      # MySQL 데몬을 띄웁니다.
+      # service container를 쓸 수도 있습니다.
+      # - name: Setup MySQL
+      #   uses: mirromutth/mysql-action@v1.1
+      #   with:
+      #     host port: 3306
+      #     container port: 3306
+      #     mysql version: '8.0'
+      #     mysql database: test_db
+      #     mysql user: 'test'
+      #     mysql password: 'test1'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: checkout master
+        uses: actions/checkout@v2
+      - name: setup docker MySQL
+        run: docker-compose up -d
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+
+      # - run: npm run build --if-present
+      - run: npm test
+
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     # TODO Change your AWS region here!
+      #     aws-region: ${{secrets.AWS_REGION}}
+      # - name: Deploying with CodeDeploy
+      #   id: a-task
+      #   # env:
+      #   #   an-environment-variable: anything you want
+      #   run: |
+      #     aws ssm send-command --document-name "AWS-RunShellScript" --instance-ids "${{secrets.AWS_PROD_INSTANCE_ID}}" --parameters commands='["cd /home/ubuntu/pineappleApi","./deploy.sh"]' --cloud-watch-output-config '{"CloudWatchLogGroupName":"pineappleApi-code-deployment","CloudWatchOutputEnabled":true}'
+
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_CODEDEPLOY_USER_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_CODEDEPLOY_USER_SECRET_ACCESS_KEY }}
+      #     # TODO Change your AWS region here!
+      #     aws-region: ${{secrets.AWS_REGION}}
+
+      # - name: Code Deploy
+      #   run: aws deploy create-deployment --application-name pineappleapi-codedeploy-app --file-exists-behavior OVERWRITE --deployment-config-name CodeDeployDefault.AllAtOnce --deployment-group-name prod-pineappleapi-codedeploy-group --s3-location bucket=pineappleapi-deploy,bundleType=zip,key=landingShip.zip

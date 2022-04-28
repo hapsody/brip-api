@@ -66,7 +66,7 @@ export const signIn = (
       const randNo = Math.random().toString().substr(2, 6);
       const accessToken = jwt.sign(
         { email: user.email, randNo },
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '12h',
         },
@@ -75,7 +75,7 @@ export const signIn = (
       // const expiration = 1000;
       const refreshToken = jwt.sign(
         { email: user.email, randNo },
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '30d',
         },

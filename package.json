@@ -17,6 +17,7 @@
     "prepare": "husky install",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
+    "seed": "ts-node ./src/prisma/seeds",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage"
   },
   "husky": {
@@ -60,6 +61,7 @@
     "@prisma/client": "3.11.1",
     "@types/axios": "^0.14.0",
     "@types/bcrypt": "^5.0.0",
+    "@types/compression": "^1.7.2",
     "@types/cookie-parser": "^1.4.2",
     "@types/dotenv": "^8.2.0",
     "@types/express-serve-static-core": "^4.17.28",
@@ -71,6 +73,7 @@
     "@types/passport-local": "^1.0.34",
     "@types/supertest": "^2.0.12",
     "axios": "^0.26.1",
+    "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
     "cross-env": "^7.0.3",
     "dotenv": "^16.0.0",

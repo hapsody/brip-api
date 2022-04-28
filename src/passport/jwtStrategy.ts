@@ -35,7 +35,7 @@ export default (passport: PassportStatic): void => {
         // try {
         const { email } = jwtPayload as { email: string };
 
-        const user: User = await prisma.user.findFirst({
+        const user: User | null = await prisma.user.findFirst({
           where: { email },
         });
 
