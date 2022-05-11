@@ -1,13 +1,13 @@
 # This workflow will do a clean install of node dependencies, cache/restore them, build the source code and run tests across different versions of node
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
 
-name: ts-prisma-restful-bp master code common Integration
+name: main CI
 
 on:
   # pull_request:
   #   branches: [master]
   push:
-    branches: [main]
+    branches: [disable_master]
 
 jobs:
   build:
@@ -40,8 +40,19 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-      - run: npm ci
-
-      # - run: npm run build --if-present
-      - run: npm test
+      - name: Install modules
+        run: yarn
+      - name: Set up Prisma migration and generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+        run: |
+          yarn migrate
+          yarn generate
+          yarn seed
+      - name: test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: npm test
