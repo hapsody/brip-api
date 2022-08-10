@@ -10,6 +10,32 @@
 - husky + lint-stage
 
 # How to run
+### 0. git clone 후 새로 만들려는 프로젝트명으로 변경
+1. package.json
+ - "name" 변경
+ - "scripts"에 "stop" 스크립트  ex) "pm2 delete $(exec pm2 list | awk '/travelit-api/ {print $2}')",
+2. ecosystem.config.js
+ - name 변경
+3. .env
+ - .env 파일을 개발자를 통해 받은후 DATABASE_URL끝에 데이터베이스 이름을 새 프로젝트에서 사용할 데이터베이스명으로 변경<br>
+   ex) DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3323/travelit-api"
+4. docker-compose.yml
+ - .env 파일에서 설정한 포트명과 데이터베이스 명으로 바꿔준다.
+ ```yml
+ services:
+  mysql:
+    image: mysql
+    platform: linux/amd64
+    restart: always
+    ports:
+      - <PORT>:3306
+    environment:
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_ROOT_PASSWORD: root1
+      MYSQL_DATABASE: <project name>
+      MYSQL_USER: idealbloom
+      MYSQL_PASSWORD: idealbloom1
+```
 
 ### 1. MySQL docker setting
 
@@ -26,6 +52,7 @@ ce43b2497247   mysql     "docker-entrypoint.s…"   10 days ago    Up 10 days   
 - .env
 
 .env에는 기본적으로 아래 변수들이 필요합니다.<br> DATABASE_URL <br> SHADOW_DATABASE_URL
+.env파일을 받은후 DATABASE_URL끝에 데이터베이스 이름을 새 프로젝트에서 사용할 데이터베이스명으로 바꿔줍니다.
 
 > ex) <br>DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/myApi?schema=public" SHADOW_DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/shadowdb"
 
