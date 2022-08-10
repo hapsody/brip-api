@@ -11,72 +11,35 @@
 
 # How to run
 
-### 1. 환경 변수 및 config 파일 복사(개발자 문의 필요: hjkang@idealbloom.io)
+### 0. git clone 후 새로 만들려는 프로젝트명으로 변경
 
-- .env
-
-.env에는 기본적으로 아래 변수들이 필요합니다.<br> DATABASE_URL <br> SHADOW_DATABASE_URL
-
-> ex) <br>DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/myApi?schema=public" SHADOW_DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/shadowdb"
-
-### 2. Project Customizing
-
-보일러 플레이트를 클론한 후 설정값들 중 일부를(ex DB Name, api process name, ...) 사용하려고 하는 프로젝트의 값들로 바꿔줍니다.
-
-- Docker DB volume 설정 변경
+1. package.json
+   - "name" 변경
+   - "scripts"에 "stop" 스크립트 ex) "pm2 delete $(exec pm2 list | awk '/travelit-api/ {print $2}')",
+2. ecosystem.config.js
+   - name 변경
+3. .env
+   - .env 파일을 개발자를 통해 받은후 DATABASE_URL끝에 데이터베이스 이름을 새 프로젝트에서 사용할 데이터베이스명으로 변경<br> ex) DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3323/travelit-api"
+4. docker-compose.yml
+   - .env 파일에서 설정한 포트명과 데이터베이스 명으로 바꿔준다.
 
 ```yml
-# docker-compose.yml
-MYSQL_DATABASE: customized_name
-ports:
-  - xxxx:3306
+services:
+  mysql:
+    image: mysql
+    platform: linux/amd64
+    restart: always
+    ports:
+      - <PORT>:3306
+    environment:
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_ROOT_PASSWORD: root1
+      MYSQL_DATABASE: <project name>
+      MYSQL_USER: idealbloom
+      MYSQL_PASSWORD: idealbloom1
 ```
 
-- .env DATABASE_URL, SHADOW_DATABASE_URL 등을 수정해줍니다.
-
-```
-DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:<b>xxxx/customized_name</b>"
-SHADOW_DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:<b>xxxx</b>/shadowdb"
-
-JWT_SECRET=new_password_xxxx
-```
-
-- process manager(pm2) process name 변경
-
-```javascript
-// ecosystem.config.js
-module.exports = {
-    apps: [
-      {
-        name: 'myNewProject',// <== 수정
-        script: 'ts-node -r tsconfig-paths/register ./src/server.ts --watch',
-        time: true,
-        watch: true,
-        ...
-}
-
-```
-
-- node 프로젝트 name 수정
-
-```json
-// package.json
-{
-    "name": "myNewProject", // <== 수정
-    "version": "1.0.0",
-    "main": "index.js",
-    "author": "hjkangIB <hjkang@idealbloom.io>",
-    // ...중략...//
-
-    "scripts": {
-        "start": "yarn start:dev",
-        "stop": "pm2 delete $(exec pm2 list | awk '/pineappleHomePage/ {print $2}')", // <== awk '/<customized_name>/ {print $2}' 수정(ecosystem.config.js 에 기입한 name과 동일하게 수정합니다.)
-        "restart": "yarn stop; yarn start",
-        // ... 중략 ... //
-}
-```
-
-### 3. MySQL docker setting
+### 1. MySQL docker setting
 
 ```shell
 $ docker-compose up -d
@@ -86,7 +49,15 @@ CONTAINER ID   IMAGE     COMMAND                  CREATED        STATUS       PO
 ce43b2497247   mysql     "docker-entrypoint.s…"   10 days ago    Up 10 days   33060/tcp, 0.0.0.0:3322->3306/tcp   ts-prisma-boilerplate_mysql_1
 ```
 
-### 4. 서버실행
+### 2. 환경 변수 및 config 파일 복사(개발자 문의 필요: hjkang@idealbloom.io)
+
+- .env
+
+.env에는 기본적으로 아래 변수들이 필요합니다.<br> DATABASE_URL <br> SHADOW_DATABASE_URL
+
+> ex) <br>DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/myApi?schema=public" SHADOW_DATABASE_URL="mysql://idealbloom:idealbloom1@localhost:3322/shadowdb"
+
+### 3. 서버실행
 
 ```shell
 $ yarn # node_module 설치
@@ -98,7 +69,7 @@ $ yarn seed # 기본 db data seeding
 $ yarn start # default dev 모드 실행(= yarn start:dev)
 ```
 
-### 5. 서버 재시작 및 중지 명령어
+### 4. 서버 재시작 및 중지 명령어
 
 ```shell
 $ yarn restart
