@@ -5,6 +5,7 @@ import passport from 'passport';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth';
+import scheduleRouter from './routes/schedule';
 
 import passportConfig from './passport';
 
@@ -32,6 +33,7 @@ app.use(passport.initialize());
 passportConfig(passport);
 
 app.use('/auth', authRouter);
+app.use('/schedule', scheduleRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.send('hello world!!!');
