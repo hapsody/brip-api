@@ -1,5 +1,5 @@
 {
-  "name": "ts-prisma-restful-bp",
+  "name": "travelit-api",
   "version": "1.0.0",
   "main": "index.js",
   "author": "hjkangIB <hjkang@idealbloom.io>",
@@ -9,7 +9,7 @@
     "start:dev": "pm2 start ecosystem.config.js --env development",
     "start:prod": "pm2 start ecosystem.config.js --env production",
     "start": "yarn start:dev",
-    "stop": "pm2 delete $(exec pm2 list | awk '/ts-prisma-restful-bp/ {print $2}')",
+    "stop": "pm2 delete $(exec pm2 list | awk '/travelit-api/ {print $2}')",
     "restart": "yarn stop; yarn start",
     "eslint": "eslint --ext .js,.jsx,.ts,.tsx src",
     "format": "prettier --write \"src/**/*.{ts,tsx,js, json,html}\"",

@@ -1,4 +1,4 @@
-version: "3.6"
+version: '3.6'
 
 services:
   mysql:
@@ -6,11 +6,11 @@ services:
     platform: linux/amd64
     restart: always
     ports:
-      - 3322:3306
+      - 3323:3306
     environment:
       MYSQL_ROOT_HOST: localhost
       MYSQL_ROOT_PASSWORD: root1
-      MYSQL_DATABASE: myApi
+      MYSQL_DATABASE: travelit-api
       MYSQL_USER: idealbloom
       MYSQL_PASSWORD: idealbloom1
 
