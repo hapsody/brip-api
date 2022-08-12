@@ -19,3 +19,65 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
+
+// enum OPENINGHOURS {
+//   OPEN_NOW
+// }
+
+model GglPhotos {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  height             Int?
+  width              Int?
+  html_attributuions String?
+  photo_reference    String
+
+  gglNearbySearchRes GglNearbySearchRes[]
+}
+
+model GglPlusCode {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  compund_code String
+  global_code  String
+
+  gglNearbySearchRes GglNearbySearchRes[]
+}
+
+model Gglgeometry {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  location           String
+  viewport           String
+  GglNearbySearchRes GglNearbySearchRes[]
+}
+
+model GglNearbySearchRes {
+  id                    Int          @id @default(autoincrement())
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @default(now())
+  geometry              Gglgeometry? @relation(fields: [gglgeometryId], references: [id])
+  icon                  String?
+  icon_background_color String?
+  icon_mask_base_uri    String?
+  name                  String?
+  opening_hours         Boolean
+  place_id              String?
+  price_level           Int?
+  rating                Float?
+  reference             String?
+  scope                 String?
+  types                 String?
+  user_ratings_total    Int?
+  vicinity              String?
+  plus_code             GglPlusCode? @relation(fields: [plus_codeId], references: [id])
+  plus_codeId           Int?
+  photos                GglPhotos[]
+  gglgeometryId         Int?
+}
