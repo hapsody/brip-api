@@ -36,50 +36,70 @@ export const nearbySearch = asyncWrapper(
       // }>;
       // const results: google.maps.places.PlaceResult = response.data;
       const { results } = response.data as Partial<{
-        results: google.maps.places.PlaceResult[];
+        results: google.maps.places.IBPlaceResult[];
       }>;
 
-      const promises = results?.map((item: google.maps.places.PlaceResult) => {
-        return prisma.gglNearbySearchRes.create({
-          data: {
-            icon: item.icon,
-            icon_background_color: item.icon_background_color,
-            icon_mask_base_uri: item.icon_mask_base_uri,
-            name: item.name,
-            opening_hours:
-              (
-                item.opening_hours as Partial<{
-                  open_now: boolean;
-                }>
-              )?.open_now ?? false,
-            place_id: item.place_id,
-            price_level: item.price_level,
-            rating: item.rating,
-            reference: item.url,
-            types: JSON.stringify(item.types),
-            user_ratings_total: item.user_ratings_total,
-            vicinity: item.vicinity,
-            plus_code: {
-              create: {
-                compund_code: item.plus_code?.compound_code ?? '',
-                global_code: item.plus_code?.global_code ?? '',
+      const promises = results?.map(
+        (item: google.maps.places.IBPlaceResult) => {
+          return prisma.gglNearbySearchRes.create({
+            data: {
+              geometry: {
+                create: {
+                  location: JSON.stringify({
+                    lat: item.geometry?.location?.lat,
+                    lng: item.geometry?.location?.lng,
+                  }),
+                  viewport: JSON.stringify({
+                    northeast: {
+                      lat: item.geometry?.viewport?.northeast?.lat,
+                      lng: item.geometry?.viewport?.northeast?.lng,
+                    },
+                    southwest: {
+                      lat: item.geometry?.viewport?.southwest?.lat,
+                      lng: item.geometry?.viewport?.southwest?.lng,
+                    },
+                  }),
+                },
+              },
+              icon: item.icon,
+              icon_background_color: item.icon_background_color,
+              icon_mask_base_uri: item.icon_mask_base_uri,
+              name: item.name,
+              opening_hours:
+                (
+                  item.opening_hours as Partial<{
+                    open_now: boolean;
+                  }>
+                )?.open_now ?? false,
+              place_id: item.place_id,
+              price_level: item.price_level,
+              rating: item.rating,
+              reference: item.url,
+              types: JSON.stringify(item.types),
+              user_ratings_total: item.user_ratings_total,
+              vicinity: item.vicinity,
+              plus_code: {
+                create: {
+                  compund_code: item.plus_code?.compound_code ?? '',
+                  global_code: item.plus_code?.global_code ?? '',
+                },
+              },
+              photos: {
+                create: item.photos?.map(photo => {
+                  return {
+                    height: photo.height,
+                    width: photo.width,
+                    html_attributuions: JSON.stringify(photo.html_attributions),
+                    photo_reference:
+                      (photo as Partial<{ photo_reference: string }>)
+                        .photo_reference ?? '',
+                  };
+                }),
               },
             },
-            photos: {
-              create: item.photos?.map(photo => {
-                return {
-                  height: photo.height,
-                  width: photo.width,
-                  html_attributuions: JSON.stringify(photo.html_attributions),
-                  photo_reference:
-                    (photo as Partial<{ photo_reference: string }>)
-                      .photo_reference ?? '',
-                };
-              }),
-            },
-          },
-        });
-      });
+          });
+        },
+      );
 
       if (promises) await Promise.all(promises);
     }
