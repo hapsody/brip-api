@@ -71,8 +71,6 @@ model GglNearbySearchRes {
   place_id              String?
   price_level           Int?
   rating                Float?
-  reference             String?
-  scope                 String?
   types                 String?
   user_ratings_total    Int?
   vicinity              String?
