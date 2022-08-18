@@ -6,7 +6,7 @@
   "env": {
     "node": true
   },
-  "rules":{
+  "rules": {
     "import/extensions": ["error", "never"],
     "import/no-unresolved": "error",
     "no-console": "off",
@@ -19,15 +19,16 @@
     "@typescript-eslint/no-unsafe-assignment": 1
   },
   // "baseUrl":"./src",
-  "settings":{
-    "import/resolver": { // eslint-plugin-import 의 경로 설정 옵션. 여기서 노드에서 사용되는 경로부분을 src 로 적어주면 절대경로를 인식하는 원리이다.
+  "settings": {
+    "import/resolver": {
+      // eslint-plugin-import 의 경로 설정 옵션. 여기서 노드에서 사용되는 경로부분을 src 로 적어주면 절대경로를 인식하는 원리이다.
       "node": {
-        "extensions": [".ts", ".tsx", "js","jsx"]
+        "extensions": [".ts", ".tsx", "js", "jsx"]
       },
       "typescript": {} // this loads <rootdir>/tsconfig.json to eslint
     }
   },
-  "plugins":["@typescript-eslint", "prettier"],
+  "plugins": ["@typescript-eslint", "prettier"],
   "extends": [
     // 1. Airbnb style guide 적용
     "airbnb-base", // for javascript

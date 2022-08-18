@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+
 import express, { Express } from 'express';
 // import prisma from '@src/prisma';
 import { ibDefs, asyncWrapper, IBResFormat } from '@src/utils';
@@ -113,7 +114,7 @@ export const nearbySearch = asyncWrapper(
   },
 );
 
-export const searchHotel = asyncWrapper(
+export const addMockHotelResource = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<{
       orderBy?: // default popularity
@@ -176,6 +177,79 @@ export const searchHotel = asyncWrapper(
       },
     };
     const response = await axios.request(options);
+
+    const data = JSON.stringify(response.data);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    await prisma.mockBookingDotComHotelResource.create({
+      data: {
+        responseData: data,
+      },
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: response.data as object,
+    });
+  },
+);
+
+// export const readMockHotelResource = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<{}>,
+//     res: Express.IBTypedResponse<IBResFormat>,
+//   ) => {
+//     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+//     const result = await readHotelDataFromMock();
+
+//     res.json({
+//       ...ibDefs.SUCCESS,
+//       IBparams: result ? (JSON.parse(result.responseData) as Object) : {},
+//     });
+//   },
+// );
+
+export const searchHotel = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{
+      orderBy?: // default popularity
+      | 'popularity'
+        | 'class_ascending'
+        | 'class_descending'
+        | 'distance'
+        | 'upsort_bh'
+        | 'review_score'
+        | 'price';
+      adultsNumber: number;
+      // units: 'metric';
+      roomNumber?: number; // Number of rooms
+      checkinDate: Date; // '2022-09-30';
+      checkoutDate: Date; // '2022-10-01';
+      filterByCurrency?: 'USD' | 'KRW'; // default USD;
+      // locale: 'en-us';
+      latitude: string; // 위도좌표 ex) 21.4286856;
+      longitude: string; // 경도 ex) -158.1389763;
+      pageNumber?: number; // default 0;
+      includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
+      mock?: boolean; // default true
+    }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const {
+      body: {
+        orderBy,
+        adultsNumber,
+        roomNumber,
+        checkinDate,
+        checkoutDate,
+        filterByCurrency,
+        latitude: paramLat,
+        longitude: paramLngt,
+        pageNumber,
+        includeAdjacency,
+        mock,
+      },
+    } = req;
+
     // console.log(JSON.stringify(response, null, 2));
     type SearchedData = Omit<
       SearchHotelRes,
@@ -208,10 +282,48 @@ export const searchHotel = asyncWrapper(
       };
     };
 
-    const { result } = response.data as { result: SearchedData[] };
+    const data = await (async () => {
+      if (mock) {
+        const responseData =
+          await prisma.mockBookingDotComHotelResource.findFirst();
+        const { result } = responseData
+          ? (JSON.parse(responseData?.responseData) as {
+              result: SearchedData[];
+            })
+          : { result: [] };
+        return result;
+      }
+      const options = {
+        method: 'GET' as Method,
+        url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
+        params: {
+          order_by: orderBy ?? 'popularity',
+          adults_number: adultsNumber.toString(),
+          units: 'metric',
+          room_number: roomNumber ? roomNumber.toString() : '1',
+          checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
+          checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
+          filter_by_currency: filterByCurrency ?? 'USD',
+          locale: 'en-us',
+          latitude: paramLat.toString(),
+          longitude: paramLngt.toString(),
+          page_number: pageNumber ? pageNumber.toString() : '0',
+          include_adjacency: includeAdjacency ?? 'false',
+        },
+        headers: {
+          'X-RapidAPI-Key':
+            'ed5143522dmsh08a8f16dd35fd7ap1433aajsn5ba513b80047',
+          'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+        },
+      };
+      const response = await axios.request(options);
+
+      const { result } = response.data as { result: SearchedData[] };
+      return result;
+    })();
 
     // eslint-disable-next-line no-restricted-syntax
-    for await (const item of result) {
+    for await (const item of data) {
       const {
         min_total_price,
         composite_price_breakdown: {
@@ -288,7 +400,7 @@ export const searchHotel = asyncWrapper(
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: response.data as object,
+      IBparams: data as object,
     });
   },
 );
@@ -407,6 +519,8 @@ export const searchHotel = asyncWrapper(
 
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
+scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
+
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 
 export default scheduleRouter;
