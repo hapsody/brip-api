@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["interactiveTransactions"]
 }
 
 datasource db {
@@ -12,7 +13,7 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   email     String   @unique
   password  String
   name      String?
@@ -25,7 +26,7 @@ model User {
 // }
 
 model GglPhotos {
-  id        Int      @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -38,7 +39,7 @@ model GglPhotos {
 }
 
 model GglPlusCode {
-  id        Int      @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -49,7 +50,7 @@ model GglPlusCode {
 }
 
 model Gglgeometry {
-  id        Int      @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -59,10 +60,11 @@ model Gglgeometry {
 }
 
 model GglNearbySearchRes {
-  id                    Int          @id @default(autoincrement())
+  id                    BigInt       @id @default(autoincrement())
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @default(now())
   geometry              Gglgeometry? @relation(fields: [gglgeometryId], references: [id])
+  gglgeometryId         BigInt?
   icon                  String?
   icon_background_color String?
   icon_mask_base_uri    String?
@@ -75,13 +77,37 @@ model GglNearbySearchRes {
   user_ratings_total    Int?
   vicinity              String?
   plus_code             GglPlusCode? @relation(fields: [plus_codeId], references: [id])
-  plus_codeId           Int?
+  plus_codeId           BigInt?
   photos                GglPhotos[]
-  gglgeometryId         Int?
+  QueryParams           QueryParams? @relation(fields: [queryParamsId], references: [id])
+  queryParamsId         BigInt?
+}
+
+model QueryParams {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
+  latitude  String /// -90 ~ 90
+  longitude String /// -180 ~ 180 
+  radius    Float? /// unit: km, ex) 20
+
+  // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
+  hotelOrderBy          String /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
+  hotelAdultsNumber     Int /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
+  hotelUnits            String /// metric | imperial ex) metric
+  hotelRoomNumber       Int ///  Number of rooms ex) 1
+  hotelCheckinDate      DateTime /// '2022-09-30';
+  hotelCheckoutDate     DateTime /// '2022-10-01';
+  hotelFilterByCurrency String /// default USD, 'USD' | 'KRW'; 
+  searchHotelRes        SearchHotelRes[]
+  searchHotelResId      BigInt?
+  gglNearbySearchRes    GglNearbySearchRes[]
+  gglNearbySearchResId  BigInt?
 }
 
 model SearchHotelRes {
-  id        Int      @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -106,7 +132,7 @@ model SearchHotelRes {
   timezone                String /// ex) "Pacific/Honolulu",
   urgency_message         String? ///ex) "Only 1 left at this price on Booking.com"
   hotel_id                Int /// ex) 174704674
-  // hotel_name_trans                  String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
+  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
   hotel_name              String ///  ex) Marriott's Ko Olina Beach Club
   latitude                Float /// 호텔 위도 ex) 21.3307348165897
   longitude               Float /// 호텔 경도 ex) -158.121508732438
@@ -115,12 +141,14 @@ model SearchHotelRes {
   zip                     String /// ex) HI 96792
   main_photo_url          String /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
   max_photo_url           String /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  hotel_facilities        String  @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  hotel_facilities        String      @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
+  QueryParams             QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParamsId           BigInt
 }
 
 model MockBookingDotComHotelResource {
-  id           Int      @id @default(autoincrement())
+  id           BigInt   @id @default(autoincrement())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now())
   responseData String   @db.LongText

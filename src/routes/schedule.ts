@@ -5,7 +5,7 @@ import express, { Express } from 'express';
 import { ibDefs, asyncWrapper, IBResFormat } from '@src/utils';
 import axios, { Method } from 'axios';
 import prisma from '@src/prisma';
-import { SearchHotelRes } from '@prisma/client';
+import { PrismaClient, SearchHotelRes } from '@prisma/client';
 import moment from 'moment';
 
 const scheduleRouter: express.Application = express();
@@ -322,64 +322,46 @@ export const searchHotel = asyncWrapper(
       return result;
     })();
 
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const item of data) {
-      const {
-        min_total_price,
-        composite_price_breakdown: {
-          product_price_breakdowns: [
-            {
-              gross_amount: { value: gross_amount },
-            },
-          ],
-          included_taxes_and_charges_amount: {
-            value: included_taxes_and_charges_amount,
-          },
-          net_amount: { value: net_amount },
-        },
-        countrycode,
-        default_language,
-        address,
-        city,
-        city_name_en,
-        checkin: { from: checkin },
-        checkout: { until: checkout },
-        distance,
-        review_score_word,
-        review_score,
-        // currency,
-        currency_code,
-        timezone,
-        urgency_message,
-        hotel_id,
-        hotel_name,
-        latitude,
-        longitude,
-        url,
-        accommodation_type_name,
-        zip,
-        main_photo_url,
-        max_photo_url,
-        hotel_facilities,
-        // has_swimming_pool,
-      } = item;
-
-      await prisma.searchHotelRes.create({
+    await prisma.$transaction(async (prismaX: PrismaClient) => {
+      const queryParamResult = await prismaX.queryParams.create({
         data: {
+          latitude: paramLat,
+          longitude: paramLngt,
+          hotelOrderBy: orderBy ?? 'popularity',
+          hotelAdultsNumber: adultsNumber,
+          hotelUnits: 'metric',
+          hotelRoomNumber: roomNumber ?? 1,
+          hotelCheckinDate: new Date(checkinDate),
+          hotelCheckoutDate: new Date(checkoutDate),
+          hotelFilterByCurrency: filterByCurrency ?? 'USD',
+        },
+      });
+
+      const createSearchHotelResPromises = data.map(item => {
+        const {
           min_total_price,
-          gross_amount,
-          included_taxes_and_charges_amount,
-          net_amount,
+          composite_price_breakdown: {
+            product_price_breakdowns: [
+              {
+                gross_amount: { value: gross_amount },
+              },
+            ],
+            included_taxes_and_charges_amount: {
+              value: included_taxes_and_charges_amount,
+            },
+            net_amount: { value: net_amount },
+          },
           countrycode,
           default_language,
           address,
           city,
           city_name_en,
-          checkin,
-          checkout,
-          distance: parseFloat(distance),
+          checkin: { from: checkin },
+          checkout: { until: checkout },
+          distance,
           review_score_word,
           review_score,
+          // currency,
           currency_code,
           timezone,
           urgency_message,
@@ -394,9 +376,49 @@ export const searchHotel = asyncWrapper(
           max_photo_url,
           hotel_facilities,
           // has_swimming_pool,
-        },
+        } = item;
+
+        return prismaX.searchHotelRes.create({
+          data: {
+            QueryParams: {
+              connect: {
+                id: queryParamResult.id,
+              },
+            },
+            min_total_price,
+            gross_amount,
+            included_taxes_and_charges_amount,
+            net_amount,
+            countrycode,
+            default_language,
+            address,
+            city,
+            city_name_en,
+            checkin,
+            checkout,
+            distance: parseFloat(distance),
+            review_score_word,
+            review_score,
+            currency_code,
+            timezone,
+            urgency_message,
+            hotel_id,
+            hotel_name,
+            latitude,
+            longitude,
+            url,
+            accommodation_type_name,
+            zip,
+            main_photo_url,
+            max_photo_url,
+            hotel_facilities,
+            // has_swimming_pool,
+          },
+        });
       });
-    }
+
+      await Promise.all(createSearchHotelResPromises);
+    });
 
     res.json({
       ...ibDefs.SUCCESS,
