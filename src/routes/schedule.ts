@@ -599,6 +599,25 @@ export const compositeSearch = asyncWrapper(
   },
 );
 
+const getListQueryParamsInnerAsyncFn = async () => {
+  const queryParamsDataFromDB = await prisma.queryParams.findMany();
+  return queryParamsDataFromDB;
+};
+
+const getListQueryParams = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{}>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn();
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: queryParamsDataFromDB as object,
+    });
+  },
+);
+
 // export const validNearbySearchPageToken = asyncWrapper(
 //   async (
 //     req: Express.IBTypedReqBody<{
@@ -715,7 +734,7 @@ scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
-
+scheduleRouter.post('/getListQueryParams', getListQueryParams);
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 
 export default scheduleRouter;
