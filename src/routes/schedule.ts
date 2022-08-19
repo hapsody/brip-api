@@ -594,8 +594,16 @@ export const compositeSearch = asyncWrapper(
   },
 );
 
-const getListQueryParamsInnerAsyncFn = async () => {
+interface GetListQueryParamsReqParams {
+  id?: number;
+}
+
+const getListQueryParamsInnerAsyncFn = async (
+  params: GetListQueryParamsReqParams,
+) => {
+  const { id } = params;
   const queryParamsDataFromDB = await prisma.queryParams.findMany({
+    where: id ? { id } : undefined,
     include: {
       gglNearbySearchRes: true,
       searchHotelRes: true,
@@ -606,10 +614,11 @@ const getListQueryParamsInnerAsyncFn = async () => {
 
 const getListQueryParams = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<{}>,
+    req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn();
+    const params = req.body;
+    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
 
     res.json({
       ...ibDefs.SUCCESS,
