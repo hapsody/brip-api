@@ -13,7 +13,7 @@ datasource db {
 }
 
 model User {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String
   name      String?
@@ -26,7 +26,7 @@ model User {
 // }
 
 model GglPhotos {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -39,7 +39,7 @@ model GglPhotos {
 }
 
 model GglPlusCode {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -50,7 +50,7 @@ model GglPlusCode {
 }
 
 model Gglgeometry {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -60,11 +60,11 @@ model Gglgeometry {
 }
 
 model GglNearbySearchRes {
-  id                    BigInt       @id @default(autoincrement())
+  id                    Int          @id @default(autoincrement())
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @default(now())
   geometry              Gglgeometry? @relation(fields: [gglgeometryId], references: [id])
-  gglgeometryId         BigInt?
+  gglgeometryId         Int?
   icon                  String?
   icon_background_color String?
   icon_mask_base_uri    String?
@@ -77,14 +77,14 @@ model GglNearbySearchRes {
   user_ratings_total    Int?
   vicinity              String?
   plus_code             GglPlusCode? @relation(fields: [plus_codeId], references: [id])
-  plus_codeId           BigInt?
+  plus_codeId           Int?
   photos                GglPhotos[]
   QueryParams           QueryParams? @relation(fields: [queryParamsId], references: [id])
-  queryParamsId         BigInt?
+  queryParamsId         Int?
 }
 
 model QueryParams {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
   keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
@@ -105,7 +105,7 @@ model QueryParams {
 }
 
 model SearchHotelRes {
-  id        BigInt   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
@@ -142,11 +142,11 @@ model SearchHotelRes {
   hotel_facilities        String      @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
   QueryParams             QueryParams @relation(fields: [queryParamsId], references: [id])
-  queryParamsId           BigInt
+  queryParamsId           Int
 }
 
 model MockBookingDotComHotelResource {
-  id           BigInt   @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now())
   responseData String   @db.LongText

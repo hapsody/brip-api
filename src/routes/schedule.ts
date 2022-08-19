@@ -101,11 +101,6 @@ const defaultSearchHotelReqParams = {
   mock: true,
 };
 
-// @ts-ignore: Unreachable code error
-BigInt.prototype.toJSON = (): number => {
-  return Number(this);
-};
-
 const createQueryParamId = async (
   prismaX: Omit<
     PrismaClient<
@@ -116,7 +111,7 @@ const createQueryParamId = async (
     '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
   >,
   params: QueryParams,
-  ifAlreadyQueryId?: bigint,
+  ifAlreadyQueryId?: number,
 ) => {
   const { nearbySearchReqParams, searchHotelReqParams } = params;
   const {
@@ -158,7 +153,7 @@ const createQueryParamId = async (
 
 const nearbySearchInnerAsyncFn = async (
   queryParams: QueryParams,
-  ifAlreadyQueryId?: bigint,
+  ifAlreadyQueryId?: number,
 ) => {
   const {
     nearbySearchReqParams: { location, radius, pageToken, keyword },
@@ -173,7 +168,7 @@ const nearbySearchInnerAsyncFn = async (
 
   const response = await axios.get(queryUrl);
 
-  let queryParamId: bigint = BigInt(-1);
+  let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
     await prisma.$transaction(async prismaX => {
@@ -372,7 +367,7 @@ export const addMockHotelResource = asyncWrapper(
 
 const searchHotelInnerAsyncFn = async (
   queryParams: QueryParams,
-  ifAlreadyQueryId?: bigint,
+  ifAlreadyQueryId?: number,
 ) => {
   const { searchHotelReqParams } = queryParams;
   // const {
@@ -434,7 +429,7 @@ const searchHotelInnerAsyncFn = async (
     return result;
   })();
 
-  let queryParamId: bigint = BigInt(-1);
+  let queryParamId: number = -1;
   await prisma.$transaction(async (prismaX: PrismaClient) => {
     // const queryParamResult = await prismaX.queryParams.create({
     //   data: {
@@ -600,7 +595,12 @@ export const compositeSearch = asyncWrapper(
 );
 
 const getListQueryParamsInnerAsyncFn = async () => {
-  const queryParamsDataFromDB = await prisma.queryParams.findMany();
+  const queryParamsDataFromDB = await prisma.queryParams.findMany({
+    include: {
+      gglNearbySearchRes: true,
+      searchHotelRes: true,
+    },
+  });
   return queryParamsDataFromDB;
 };
 
