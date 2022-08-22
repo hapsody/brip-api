@@ -15,7 +15,8 @@ import moment from 'moment';
 import { omit } from 'lodash';
 
 const scheduleRouter: express.Application = express();
-
+const spotPerDay = 3;
+const hotelPerDay = 1;
 interface NearBySearchReqParams {
   keyword: string;
   location: {
@@ -712,30 +713,84 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
-// interface GetRecommendListReqParams {}
-// const getRecommendListInnerAsyncFn = async (
-//   params: GetRecommendListReqParams,
-// ) => {
-//   console.log(params);
-//   const queryParamsDataFromDB: object = {};
-//   return queryParamsDataFromDB;
-// };
+const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
+  const mCheckinDate = moment(checkinDate);
+  const mCheckoutDate = moment(checkoutDate);
 
-// const getRecommendList = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<GetRecommendListReqParams>,
-//     res: Express.IBTypedResponse<IBResFormat>,
-//   ) => {
-//     // const params = req.body;
+  return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
+};
+interface GetRecommendListReqParams {
+  searchCond: QueryParams;
+  evalCond: GetListQueryParamsReqParams;
+}
+const getRecommendListInnerAsyncFn = async (
+  params: GetRecommendListReqParams,
+) => {
+  const { searchCond, evalCond } = params;
 
-//     const recommendData = await getRecommendListInnerAsyncFn(params);
+  // Do composite search
+  const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
+  await nearbySearchInnerAsyncFn(searchCond, queryParamId);
 
-//     res.json({
-//       ...ibDefs.SUCCESS,
-//       IBparams: recommendData,
-//     });
-//   },
-// );
+  const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
+  // Get high priority candidate data from composite search result.
+  const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+    getListQueryParamsWithId,
+  );
+
+  const travelDays = getTravelDays(
+    searchCond.searchHotelReqParams.checkinDate,
+    searchCond.searchHotelReqParams.checkoutDate,
+  );
+
+  const arr = Array.from(Array(travelDays));
+  type VisitSchedules = { spot: {}[]; hotel: {}[] }[];
+
+  const { searchHotelRes, gglNearbySearchRes } = queryParamsDataFromDB[0];
+
+  const visitSchedules: VisitSchedules = [];
+  arr.reduce((acc: VisitSchedules, cur, idx) => {
+    const thatDaySpot = gglNearbySearchRes.slice(
+      idx * spotPerDay,
+      (idx + 1) * spotPerDay <= gglNearbySearchRes.length
+        ? (idx + 1) * spotPerDay
+        : gglNearbySearchRes.length - 1,
+    );
+    const thatDayHotel = searchHotelRes.slice(
+      idx * hotelPerDay,
+      (idx + 1) * hotelPerDay <= searchHotel.length
+        ? (idx + 1) * hotelPerDay
+        : gglNearbySearchRes.length - 1,
+    );
+    acc.push({
+      spot: thatDaySpot,
+      hotel: thatDayHotel,
+    });
+
+    return acc;
+  }, visitSchedules);
+
+  const recommendList = {
+    ...omit(queryParamsDataFromDB[0], ['gglNearbySearchRes', 'searchHotelRes']),
+    visitSchedules,
+  };
+
+  return recommendList;
+};
+
+const getRecommendList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetRecommendListReqParams>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const params = req.body;
+    const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: recommendListFromDB as object,
+    });
+  },
+);
 
 const prismaTest = asyncWrapper(
   async (
@@ -875,7 +930,7 @@ scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
-// scheduleRouter.post('/getRecommendList', getRecommendList);
+scheduleRouter.post('/getRecommendList', getRecommendList);
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 scheduleRouter.post('/prismaTest', prismaTest);
 export default scheduleRouter;
