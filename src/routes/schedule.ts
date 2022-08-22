@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import moment from 'moment';
+import { omit } from 'lodash';
 
 const scheduleRouter: express.Application = express();
 
@@ -632,12 +633,13 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
+type OrderSortType = 'desc' | 'asc';
 interface GetRecommendListReqParams {
   id?: number;
   hotelSearch?: {
     orderBy?: {
       column: keyof SearchHotelRes;
-      sort?: 'desc' | 'asc';
+      sort?: OrderSortType;
     }[];
     // select?: [keyof SearchHotelRes];
     select?: Record<keyof SearchHotelRes, boolean>;
@@ -645,7 +647,7 @@ interface GetRecommendListReqParams {
   nearbySearch?: {
     orderBy?: {
       column: keyof GglNearbySearchRes;
-      sort?: 'desc' | 'asc';
+      sort?: OrderSortType;
     }[];
     // select?: [keyof NearBySearchReqParams];
     select?: Record<keyof GglNearbySearchRes, boolean>;
@@ -658,29 +660,73 @@ const getRecommendListInnerAsyncFn = async (
   const { id, hotelSearch, nearbySearch: nearbySearchX } = params;
   const hotelOrderBy = hotelSearch!.orderBy;
   const nearbyOrderBy = nearbySearchX!.orderBy;
-  const queryParamsDataFromDB = await prisma.queryParams.findMany({
+  const cond: {
+    where: { id: number } | undefined;
+    include: {
+      searchHotelRes: {
+        select?: Record<keyof SearchHotelRes, boolean>;
+        orderBy?:
+          | {
+              [x: string]: OrderSortType;
+            }[]
+          | undefined;
+      };
+      gglNearbySearchRes: {
+        select?: Record<keyof GglNearbySearchRes, boolean>;
+        orderBy?:
+          | {
+              [x: string]: OrderSortType;
+            }[]
+          | undefined;
+      };
+    };
+  } = {
     where: id ? { id } : undefined,
     include: {
-      searchHotelRes:
-        hotelOrderBy && hotelOrderBy.length > 0
-          ? {
-              select: hotelSearch!.select ?? {},
-              orderBy: hotelOrderBy.map(item => {
+      searchHotelRes: {
+        select: hotelSearch!.select ?? undefined,
+        orderBy:
+          hotelOrderBy && hotelOrderBy.length > 0
+            ? hotelOrderBy.map(item => {
                 return { [`${item.column}`]: item?.sort ?? 'asc' };
-              }),
-            }
-          : true,
-      gglNearbySearchRes:
-        nearbyOrderBy && nearbyOrderBy.length > 0
-          ? {
-              select: nearbySearchX!.select,
-              orderBy: nearbyOrderBy.map(item => {
+              })
+            : undefined,
+      },
+      gglNearbySearchRes: {
+        select: nearbySearchX!.select ?? undefined,
+        orderBy:
+          nearbyOrderBy && nearbyOrderBy.length > 0
+            ? nearbyOrderBy.map(item => {
                 return { [`${item.column}`]: item?.sort ?? 'asc' };
-              }),
-            }
-          : true,
+              })
+            : undefined,
+      },
     },
-  });
+  };
+
+  if (!cond.include.searchHotelRes.select) {
+    const { searchHotelRes } = cond.include;
+    const newSearchHotelRes = omit(searchHotelRes, ['select']);
+    cond.include.searchHotelRes = newSearchHotelRes;
+  }
+  if (!cond.include.searchHotelRes.orderBy) {
+    const { searchHotelRes } = cond.include;
+    const newSearchHotelRes = omit(searchHotelRes, ['orderBy']);
+    cond.include.searchHotelRes = newSearchHotelRes;
+  }
+
+  if (!cond.include.gglNearbySearchRes.select) {
+    const { gglNearbySearchRes } = cond.include;
+    const newGglNearbySearchRes = omit(gglNearbySearchRes, ['select']);
+    cond.include.gglNearbySearchRes = newGglNearbySearchRes;
+  }
+  if (!cond.include.gglNearbySearchRes.orderBy) {
+    const { gglNearbySearchRes } = cond.include;
+    const newGglNearbySearchRes = omit(gglNearbySearchRes, ['orderBy']);
+    cond.include.gglNearbySearchRes = newGglNearbySearchRes;
+  }
+
+  const queryParamsDataFromDB = await prisma.queryParams.findMany(cond);
   return queryParamsDataFromDB;
 };
 
