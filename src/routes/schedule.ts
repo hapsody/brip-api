@@ -600,41 +600,8 @@ export const compositeSearch = asyncWrapper(
   },
 );
 
-interface GetListQueryParamsReqParams {
-  id?: number;
-}
-
-const getListQueryParamsInnerAsyncFn = async (
-  params: GetListQueryParamsReqParams,
-) => {
-  const { id } = params;
-  const queryParamsDataFromDB = await prisma.queryParams.findMany({
-    where: id ? { id } : undefined,
-    include: {
-      gglNearbySearchRes: true,
-      searchHotelRes: true,
-    },
-  });
-  return queryParamsDataFromDB;
-};
-
-const getListQueryParams = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
-    res: Express.IBTypedResponse<IBResFormat>,
-  ) => {
-    const params = req.body;
-    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
-
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: queryParamsDataFromDB as object,
-    });
-  },
-);
-
 type OrderSortType = 'desc' | 'asc';
-interface GetRecommendListReqParams {
+interface GetListQueryParamsReqParams {
   id?: number;
   hotelSearch?: {
     orderBy?: {
@@ -654,8 +621,8 @@ interface GetRecommendListReqParams {
   };
 }
 
-const getRecommendListInnerAsyncFn = async (
-  params: GetRecommendListReqParams,
+const getListQueryParamsInnerAsyncFn = async (
+  params: GetListQueryParamsReqParams,
 ) => {
   const { id, hotelSearch, nearbySearch: nearbySearchX } = params;
   const hotelOrderBy = hotelSearch!.orderBy;
@@ -730,21 +697,45 @@ const getRecommendListInnerAsyncFn = async (
   return queryParamsDataFromDB;
 };
 
-const getRecommendList = asyncWrapper(
+const getListQueryParams = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetRecommendListReqParams>,
+    req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
     const params = req.body;
-
-    const recommendData = await getRecommendListInnerAsyncFn(params);
+    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: recommendData as object,
+      IBparams: queryParamsDataFromDB as object,
     });
   },
 );
+
+// interface GetRecommendListReqParams {}
+// const getRecommendListInnerAsyncFn = async (
+//   params: GetRecommendListReqParams,
+// ) => {
+//   console.log(params);
+//   const queryParamsDataFromDB: object = {};
+//   return queryParamsDataFromDB;
+// };
+
+// const getRecommendList = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<GetRecommendListReqParams>,
+//     res: Express.IBTypedResponse<IBResFormat>,
+//   ) => {
+//     // const params = req.body;
+
+//     const recommendData = await getRecommendListInnerAsyncFn(params);
+
+//     res.json({
+//       ...ibDefs.SUCCESS,
+//       IBparams: recommendData,
+//     });
+//   },
+// );
 
 const prismaTest = asyncWrapper(
   async (
@@ -884,7 +875,7 @@ scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
-scheduleRouter.post('/getRecommendList', getRecommendList);
+// scheduleRouter.post('/getRecommendList', getRecommendList);
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 scheduleRouter.post('/prismaTest', prismaTest);
 export default scheduleRouter;
