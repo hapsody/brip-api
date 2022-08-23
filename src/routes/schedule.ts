@@ -158,9 +158,20 @@ const createQueryParamId = async (
   return queryParamResult.id;
 };
 
+const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
+  const mCheckinDate = moment(checkinDate);
+  const mCheckoutDate = moment(checkoutDate);
+
+  return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
+};
+
 const nearbySearchInnerAsyncFn = async (
   queryParams: QueryParams,
   ifAlreadyQueryId?: number,
+  compositeSearch?: {
+    checkinDate: Date;
+    checkoutDate: Date;
+  },
 ) => {
   const {
     nearbySearchReqParams: { location, radius, pageToken, keyword },
@@ -173,7 +184,40 @@ const nearbySearchInnerAsyncFn = async (
   }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
   console.log(queryUrl);
 
-  const response = await axios.get(queryUrl);
+  let response = await axios.get(queryUrl);
+  if (compositeSearch) {
+    const travelDays = getTravelDays(
+      compositeSearch.checkinDate,
+      compositeSearch.checkoutDate,
+    );
+    let { results } = response.data as Partial<{
+      results: google.maps.places.IBPlaceResult[];
+    }>;
+    const retryLimit = 5;
+    let retry = 1;
+    while (
+      results &&
+      results.length < travelDays * spotPerDay &&
+      retry <= retryLimit
+    ) {
+      const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
+        location?.latitude
+      }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
+        process.env.GCP_MAPS_APIKEY as string
+      }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
+      console.log(`[retry:${retry}]: ${reQueryUrl}`);
+
+      // eslint-disable-next-line no-await-in-loop
+      response = await axios.get(reQueryUrl);
+      results = (
+        response.data as Partial<{
+          results: google.maps.places.IBPlaceResult[];
+        }>
+      ).results;
+      // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
+      retry += 1;
+    }
+  }
 
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
@@ -261,7 +305,7 @@ const nearbySearchInnerAsyncFn = async (
       if (promises) await Promise.all(promises);
     });
   }
-  console.log(JSON.stringify(response.data, null, 2));
+  // console.log(JSON.stringify(response.data, null, 2));
   return { nearbySearchResult: results, queryParamId };
 };
 
@@ -433,6 +477,7 @@ const searchHotelInnerAsyncFn = async (
     const response = await axios.request(options);
 
     const { result } = response.data as { result: SearchedData[] };
+
     return result;
   })();
 
@@ -589,6 +634,10 @@ export const compositeSearch = asyncWrapper(
     const { nearbySearchResult } = await nearbySearchInnerAsyncFn(
       queryParams,
       queryParamId,
+      {
+        checkinDate: queryParams.searchHotelReqParams.checkinDate,
+        checkoutDate: queryParams.searchHotelReqParams.checkoutDate,
+      },
     );
 
     res.json({
@@ -713,12 +762,6 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
-const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
-  const mCheckinDate = moment(checkinDate);
-  const mCheckoutDate = moment(checkoutDate);
-
-  return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
-};
 interface GetRecommendListReqParams {
   searchCond: QueryParams;
   evalCond: GetListQueryParamsReqParams;
@@ -730,7 +773,10 @@ const getRecommendListInnerAsyncFn = async (
 
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
-  await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+  await nearbySearchInnerAsyncFn(searchCond, queryParamId, {
+    checkinDate: searchCond.searchHotelReqParams.checkinDate,
+    checkoutDate: searchCond.searchHotelReqParams.checkoutDate,
+  });
 
   const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
   // Get high priority candidate data from composite search result.
