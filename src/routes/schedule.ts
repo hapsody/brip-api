@@ -141,7 +141,7 @@ const createQueryParamId = async (
     // mock
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
-  if (ifAlreadyQueryId) return ifAlreadyQueryId;
+  if (ifAlreadyQueryId && ifAlreadyQueryId > 0) return ifAlreadyQueryId;
 
   const queryParamResult = await prismaX.queryParams.create({
     data: {
@@ -335,15 +335,110 @@ const nearbySearchInnerAsyncFn = async (
   };
 };
 
+const getAllNearbySearchPages = async (
+  queryParams: QueryParams,
+  ifAlreadyQueryId?: number,
+  loopLoadAll = false,
+): Promise<google.maps.places.IBPlaceResult[]> => {
+  let retry = 1;
+  const retryLimit = 5;
+
+  // do while loop
+  // do {
+  //   const loopQueryParams: QueryParams = {
+  //     nearbySearchReqParams: {
+  //       ...queryParams.nearbySearchReqParams,
+  //       pageToken: loopPageToken ?? '',
+  //     },
+  //     searchHotelReqParams: queryParams.searchHotelReqParams,
+  //   };
+  //   // eslint-disable-next-line no-await-in-loop
+  //   const loopTemp = await nearbySearchInnerAsyncFn(
+  //     loopQueryParams,
+  //     queryParamId,
+  //   );
+
+  //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
+  //   loopPageToken = loopTemp.pageToken ?? '';
+  //   retry += 1;
+  //   console.log(retry);
+  // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
+
+  // recursion
+  const loopFunc = async (curPageToken: string) => {
+    const loopQueryParams: QueryParams = {
+      nearbySearchReqParams: {
+        ...queryParams.nearbySearchReqParams,
+        pageToken: curPageToken ?? '',
+      },
+      searchHotelReqParams: queryParams.searchHotelReqParams,
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const loopTemp = await nearbySearchInnerAsyncFn(
+      loopQueryParams,
+      ifAlreadyQueryId,
+    );
+
+    const nextPageToken = loopTemp.pageToken ?? '';
+    const stopLoop = !loopLoadAll;
+    retry += 1;
+
+    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+      return [...loopTemp.nearbySearchResult];
+
+    // const subResults: google.maps.places.IBPlaceResult[];
+    const subResults = await new Promise(resolve => {
+      setTimeout(() => {
+        loopFunc(nextPageToken)
+          .then(promiseRes => {
+            resolve(promiseRes);
+          })
+          .catch(err => {
+            console.error(err);
+            resolve([] as google.maps.places.IBPlaceResult[]);
+          });
+      }, 2000);
+    });
+
+    let loopResult: google.maps.places.IBPlaceResult[] = [];
+    loopResult = [
+      ...(subResults as google.maps.places.IBPlaceResult[]),
+      ...loopTemp.nearbySearchResult,
+    ];
+
+    return loopResult;
+  };
+  const loopFuncRes = await loopFunc(
+    queryParams.nearbySearchReqParams.pageToken ?? '',
+  );
+
+  return loopFuncRes;
+};
+
 export const nearbySearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
+    // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
+    const queryParams = req.body;
+
+    let queryParamId: number | undefined;
+    if (queryParams.nearbySearchReqParams.loadAll) {
+      queryParamId = await createQueryParamId(prisma, queryParams, undefined);
+    }
+
+    const nearbySearchResult = await getAllNearbySearchPages(
+      queryParams,
+      queryParamId,
+      queryParams.nearbySearchReqParams.loadAll,
+    );
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: nearbySearchResult as object,
+      IBparams: {
+        nearbySearchCount: nearbySearchResult.length,
+        nearbySearchResult,
+      },
     });
   },
 );
@@ -640,92 +735,13 @@ export const searchHotel = asyncWrapper(
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: hotelSearchResult as object,
+      IBparams: {
+        hotelSearchCount: hotelSearchResult.length,
+        hotelSearchResult,
+      },
     });
   },
 );
-
-const getAllNearbySearchPages = async (
-  queryParams: QueryParams,
-  ifAlreadyQueryId?: number,
-  loopLoadAll = false,
-): Promise<google.maps.places.IBPlaceResult[]> => {
-  let loopResult: google.maps.places.IBPlaceResult[] = [];
-
-  let retry = 1;
-  const retryLimit = 5;
-
-  // do while loop
-  // do {
-  //   const loopQueryParams: QueryParams = {
-  //     nearbySearchReqParams: {
-  //       ...queryParams.nearbySearchReqParams,
-  //       pageToken: loopPageToken ?? '',
-  //     },
-  //     searchHotelReqParams: queryParams.searchHotelReqParams,
-  //   };
-  //   // eslint-disable-next-line no-await-in-loop
-  //   const loopTemp = await nearbySearchInnerAsyncFn(
-  //     loopQueryParams,
-  //     queryParamId,
-  //   );
-
-  //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
-  //   loopPageToken = loopTemp.pageToken ?? '';
-  //   retry += 1;
-  //   console.log(retry);
-  // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
-
-  // recursion
-  const loopFunc = async (curPageToken: string) => {
-    const loopQueryParams: QueryParams = {
-      nearbySearchReqParams: {
-        ...queryParams.nearbySearchReqParams,
-        pageToken: curPageToken ?? '',
-      },
-      searchHotelReqParams: queryParams.searchHotelReqParams,
-    };
-    // eslint-disable-next-line no-await-in-loop
-    const loopTemp = await nearbySearchInnerAsyncFn(
-      loopQueryParams,
-      ifAlreadyQueryId,
-    );
-
-    const nextPageToken = loopTemp.pageToken ?? '';
-    const stopLoop = !loopLoadAll;
-    retry += 1;
-
-    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
-      return [...loopTemp.nearbySearchResult];
-
-    // const subResults: google.maps.places.IBPlaceResult[];
-    const subResults = await new Promise(resolve => {
-      setTimeout(() => {
-        loopFunc(nextPageToken)
-          .then(promiseRes => {
-            resolve(promiseRes);
-          })
-          .catch(err => {
-            console.error(err);
-            resolve([] as google.maps.places.IBPlaceResult[]);
-          });
-      }, 2000);
-    });
-
-    loopResult = [
-      ...(subResults as google.maps.places.IBPlaceResult[]),
-      ...loopTemp.nearbySearchResult,
-    ];
-
-    return loopResult;
-  };
-  const loopFuncRes = await loopFunc(
-    queryParams.nearbySearchReqParams.pageToken ?? '',
-  );
-  loopResult = [...loopFuncRes, ...loopResult];
-
-  return loopResult;
-};
 
 export const compositeSearch = asyncWrapper(
   async (
