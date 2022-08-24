@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import express, { Express } from 'express';
+import express from 'express';
 // import prisma from '@src/prisma';
 import { ibDefs, asyncWrapper, IBResFormat } from '@src/utils';
-import axios, { Method } from 'axios';
+import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
 import {
   PrismaClient,
@@ -173,60 +173,11 @@ type NearbySearchInnerAsyncFnRes = {
   pageToken: string | undefined;
 };
 
-const nearbySearchInnerAsyncFn = async (
+const storeDataRelatedWithQueryParams = async (
   queryParams: QueryParams,
+  response: AxiosResponse,
   ifAlreadyQueryId?: number,
-  // compositeSearch?: {
-  //   checkinDate: Date;
-  //   checkoutDate: Date;
-  // },
-): Promise<NearbySearchInnerAsyncFnRes> => {
-  const {
-    nearbySearchReqParams: { location, radius, pageToken, keyword },
-  } = queryParams;
-
-  const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-    location?.latitude
-  }%2C${location?.longitude}&radius=${radius}&key=${
-    process.env.GCP_MAPS_APIKEY as string
-  }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-  console.log(queryUrl);
-
-  const response = await axios.get(queryUrl);
-  // if (compositeSearch) {
-  //   const travelDays = getTravelDays(
-  //     compositeSearch.checkinDate,
-  //     compositeSearch.checkoutDate,
-  //   );
-  //   let { results } = response.data as Partial<{
-  //     results: google.maps.places.IBPlaceResult[];
-  //   }>;
-  //   const retryLimit = 5;
-  //   let retry = 1;
-  //   while (
-  //     results &&
-  //     results.length < travelDays * spotPerDay &&
-  //     retry <= retryLimit
-  //   ) {
-  //     const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-  //       location?.latitude
-  //     }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
-  //       process.env.GCP_MAPS_APIKEY as string
-  //     }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-  //     console.log(`[retry:${retry}]: ${reQueryUrl}`);
-
-  //     // eslint-disable-next-line no-await-in-loop
-  //     response = await axios.get(reQueryUrl);
-  //     results = (
-  //       response.data as Partial<{
-  //         results: google.maps.places.IBPlaceResult[];
-  //       }>
-  //     ).results;
-  //     // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
-  //     retry += 1;
-  //   }
-  // }
-
+) => {
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
@@ -311,9 +262,71 @@ const nearbySearchInnerAsyncFn = async (
       if (promises) await Promise.all(promises);
     });
   }
-  console.log(JSON.stringify(response.data, null, 2));
-  console.log(`response.status: ${response.status}`);
-  console.log(`response.statusText: ${response.statusText}`);
+  return { results, queryParamId };
+};
+
+const nearbySearchInnerAsyncFn = async (
+  queryParams: QueryParams,
+  ifAlreadyQueryId?: number,
+  // compositeSearch?: {
+  //   checkinDate: Date;
+  //   checkoutDate: Date;
+  // },
+): Promise<NearbySearchInnerAsyncFnRes> => {
+  const {
+    nearbySearchReqParams: { location, radius, pageToken, keyword },
+  } = queryParams;
+
+  const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
+    location?.latitude
+  }%2C${location?.longitude}&radius=${radius}&key=${
+    process.env.GCP_MAPS_APIKEY as string
+  }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
+  console.log(queryUrl);
+
+  const response = await axios.get(queryUrl);
+  // if (compositeSearch) {
+  //   const travelDays = getTravelDays(
+  //     compositeSearch.checkinDate,
+  //     compositeSearch.checkoutDate,
+  //   );
+  //   let { results } = response.data as Partial<{
+  //     results: google.maps.places.IBPlaceResult[];
+  //   }>;
+  //   const retryLimit = 5;
+  //   let retry = 1;
+  //   while (
+  //     results &&
+  //     results.length < travelDays * spotPerDay &&
+  //     retry <= retryLimit
+  //   ) {
+  //     const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
+  //       location?.latitude
+  //     }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
+  //       process.env.GCP_MAPS_APIKEY as string
+  //     }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
+  //     console.log(`[retry:${retry}]: ${reQueryUrl}`);
+
+  //     // eslint-disable-next-line no-await-in-loop
+  //     response = await axios.get(reQueryUrl);
+  //     results = (
+  //       response.data as Partial<{
+  //         results: google.maps.places.IBPlaceResult[];
+  //       }>
+  //     ).results;
+  //     // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
+  //     retry += 1;
+  //   }
+  // }
+
+  const { results, queryParamId } = await storeDataRelatedWithQueryParams(
+    queryParams,
+    response,
+    ifAlreadyQueryId,
+  );
+  // console.log(JSON.stringify(response.data, null, 2));
+  // console.log(`response.status: ${response.status}`);
+  // console.log(`response.statusText: ${response.statusText}`);
   return {
     nearbySearchResult: results,
     queryParamId,
@@ -632,6 +645,88 @@ export const searchHotel = asyncWrapper(
   },
 );
 
+const getAllNearbySearchPages = async (
+  queryParams: QueryParams,
+  ifAlreadyQueryId?: number,
+  loopLoadAll = false,
+): Promise<google.maps.places.IBPlaceResult[]> => {
+  let loopResult: google.maps.places.IBPlaceResult[] = [];
+
+  let retry = 1;
+  const retryLimit = 5;
+
+  // do while loop
+  // do {
+  //   const loopQueryParams: QueryParams = {
+  //     nearbySearchReqParams: {
+  //       ...queryParams.nearbySearchReqParams,
+  //       pageToken: loopPageToken ?? '',
+  //     },
+  //     searchHotelReqParams: queryParams.searchHotelReqParams,
+  //   };
+  //   // eslint-disable-next-line no-await-in-loop
+  //   const loopTemp = await nearbySearchInnerAsyncFn(
+  //     loopQueryParams,
+  //     queryParamId,
+  //   );
+
+  //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
+  //   loopPageToken = loopTemp.pageToken ?? '';
+  //   retry += 1;
+  //   console.log(retry);
+  // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
+
+  // recursion
+  const loopFunc = async (curPageToken: string) => {
+    const loopQueryParams: QueryParams = {
+      nearbySearchReqParams: {
+        ...queryParams.nearbySearchReqParams,
+        pageToken: curPageToken ?? '',
+      },
+      searchHotelReqParams: queryParams.searchHotelReqParams,
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const loopTemp = await nearbySearchInnerAsyncFn(
+      loopQueryParams,
+      ifAlreadyQueryId,
+    );
+
+    const nextPageToken = loopTemp.pageToken ?? '';
+    const stopLoop = !loopLoadAll;
+    retry += 1;
+
+    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+      return [...loopTemp.nearbySearchResult];
+
+    // const subResults: google.maps.places.IBPlaceResult[];
+    const subResults = await new Promise(resolve => {
+      setTimeout(() => {
+        loopFunc(nextPageToken)
+          .then(promiseRes => {
+            resolve(promiseRes);
+          })
+          .catch(err => {
+            console.error(err);
+            resolve([] as google.maps.places.IBPlaceResult[]);
+          });
+      }, 2000);
+    });
+
+    loopResult = [
+      ...(subResults as google.maps.places.IBPlaceResult[]),
+      ...loopTemp.nearbySearchResult,
+    ];
+
+    return loopResult;
+  };
+  const loopFuncRes = await loopFunc(
+    queryParams.nearbySearchReqParams.pageToken ?? '',
+  );
+  loopResult = [...loopFuncRes, ...loopResult];
+
+  return loopResult;
+};
+
 export const compositeSearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryParams>,
@@ -644,82 +739,37 @@ export const compositeSearch = asyncWrapper(
       queryParams,
     );
 
-    const { loadAll } = queryParams.nearbySearchReqParams;
-    const nearbySearchResult = await (async (loopLoadAll = false) => {
-      let loopResult: google.maps.places.IBPlaceResult[] = [];
+    let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
 
-      let retry = 1;
-      const retryLimit = 5;
+    const travelDays = getTravelDays(
+      queryParams.searchHotelReqParams.checkinDate,
+      queryParams.searchHotelReqParams.checkoutDate,
+    );
 
-      // do {
-      //   const loopQueryParams: QueryParams = {
-      //     nearbySearchReqParams: {
-      //       ...queryParams.nearbySearchReqParams,
-      //       pageToken: loopPageToken ?? '',
-      //     },
-      //     searchHotelReqParams: queryParams.searchHotelReqParams,
-      //   };
-      //   // eslint-disable-next-line no-await-in-loop
-      //   const loopTemp = await nearbySearchInnerAsyncFn(
-      //     loopQueryParams,
-      //     queryParamId,
-      //   );
-
-      //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
-      //   loopPageToken = loopTemp.pageToken ?? '';
-      //   retry += 1;
-      //   console.log(retry);
-      // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
-
-      const getAllNearbySearchPages = async (curPageToken: string) => {
-        const loopQueryParams: QueryParams = {
-          nearbySearchReqParams: {
-            ...queryParams.nearbySearchReqParams,
-            pageToken: curPageToken ?? '',
-          },
-          searchHotelReqParams: queryParams.searchHotelReqParams,
-        };
-        // eslint-disable-next-line no-await-in-loop
-        const loopTemp = await nearbySearchInnerAsyncFn(
-          loopQueryParams,
-          queryParamId,
-        );
-
-        const nextPageToken = loopTemp.pageToken ?? '';
-        const stopLoop = !loopLoadAll;
-        retry += 1;
-
-        if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
-          return [...loopTemp.nearbySearchResult];
-
-        // const subResults: google.maps.places.IBPlaceResult[];
-        const subResults = await new Promise(resolve => {
-          setTimeout(() => {
-            getAllNearbySearchPages(nextPageToken)
-              .then(promiseRes => {
-                resolve(promiseRes);
-              })
-              .catch(err => {
-                console.error(err);
-                resolve([] as google.maps.places.IBPlaceResult[]);
-              });
-          }, 2000);
-        });
-
-        loopResult = [
-          ...(subResults as google.maps.places.IBPlaceResult[]),
-          ...loopTemp.nearbySearchResult,
-        ];
-
-        return loopResult;
+    const radiusExtendRetryLimit = 5;
+    let radiusExtendRetry = 1;
+    /* radius extend repeat */
+    while (
+      nearbySearchResult.length < travelDays * spotPerDay &&
+      radiusExtendRetry <= radiusExtendRetryLimit
+    ) {
+      if (radiusExtendRetry > 1)
+        console.log(`radiusExtendRetry:${radiusExtendRetry}`);
+      const radiusModifiedQueryParams = {
+        searchHotelReqParams: queryParams.searchHotelReqParams,
+        nearbySearchReqParams: {
+          ...queryParams.nearbySearchReqParams,
+          radius: queryParams.nearbySearchReqParams.radius * radiusExtendRetry,
+        },
       };
-      const loopFuncRes = await getAllNearbySearchPages(
-        queryParams.nearbySearchReqParams.pageToken ?? '',
+      // eslint-disable-next-line no-await-in-loop
+      nearbySearchResult = await getAllNearbySearchPages(
+        radiusModifiedQueryParams,
+        queryParamId,
+        queryParams.nearbySearchReqParams.loadAll,
       );
-      loopResult = [...loopFuncRes, ...loopResult];
-
-      return loopResult;
-    })(loadAll);
+      radiusExtendRetry += 1;
+    }
 
     res.json({
       ...ibDefs.SUCCESS,
