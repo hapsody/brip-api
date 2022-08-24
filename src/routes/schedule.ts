@@ -27,6 +27,7 @@ interface NearBySearchReqParams {
   pageToken: string;
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
+type Currency = 'USD' | 'KRW';
 
 interface SearchHotelReqParams {
   orderBy?: // default popularity
@@ -42,7 +43,7 @@ interface SearchHotelReqParams {
   roomNumber?: number; // Number of rooms
   checkinDate: Date; // '2022-09-30';
   checkoutDate: Date; // '2022-10-01';
-  filterByCurrency?: 'USD' | 'KRW'; // default USD;
+  filterByCurrency?: Currency; // default USD;
   // locale: 'en-us';
   latitude: string; // 위도좌표 ex) 21.4286856;
   longitude: string; // 경도 ex) -158.1389763;
@@ -54,6 +55,30 @@ interface SearchHotelReqParams {
 interface QueryParams {
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
+  minBudget?: number; // ex) 4000000,
+  maxBudget?: number; // ex) 5000000,
+  currency: Currency; // "USD" | "KRW" default USD
+  travelType: {
+    // default { noIdea: true }
+    landActivity?: boolean; // 육상 액티비티
+    golf?: boolean;
+    relaxation?: boolean; // 휴양
+    resort?: boolean; // 리조트
+    hotel?: boolean;
+    oceanActivity?: boolean; // 해양 액티비티
+    experience?: boolean; // 체험
+    groupActivity?: boolean; // 그룹 액티비티
+    learning?: boolean; // 교습
+    shopping?: boolean; // 쇼핑
+    waterPark?: boolean; // 워터파크
+    visitTourSpot?: boolean; // 관광명소 방문
+    packageTour?: boolean; // 패키지 투어
+    nativeExperience?: boolean; // 현지 문화체험
+    noIdea?: boolean; // 모르겠음
+  };
+  travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
+  travelStartDate: Date; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
+  travelEndDate: Date; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
 }
 
 type SearchedData = Omit<
@@ -108,6 +133,21 @@ const defaultSearchHotelReqParams = {
   pageNumber: undefined,
   includeAdjacency: undefined,
   mock: true,
+};
+
+const defaultQueryParams = {
+  searchHotelReqParams: defaultSearchHotelReqParams,
+  nearbySearchReqParams: defaultNearbySearchReqParams,
+  currency: 'USD' as Currency, // "USD" | "KRW" default USD
+  travelType: {
+    // default { noIdea: true }
+    noIdea: true, // 모르겠음
+  },
+  travelIntensity: 5, // 여행강도 0~10 ex) 6; default 5
+  travelStartDate: new Date(moment(new Date()).startOf('day').format()), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
+  travelEndDate: new Date(
+    moment(new Date()).startOf('day').add(1, 'day').format(),
+  ), // 여행일정 종료일 ex) '2022-10-03T00:00:00';
 };
 
 const createQueryParamId = async (
@@ -369,6 +409,7 @@ const getAllNearbySearchPages = async (
   // recursion
   const loopFunc = async (curPageToken: string) => {
     const loopQueryParams: QueryParams = {
+      ...defaultQueryParams,
       nearbySearchReqParams: {
         ...queryParams.nearbySearchReqParams,
         pageToken: curPageToken ?? '',
@@ -774,6 +815,7 @@ export const compositeSearch = asyncWrapper(
       if (radiusExtendRetry > 1)
         console.log(`radiusExtendRetry:${radiusExtendRetry}`);
       const radiusModifiedQueryParams = {
+        ...defaultQueryParams,
         searchHotelReqParams: queryParams.searchHotelReqParams,
         nearbySearchReqParams: {
           ...queryParams.nearbySearchReqParams,
