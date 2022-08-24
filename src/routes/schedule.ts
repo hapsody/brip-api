@@ -277,11 +277,13 @@ const nearbySearchInnerAsyncFn = async (
     nearbySearchReqParams: { location, radius, pageToken, keyword },
   } = queryParams;
 
-  const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-    location?.latitude
-  }%2C${location?.longitude}&radius=${radius}&key=${
-    process.env.GCP_MAPS_APIKEY as string
-  }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
+  const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${
+    keyword ?? ''
+  }&location=${location?.latitude}%2C${
+    location?.longitude
+  }&radius=${radius}&key=${process.env.GCP_MAPS_APIKEY as string}${
+    pageToken ? `&pagetoken=${pageToken}` : ''
+  }`;
   console.log(queryUrl);
 
   const response = await axios.get(queryUrl);
