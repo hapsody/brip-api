@@ -971,6 +971,8 @@ const getRecommendListInnerAsyncFn = async (
 
   const recommendList = {
     ...omit(queryParamsDataFromDB[0], ['gglNearbySearchRes', 'searchHotelRes']),
+    spotPerDay,
+    visitSchedulesCount: visitSchedules.length,
     visitSchedules,
   };
 
