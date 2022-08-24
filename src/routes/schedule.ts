@@ -112,6 +112,20 @@ type SearchedData = Omit<
   };
 };
 
+export type NearbySearchResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {
+    nearbySearchCount: number;
+    nearbySearchResult: google.maps.places.IBPlaceResult[];
+  };
+};
+
+export type SearchHotelResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {
+    hotelSearchCount: number;
+    hotelSearchResult: SearchedData[];
+  };
+};
+
 const defaultNearbySearchReqParams = {
   keyword: undefined,
   radius: undefined,
@@ -207,11 +221,11 @@ const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
   return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
 };
 
-type NearbySearchInnerAsyncFnRes = {
+interface NearbySearchInnerAsyncFnRes {
   nearbySearchResult: google.maps.places.IBPlaceResult[];
   queryParamId: number;
   pageToken: string | undefined;
-};
+}
 
 const storeDataRelatedWithQueryParams = async (
   queryParams: QueryParams,
@@ -461,7 +475,7 @@ const getAllNearbySearchPages = async (
 export const nearbySearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryParams>,
-    res: Express.IBTypedResponse<IBResFormat>,
+    res: Express.IBTypedResponse<NearbySearchResponse>,
   ) => {
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
     const queryParams = req.body;
@@ -755,7 +769,7 @@ const searchHotelInnerAsyncFn = async (
 export const searchHotel = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryParams>,
-    res: Express.IBTypedResponse<IBResFormat>,
+    res: Express.IBTypedResponse<SearchHotelResponse>,
   ) => {
     // const {
     //   body: {
