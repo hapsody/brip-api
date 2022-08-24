@@ -12,7 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import moment from 'moment';
-import { omit } from 'lodash';
+import { omit, isEmpty } from 'lodash';
 
 const scheduleRouter: express.Application = express();
 const spotPerDay = 3;
@@ -25,6 +25,7 @@ interface NearBySearchReqParams {
   };
   radius: number;
   pageToken: string;
+  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
 
 interface SearchHotelReqParams {
@@ -93,6 +94,7 @@ const defaultNearbySearchReqParams = {
     latitude: undefined,
     longitude: undefined,
   },
+  loadAll: false,
 };
 const defaultSearchHotelReqParams = {
   orderBy: undefined,
@@ -165,14 +167,20 @@ const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
   return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
 };
 
+type NearbySearchInnerAsyncFnRes = {
+  nearbySearchResult: google.maps.places.IBPlaceResult[];
+  queryParamId: number;
+  pageToken: string | undefined;
+};
+
 const nearbySearchInnerAsyncFn = async (
   queryParams: QueryParams,
   ifAlreadyQueryId?: number,
-  compositeSearch?: {
-    checkinDate: Date;
-    checkoutDate: Date;
-  },
-) => {
+  // compositeSearch?: {
+  //   checkinDate: Date;
+  //   checkoutDate: Date;
+  // },
+): Promise<NearbySearchInnerAsyncFnRes> => {
   const {
     nearbySearchReqParams: { location, radius, pageToken, keyword },
   } = queryParams;
@@ -184,40 +192,40 @@ const nearbySearchInnerAsyncFn = async (
   }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
   console.log(queryUrl);
 
-  let response = await axios.get(queryUrl);
-  if (compositeSearch) {
-    const travelDays = getTravelDays(
-      compositeSearch.checkinDate,
-      compositeSearch.checkoutDate,
-    );
-    let { results } = response.data as Partial<{
-      results: google.maps.places.IBPlaceResult[];
-    }>;
-    const retryLimit = 5;
-    let retry = 1;
-    while (
-      results &&
-      results.length < travelDays * spotPerDay &&
-      retry <= retryLimit
-    ) {
-      const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-        location?.latitude
-      }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
-        process.env.GCP_MAPS_APIKEY as string
-      }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-      console.log(`[retry:${retry}]: ${reQueryUrl}`);
+  const response = await axios.get(queryUrl);
+  // if (compositeSearch) {
+  //   const travelDays = getTravelDays(
+  //     compositeSearch.checkinDate,
+  //     compositeSearch.checkoutDate,
+  //   );
+  //   let { results } = response.data as Partial<{
+  //     results: google.maps.places.IBPlaceResult[];
+  //   }>;
+  //   const retryLimit = 5;
+  //   let retry = 1;
+  //   while (
+  //     results &&
+  //     results.length < travelDays * spotPerDay &&
+  //     retry <= retryLimit
+  //   ) {
+  //     const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
+  //       location?.latitude
+  //     }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
+  //       process.env.GCP_MAPS_APIKEY as string
+  //     }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
+  //     console.log(`[retry:${retry}]: ${reQueryUrl}`);
 
-      // eslint-disable-next-line no-await-in-loop
-      response = await axios.get(reQueryUrl);
-      results = (
-        response.data as Partial<{
-          results: google.maps.places.IBPlaceResult[];
-        }>
-      ).results;
-      // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
-      retry += 1;
-    }
-  }
+  //     // eslint-disable-next-line no-await-in-loop
+  //     response = await axios.get(reQueryUrl);
+  //     results = (
+  //       response.data as Partial<{
+  //         results: google.maps.places.IBPlaceResult[];
+  //       }>
+  //     ).results;
+  //     // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
+  //     retry += 1;
+  //   }
+  // }
 
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
@@ -236,77 +244,82 @@ const nearbySearchInnerAsyncFn = async (
           }>
         ).results ?? [];
 
-      const promises = results?.map(
-        (item: google.maps.places.IBPlaceResult) => {
-          return prismaX.gglNearbySearchRes.create({
-            data: {
-              QueryParams: {
-                connect: {
-                  id: queryParamId,
-                },
+      const promises = results.map((item: google.maps.places.IBPlaceResult) => {
+        return prismaX.gglNearbySearchRes.create({
+          data: {
+            QueryParams: {
+              connect: {
+                id: queryParamId,
               },
-              geometry: {
-                create: {
-                  location: JSON.stringify({
-                    lat: item.geometry?.location?.lat,
-                    lng: item.geometry?.location?.lng,
-                  }),
-                  viewport: JSON.stringify({
-                    northeast: {
-                      lat: item.geometry?.viewport?.northeast?.lat,
-                      lng: item.geometry?.viewport?.northeast?.lng,
-                    },
-                    southwest: {
-                      lat: item.geometry?.viewport?.southwest?.lat,
-                      lng: item.geometry?.viewport?.southwest?.lng,
-                    },
-                  }),
-                },
-              },
-              icon: item.icon,
-              icon_background_color: item.icon_background_color,
-              icon_mask_base_uri: item.icon_mask_base_uri,
-              name: item.name,
-              opening_hours:
-                (
-                  item.opening_hours as Partial<{
-                    open_now: boolean;
-                  }>
-                )?.open_now ?? false,
-              place_id: item.place_id,
-              price_level: item.price_level,
-              rating: item.rating,
-              types: JSON.stringify(item.types),
-              user_ratings_total: item.user_ratings_total,
-              vicinity: item.vicinity,
-              plus_code: {
-                create: {
-                  compund_code: item.plus_code?.compound_code ?? '',
-                  global_code: item.plus_code?.global_code ?? '',
-                },
-              },
-              photos: {
-                create: item.photos?.map(photo => {
-                  return {
-                    height: photo.height,
-                    width: photo.width,
-                    html_attributuions: JSON.stringify(photo.html_attributions),
-                    photo_reference:
-                      (photo as Partial<{ photo_reference: string }>)
-                        .photo_reference ?? '',
-                  };
+            },
+            geometry: {
+              create: {
+                location: JSON.stringify({
+                  lat: item.geometry?.location?.lat,
+                  lng: item.geometry?.location?.lng,
+                }),
+                viewport: JSON.stringify({
+                  northeast: {
+                    lat: item.geometry?.viewport?.northeast?.lat,
+                    lng: item.geometry?.viewport?.northeast?.lng,
+                  },
+                  southwest: {
+                    lat: item.geometry?.viewport?.southwest?.lat,
+                    lng: item.geometry?.viewport?.southwest?.lng,
+                  },
                 }),
               },
             },
-          });
-        },
-      );
+            icon: item.icon,
+            icon_background_color: item.icon_background_color,
+            icon_mask_base_uri: item.icon_mask_base_uri,
+            name: item.name,
+            opening_hours:
+              (
+                item.opening_hours as Partial<{
+                  open_now: boolean;
+                }>
+              )?.open_now ?? false,
+            place_id: item.place_id,
+            price_level: item.price_level,
+            rating: item.rating,
+            types: JSON.stringify(item.types),
+            user_ratings_total: item.user_ratings_total,
+            vicinity: item.vicinity,
+            plus_code: {
+              create: {
+                compund_code: item.plus_code?.compound_code ?? '',
+                global_code: item.plus_code?.global_code ?? '',
+              },
+            },
+            photos: {
+              create: item.photos?.map(photo => {
+                return {
+                  height: photo.height,
+                  width: photo.width,
+                  html_attributuions: JSON.stringify(photo.html_attributions),
+                  photo_reference:
+                    (photo as Partial<{ photo_reference: string }>)
+                      .photo_reference ?? '',
+                };
+              }),
+            },
+          },
+        });
+      });
 
       if (promises) await Promise.all(promises);
     });
   }
-  // console.log(JSON.stringify(response.data, null, 2));
-  return { nearbySearchResult: results, queryParamId };
+  console.log(JSON.stringify(response.data, null, 2));
+  console.log(`response.status: ${response.status}`);
+  console.log(`response.statusText: ${response.statusText}`);
+  return {
+    nearbySearchResult: results,
+    queryParamId,
+    pageToken: (response.data as Partial<{ next_page_token: string }>)
+      .next_page_token,
+  };
 };
 
 export const nearbySearch = asyncWrapper(
@@ -631,18 +644,88 @@ export const compositeSearch = asyncWrapper(
       queryParams,
     );
 
-    const { nearbySearchResult } = await nearbySearchInnerAsyncFn(
-      queryParams,
-      queryParamId,
-      {
-        checkinDate: queryParams.searchHotelReqParams.checkinDate,
-        checkoutDate: queryParams.searchHotelReqParams.checkoutDate,
-      },
-    );
+    const { loadAll } = queryParams.nearbySearchReqParams;
+    const nearbySearchResult = await (async (loopLoadAll = false) => {
+      let loopResult: google.maps.places.IBPlaceResult[] = [];
+
+      let retry = 1;
+      const retryLimit = 5;
+
+      // do {
+      //   const loopQueryParams: QueryParams = {
+      //     nearbySearchReqParams: {
+      //       ...queryParams.nearbySearchReqParams,
+      //       pageToken: loopPageToken ?? '',
+      //     },
+      //     searchHotelReqParams: queryParams.searchHotelReqParams,
+      //   };
+      //   // eslint-disable-next-line no-await-in-loop
+      //   const loopTemp = await nearbySearchInnerAsyncFn(
+      //     loopQueryParams,
+      //     queryParamId,
+      //   );
+
+      //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
+      //   loopPageToken = loopTemp.pageToken ?? '';
+      //   retry += 1;
+      //   console.log(retry);
+      // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
+
+      const getAllNearbySearchPages = async (curPageToken: string) => {
+        const loopQueryParams: QueryParams = {
+          nearbySearchReqParams: {
+            ...queryParams.nearbySearchReqParams,
+            pageToken: curPageToken ?? '',
+          },
+          searchHotelReqParams: queryParams.searchHotelReqParams,
+        };
+        // eslint-disable-next-line no-await-in-loop
+        const loopTemp = await nearbySearchInnerAsyncFn(
+          loopQueryParams,
+          queryParamId,
+        );
+
+        const nextPageToken = loopTemp.pageToken ?? '';
+        const stopLoop = !loopLoadAll;
+        retry += 1;
+
+        if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+          return [...loopTemp.nearbySearchResult];
+
+        // const subResults: google.maps.places.IBPlaceResult[];
+        const subResults = await new Promise(resolve => {
+          setTimeout(() => {
+            getAllNearbySearchPages(nextPageToken)
+              .then(promiseRes => {
+                resolve(promiseRes);
+              })
+              .catch(err => {
+                console.error(err);
+                resolve([] as google.maps.places.IBPlaceResult[]);
+              });
+          }, 2000);
+        });
+
+        loopResult = [
+          ...(subResults as google.maps.places.IBPlaceResult[]),
+          ...loopTemp.nearbySearchResult,
+        ];
+
+        return loopResult;
+      };
+      const loopFuncRes = await getAllNearbySearchPages(
+        queryParams.nearbySearchReqParams.pageToken ?? '',
+      );
+      loopResult = [...loopFuncRes, ...loopResult];
+
+      return loopResult;
+    })(loadAll);
 
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: {
+        hotelSearchCount: hotelSearchResult.length,
+        nearbySearchCount: nearbySearchResult.length,
         hotelSearchResult,
         nearbySearchResult,
       } as object,
@@ -773,10 +856,14 @@ const getRecommendListInnerAsyncFn = async (
 
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
-  await nearbySearchInnerAsyncFn(searchCond, queryParamId, {
-    checkinDate: searchCond.searchHotelReqParams.checkinDate,
-    checkoutDate: searchCond.searchHotelReqParams.checkoutDate,
-  });
+  await nearbySearchInnerAsyncFn(
+    searchCond,
+    queryParamId,
+    //   {
+    //   checkinDate: searchCond.searchHotelReqParams.checkinDate,
+    //   checkoutDate: searchCond.searchHotelReqParams.checkoutDate,
+    // }
+  );
 
   const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
   // Get high priority candidate data from composite search result.
