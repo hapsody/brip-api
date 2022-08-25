@@ -10,6 +10,7 @@ import {
   SearchHotelRes,
   GglNearbySearchRes,
   Prisma,
+  QueryParams,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty } from 'lodash';
@@ -52,7 +53,7 @@ interface SearchHotelReqParams {
   mock?: boolean; // default true
 }
 
-interface QueryParams {
+interface QueryReqParams {
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
   minBudget?: number; // ex) 4000000,
@@ -173,7 +174,7 @@ const createQueryParamId = async (
     >,
     '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
   >,
-  params: QueryParams,
+  params: QueryReqParams,
   ifAlreadyQueryId?: number,
 ) => {
   const { nearbySearchReqParams, searchHotelReqParams } = params;
@@ -228,7 +229,7 @@ interface NearbySearchInnerAsyncFnRes {
 }
 
 const storeDataRelatedWithQueryParams = async (
-  queryParams: QueryParams,
+  queryReqParams: QueryReqParams,
   response: AxiosResponse,
   ifAlreadyQueryId?: number,
 ) => {
@@ -238,7 +239,7 @@ const storeDataRelatedWithQueryParams = async (
     await prisma.$transaction(async prismaX => {
       queryParamId = await createQueryParamId(
         prismaX,
-        queryParams,
+        queryReqParams,
         ifAlreadyQueryId,
       );
 
@@ -320,7 +321,7 @@ const storeDataRelatedWithQueryParams = async (
 };
 
 const nearbySearchInnerAsyncFn = async (
-  queryParams: QueryParams,
+  queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
   // compositeSearch?: {
   //   checkinDate: Date;
@@ -329,7 +330,7 @@ const nearbySearchInnerAsyncFn = async (
 ): Promise<NearbySearchInnerAsyncFnRes> => {
   const {
     nearbySearchReqParams: { location, radius, pageToken, keyword },
-  } = queryParams;
+  } = queryReqParams;
 
   const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${
     keyword ?? ''
@@ -376,7 +377,7 @@ const nearbySearchInnerAsyncFn = async (
   // }
 
   const { results, queryParamId } = await storeDataRelatedWithQueryParams(
-    queryParams,
+    queryReqParams,
     response,
     ifAlreadyQueryId,
   );
@@ -392,7 +393,7 @@ const nearbySearchInnerAsyncFn = async (
 };
 
 const getAllNearbySearchPages = async (
-  queryParams: QueryParams,
+  queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
   loopLoadAll = false,
 ): Promise<google.maps.places.IBPlaceResult[]> => {
@@ -401,12 +402,12 @@ const getAllNearbySearchPages = async (
 
   // do while loop
   // do {
-  //   const loopQueryParams: QueryParams = {
+  //   const loopQueryParams: QueryReqParams = {
   //     nearbySearchReqParams: {
-  //       ...queryParams.nearbySearchReqParams,
+  //       ...queryReqParams.nearbySearchReqParams,
   //       pageToken: loopPageToken ?? '',
   //     },
-  //     searchHotelReqParams: queryParams.searchHotelReqParams,
+  //     searchHotelReqParams: queryReqParams.searchHotelReqParams,
   //   };
   //   // eslint-disable-next-line no-await-in-loop
   //   const loopTemp = await nearbySearchInnerAsyncFn(
@@ -422,13 +423,13 @@ const getAllNearbySearchPages = async (
 
   // recursion
   const loopFunc = async (curPageToken: string) => {
-    const loopQueryParams: QueryParams = {
+    const loopQueryParams: QueryReqParams = {
       ...defaultQueryParams,
       nearbySearchReqParams: {
-        ...queryParams.nearbySearchReqParams,
+        ...queryReqParams.nearbySearchReqParams,
         pageToken: curPageToken ?? '',
       },
-      searchHotelReqParams: queryParams.searchHotelReqParams,
+      searchHotelReqParams: queryReqParams.searchHotelReqParams,
     };
     // eslint-disable-next-line no-await-in-loop
     const loopTemp = await nearbySearchInnerAsyncFn(
@@ -466,7 +467,7 @@ const getAllNearbySearchPages = async (
     return loopResult;
   };
   const loopFuncRes = await loopFunc(
-    queryParams.nearbySearchReqParams.pageToken ?? '',
+    queryReqParams.nearbySearchReqParams.pageToken ?? '',
   );
 
   return loopFuncRes;
@@ -474,21 +475,25 @@ const getAllNearbySearchPages = async (
 
 export const nearbySearch = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<QueryParams>,
+    req: Express.IBTypedReqBody<QueryReqParams>,
     res: Express.IBTypedResponse<NearbySearchResponse>,
   ) => {
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
-    const queryParams = req.body;
+    const queryReqParams = req.body;
 
     let queryParamId: number | undefined;
-    if (queryParams.nearbySearchReqParams.loadAll) {
-      queryParamId = await createQueryParamId(prisma, queryParams, undefined);
+    if (queryReqParams.nearbySearchReqParams.loadAll) {
+      queryParamId = await createQueryParamId(
+        prisma,
+        queryReqParams,
+        undefined,
+      );
     }
 
     const nearbySearchResult = await getAllNearbySearchPages(
-      queryParams,
+      queryReqParams,
       queryParamId,
-      queryParams.nearbySearchReqParams.loadAll,
+      queryReqParams.nearbySearchReqParams.loadAll,
     );
     res.json({
       ...ibDefs.SUCCESS,
@@ -595,10 +600,10 @@ export const addMockHotelResource = asyncWrapper(
 // );
 
 const searchHotelInnerAsyncFn = async (
-  queryParams: QueryParams,
+  queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
 ) => {
-  const { searchHotelReqParams } = queryParams;
+  const { searchHotelReqParams } = queryReqParams;
   // const {
   //   keyword,
   //   radius,
@@ -661,7 +666,7 @@ const searchHotelInnerAsyncFn = async (
 
   let queryParamId: number = -1;
   await prisma.$transaction(async (prismaX: PrismaClient) => {
-    // const queryParamResult = await prismaX.queryParams.create({
+    // const queryParamResult = await prismaX.queryReqParams.create({
     //   data: {
     //     latitude: paramLat,
     //     longitude: paramLngt,
@@ -676,7 +681,7 @@ const searchHotelInnerAsyncFn = async (
     // });
     queryParamId = await createQueryParamId(
       prismaX,
-      queryParams,
+      queryReqParams,
       ifAlreadyQueryId,
     );
 
@@ -768,7 +773,7 @@ const searchHotelInnerAsyncFn = async (
 
 export const searchHotel = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<QueryParams>,
+    req: Express.IBTypedReqBody<QueryReqParams>,
     res: Express.IBTypedResponse<SearchHotelResponse>,
   ) => {
     // const {
@@ -787,8 +792,8 @@ export const searchHotel = asyncWrapper(
     //   },
     // } = req;
 
-    const queryParams = req.body;
-    const { hotelSearchResult } = await searchHotelInnerAsyncFn(queryParams);
+    const queryReqParams = req.body;
+    const { hotelSearchResult } = await searchHotelInnerAsyncFn(queryReqParams);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -810,21 +815,21 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 
 export const compositeSearch = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<QueryParams>,
+    req: Express.IBTypedReqBody<QueryReqParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const queryParams = req.body;
-    // const { searchHotelReqParams, nearbySearchReqParams } = queryParams;
+    const queryReqParams = req.body;
+    // const { searchHotelReqParams, nearbySearchReqParams } = queryReqParams;
 
     const { hotelSearchResult, queryParamId } = await searchHotelInnerAsyncFn(
-      queryParams,
+      queryReqParams,
     );
 
     let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
 
     const travelDays = getTravelDays(
-      queryParams.searchHotelReqParams.checkinDate,
-      queryParams.searchHotelReqParams.checkoutDate,
+      queryReqParams.searchHotelReqParams.checkinDate,
+      queryReqParams.searchHotelReqParams.checkoutDate,
     );
 
     const radiusExtendRetryLimit = 5;
@@ -838,17 +843,18 @@ export const compositeSearch = asyncWrapper(
         console.log(`radiusExtendRetry:${radiusExtendRetry}`);
       const radiusModifiedQueryParams = {
         ...defaultQueryParams,
-        searchHotelReqParams: queryParams.searchHotelReqParams,
+        searchHotelReqParams: queryReqParams.searchHotelReqParams,
         nearbySearchReqParams: {
-          ...queryParams.nearbySearchReqParams,
-          radius: queryParams.nearbySearchReqParams.radius * radiusExtendRetry,
+          ...queryReqParams.nearbySearchReqParams,
+          radius:
+            queryReqParams.nearbySearchReqParams.radius * radiusExtendRetry,
         },
       };
       // eslint-disable-next-line no-await-in-loop
       nearbySearchResult = await getAllNearbySearchPages(
         radiusModifiedQueryParams,
         queryParamId,
-        queryParams.nearbySearchReqParams.loadAll,
+        queryReqParams.nearbySearchReqParams.loadAll,
       );
       radiusExtendRetry += 1;
     }
@@ -978,12 +984,12 @@ const getListQueryParams = asyncWrapper(
 );
 
 interface GetRecommendListReqParams {
-  searchCond: QueryParams;
+  searchCond: QueryReqParams;
   evalCond: GetListQueryParamsReqParams;
 }
 const getRecommendListInnerAsyncFn = async (
   params: GetRecommendListReqParams,
-) => {
+): Promise<getRecommendListInnerAsyncFnResponse> => {
   const { searchCond, evalCond } = params;
 
   // Do composite search
@@ -1009,9 +1015,13 @@ const getRecommendListInnerAsyncFn = async (
   );
 
   const arr = Array.from(Array(travelDays));
-  type VisitSchedules = { spot: {}[]; hotel: {}[] }[];
+  // type VisitSchedules = { spot: {}[]; hotel: {}[] }[];
 
-  const { searchHotelRes, gglNearbySearchRes } = queryParamsDataFromDB[0];
+  const { searchHotelRes, gglNearbySearchRes } =
+    queryParamsDataFromDB[0] as QueryParams & {
+      searchHotelRes: SearchHotelRes[];
+      gglNearbySearchRes: GglNearbySearchRes[];
+    };
 
   const visitSchedules: VisitSchedules = [];
   arr.reduce((acc: VisitSchedules, cur, idx) => {
@@ -1047,16 +1057,31 @@ const getRecommendListInnerAsyncFn = async (
   return recommendList;
 };
 
+type VisitSchedules = {
+  spot: GglNearbySearchRes[];
+  hotel: SearchHotelRes[];
+}[];
+type getRecommendListInnerAsyncFnResponse = QueryParams & {
+  totalNearbySearchCount: number;
+  totalHotelSearchCount: number;
+  spotPerDay: number;
+  visitSchedulesCount: number;
+  visitSchedules: VisitSchedules;
+};
+export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: getRecommendListInnerAsyncFnResponse;
+};
+
 const getRecommendList = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetRecommendListReqParams>,
-    res: Express.IBTypedResponse<IBResFormat>,
+    res: Express.IBTypedResponse<GetRecommendListResponse>,
   ) => {
     const params = req.body;
     const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: recommendListFromDB as object,
+      IBparams: recommendListFromDB,
     });
   },
 );

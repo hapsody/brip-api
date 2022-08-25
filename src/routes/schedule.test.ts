@@ -7,6 +7,7 @@ import {
   NearbySearchResponse,
   SearchHotelResponse,
   CompositeSearchResponse,
+  GetRecommendListResponse,
 } from './schedule';
 
 jest.setTimeout(100000);
@@ -347,6 +348,127 @@ describe('Auth Express Router E2E Test', () => {
         expect(item).toHaveProperty('types');
         expect(item).toHaveProperty('user_ratings_total');
         expect(item).toHaveProperty('vicinity');
+      }
+    });
+  });
+
+  describe('POST /getRecommendList', () => {
+    it('Case: Correct', async () => {
+      const params = {
+        searchCond: {
+          nearbySearchReqParams: {
+            keyword: '',
+            location: {
+              latitude: '21.471383921418447',
+              longitude: '-158.02821312813884',
+            },
+            radius: 4000,
+          },
+          searchHotelReqParams: {
+            radius: 4000,
+            orderBy: 'popularity',
+            adultsNumber: 2,
+            roomNumber: 1,
+            checkinDate: '2022-09-30T00:00:00',
+            checkoutDate: '2022-10-03T00:00:00',
+            latitude: '21.4286856',
+            longitude: '-158.1389763',
+            pageNumber: 0,
+            includeAdjacency: true,
+            mock: true,
+          },
+        },
+        evalCond: {
+          nearbySearch: {
+            orderBy: [
+              {
+                column: 'rating',
+                sort: 'desc',
+              },
+            ],
+          },
+          hotelSearch: {
+            orderBy: [
+              {
+                column: 'review_score',
+                sort: 'desc',
+              },
+              {
+                column: 'distance',
+                sort: 'asc',
+              },
+            ],
+          },
+        },
+      };
+      const response = await request(app)
+        .post('/schedule/getRecommendList')
+        .send(params);
+
+      const result = response.body as GetRecommendListResponse;
+      expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+      expect(result.IBparams.id).toBeGreaterThan(0);
+
+      expect(typeof result.IBparams.id).toBe('number');
+      expect(result.IBparams.keyword).toBe(
+        params.searchCond.nearbySearchReqParams.keyword,
+      );
+      expect(result.IBparams.latitude).toBeCloseTo(
+        Number.parseFloat(
+          params.searchCond.nearbySearchReqParams.location.latitude,
+        ),
+        6,
+      );
+      expect(result.IBparams.longitude).toBeCloseTo(
+        Number.parseFloat(
+          params.searchCond.nearbySearchReqParams.location.longitude,
+        ),
+        6,
+      );
+      expect(result.IBparams.radius).toBe(
+        params.searchCond.nearbySearchReqParams.radius,
+      );
+      expect(result.IBparams.hotelOrderBy).toBe(
+        params.searchCond.searchHotelReqParams.orderBy,
+      );
+      expect(result.IBparams.hotelAdultsNumber).toBe(
+        params.searchCond.searchHotelReqParams.adultsNumber,
+      );
+      expect(result.IBparams.hotelUnits).toBeNull();
+      expect(result.IBparams.hotelRoomNumber).toBe(
+        params.searchCond.searchHotelReqParams.roomNumber,
+      );
+      expect(result.IBparams.hotelCheckinDate).toBe(
+        new Date(
+          params.searchCond.searchHotelReqParams.checkinDate,
+        ).toISOString(),
+      );
+      expect(result.IBparams.hotelCheckoutDate).toBe(
+        new Date(
+          params.searchCond.searchHotelReqParams.checkoutDate,
+        ).toISOString(),
+      );
+      expect(result.IBparams.hotelFilterByCurrency).toBeNull();
+
+      expect(typeof result.IBparams.visitSchedulesCount).toBe('number');
+      expect(result.IBparams.spotPerDay).toBe(
+        result.IBparams.visitSchedules.length,
+      );
+
+      const { visitSchedules } = result.IBparams;
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const visitSchedule of visitSchedules) {
+        const { spot, hotel } = visitSchedule;
+
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const aSpot of spot) {
+          expect(aSpot.queryParamsId).toBe(result.IBparams.id);
+        }
+
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const aHotel of hotel) {
+          expect(aHotel.queryParamsId).toBe(result.IBparams.id);
+        }
       }
     });
   });
