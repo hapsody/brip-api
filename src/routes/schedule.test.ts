@@ -8,7 +8,7 @@ import {
   SearchHotelResponse,
   CompositeSearchResponse,
   GetRecommendListResponse,
-} from './schedule';
+} from './types/schduleTypes';
 
 jest.setTimeout(100000);
 
