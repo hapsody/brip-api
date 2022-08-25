@@ -799,6 +799,14 @@ export const searchHotel = asyncWrapper(
     });
   },
 );
+export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {
+    hotelSearchCount: number;
+    nearbySearchCount: number;
+    hotelSearchResult: SearchedData[];
+    nearbySearchResult: google.maps.places.IBPlaceResult[];
+  };
+};
 
 export const compositeSearch = asyncWrapper(
   async (
