@@ -101,101 +101,108 @@ const storeDataRelatedWithQueryParams = async (
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
-    await prisma.$transaction(async prismaX => {
-      queryParamId = await createQueryParamId(
-        prismaX,
-        queryReqParams,
-        ifAlreadyQueryId,
-      );
+    queryParamId = await createQueryParamId(
+      prisma,
+      queryReqParams,
+      ifAlreadyQueryId,
+    );
 
-      results =
-        (
-          response.data as Partial<{
-            results: google.maps.places.IBPlaceResult[];
-          }>
-        ).results ?? [];
+    results =
+      (
+        response.data as Partial<{
+          results: google.maps.places.IBPlaceResult[];
+        }>
+      ).results ?? [];
 
-      const promises = results.map((item: google.maps.places.IBPlaceResult) => {
-        return prismaX.gglNearbySearchRes.create({
-          data: {
-            QueryParams: {
-              connect: {
-                id: queryParamId,
-              },
+    const promises = results.map((item: google.maps.places.IBPlaceResult) => {
+      return prisma.gglNearbySearchRes.create({
+        data: {
+          QueryParams: {
+            connect: {
+              id: queryParamId,
             },
-            geometry: {
-              create: {
-                location: JSON.stringify({
-                  lat: item.geometry?.location?.lat,
-                  lng: item.geometry?.location?.lng,
-                }),
-                viewport: JSON.stringify({
-                  northeast: {
-                    lat: item.geometry?.viewport?.northeast?.lat,
-                    lng: item.geometry?.viewport?.northeast?.lng,
-                  },
-                  southwest: {
-                    lat: item.geometry?.viewport?.southwest?.lat,
-                    lng: item.geometry?.viewport?.southwest?.lng,
-                  },
-                }),
-              },
-            },
-            icon: item.icon,
-            icon_background_color: item.icon_background_color,
-            icon_mask_base_uri: item.icon_mask_base_uri,
-            name: item.name,
-            opening_hours:
-              (
-                item.opening_hours as Partial<{
-                  open_now: boolean;
-                }>
-              )?.open_now ?? false,
-            place_id: item.place_id,
-            price_level: item.price_level,
-            rating: item.rating,
-            types: (() => {
-              return item.types
-                ? {
-                    connectOrCreate: item.types?.map(type => {
-                      return {
-                        create: { value: type },
-                        where: { value: type },
-                      };
-                    }),
-                  }
-                : {
-                    create: {
-                      value: 'Not Applicaple',
-                    },
-                  };
-            })(),
-            user_ratings_total: item.user_ratings_total,
-            vicinity: item.vicinity,
-            plus_code: {
-              create: {
-                compund_code: item.plus_code?.compound_code ?? '',
-                global_code: item.plus_code?.global_code ?? '',
-              },
-            },
-            photos: {
-              create: item.photos?.map(photo => {
-                return {
-                  height: photo.height,
-                  width: photo.width,
-                  html_attributuions: JSON.stringify(photo.html_attributions),
-                  photo_reference:
-                    (photo as Partial<{ photo_reference: string }>)
-                      .photo_reference ?? '',
-                };
+          },
+          geometry: {
+            create: {
+              location: JSON.stringify({
+                lat: item.geometry?.location?.lat,
+                lng: item.geometry?.location?.lng,
+              }),
+              viewport: JSON.stringify({
+                northeast: {
+                  lat: item.geometry?.viewport?.northeast?.lat,
+                  lng: item.geometry?.viewport?.northeast?.lng,
+                },
+                southwest: {
+                  lat: item.geometry?.viewport?.southwest?.lat,
+                  lng: item.geometry?.viewport?.southwest?.lng,
+                },
               }),
             },
           },
-        });
+          icon: item.icon,
+          icon_background_color: item.icon_background_color,
+          icon_mask_base_uri: item.icon_mask_base_uri,
+          name: item.name,
+          opening_hours:
+            (
+              item.opening_hours as Partial<{
+                open_now: boolean;
+              }>
+            )?.open_now ?? false,
+          place_id: item.place_id,
+          price_level: item.price_level,
+          rating: item.rating,
+          types: (() => {
+            return item.types
+              ? {
+                  connectOrCreate: item.types?.map(type => {
+                    return {
+                      create: { value: type },
+                      where: { value: type },
+                    };
+                  }),
+                }
+              : {
+                  create: {
+                    value: 'Not Applicaple',
+                  },
+                };
+          })(),
+          user_ratings_total: item.user_ratings_total,
+          vicinity: item.vicinity,
+          plus_code: {
+            create: {
+              compund_code: item.plus_code?.compound_code ?? '',
+              global_code: item.plus_code?.global_code ?? '',
+            },
+          },
+          photos: {
+            create: item.photos?.map(photo => {
+              return {
+                height: photo.height,
+                width: photo.width,
+                html_attributuions: JSON.stringify(photo.html_attributions),
+                photo_reference:
+                  (photo as Partial<{ photo_reference: string }>)
+                    .photo_reference ?? '',
+              };
+            }),
+          },
+        },
       });
-
-      if (promises) await Promise.all(promises);
     });
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      await prisma.queryParams.delete({
+        where: {
+          id: queryParamId,
+        },
+      });
+      throw e;
+    }
   }
   return { results, queryParamId };
 };
@@ -545,51 +552,88 @@ const searchHotelInnerAsyncFn = async (
   })();
 
   let queryParamId: number = -1;
-  await prisma.$transaction(async (prismaX: PrismaClient) => {
-    // const queryParamResult = await prismaX.queryReqParams.create({
-    //   data: {
-    //     latitude: paramLat,
-    //     longitude: paramLngt,
-    //     hotelOrderBy: orderBy ?? 'popularity',
-    //     hotelAdultsNumber: adultsNumber,
-    //     hotelUnits: 'metric',
-    //     hotelRoomNumber: roomNumber ?? 1,
-    //     hotelCheckinDate: new Date(checkinDate),
-    //     hotelCheckoutDate: new Date(checkoutDate),
-    //     hotelFilterByCurrency: filterByCurrency ?? 'USD',
-    //   },
-    // });
-    queryParamId = await createQueryParamId(
-      prismaX,
-      queryReqParams,
-      ifAlreadyQueryId,
-    );
+  queryParamId = await createQueryParamId(
+    prisma,
+    queryReqParams,
+    ifAlreadyQueryId,
+  );
 
-    const createSearchHotelResPromises = data.map(item => {
-      const {
-        min_total_price,
-        composite_price_breakdown: {
-          product_price_breakdowns: [
-            {
-              gross_amount: { value: gross_amount },
-            },
-          ],
-          included_taxes_and_charges_amount: {
-            value: included_taxes_and_charges_amount,
+  // const queryParamResult = await prismaX.queryReqParams.create({
+  //   data: {
+  //     latitude: paramLat,
+  //     longitude: paramLngt,
+  //     hotelOrderBy: orderBy ?? 'popularity',
+  //     hotelAdultsNumber: adultsNumber,
+  //     hotelUnits: 'metric',
+  //     hotelRoomNumber: roomNumber ?? 1,
+  //     hotelCheckinDate: new Date(checkinDate),
+  //     hotelCheckoutDate: new Date(checkoutDate),
+  //     hotelFilterByCurrency: filterByCurrency ?? 'USD',
+  //   },
+  // });
+
+  const createSearchHotelResPromises = data.map(item => {
+    const {
+      min_total_price,
+      composite_price_breakdown: {
+        product_price_breakdowns: [
+          {
+            gross_amount: { value: gross_amount },
           },
-          net_amount: { value: net_amount },
+        ],
+        included_taxes_and_charges_amount: {
+          value: included_taxes_and_charges_amount,
         },
+        net_amount: { value: net_amount },
+      },
+      countrycode,
+      default_language,
+      address,
+      city,
+      city_name_en,
+      checkin: { from: checkin },
+      checkout: { until: checkout },
+      distance,
+      review_score_word,
+      review_score,
+      // currency,
+      currency_code,
+      timezone,
+      urgency_message,
+      hotel_id,
+      hotel_name,
+      latitude,
+      longitude,
+      url,
+      accommodation_type_name,
+      zip,
+      main_photo_url,
+      max_photo_url,
+      hotel_facilities,
+      // has_swimming_pool,
+    } = item;
+
+    return prisma.searchHotelRes.create({
+      data: {
+        QueryParams: {
+          connect: {
+            id: queryParamId,
+          },
+        },
+        min_total_price,
+        gross_amount,
+        included_taxes_and_charges_amount,
+        net_amount,
         countrycode,
         default_language,
         address,
         city,
         city_name_en,
-        checkin: { from: checkin },
-        checkout: { until: checkout },
-        distance,
+        checkin,
+        checkout,
+        distance: parseFloat(distance),
         review_score_word,
         review_score,
-        // currency,
         currency_code,
         timezone,
         urgency_message,
@@ -604,49 +648,20 @@ const searchHotelInnerAsyncFn = async (
         max_photo_url,
         hotel_facilities,
         // has_swimming_pool,
-      } = item;
-
-      return prismaX.searchHotelRes.create({
-        data: {
-          QueryParams: {
-            connect: {
-              id: queryParamId,
-            },
-          },
-          min_total_price,
-          gross_amount,
-          included_taxes_and_charges_amount,
-          net_amount,
-          countrycode,
-          default_language,
-          address,
-          city,
-          city_name_en,
-          checkin,
-          checkout,
-          distance: parseFloat(distance),
-          review_score_word,
-          review_score,
-          currency_code,
-          timezone,
-          urgency_message,
-          hotel_id,
-          hotel_name,
-          latitude,
-          longitude,
-          url,
-          accommodation_type_name,
-          zip,
-          main_photo_url,
-          max_photo_url,
-          hotel_facilities,
-          // has_swimming_pool,
-        },
-      });
+      },
     });
-
-    await Promise.all(createSearchHotelResPromises);
   });
+
+  try {
+    await Promise.all(createSearchHotelResPromises);
+  } catch (e) {
+    await prisma.queryParams.delete({
+      where: {
+        id: queryParamId,
+      },
+    });
+    throw e;
+  }
 
   return { hotelSearchResult: data, queryParamId };
 };
