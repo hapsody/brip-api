@@ -154,7 +154,22 @@ const storeDataRelatedWithQueryParams = async (
             place_id: item.place_id,
             price_level: item.price_level,
             rating: item.rating,
-            types: JSON.stringify(item.types),
+            types: (() => {
+              return item.types
+                ? {
+                    connectOrCreate: item.types?.map(type => {
+                      return {
+                        create: { value: type },
+                        where: { value: type },
+                      };
+                    }),
+                  }
+                : {
+                    create: {
+                      value: 'Not Applicaple',
+                    },
+                  };
+            })(),
             user_ratings_total: item.user_ratings_total,
             vicinity: item.vicinity,
             plus_code: {

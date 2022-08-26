@@ -59,11 +59,19 @@ model Gglgeometry {
   GglNearbySearchRes GglNearbySearchRes[]
 }
 
+model GglNearbySearchResType {
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  GglNearbySearchRes GglNearbySearchRes[]
+  value              String?              @unique
+}
+
 model GglNearbySearchRes {
-  id                    Int          @id @default(autoincrement())
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @default(now())
-  geometry              Gglgeometry? @relation(fields: [gglgeometryId], references: [id])
+  id                    Int                      @id @default(autoincrement())
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @default(now())
+  geometry              Gglgeometry?             @relation(fields: [gglgeometryId], references: [id])
   gglgeometryId         Int?
   icon                  String?
   icon_background_color String?
@@ -73,13 +81,13 @@ model GglNearbySearchRes {
   place_id              String?
   price_level           Int?
   rating                Float?
-  types                 String?
+  types                 GglNearbySearchResType[]
   user_ratings_total    Int?
   vicinity              String?
-  plus_code             GglPlusCode? @relation(fields: [plus_codeId], references: [id])
+  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id])
   plus_codeId           Int?
   photos                GglPhotos[]
-  QueryParams           QueryParams? @relation(fields: [queryParamsId], references: [id])
+  QueryParams           QueryParams?             @relation(fields: [queryParamsId], references: [id])
   queryParamsId         Int?
 }
 
