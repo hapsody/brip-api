@@ -174,7 +174,7 @@ export type GetRecommendListInnerAsyncFnResponse = QueryParams & {
 };
 
 export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetRecommendListInnerAsyncFnResponse;
+  IBparams: GetRecommendListInnerAsyncFnResponse | {};
 };
 export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {

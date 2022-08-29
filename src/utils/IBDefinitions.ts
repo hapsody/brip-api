@@ -1,9 +1,18 @@
 export class IBError extends Error {
-  message: keyof IBResFormats;
+  type: keyof IBResFormats;
 
-  constructor(message: keyof IBResFormats) {
+  message: string;
+
+  constructor({
+    type,
+    message,
+  }: {
+    type: keyof IBResFormats;
+    message: string;
+  }) {
     super(message);
     this.name = 'IBError';
+    this.type = type;
     this.message = message;
   }
 }

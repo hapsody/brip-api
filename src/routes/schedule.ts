@@ -2,7 +2,7 @@
 
 import express from 'express';
 // import prisma from '@src/prisma';
-import { ibDefs, asyncWrapper, IBResFormat } from '@src/utils';
+import { ibDefs, asyncWrapper, IBResFormat, IBError } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
 import {
@@ -870,6 +870,20 @@ const getRecommendListInnerAsyncFn = async (
     hotelTransition = 0, // 호텔 바꾸는 횟수
   } = searchCond;
 
+  const travelNights = getTravelNights(
+    // searchCond.searchHotelReqParams.checkinDate,
+    // searchCond.searchHotelReqParams.checkoutDate,
+    travelStartDate,
+    travelEndDate,
+  );
+
+  if (travelNights < hotelTransition)
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+    });
+
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
   await nearbySearchInnerAsyncFn(searchCond, queryParamId);
@@ -878,13 +892,6 @@ const getRecommendListInnerAsyncFn = async (
   // Get high priority candidate data from composite search result.
   const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
     getListQueryParamsWithId,
-  );
-
-  const travelNights = getTravelNights(
-    // searchCond.searchHotelReqParams.checkinDate,
-    // searchCond.searchHotelReqParams.checkoutDate,
-    travelStartDate,
-    travelEndDate,
   );
   const travelDays = travelNights + 1;
 
@@ -997,12 +1004,24 @@ const getRecommendList = asyncWrapper(
     req: Express.IBTypedReqBody<GetRecommendListReqParams>,
     res: Express.IBTypedResponse<GetRecommendListResponse>,
   ) => {
-    const params = req.body;
-    const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: recommendListFromDB,
-    });
+    try {
+      const params = req.body;
+      const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: recommendListFromDB,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+        }
+      }
+    }
   },
 );
 

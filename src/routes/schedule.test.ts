@@ -10,6 +10,7 @@ import {
   CompositeSearchResponse,
   GetRecommendListResponse,
   GetListQueryParamsResponse,
+  GetRecommendListInnerAsyncFnResponse,
 } from './types/schduleTypes';
 import { getTravelNights } from './schedule';
 
@@ -444,56 +445,59 @@ describe('Auth Express Router E2E Test', () => {
         .send(params);
 
       const result = response.body as GetRecommendListResponse;
-      expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
-      expect(result.IBparams.id).toBeGreaterThan(0);
 
-      expect(typeof result.IBparams.id).toBe('number');
-      expect(result.IBparams.keyword).toBe(
+      const iBparams = result.IBparams as GetRecommendListInnerAsyncFnResponse;
+
+      expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+      expect(iBparams.id).toBeGreaterThan(0);
+
+      expect(typeof iBparams.id).toBe('number');
+      expect(iBparams.keyword).toBe(
         params.searchCond.nearbySearchReqParams.keyword,
       );
-      expect(result.IBparams.latitude).toBeCloseTo(
+      expect(iBparams.latitude).toBeCloseTo(
         Number.parseFloat(
           params.searchCond.nearbySearchReqParams.location.latitude,
         ),
         6,
       );
-      expect(result.IBparams.longitude).toBeCloseTo(
+      expect(iBparams.longitude).toBeCloseTo(
         Number.parseFloat(
           params.searchCond.nearbySearchReqParams.location.longitude,
         ),
         6,
       );
-      expect(result.IBparams.radius).toBe(
+      expect(iBparams.radius).toBe(
         params.searchCond.nearbySearchReqParams.radius,
       );
-      expect(result.IBparams.hotelOrderBy).toBe(
+      expect(iBparams.hotelOrderBy).toBe(
         params.searchCond.searchHotelReqParams.orderBy,
       );
-      expect(result.IBparams.hotelAdultsNumber).toBe(
+      expect(iBparams.hotelAdultsNumber).toBe(
         params.searchCond.searchHotelReqParams.adultsNumber,
       );
-      expect(result.IBparams.hotelUnits).toBeNull();
-      expect(result.IBparams.hotelRoomNumber).toBe(
+      expect(iBparams.hotelUnits).toBeNull();
+      expect(iBparams.hotelRoomNumber).toBe(
         params.searchCond.searchHotelReqParams.roomNumber,
       );
-      expect(result.IBparams.hotelCheckinDate).toBe(
+      expect(iBparams.hotelCheckinDate).toBe(
         new Date(
           params.searchCond.searchHotelReqParams.checkinDate,
         ).toISOString(),
       );
-      expect(result.IBparams.hotelCheckoutDate).toBe(
+      expect(iBparams.hotelCheckoutDate).toBe(
         new Date(
           params.searchCond.searchHotelReqParams.checkoutDate,
         ).toISOString(),
       );
-      expect(result.IBparams.hotelFilterByCurrency).toBeNull();
+      expect(iBparams.hotelFilterByCurrency).toBeNull();
 
-      expect(typeof result.IBparams.visitSchedulesCount).toBe('number');
+      expect(typeof iBparams.visitSchedulesCount).toBe('number');
 
       const checkResponse = await request(app)
         .post('/schedule/getListQueryParams')
         .send({
-          id: result.IBparams.id,
+          id: iBparams.id,
           nearbySearch: {},
           hotelSearch: {},
         });
@@ -506,7 +510,7 @@ describe('Auth Express Router E2E Test', () => {
         recommendedMinHotelCount,
         recommendedMidHotelCount,
         recommendedMaxHotelCount,
-      } = result.IBparams;
+      } = iBparams;
 
       let minBudgetHotelCount = 0;
       let midBudgetHotelCount = 0;
@@ -521,24 +525,24 @@ describe('Auth Express Router E2E Test', () => {
         const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot) {
-          expect(aSpot.queryParamsId).toBe(result.IBparams.id);
+          expect(aSpot.queryParamsId).toBe(iBparams.id);
         }
-        expect(spot.length).toBe(result.IBparams.spotPerDay);
+        expect(spot.length).toBe(iBparams.spotPerDay);
 
         if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
-          expect(minBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          expect(minBudgetHotel.queryParamsId).toBe(iBparams.id);
           prevMinBudgetHotel = minBudgetHotel;
           minBudgetHotelCount += 1;
         }
 
         if (midBudgetHotel && prevMidBudgetHotel?.id !== midBudgetHotel.id) {
-          expect(midBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          expect(midBudgetHotel.queryParamsId).toBe(iBparams.id);
           prevMidBudgetHotel = midBudgetHotel;
           midBudgetHotelCount += 1;
         }
 
         if (maxBudgetHotel && prevMaxBudgetHotel?.id !== maxBudgetHotel.id) {
-          expect(maxBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          expect(maxBudgetHotel.queryParamsId).toBe(iBparams.id);
           prevMaxBudgetHotel = maxBudgetHotel;
           maxBudgetHotelCount += 1;
         }
