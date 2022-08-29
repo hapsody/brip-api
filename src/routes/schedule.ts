@@ -36,6 +36,9 @@ import {
 
 const scheduleRouter: express.Application = express();
 const spotPerDay = 3;
+export const minHotelBudgetPortion = 0.5;
+export const midHotelBudgetPortion = 0.6;
+export const maxHotelBudgetPortion = 0.7;
 // const hotelPerDay = 1;
 
 const createQueryParamId = async (
@@ -876,6 +879,12 @@ const getRecommendListInnerAsyncFn = async (
     travelStartDate,
     travelEndDate,
   );
+  if (travelNights < 1) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: '여행 시작일과 종료일의 차이가 1미만입니다.',
+    });
+  }
 
   if (travelNights < hotelTransition)
     throw new IBError({
@@ -905,11 +914,16 @@ const getRecommendListInnerAsyncFn = async (
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
 
-    const dailyMinBudget = minBudget / transitionTerm;
+    const minHotelBudget = minBudget * minHotelBudgetPortion;
+    const dailyMinBudget = minHotelBudget / transitionTerm;
+
     const midBudget = (minBudget + maxBudget) / 2;
     const flexPortionLimit = 1.3;
-    const dailyMidBudget = (midBudget * flexPortionLimit) / transitionTerm;
-    const dailyMaxBudget = maxBudget / transitionTerm;
+    const midHotelBudget = midBudget * midHotelBudgetPortion;
+    const dailyMidBudget = (midHotelBudget * flexPortionLimit) / transitionTerm;
+
+    const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
+    const dailyMaxBudget = maxHotelBudget / transitionTerm;
 
     const minFilteredHotels = copiedHotelRes.filter(
       hotel => hotel.min_total_price < dailyMinBudget,

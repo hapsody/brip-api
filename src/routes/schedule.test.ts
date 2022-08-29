@@ -12,7 +12,12 @@ import {
   GetListQueryParamsResponse,
   GetRecommendListInnerAsyncFnResponse,
 } from './types/schduleTypes';
-import { getTravelNights } from './schedule';
+import {
+  getTravelNights,
+  minHotelBudgetPortion,
+  midHotelBudgetPortion,
+  maxHotelBudgetPortion,
+} from './schedule';
 
 jest.setTimeout(100000);
 
@@ -448,6 +453,7 @@ describe('Auth Express Router E2E Test', () => {
 
       const iBparams = result.IBparams as GetRecommendListInnerAsyncFnResponse;
 
+      // 파라미터 입력값이 제대로 반영된 결과인지 파라미터 값과 응답값 비교 part
       expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
       expect(iBparams.id).toBeGreaterThan(0);
 
@@ -494,6 +500,11 @@ describe('Auth Express Router E2E Test', () => {
 
       expect(typeof iBparams.visitSchedulesCount).toBe('number');
 
+      // 검색 된 호텔 결과값 확인 부분
+      // 1. recommendedXXXHotelCount와 여행일수 및 hotelTransition 입력 파라미터에 따른 도출 결과 수와 일치하는지 비교
+      // 2. 각 일자별 추천 호텔들이 min, mid, max 하루치 예산을 초과하지 않는지 확인
+      // 3. 추천된 호텔이 없을 경우 실제 테스트때 검색된 호텔 결과들을 불러 예산을 초과하여 추천되지 않았는지 검증
+      // 4. 추천된 호텔이 있을 경우 추천된 호텔의 일일 숙박비 총합이 하루 예산을 넘지 않는지 검증
       const checkResponse = await request(app)
         .post('/schedule/getListQueryParams')
         .send({
@@ -519,6 +530,10 @@ describe('Auth Express Router E2E Test', () => {
       let prevMinBudgetHotel: SearchHotelRes | undefined;
       let prevMidBudgetHotel: SearchHotelRes | undefined;
       let prevMaxBudgetHotel: SearchHotelRes | undefined;
+
+      let totalMinHotelCharge = 0;
+      let totalMidHotelCharge = 0;
+      let totalMaxHotelCharge = 0;
       // eslint-disable-next-line no-restricted-syntax
       for await (const visitSchedule of visitSchedules) {
         const { spot, hotel } = visitSchedule;
@@ -546,6 +561,16 @@ describe('Auth Express Router E2E Test', () => {
           prevMaxBudgetHotel = maxBudgetHotel;
           maxBudgetHotelCount += 1;
         }
+
+        totalMinHotelCharge += minBudgetHotel
+          ? minBudgetHotel.min_total_price
+          : 0;
+        totalMidHotelCharge += midBudgetHotel
+          ? midBudgetHotel.min_total_price
+          : 0;
+        totalMaxHotelCharge += maxBudgetHotel
+          ? maxBudgetHotel.min_total_price
+          : 0;
       }
 
       const travelNights = getTravelNights(
@@ -559,7 +584,8 @@ describe('Auth Express Router E2E Test', () => {
 
       expect(recommendedMinHotelCount).toBe(minBudgetHotelCount);
       if (recommendedMinHotelCount === 0) {
-        const dailyMinBudget = minBudget / transitionTerm;
+        const minHotelBudget = minBudget * minHotelBudgetPortion;
+        const dailyMinBudget = minHotelBudget / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
           item => item.min_total_price < dailyMinBudget,
@@ -567,13 +593,16 @@ describe('Auth Express Router E2E Test', () => {
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMinHotelCount).toBe(hotelTransition + 1);
+        expect(totalMinHotelCharge).toBeLessThan(minBudget);
       }
 
       expect(recommendedMidHotelCount).toBe(midBudgetHotelCount);
+      const midBudget = (minBudget + maxBudget) / 2;
       if (recommendedMidHotelCount === 0) {
-        const midBudget = (minBudget + maxBudget) / 2;
+        const midHotelBudget = midBudget * midHotelBudgetPortion;
         const flexPortionLimit = 1.3;
-        const dailyMidBudget = (midBudget * flexPortionLimit) / transitionTerm;
+        const dailyMidBudget =
+          (midHotelBudget * flexPortionLimit) / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
           item => item.min_total_price < dailyMidBudget,
@@ -581,11 +610,13 @@ describe('Auth Express Router E2E Test', () => {
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMidHotelCount).toBe(hotelTransition + 1);
+        expect(totalMidHotelCharge).toBeLessThan(midBudget);
       }
 
       expect(recommendedMaxHotelCount).toBe(maxBudgetHotelCount);
       if (recommendedMidHotelCount === 0) {
-        const dailyMaxBudget = maxBudget / transitionTerm;
+        const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
+        const dailyMaxBudget = maxHotelBudget / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
           item => item.min_total_price < dailyMaxBudget,
@@ -593,6 +624,7 @@ describe('Auth Express Router E2E Test', () => {
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMaxHotelCount).toBe(hotelTransition + 1);
+        expect(totalMaxHotelCharge).toBeLessThan(maxBudget);
       }
     });
   });
