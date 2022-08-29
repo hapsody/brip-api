@@ -30,11 +30,13 @@ import {
   NearbySearchResponse,
   SearchHotelResponse,
   CompositeSearchResponse,
+  GetListQueryParamsResponse,
+  GetListQueryParamsInnerAsyncFnResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
 const spotPerDay = 3;
-const hotelPerDay = 1;
+// const hotelPerDay = 1;
 
 const createQueryParamId = async (
   prismaX: Omit<
@@ -86,11 +88,14 @@ const createQueryParamId = async (
   return queryParamResult.id;
 };
 
-const getTravelDays = (checkinDate: Date, checkoutDate: Date) => {
+export const getTravelNights = (
+  checkinDate: Date,
+  checkoutDate: Date,
+): number => {
   const mCheckinDate = moment(checkinDate);
   const mCheckoutDate = moment(checkoutDate);
 
-  return moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays();
+  return Math.floor(moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays());
 };
 
 const storeDataRelatedWithQueryParams = async (
@@ -230,7 +235,7 @@ const nearbySearchInnerAsyncFn = async (
 
   const response = await axios.get(queryUrl);
   // if (compositeSearch) {
-  //   const travelDays = getTravelDays(
+  //   const travelDays = getTravelNights(
   //     compositeSearch.checkinDate,
   //     compositeSearch.checkoutDate,
   //   );
@@ -714,10 +719,11 @@ export const compositeSearch = asyncWrapper(
 
     let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
 
-    const travelDays = getTravelDays(
+    const travelNights = getTravelNights(
       queryReqParams.searchHotelReqParams.checkinDate,
       queryReqParams.searchHotelReqParams.checkoutDate,
     );
+    const travelDays = travelNights + 1;
 
     const radiusExtendRetryLimit = 5;
     let radiusExtendRetry = 1;
@@ -760,7 +766,7 @@ export const compositeSearch = asyncWrapper(
 
 const getListQueryParamsInnerAsyncFn = async (
   params: GetListQueryParamsReqParams,
-) => {
+): Promise<GetListQueryParamsInnerAsyncFnResponse> => {
   const { id, hotelSearch, nearbySearch: nearbySearchX } = params;
   const hotelOrderBy = hotelSearch!.orderBy;
   const nearbyOrderBy = nearbySearchX!.orderBy;
@@ -831,20 +837,20 @@ const getListQueryParamsInnerAsyncFn = async (
   }
 
   const queryParamsDataFromDB = await prisma.queryParams.findMany(cond);
-  return queryParamsDataFromDB;
+  return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnResponse;
 };
 
 const getListQueryParams = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
-    res: Express.IBTypedResponse<IBResFormat>,
+    res: Express.IBTypedResponse<GetListQueryParamsResponse>,
   ) => {
     const params = req.body;
     const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: queryParamsDataFromDB as object,
+      IBparams: queryParamsDataFromDB,
     });
   },
 );
@@ -853,6 +859,16 @@ const getRecommendListInnerAsyncFn = async (
   params: GetRecommendListReqParams,
 ): Promise<GetRecommendListInnerAsyncFnResponse> => {
   const { searchCond, evalCond } = params;
+  const {
+    minBudget = 0,
+    maxBudget = 0,
+    // currency,
+    // travelType,
+    // travelIntensity,
+    travelStartDate,
+    travelEndDate,
+    hotelTransition = 0, // 호텔 바꾸는 횟수
+  } = searchCond;
 
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
@@ -864,12 +880,13 @@ const getRecommendListInnerAsyncFn = async (
     getListQueryParamsWithId,
   );
 
-  const travelDays = getTravelDays(
-    searchCond.searchHotelReqParams.checkinDate,
-    searchCond.searchHotelReqParams.checkoutDate,
+  const travelNights = getTravelNights(
+    // searchCond.searchHotelReqParams.checkinDate,
+    // searchCond.searchHotelReqParams.checkoutDate,
+    travelStartDate,
+    travelEndDate,
   );
-
-  const arr = Array.from(Array(travelDays));
+  const travelDays = travelNights + 1;
 
   const { searchHotelRes, gglNearbySearchRes } =
     queryParamsDataFromDB[0] as QueryParams & {
@@ -877,7 +894,50 @@ const getRecommendListInnerAsyncFn = async (
       gglNearbySearchRes: GglNearbySearchRes[];
     };
 
+  const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
+  const filterHotelWithBudget = () => {
+    const copiedHotelRes = Array.from(searchHotelRes).reverse();
+
+    const dailyMinBudget = minBudget / transitionTerm;
+    const midBudget = (minBudget + maxBudget) / 2;
+    const flexPortionLimit = 1.3;
+    const dailyMidBudget = (midBudget * flexPortionLimit) / transitionTerm;
+    const dailyMaxBudget = maxBudget / transitionTerm;
+
+    const minFilteredHotels = copiedHotelRes.filter(
+      hotel => hotel.min_total_price < dailyMinBudget,
+    );
+    const midFilteredHotels = copiedHotelRes.filter(hotel => {
+      return hotel.min_total_price < dailyMidBudget;
+    });
+    const maxFilteredHotels = copiedHotelRes.filter(
+      hotel => hotel.min_total_price < dailyMaxBudget,
+    );
+    return {
+      minFilteredHotels,
+      midFilteredHotels,
+      maxFilteredHotels,
+    };
+  };
+  const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
+    filterHotelWithBudget();
+
   const visitSchedules: VisitSchedules = [];
+  // const minBudgetHotel: SearchHotelRes[] = [];
+  // const midBudgetHotel: SearchHotelRes[] = [];
+  // const maxBudgetHotel: SearchHotelRes[] = [];
+
+  const arr = Array.from(Array(travelDays));
+  let recommendedNearbySearchCount = 0;
+  let recommendedMinHotelCount = 0;
+  let recommendedMidHotelCount = 0;
+  let recommendedMaxHotelCount = 0;
+  let prevMinHotel: SearchHotelRes | undefined;
+  let prevMidHotel: SearchHotelRes | undefined;
+  let prevMaxHotel: SearchHotelRes | undefined;
+  let minHotel: SearchHotelRes | undefined;
+  let midHotel: SearchHotelRes | undefined;
+  let maxHotel: SearchHotelRes | undefined;
   arr.reduce((acc: VisitSchedules, cur, idx) => {
     const thatDaySpot = gglNearbySearchRes.slice(
       idx * spotPerDay,
@@ -885,15 +945,28 @@ const getRecommendListInnerAsyncFn = async (
         ? (idx + 1) * spotPerDay
         : gglNearbySearchRes.length - 1,
     );
-    const thatDayHotel = searchHotelRes.slice(
-      idx * hotelPerDay,
-      (idx + 1) * hotelPerDay <= searchHotel.length
-        ? (idx + 1) * hotelPerDay
-        : gglNearbySearchRes.length - 1,
-    );
+    recommendedNearbySearchCount += thatDaySpot.length;
+
+    if (idx % transitionTerm === 0) {
+      minHotel = minFilteredHotels.pop();
+      midHotel = midFilteredHotels.pop();
+      maxHotel = maxFilteredHotels.pop();
+      prevMinHotel = minHotel;
+      prevMidHotel = midHotel;
+      prevMaxHotel = maxHotel;
+
+      if (minHotel) recommendedMinHotelCount += 1;
+      if (midHotel) recommendedMidHotelCount += 1;
+      if (maxHotel) recommendedMaxHotelCount += 1;
+    }
+
     acc.push({
       spot: thatDaySpot,
-      hotel: thatDayHotel,
+      hotel: {
+        minBudgetHotel: idx % transitionTerm === 0 ? minHotel : prevMinHotel,
+        midBudgetHotel: idx % transitionTerm === 0 ? midHotel : prevMidHotel,
+        maxBudgetHotel: idx % transitionTerm === 0 ? maxHotel : prevMaxHotel,
+      },
     });
 
     return acc;
@@ -904,6 +977,14 @@ const getRecommendListInnerAsyncFn = async (
     totalNearbySearchCount: gglNearbySearchRes.length,
     totalHotelSearchCount: searchHotelRes.length,
     spotPerDay,
+    travelNights,
+    travelDays,
+    hotelTransition,
+    transitionTerm,
+    recommendedNearbySearchCount,
+    recommendedMinHotelCount,
+    recommendedMidHotelCount,
+    recommendedMaxHotelCount,
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
   };

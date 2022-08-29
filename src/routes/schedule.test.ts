@@ -3,12 +3,15 @@ import app from '@src/app';
 // import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
 import { ibDefs } from '@src/utils';
+import { SearchHotelRes } from '@prisma/client';
 import {
   NearbySearchResponse,
   SearchHotelResponse,
   CompositeSearchResponse,
   GetRecommendListResponse,
+  GetListQueryParamsResponse,
 } from './types/schduleTypes';
+import { getTravelNights } from './schedule';
 
 jest.setTimeout(100000);
 
@@ -354,8 +357,39 @@ describe('Auth Express Router E2E Test', () => {
 
   describe('POST /getRecommendList', () => {
     it('Case: Correct', async () => {
+      const minBudget = 100;
+      const maxBudget = 3000;
+      const travelStartDate = '2022-09-30T00:00:00';
+      const travelEndDate = '2022-10-02T00:00:00';
+      const hotelTransition = 1;
+
       const params = {
         searchCond: {
+          minBudget,
+          maxBudget,
+          currency: 'USD',
+          travelType: {
+            landActivity: true,
+            golf: false,
+            relaxation: false,
+            resort: false,
+            hotel: true,
+            oceanActivity: false,
+            experience: false,
+            groupActivity: false,
+            learning: false,
+            shopping: false,
+            waterPark: false,
+            visitTourSpot: false,
+            packageTour: false,
+            nativeExperience: false,
+            noIdea: false,
+          },
+          travelIntensity: 6,
+          travelStartDate,
+          travelEndDate,
+          hotelTransition,
+
           nearbySearchReqParams: {
             keyword: '',
             location: {
@@ -368,6 +402,10 @@ describe('Auth Express Router E2E Test', () => {
             radius: 4000,
             orderBy: 'popularity',
             adultsNumber: 2,
+
+            childrenNumber: 2,
+            childrenAges: [1, 3],
+
             roomNumber: 1,
             checkinDate: '2022-09-30T00:00:00',
             checkoutDate: '2022-10-03T00:00:00',
@@ -451,24 +489,106 @@ describe('Auth Express Router E2E Test', () => {
       expect(result.IBparams.hotelFilterByCurrency).toBeNull();
 
       expect(typeof result.IBparams.visitSchedulesCount).toBe('number');
-      expect(result.IBparams.spotPerDay).toBe(
-        result.IBparams.visitSchedules.length,
-      );
 
-      const { visitSchedules } = result.IBparams;
+      const checkResponse = await request(app)
+        .post('/schedule/getListQueryParams')
+        .send({
+          id: result.IBparams.id,
+          nearbySearch: {},
+          hotelSearch: {},
+        });
+      const { searchHotelRes: checkHotelRes } = (
+        checkResponse.body as GetListQueryParamsResponse
+      ).IBparams[0];
+
+      const {
+        visitSchedules,
+        recommendedMinHotelCount,
+        recommendedMidHotelCount,
+        recommendedMaxHotelCount,
+      } = result.IBparams;
+
+      let minBudgetHotelCount = 0;
+      let midBudgetHotelCount = 0;
+      let maxBudgetHotelCount = 0;
+
+      let prevMinBudgetHotel: SearchHotelRes | undefined;
+      let prevMidBudgetHotel: SearchHotelRes | undefined;
+      let prevMaxBudgetHotel: SearchHotelRes | undefined;
       // eslint-disable-next-line no-restricted-syntax
       for await (const visitSchedule of visitSchedules) {
         const { spot, hotel } = visitSchedule;
-
+        const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot) {
           expect(aSpot.queryParamsId).toBe(result.IBparams.id);
         }
+        expect(spot.length).toBe(result.IBparams.spotPerDay);
 
-        // eslint-disable-next-line no-restricted-syntax
-        for await (const aHotel of hotel) {
-          expect(aHotel.queryParamsId).toBe(result.IBparams.id);
+        if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
+          expect(minBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          prevMinBudgetHotel = minBudgetHotel;
+          minBudgetHotelCount += 1;
         }
+
+        if (midBudgetHotel && prevMidBudgetHotel?.id !== midBudgetHotel.id) {
+          expect(midBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          prevMidBudgetHotel = midBudgetHotel;
+          midBudgetHotelCount += 1;
+        }
+
+        if (maxBudgetHotel && prevMaxBudgetHotel?.id !== maxBudgetHotel.id) {
+          expect(maxBudgetHotel.queryParamsId).toBe(result.IBparams.id);
+          prevMaxBudgetHotel = maxBudgetHotel;
+          maxBudgetHotelCount += 1;
+        }
+      }
+
+      const travelNights = getTravelNights(
+        // searchCond.searchHotelReqParams.checkinDate,
+        // searchCond.searchHotelReqParams.checkoutDate,
+        new Date(travelStartDate),
+        new Date(travelEndDate),
+      );
+      // const travelDays = travelNights + 1;
+      const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
+
+      expect(recommendedMinHotelCount).toBe(minBudgetHotelCount);
+      if (recommendedMinHotelCount === 0) {
+        const dailyMinBudget = minBudget / transitionTerm;
+        const copiedCheckHotelRes = Array.from(checkHotelRes);
+        const filtered = copiedCheckHotelRes.filter(
+          item => item.min_total_price < dailyMinBudget,
+        );
+        expect(filtered).toHaveLength(0);
+      } else {
+        expect(recommendedMinHotelCount).toBe(hotelTransition + 1);
+      }
+
+      expect(recommendedMidHotelCount).toBe(midBudgetHotelCount);
+      if (recommendedMidHotelCount === 0) {
+        const midBudget = (minBudget + maxBudget) / 2;
+        const flexPortionLimit = 1.3;
+        const dailyMidBudget = (midBudget * flexPortionLimit) / transitionTerm;
+        const copiedCheckHotelRes = Array.from(checkHotelRes);
+        const filtered = copiedCheckHotelRes.filter(
+          item => item.min_total_price < dailyMidBudget,
+        );
+        expect(filtered).toHaveLength(0);
+      } else {
+        expect(recommendedMidHotelCount).toBe(hotelTransition + 1);
+      }
+
+      expect(recommendedMaxHotelCount).toBe(maxBudgetHotelCount);
+      if (recommendedMidHotelCount === 0) {
+        const dailyMaxBudget = maxBudget / transitionTerm;
+        const copiedCheckHotelRes = Array.from(checkHotelRes);
+        const filtered = copiedCheckHotelRes.filter(
+          item => item.min_total_price < dailyMaxBudget,
+        );
+        expect(filtered).toHaveLength(0);
+      } else {
+        expect(recommendedMaxHotelCount).toBe(hotelTransition + 1);
       }
     });
   });

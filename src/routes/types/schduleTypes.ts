@@ -66,6 +66,7 @@ export interface QueryReqParams {
   travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
   travelStartDate: Date; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
   travelEndDate: Date; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
 }
@@ -149,15 +150,27 @@ export interface GetRecommendListReqParams {
 
 export type VisitSchedules = {
   spot: GglNearbySearchRes[];
-  hotel: SearchHotelRes[];
+  hotel: {
+    minBudgetHotel: SearchHotelRes | undefined;
+    midBudgetHotel: SearchHotelRes | undefined;
+    maxBudgetHotel: SearchHotelRes | undefined;
+  };
 }[];
 
 export type GetRecommendListInnerAsyncFnResponse = QueryParams & {
   totalNearbySearchCount: number;
   totalHotelSearchCount: number;
   spotPerDay: number;
+  travelNights: number;
+  travelDays: number;
+  hotelTransition: number;
+  transitionTerm: number;
   visitSchedulesCount: number;
   visitSchedules: VisitSchedules;
+  recommendedNearbySearchCount: number;
+  recommendedMinHotelCount: number;
+  recommendedMidHotelCount: number;
+  recommendedMaxHotelCount: number;
 };
 
 export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
@@ -170,6 +183,15 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
     hotelSearchResult: SearchedData[];
     nearbySearchResult: google.maps.places.IBPlaceResult[];
   };
+};
+
+export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
+  gglNearbySearchRes: GglNearbySearchRes[];
+  searchHotelRes: SearchHotelRes[];
+})[];
+
+export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetListQueryParamsInnerAsyncFnResponse;
 };
 
 export const defaultNearbySearchReqParams = {
