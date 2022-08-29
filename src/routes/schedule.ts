@@ -13,7 +13,7 @@ import {
   QueryParams,
 } from '@prisma/client';
 import moment from 'moment';
-import { omit, isEmpty } from 'lodash';
+import { omit, isEmpty, isNumber, isNil } from 'lodash';
 import {
   QueryReqParams,
   defaultNearbySearchReqParams,
@@ -69,6 +69,8 @@ const createQueryParamId = async (
     filterByCurrency,
     latitude: paramLat,
     longitude: paramLngt,
+    childrenAges,
+    childrenNumber,
     // mock
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
@@ -86,6 +88,8 @@ const createQueryParamId = async (
       hotelCheckinDate: new Date(checkinDate),
       hotelCheckoutDate: new Date(checkoutDate),
       hotelFilterByCurrency: filterByCurrency,
+      hotelChildrenAges: childrenAges?.toString(),
+      hotelChildrenNumber: childrenNumber,
     },
   });
   return queryParamResult.id;
@@ -516,8 +520,30 @@ const searchHotelInnerAsyncFn = async (
     longitude: paramLngt,
     pageNumber,
     includeAdjacency,
+    childrenAges,
+    childrenNumber,
     mock,
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
+
+  if (childrenAges && childrenAges.length > 0 && !isNumber(childrenNumber)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'childrenNumber 파라미터가 제공되지 않았거나 number 타입이 아닙니다.',
+    });
+  }
+  if (
+    (isNumber(childrenNumber) && isNil(childrenAges)) ||
+    (isNumber(childrenNumber) &&
+      childrenAges &&
+      childrenAges.length < childrenNumber)
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'childrenAges 파라미터가 제공되지 않았거나 childrenAges 배열의 요소의 수가 childrenNumber보다 적습니다.',
+    });
+  }
 
   const data = await (async () => {
     if (mock) {
@@ -546,6 +572,8 @@ const searchHotelInnerAsyncFn = async (
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
         include_adjacency: includeAdjacency ?? 'false',
+        children_number: childrenNumber?.toString(),
+        children_ages: childrenAges?.toString(),
       },
       headers: {
         'X-RapidAPI-Key': 'ed5143522dmsh08a8f16dd35fd7ap1433aajsn5ba513b80047',

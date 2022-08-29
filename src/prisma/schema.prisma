@@ -108,6 +108,8 @@ model QueryParams {
   hotelCheckinDate      DateTime? /// '2022-09-30';
   hotelCheckoutDate     DateTime? /// '2022-10-01';
   hotelFilterByCurrency String? /// default USD, 'USD' | 'KRW'; 
+  hotelChildrenAges     String? /// ex) 유아 연령 배열 '5,3'
+  hotelChildrenNumber   Int? /// ex) 유아 수 ex) 2
   searchHotelRes        SearchHotelRes[]
   gglNearbySearchRes    GglNearbySearchRes[]
 }

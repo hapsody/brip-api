@@ -19,7 +19,7 @@ export interface NearBySearchReqParams {
 export type Currency = 'USD' | 'KRW';
 
 export interface SearchHotelReqParams {
-  orderBy?: // default popularity
+  orderBy: // default popularity
   | 'popularity'
     | 'class_ascending'
     | 'class_descending'
@@ -38,6 +38,8 @@ export interface SearchHotelReqParams {
   longitude: string; // 경도 ex) -158.1389763;
   pageNumber?: number; // default 0;
   includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
+  childrenNumber?: number;
+  childrenAges?: number[];
   mock?: boolean; // default true
 }
 
@@ -203,17 +205,26 @@ export const defaultNearbySearchReqParams = {
   },
   loadAll: false,
 };
-export const defaultSearchHotelReqParams = {
-  orderBy: undefined,
-  adultsNumber: undefined,
+
+const getToday = () => {
+  return new Date(moment().startOf('d').format());
+};
+const getTomorrow = () => {
+  return new Date(moment().add(1, 'day').startOf('d').format());
+};
+export const defaultSearchHotelReqParams: SearchHotelReqParams = {
+  orderBy: 'popularity',
+  adultsNumber: 2,
   roomNumber: undefined,
-  checkinDate: undefined,
-  checkoutDate: undefined,
+  checkinDate: getToday(),
+  checkoutDate: getTomorrow(),
   filterByCurrency: undefined,
-  latitude: undefined,
-  longitude: undefined,
+  latitude: '21.4286856',
+  longitude: '-158.1389763',
   pageNumber: undefined,
   includeAdjacency: undefined,
+  childrenNumber: undefined,
+  childrenAges: undefined,
   mock: true,
 };
 

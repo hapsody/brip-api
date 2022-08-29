@@ -368,6 +368,8 @@ describe('Auth Express Router E2E Test', () => {
       const travelStartDate = '2022-09-30T00:00:00';
       const travelEndDate = '2022-10-02T00:00:00';
       const hotelTransition = 1;
+      const childrenNumber = 2;
+      const childrenAges = [1, 3];
 
       const params = {
         searchCond: {
@@ -409,8 +411,8 @@ describe('Auth Express Router E2E Test', () => {
             orderBy: 'popularity',
             adultsNumber: 2,
 
-            childrenNumber: 2,
-            childrenAges: [1, 3],
+            childrenNumber,
+            childrenAges,
 
             roomNumber: 1,
             checkinDate: '2022-09-30T00:00:00',
