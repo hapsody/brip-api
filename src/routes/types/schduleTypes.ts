@@ -3,7 +3,7 @@ import {
   GglNearbySearchRes,
   QueryParams,
 } from '@prisma/client';
-import { IBResFormat } from '@src/utils';
+import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
 
 export interface NearBySearchReqParams {
@@ -18,15 +18,17 @@ export interface NearBySearchReqParams {
 }
 export type Currency = 'USD' | 'KRW';
 
-export interface SearchHotelReqParams {
-  orderBy: // default popularity
+export type BookingComOrderBy =
   | 'popularity'
-    | 'class_ascending'
-    | 'class_descending'
-    | 'distance'
-    | 'upsort_bh'
-    | 'review_score'
-    | 'price';
+  | 'class_ascending'
+  | 'class_descending'
+  | 'distance'
+  | 'upsort_bh'
+  | 'review_score'
+  | 'price';
+
+export interface SearchHotelReqParams {
+  orderBy: BookingComOrderBy; // default popularity
   adultsNumber: number;
   // units: 'metric';
   roomNumber?: number; // Number of rooms
@@ -40,6 +42,7 @@ export interface SearchHotelReqParams {
   includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
   childrenNumber?: number;
   childrenAges?: number[];
+  categoriesFilterIds?: string;
   mock?: boolean; // default true
 }
 
@@ -150,6 +153,36 @@ export interface GetRecommendListReqParams {
   evalCond: GetListQueryParamsReqParams;
 }
 
+export interface SearchLocationsFromBookingComReqParams {
+  // locale: 'en-us';
+  name: string;
+}
+export interface FiltersForSearchFromBookingComReqParams {
+  adultsNumber: number;
+  destType:
+    | 'city'
+    | 'region'
+    | 'landmark'
+    | 'district'
+    | 'hotel'
+    | 'country'
+    | 'airport'
+    | 'latlong';
+  orderBy: BookingComOrderBy; // #default popularity
+  checkoutDate: Date; // default today
+  checkinDate: Date; // default tomorrow
+  // locale: 'en-us' # default 'en-us'
+  // units: 'metric' | 'imperial'
+  filterByCurrency: 'USD' | 'KRW';
+  destId: number;
+  roomNumber?: number;
+  categoriesFilterIds?: string[];
+  childrenNumber?: number;
+  includeAdjacency?: boolean;
+  pageNumber?: number;
+  childrenAges?: number[];
+}
+
 export type VisitSchedules = {
   spot: GglNearbySearchRes[];
   hotel: {
@@ -196,6 +229,20 @@ export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetListQueryParamsInnerAsyncFnResponse;
 };
 
+export type SearchLocationsFromBookingComResponse = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: {};
+};
+
+export type FiltersForSearchFromBookingComResponse = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: {};
+};
+
 export const defaultNearbySearchReqParams = {
   keyword: undefined,
   radius: undefined,
@@ -206,25 +253,20 @@ export const defaultNearbySearchReqParams = {
   loadAll: false,
 };
 
-const getToday = () => {
-  return new Date(moment().startOf('d').format());
-};
-const getTomorrow = () => {
-  return new Date(moment().add(1, 'day').startOf('d').format());
-};
 export const defaultSearchHotelReqParams: SearchHotelReqParams = {
   orderBy: 'popularity',
   adultsNumber: 2,
-  roomNumber: undefined,
+  roomNumber: 1,
   checkinDate: getToday(),
   checkoutDate: getTomorrow(),
-  filterByCurrency: undefined,
+  filterByCurrency: 'USD',
   latitude: '21.4286856',
   longitude: '-158.1389763',
-  pageNumber: undefined,
-  includeAdjacency: undefined,
+  pageNumber: 0,
+  includeAdjacency: false,
   childrenNumber: undefined,
   childrenAges: undefined,
+  categoriesFilterIds: undefined,
   mock: true,
 };
 

@@ -2,7 +2,14 @@
 
 import express from 'express';
 // import prisma from '@src/prisma';
-import { ibDefs, asyncWrapper, IBResFormat, IBError } from '@src/utils';
+import {
+  ibDefs,
+  asyncWrapper,
+  IBResFormat,
+  IBError,
+  getToday,
+  getTomorrow,
+} from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
 import {
@@ -13,7 +20,7 @@ import {
   QueryParams,
 } from '@prisma/client';
 import moment from 'moment';
-import { omit, isEmpty, isNumber, isNil } from 'lodash';
+import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
   QueryReqParams,
   defaultNearbySearchReqParams,
@@ -32,6 +39,10 @@ import {
   CompositeSearchResponse,
   GetListQueryParamsResponse,
   GetListQueryParamsInnerAsyncFnResponse,
+  // SearchLocationsFromBookingComReqParams,
+  // SearchLocationsFromBookingComResponse,
+  FiltersForSearchFromBookingComReqParams,
+  FiltersForSearchFromBookingComResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -462,7 +473,7 @@ export const addMockHotelResource = asyncWrapper(
         include_adjacency: includeAdjacency ?? 'false',
       },
       headers: {
-        'X-RapidAPI-Key': 'ed5143522dmsh08a8f16dd35fd7ap1433aajsn5ba513b80047',
+        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
         'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
       },
     };
@@ -522,6 +533,7 @@ const searchHotelInnerAsyncFn = async (
     includeAdjacency,
     childrenAges,
     childrenNumber,
+    categoriesFilterIds,
     mock,
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
@@ -574,9 +586,11 @@ const searchHotelInnerAsyncFn = async (
         include_adjacency: includeAdjacency ?? 'false',
         children_number: childrenNumber?.toString(),
         children_ages: childrenAges?.toString(),
+        categories_filter_ids: categoriesFilterIds?.toString(),
+        // categories_filter_ids: 'class::2,class::4,free_cancellation::1',
       },
       headers: {
-        'X-RapidAPI-Key': 'ed5143522dmsh08a8f16dd35fd7ap1433aajsn5ba513b80047',
+        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
         'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
       },
     };
@@ -1067,6 +1081,88 @@ const getRecommendList = asyncWrapper(
   },
 );
 
+const filtersForSearchFromBookingCom = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<FiltersForSearchFromBookingComReqParams>,
+    res: Express.IBTypedResponse<FiltersForSearchFromBookingComResponse>,
+  ) => {
+    const params = req.body;
+    const {
+      adultsNumber,
+      destType,
+      orderBy,
+      checkoutDate,
+      checkinDate,
+      filterByCurrency,
+      destId,
+      roomNumber,
+      categoriesFilterIds,
+      childrenNumber,
+      includeAdjacency,
+      pageNumber,
+      childrenAges,
+    } = params;
+
+    const options = {
+      method: 'GET' as Method,
+      url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-filters',
+      params: {
+        adults_number: adultsNumber?.toString() ?? '2',
+        dest_type: destType ?? 'region',
+        order_by: orderBy ?? 'popularity',
+        checkin_date:
+          moment(checkinDate).format('YYYY-MM-DD') ??
+          moment(getToday()).format('YYYY-MM-DD'),
+        checkout_date:
+          moment(checkoutDate).format('YYYY-MM-DD') ??
+          moment(getTomorrow()).format('YYYY-MM-DD'),
+        locale: 'en-us',
+        units: 'metric',
+        filter_by_currency: filterByCurrency ?? 'USD',
+        dest_id: destId?.toString() ?? '3185',
+        room_number: roomNumber?.toString() ?? '1',
+        categories_filter_ids:
+          isUndefined(categoriesFilterIds) ||
+          categoriesFilterIds?.toString() === ''
+            ? undefined
+            : categoriesFilterIds?.toString(),
+        children_number:
+          childrenNumber && childrenNumber >= 1
+            ? childrenNumber.toString()
+            : undefined,
+        include_adjacency: includeAdjacency ?? 'true',
+        page_number: pageNumber?.toString() ?? '0',
+        children_ages:
+          isUndefined(childrenAges) || childrenAges?.toString() === ''
+            ? undefined
+            : childrenAges?.toString(),
+      },
+      headers: {
+        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+      },
+    };
+
+    const rawResponse = await axios.request(options);
+
+    const fetchedData = rawResponse.data as { filter: object };
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: fetchedData,
+    });
+  },
+);
+
+// const searchLocationsFromBookingCom = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<SearchLocationsFromBookingComReqParams>,
+//     res: Express.IBTypedResponse<SearchLocationsFromBookingComResponse>,
+//   ) => {
+//     const params = req.body;
+//   },
+// );
+
 const prismaTest = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<{}>,
@@ -1208,4 +1304,12 @@ scheduleRouter.post('/getListQueryParams', getListQueryParams);
 scheduleRouter.post('/getRecommendList', getRecommendList);
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 scheduleRouter.post('/prismaTest', prismaTest);
+scheduleRouter.post(
+  '/filtersForSearchFromBookingCom',
+  filtersForSearchFromBookingCom,
+);
+// scheduleRouter.post(
+//   '/searchLocationsFromBookingCom',
+//   searchLocationsFromBookingCom,
+// );
 export default scheduleRouter;
