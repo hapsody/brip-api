@@ -29,9 +29,9 @@ import {
   SearchedData,
   GetListQueryParamsReqParams,
   OrderSortType,
-  GetRecommendListReqParams,
-  GetRecommendListResponse,
-  GetRecommendListInnerAsyncFnResponse,
+  GetRecommendListWithLatLngtReqParams,
+  GetRecommendListWithLatLngtResponse,
+  GetRecommendListWithLatLngtInnerAsyncFnResponse,
   VisitSchedules,
   defaultQueryParams,
   NearbySearchResponse,
@@ -903,9 +903,9 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
-const getRecommendListInnerAsyncFn = async (
-  params: GetRecommendListReqParams,
-): Promise<GetRecommendListInnerAsyncFnResponse> => {
+const getRecommendListWithLatLngtInnerAsyncFn = async (
+  params: GetRecommendListWithLatLngtReqParams,
+): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
   const { searchCond, evalCond } = params;
   const {
     minBudget = 0,
@@ -1058,14 +1058,16 @@ const getRecommendListInnerAsyncFn = async (
   return recommendList;
 };
 
-const getRecommendList = asyncWrapper(
+const getRecommendListWithLatLngt = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetRecommendListReqParams>,
-    res: Express.IBTypedResponse<GetRecommendListResponse>,
+    req: Express.IBTypedReqBody<GetRecommendListWithLatLngtReqParams>,
+    res: Express.IBTypedResponse<GetRecommendListWithLatLngtResponse>,
   ) => {
     try {
       const params = req.body;
-      const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
+      const recommendListFromDB = await getRecommendListWithLatLngtInnerAsyncFn(
+        params,
+      );
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: recommendListFromDB,
@@ -1337,7 +1339,10 @@ scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
-scheduleRouter.post('/getRecommendList', getRecommendList);
+scheduleRouter.post(
+  '/getRecommendListWithLatLngt',
+  getRecommendListWithLatLngt,
+);
 // scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 scheduleRouter.post('/prismaTest', prismaTest);
 scheduleRouter.post(

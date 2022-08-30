@@ -47,6 +47,7 @@ export interface SearchHotelReqParams {
 }
 
 export interface QueryReqParams {
+  searchLocation?: string; // ex) o'ahu ex) seoul
   minBudget?: number; // ex) 4000000,
   maxBudget?: number; // ex) 5000000,
   currency: Currency; // "USD" | "KRW" default USD
@@ -148,7 +149,7 @@ export interface GetListQueryParamsReqParams {
   };
 }
 
-export interface GetRecommendListReqParams {
+export interface GetRecommendListWithLatLngtReqParams {
   searchCond: QueryReqParams;
   evalCond: GetListQueryParamsReqParams;
 }
@@ -192,7 +193,7 @@ export type VisitSchedules = {
   };
 }[];
 
-export type GetRecommendListInnerAsyncFnResponse = QueryParams & {
+export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
   totalNearbySearchCount: number;
   totalHotelSearchCount: number;
   spotPerDay: number;
@@ -208,8 +209,11 @@ export type GetRecommendListInnerAsyncFnResponse = QueryParams & {
   recommendedMaxHotelCount: number;
 };
 
-export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetRecommendListInnerAsyncFnResponse | {};
+export type GetRecommendListWithLatLngtResponse = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetRecommendListWithLatLngtInnerAsyncFnResponse | {};
 };
 export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {

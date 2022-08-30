@@ -8,9 +8,9 @@ import {
   NearbySearchResponse,
   SearchHotelResponse,
   CompositeSearchResponse,
-  GetRecommendListResponse,
+  GetRecommendListWithLatLngtResponse,
   GetListQueryParamsResponse,
-  GetRecommendListInnerAsyncFnResponse,
+  GetRecommendListWithLatLngtInnerAsyncFnResponse,
 } from './types/schduleTypes';
 import {
   getTravelNights,
@@ -361,7 +361,7 @@ describe('Auth Express Router E2E Test', () => {
     });
   });
 
-  describe('POST /getRecommendList', () => {
+  describe('POST /getRecommendListWithLatLngt', () => {
     it('Case: Correct', async () => {
       const minBudget = 100;
       const maxBudget = 3000;
@@ -448,12 +448,13 @@ describe('Auth Express Router E2E Test', () => {
         },
       };
       const response = await request(app)
-        .post('/schedule/getRecommendList')
+        .post('/schedule/getRecommendListWithLatLngt')
         .send(params);
 
-      const result = response.body as GetRecommendListResponse;
+      const result = response.body as GetRecommendListWithLatLngtResponse;
 
-      const iBparams = result.IBparams as GetRecommendListInnerAsyncFnResponse;
+      const iBparams =
+        result.IBparams as GetRecommendListWithLatLngtInnerAsyncFnResponse;
 
       // 파라미터 입력값이 제대로 반영된 결과인지 파라미터 값과 응답값 비교 part
       expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
