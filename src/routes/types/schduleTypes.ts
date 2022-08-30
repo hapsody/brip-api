@@ -229,11 +229,52 @@ export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetListQueryParamsInnerAsyncFnResponse;
 };
 
+/* 
+GetListQueryParamsResponse ex) 
+    "latitude": 21.33301,
+    "country": "United States",
+    "rtl": 0,
+    "city_name": "",
+    "dest_id": "3185",
+    "lc": "en",
+    "cc1": "us",
+    "image_url": "https://cf.bstatic.com/xdata/images/region/150x150/25015.jpg?k=8c0d0a97b5e40cbb4f196a99c744dd2e169d9e57e8568e4a31457b60ac833a05&o=",
+    "b_max_los_data": {
+        "extended_los": 90,
+        "max_allowed_los": 90,
+        "is_fullon": 0,
+        "has_extended_los": 1,
+        "default_los": 45,
+        "experiment": "long_stays_android_extend_los_2"
+    },
+    "nr_hotels": 1444,
+    "dest_type": "region",
+    "name": "O'ahu",
+    "type": "re",
+    "label": "O'ahu, United States",
+    "longitude": -157.85654,
+    "region": "O'ahu",
+    "hotels": 1444,
+    "city_ufi": null
+*/
+
+export type SearchLocationsFromBookingComRawResponse = Partial<{
+  dest_id: string;
+  lattitude: string;
+  longitude: string;
+  dest_type: string;
+  region: string;
+  name: string;
+  country: string;
+  label: string;
+  lc: string;
+  cc1: string;
+}>;
 export type SearchLocationsFromBookingComResponse = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: {};
+  IBparams: SearchLocationsFromBookingComRawResponse[];
 };
 
 export type FiltersForSearchFromBookingComResponse = Omit<
@@ -242,6 +283,8 @@ export type FiltersForSearchFromBookingComResponse = Omit<
 > & {
   IBparams: {};
 };
+export type SearchLocationsFromBookingComInnerAsyncFnResponse =
+  SearchLocationsFromBookingComRawResponse;
 
 export const defaultNearbySearchReqParams = {
   keyword: undefined,

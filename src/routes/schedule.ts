@@ -39,8 +39,10 @@ import {
   CompositeSearchResponse,
   GetListQueryParamsResponse,
   GetListQueryParamsInnerAsyncFnResponse,
-  // SearchLocationsFromBookingComReqParams,
-  // SearchLocationsFromBookingComResponse,
+  SearchLocationsFromBookingComReqParams,
+  SearchLocationsFromBookingComResponse,
+  SearchLocationsFromBookingComRawResponse,
+  SearchLocationsFromBookingComInnerAsyncFnResponse,
   FiltersForSearchFromBookingComReqParams,
   FiltersForSearchFromBookingComResponse,
 } from './types/schduleTypes';
@@ -1145,7 +1147,7 @@ const filtersForSearchFromBookingCom = asyncWrapper(
 
     const rawResponse = await axios.request(options);
 
-    const fetchedData = rawResponse.data as { filter: object };
+    const fetchedData = rawResponse.data as [];
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -1154,14 +1156,40 @@ const filtersForSearchFromBookingCom = asyncWrapper(
   },
 );
 
-// const searchLocationsFromBookingCom = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<SearchLocationsFromBookingComReqParams>,
-//     res: Express.IBTypedResponse<SearchLocationsFromBookingComResponse>,
-//   ) => {
-//     const params = req.body;
-//   },
-// );
+const searchLocationsFromBookingComInnerAsyncFn = async (
+  params: SearchLocationsFromBookingComReqParams,
+): Promise<SearchLocationsFromBookingComInnerAsyncFnResponse[]> => {
+  const { name } = params;
+  const options = {
+    method: 'GET' as Method,
+    url: 'https://booking-com.p.rapidapi.com/v1/hotels/locations',
+    params: { locale: 'en-us', name },
+    headers: {
+      'X-RapidAPI-Key': process.env.RAPID_API_KEY ?? '',
+      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+    },
+  };
+  const rawResponse = await axios.request(options);
+  const fetchedData =
+    rawResponse.data as SearchLocationsFromBookingComRawResponse[];
+  return fetchedData;
+};
+
+const searchLocationsFromBookingCom = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SearchLocationsFromBookingComReqParams>,
+    res: Express.IBTypedResponse<SearchLocationsFromBookingComResponse>,
+  ) => {
+    const params = req.body;
+
+    const data = await searchLocationsFromBookingComInnerAsyncFn(params);
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: data,
+    });
+  },
+);
 
 const prismaTest = asyncWrapper(
   async (
@@ -1308,8 +1336,8 @@ scheduleRouter.post(
   '/filtersForSearchFromBookingCom',
   filtersForSearchFromBookingCom,
 );
-// scheduleRouter.post(
-//   '/searchLocationsFromBookingCom',
-//   searchLocationsFromBookingCom,
-// );
+scheduleRouter.post(
+  '/searchLocationsFromBookingCom',
+  searchLocationsFromBookingCom,
+);
 export default scheduleRouter;
