@@ -45,6 +45,7 @@ import {
   SearchLocationsFromBookingComInnerAsyncFnResponse,
   FiltersForSearchFromBookingComReqParams,
   FiltersForSearchFromBookingComResponse,
+  FilterForSearchFromBookingComInnerAsyncFn,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -1083,75 +1084,82 @@ const getRecommendList = asyncWrapper(
   },
 );
 
+const filterForSearchFromBookingComInnerAsyncFn = async (
+  params: FiltersForSearchFromBookingComReqParams,
+): Promise<FilterForSearchFromBookingComInnerAsyncFn> => {
+  const {
+    adultsNumber,
+    destType,
+    orderBy,
+    checkoutDate,
+    checkinDate,
+    filterByCurrency,
+    destId,
+    roomNumber,
+    categoriesFilterIds,
+    childrenNumber,
+    includeAdjacency,
+    pageNumber,
+    childrenAges,
+  } = params;
+
+  const options = {
+    method: 'GET' as Method,
+    url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-filters',
+    params: {
+      adults_number: adultsNumber?.toString() ?? '2',
+      dest_type: destType ?? 'region',
+      order_by: orderBy ?? 'popularity',
+      checkin_date:
+        moment(checkinDate).format('YYYY-MM-DD') ??
+        moment(getToday()).format('YYYY-MM-DD'),
+      checkout_date:
+        moment(checkoutDate).format('YYYY-MM-DD') ??
+        moment(getTomorrow()).format('YYYY-MM-DD'),
+      locale: 'en-us',
+      units: 'metric',
+      filter_by_currency: filterByCurrency ?? 'USD',
+      dest_id: destId?.toString() ?? '3185',
+      room_number: roomNumber?.toString() ?? '1',
+      categories_filter_ids:
+        isUndefined(categoriesFilterIds) ||
+        categoriesFilterIds?.toString() === ''
+          ? undefined
+          : categoriesFilterIds?.toString(),
+      children_number:
+        childrenNumber && childrenNumber >= 1
+          ? childrenNumber.toString()
+          : undefined,
+      include_adjacency: includeAdjacency ?? 'true',
+      page_number: pageNumber?.toString() ?? '0',
+      children_ages:
+        isUndefined(childrenAges) || childrenAges?.toString() === ''
+          ? undefined
+          : childrenAges?.toString(),
+    },
+    headers: {
+      'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+    },
+  };
+
+  const rawResponse = await axios.request(options);
+
+  const fetchedData = rawResponse.data as Partial<{ filter: [] }>;
+
+  return fetchedData.filter ?? [];
+};
+
 const filtersForSearchFromBookingCom = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<FiltersForSearchFromBookingComReqParams>,
     res: Express.IBTypedResponse<FiltersForSearchFromBookingComResponse>,
   ) => {
     const params = req.body;
-    const {
-      adultsNumber,
-      destType,
-      orderBy,
-      checkoutDate,
-      checkinDate,
-      filterByCurrency,
-      destId,
-      roomNumber,
-      categoriesFilterIds,
-      childrenNumber,
-      includeAdjacency,
-      pageNumber,
-      childrenAges,
-    } = params;
-
-    const options = {
-      method: 'GET' as Method,
-      url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-filters',
-      params: {
-        adults_number: adultsNumber?.toString() ?? '2',
-        dest_type: destType ?? 'region',
-        order_by: orderBy ?? 'popularity',
-        checkin_date:
-          moment(checkinDate).format('YYYY-MM-DD') ??
-          moment(getToday()).format('YYYY-MM-DD'),
-        checkout_date:
-          moment(checkoutDate).format('YYYY-MM-DD') ??
-          moment(getTomorrow()).format('YYYY-MM-DD'),
-        locale: 'en-us',
-        units: 'metric',
-        filter_by_currency: filterByCurrency ?? 'USD',
-        dest_id: destId?.toString() ?? '3185',
-        room_number: roomNumber?.toString() ?? '1',
-        categories_filter_ids:
-          isUndefined(categoriesFilterIds) ||
-          categoriesFilterIds?.toString() === ''
-            ? undefined
-            : categoriesFilterIds?.toString(),
-        children_number:
-          childrenNumber && childrenNumber >= 1
-            ? childrenNumber.toString()
-            : undefined,
-        include_adjacency: includeAdjacency ?? 'true',
-        page_number: pageNumber?.toString() ?? '0',
-        children_ages:
-          isUndefined(childrenAges) || childrenAges?.toString() === ''
-            ? undefined
-            : childrenAges?.toString(),
-      },
-      headers: {
-        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
-        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-      },
-    };
-
-    const rawResponse = await axios.request(options);
-
-    const fetchedData = rawResponse.data as [];
-
+    const data = await filterForSearchFromBookingComInnerAsyncFn(params);
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: fetchedData,
+      IBparams: data,
     });
   },
 );

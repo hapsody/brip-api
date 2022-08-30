@@ -286,6 +286,8 @@ export type FiltersForSearchFromBookingComResponse = Omit<
 export type SearchLocationsFromBookingComInnerAsyncFnResponse =
   SearchLocationsFromBookingComRawResponse;
 
+export type FilterForSearchFromBookingComInnerAsyncFn = {};
+
 export const defaultNearbySearchReqParams = {
   keyword: undefined,
   radius: undefined,
