@@ -42,12 +42,12 @@ export interface SearchHotelReqParams {
   includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
   childrenNumber?: number;
   childrenAges?: number[];
-  categoriesFilterIds?: string;
+  categoriesFilterIds?: string[];
   mock?: boolean; // default true
 }
 
 export interface QueryReqParams {
-  searchLocation?: string; // ex) o'ahu ex) seoul
+  // searchLocation?: string; // ex) o'ahu ex) seoul
   minBudget?: number; // ex) 4000000,
   maxBudget?: number; // ex) 5000000,
   currency: Currency; // "USD" | "KRW" default USD
@@ -149,6 +149,11 @@ export interface GetListQueryParamsReqParams {
   };
 }
 
+export interface GetRecommendListReqParams {
+  searchCond: QueryReqParams & { searchLocation: string };
+  evalCond: GetListQueryParamsReqParams;
+}
+
 export interface GetRecommendListWithLatLngtReqParams {
   searchCond: QueryReqParams;
   evalCond: GetListQueryParamsReqParams;
@@ -174,7 +179,7 @@ export interface FiltersForSearchFromBookingComReqParams {
   checkinDate: Date; // default tomorrow
   // locale: 'en-us' # default 'en-us'
   // units: 'metric' | 'imperial'
-  filterByCurrency: 'USD' | 'KRW';
+  filterByCurrency?: Currency;
   destId: number;
   roomNumber?: number;
   categoriesFilterIds?: string[];
@@ -208,6 +213,11 @@ export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
   recommendedMidHotelCount: number;
   recommendedMaxHotelCount: number;
 };
+export type GetRecommendListInnerAsyncFnResponse =
+  | (GetRecommendListWithLatLngtInnerAsyncFnResponse & {
+      searchLocation: string;
+    })
+  | void;
 
 export type GetRecommendListWithLatLngtResponse = Omit<
   IBResFormat,
@@ -215,6 +225,11 @@ export type GetRecommendListWithLatLngtResponse = Omit<
 > & {
   IBparams: GetRecommendListWithLatLngtInnerAsyncFnResponse | {};
 };
+
+export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRecommendListInnerAsyncFnResponse | {};
+};
+
 export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {
     hotelSearchCount: number;
@@ -285,12 +300,37 @@ export type FiltersForSearchFromBookingComResponse = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: {};
+  IBparams: FiltersForSearchFromBookingComInnerAsyncFnResponse;
 };
 export type SearchLocationsFromBookingComInnerAsyncFnResponse =
   SearchLocationsFromBookingComRawResponse;
 
-export type FilterForSearchFromBookingComInnerAsyncFn = {};
+export type FiltersForSearchFromBookingComRawFilterOfResponse = {
+  id: string;
+  type: string;
+  title: string;
+  any_text: string;
+  is_group: string;
+  categories: {
+    selected: number;
+    name: string;
+    popular: string;
+    count: number;
+    id: string;
+    style_for_count: number;
+    popular_rank: string;
+  }[];
+};
+export type FiltersForSearchFromBookingRawResponse = {
+  filter: FiltersForSearchFromBookingComRawFilterOfResponse[];
+  quick_filters_v2: string;
+  primary_count: string;
+  count: string;
+  extended_count: string;
+  unfiltered_primary_count: string;
+};
+export type FiltersForSearchFromBookingComInnerAsyncFnResponse =
+  | FiltersForSearchFromBookingComRawFilterOfResponse[];
 
 export const defaultNearbySearchReqParams = {
   keyword: undefined,
@@ -332,4 +372,14 @@ export const defaultQueryParams = {
   travelEndDate: new Date(
     moment(new Date()).startOf('day').add(1, 'day').format(),
   ), // 여행일정 종료일 ex) '2022-10-03T00:00:00';
+};
+
+export const bookingComFilterCategories = {
+  apartments: 'property_type::201',
+  hotels: 'property_type::204',
+  resorts: 'property_type::206',
+  vacationHome: 'property_type::220',
+  hostels: 'property_type::203',
+  bedAndBreakfasts: 'property_type::208',
+  villas: 'property_type::213',
 };

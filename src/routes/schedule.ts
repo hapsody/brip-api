@@ -29,6 +29,9 @@ import {
   SearchedData,
   GetListQueryParamsReqParams,
   OrderSortType,
+  GetRecommendListReqParams,
+  GetRecommendListResponse,
+  GetRecommendListInnerAsyncFnResponse,
   GetRecommendListWithLatLngtReqParams,
   GetRecommendListWithLatLngtResponse,
   GetRecommendListWithLatLngtInnerAsyncFnResponse,
@@ -45,7 +48,8 @@ import {
   SearchLocationsFromBookingComInnerAsyncFnResponse,
   FiltersForSearchFromBookingComReqParams,
   FiltersForSearchFromBookingComResponse,
-  FilterForSearchFromBookingComInnerAsyncFn,
+  FiltersForSearchFromBookingComInnerAsyncFnResponse,
+  FiltersForSearchFromBookingRawResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -231,6 +235,99 @@ const storeDataRelatedWithQueryParams = async (
     }
   }
   return { results, queryParamId };
+};
+
+const searchLocationsFromBookingComInnerAsyncFn = async (
+  params: SearchLocationsFromBookingComReqParams,
+): Promise<SearchLocationsFromBookingComInnerAsyncFnResponse[]> => {
+  const { name } = params;
+  const options = {
+    method: 'GET' as Method,
+    url: 'https://booking-com.p.rapidapi.com/v1/hotels/locations',
+    params: { locale: 'en-us', name },
+    headers: {
+      'X-RapidAPI-Key': process.env.RAPID_API_KEY ?? '',
+      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+    },
+  };
+  try {
+    const rawResponse = await axios.request(options);
+    const fetchedData =
+      rawResponse.data as SearchLocationsFromBookingComRawResponse[];
+    return fetchedData;
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: (err as Error).message,
+    });
+  }
+};
+
+const filterForSearchFromBookingComInnerAsyncFn = async (
+  params: FiltersForSearchFromBookingComReqParams,
+): Promise<FiltersForSearchFromBookingComInnerAsyncFnResponse> => {
+  const {
+    adultsNumber,
+    destType,
+    orderBy,
+    checkoutDate,
+    checkinDate,
+    filterByCurrency,
+    destId,
+    roomNumber,
+    categoriesFilterIds,
+    childrenNumber,
+    includeAdjacency,
+    pageNumber,
+    childrenAges,
+  } = params;
+
+  const options = {
+    method: 'GET' as Method,
+    url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-filters',
+    params: {
+      adults_number: adultsNumber?.toString() ?? '2',
+      dest_type: destType ?? 'region',
+      order_by: orderBy ?? 'popularity',
+      checkin_date:
+        moment(checkinDate).format('YYYY-MM-DD') ??
+        moment(getToday()).format('YYYY-MM-DD'),
+      checkout_date:
+        moment(checkoutDate).format('YYYY-MM-DD') ??
+        moment(getTomorrow()).format('YYYY-MM-DD'),
+      locale: 'en-us',
+      units: 'metric',
+      filter_by_currency: filterByCurrency ?? 'USD',
+      dest_id: destId?.toString() ?? '3185',
+      room_number: roomNumber?.toString() ?? '1',
+      categories_filter_ids:
+        isUndefined(categoriesFilterIds) ||
+        categoriesFilterIds?.toString() === ''
+          ? undefined
+          : categoriesFilterIds?.toString(),
+      children_number:
+        childrenNumber && childrenNumber >= 1
+          ? childrenNumber.toString()
+          : undefined,
+      include_adjacency: includeAdjacency ?? 'true',
+      page_number: pageNumber?.toString() ?? '0',
+      children_ages:
+        isUndefined(childrenAges) || childrenAges?.toString() === ''
+          ? undefined
+          : childrenAges?.toString(),
+    },
+    headers: {
+      'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+    },
+  };
+
+  const rawResponse = await axios.request(options);
+
+  const fetchedData =
+    rawResponse.data as FiltersForSearchFromBookingRawResponse;
+
+  return fetchedData.filter;
 };
 
 const nearbySearchInnerAsyncFn = async (
@@ -1086,71 +1183,248 @@ const getRecommendListWithLatLngt = asyncWrapper(
   },
 );
 
-const filterForSearchFromBookingComInnerAsyncFn = async (
-  params: FiltersForSearchFromBookingComReqParams,
-): Promise<FilterForSearchFromBookingComInnerAsyncFn> => {
+const getRecommendListInnerAsyncFn = async (
+  params: GetRecommendListReqParams,
+): Promise<GetRecommendListInnerAsyncFnResponse> => {
+  const { searchCond, evalCond } = params;
   const {
-    adultsNumber,
-    destType,
-    orderBy,
-    checkoutDate,
-    checkinDate,
-    filterByCurrency,
-    destId,
-    roomNumber,
-    categoriesFilterIds,
-    childrenNumber,
-    includeAdjacency,
-    pageNumber,
-    childrenAges,
-  } = params;
+    searchLocation,
+    minBudget = 0,
+    maxBudget = 0,
+    // currency,
+    // travelType,
+    // travelIntensity,
+    travelStartDate,
+    travelEndDate,
+    hotelTransition = 0, // 호텔 바꾸는 횟수
+  } = searchCond;
 
-  const options = {
-    method: 'GET' as Method,
-    url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-filters',
-    params: {
-      adults_number: adultsNumber?.toString() ?? '2',
-      dest_type: destType ?? 'region',
-      order_by: orderBy ?? 'popularity',
-      checkin_date:
-        moment(checkinDate).format('YYYY-MM-DD') ??
-        moment(getToday()).format('YYYY-MM-DD'),
-      checkout_date:
-        moment(checkoutDate).format('YYYY-MM-DD') ??
-        moment(getTomorrow()).format('YYYY-MM-DD'),
-      locale: 'en-us',
-      units: 'metric',
-      filter_by_currency: filterByCurrency ?? 'USD',
-      dest_id: destId?.toString() ?? '3185',
-      room_number: roomNumber?.toString() ?? '1',
-      categories_filter_ids:
-        isUndefined(categoriesFilterIds) ||
-        categoriesFilterIds?.toString() === ''
-          ? undefined
-          : categoriesFilterIds?.toString(),
-      children_number:
-        childrenNumber && childrenNumber >= 1
-          ? childrenNumber.toString()
-          : undefined,
-      include_adjacency: includeAdjacency ?? 'true',
-      page_number: pageNumber?.toString() ?? '0',
-      children_ages:
-        isUndefined(childrenAges) || childrenAges?.toString() === ''
-          ? undefined
-          : childrenAges?.toString(),
-    },
-    headers: {
-      'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
-      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-    },
+  const travelNights = getTravelNights(
+    // searchCond.searchHotelReqParams.checkinDate,
+    // searchCond.searchHotelReqParams.checkoutDate,
+    travelStartDate,
+    travelEndDate,
+  );
+  if (travelNights < 1) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: '여행 시작일과 종료일의 차이가 1미만입니다.',
+    });
+  }
+
+  if (travelNights < hotelTransition)
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+    });
+
+  let locationsArr: SearchLocationsFromBookingComInnerAsyncFnResponse[] = [];
+  try {
+    locationsArr = await searchLocationsFromBookingComInnerAsyncFn({
+      name: searchLocation,
+    });
+  } catch (err) {
+    if (err instanceof IBError) {
+      throw err;
+    }
+  }
+
+  const { dest_id: destId } = locationsArr.find(item =>
+    Object.keys(item).find(e => e === 'region'),
+  ) ?? {
+    dest_id: '',
   };
 
-  const rawResponse = await axios.request(options);
+  if (isEmpty(destId)) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message:
+        'booking.com /v1/hotels/locations api 결과값이 정상적으로 응답되지 않았습니다. (dest_id 값이 없습니다.)',
+    });
+  }
 
-  const fetchedData = rawResponse.data as Partial<{ filter: [] }>;
+  // const filters = await filterForSearchFromBookingComInnerAsyncFn({
+  //   adultsNumber: searchHotelReqParams.adultsNumber,
+  //   destType: 'region',
+  //   orderBy: searchHotelReqParams.orderBy,
+  //   checkoutDate: searchHotelReqParams.checkoutDate,
+  //   checkinDate: searchHotelReqParams.checkinDate,
+  //   filterByCurrency: 'USD',
+  //   destId: Number(destId) ?? 0,
+  //   roomNumber: searchHotelReqParams.roomNumber,
+  //   categoriesFilterIds: searchHotelReqParams.categoriesFilterIds,
+  //   childrenNumber: searchHotelReqParams.childrenNumber,
+  //   includeAdjacency: searchHotelReqParams.includeAdjacency,
+  //   pageNumber: searchHotelReqParams.pageNumber,
+  //   childrenAges: searchHotelReqParams.childrenAges,
+  //   // categoriesFilterIds: [],
+  // });
 
-  return fetchedData.filter ?? [];
+  // const hotelTypeFilter = filters
+  //   ?.find(e => e.id === 'property_type')
+  //   ?.categories?.find(e => e.name === 'Hotels');
+
+  // const hotelTypeFilterId = hotelTypeFilter?.id ?? 'property_type::204'; // hotels filter id
+
+  // searchCond.searchHotelReqParams.categoriesFilterIds = [
+  //   ...(searchCond.searchHotelReqParams.categoriesFilterIds ?? []),
+  //   bookingComFilterCategoryList.hotels,
+  // ];
+
+  // Do composite search
+  const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
+  await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+
+  const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
+  // Get high priority candidate data from composite search result.
+  const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+    getListQueryParamsWithId,
+  );
+  const travelDays = travelNights + 1;
+
+  const { searchHotelRes, gglNearbySearchRes } =
+    queryParamsDataFromDB[0] as QueryParams & {
+      searchHotelRes: SearchHotelRes[];
+      gglNearbySearchRes: GglNearbySearchRes[];
+    };
+
+  const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
+  const filterHotelWithBudget = () => {
+    const copiedHotelRes = Array.from(searchHotelRes).reverse();
+
+    const minHotelBudget = minBudget * minHotelBudgetPortion;
+    const dailyMinBudget = minHotelBudget / transitionTerm;
+
+    const midBudget = (minBudget + maxBudget) / 2;
+    const flexPortionLimit = 1.3;
+    const midHotelBudget = midBudget * midHotelBudgetPortion;
+    const dailyMidBudget = (midHotelBudget * flexPortionLimit) / transitionTerm;
+
+    const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
+    const dailyMaxBudget = maxHotelBudget / transitionTerm;
+
+    const minFilteredHotels = copiedHotelRes.filter(
+      hotel => hotel.min_total_price < dailyMinBudget,
+    );
+    const midFilteredHotels = copiedHotelRes.filter(hotel => {
+      return hotel.min_total_price < dailyMidBudget;
+    });
+    const maxFilteredHotels = copiedHotelRes.filter(
+      hotel => hotel.min_total_price < dailyMaxBudget,
+    );
+    return {
+      minFilteredHotels,
+      midFilteredHotels,
+      maxFilteredHotels,
+    };
+  };
+  const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
+    filterHotelWithBudget();
+
+  const visitSchedules: VisitSchedules = [];
+  // const minBudgetHotel: SearchHotelRes[] = [];
+  // const midBudgetHotel: SearchHotelRes[] = [];
+  // const maxBudgetHotel: SearchHotelRes[] = [];
+
+  const arr = Array.from(Array(travelDays));
+  let recommendedNearbySearchCount = 0;
+  let recommendedMinHotelCount = 0;
+  let recommendedMidHotelCount = 0;
+  let recommendedMaxHotelCount = 0;
+  let prevMinHotel: SearchHotelRes | undefined;
+  let prevMidHotel: SearchHotelRes | undefined;
+  let prevMaxHotel: SearchHotelRes | undefined;
+  let minHotel: SearchHotelRes | undefined;
+  let midHotel: SearchHotelRes | undefined;
+  let maxHotel: SearchHotelRes | undefined;
+  arr.reduce((acc: VisitSchedules, cur, idx) => {
+    const thatDaySpot = gglNearbySearchRes.slice(
+      idx * spotPerDay,
+      (idx + 1) * spotPerDay <= gglNearbySearchRes.length
+        ? (idx + 1) * spotPerDay
+        : gglNearbySearchRes.length - 1,
+    );
+    recommendedNearbySearchCount += thatDaySpot.length;
+
+    if (idx % transitionTerm === 0) {
+      minHotel = minFilteredHotels.pop();
+      midHotel = midFilteredHotels.pop();
+      maxHotel = maxFilteredHotels.pop();
+      prevMinHotel = minHotel;
+      prevMidHotel = midHotel;
+      prevMaxHotel = maxHotel;
+
+      if (minHotel) recommendedMinHotelCount += 1;
+      if (midHotel) recommendedMidHotelCount += 1;
+      if (maxHotel) recommendedMaxHotelCount += 1;
+    }
+
+    acc.push({
+      spot: thatDaySpot,
+      hotel: {
+        minBudgetHotel: idx % transitionTerm === 0 ? minHotel : prevMinHotel,
+        midBudgetHotel: idx % transitionTerm === 0 ? midHotel : prevMidHotel,
+        maxBudgetHotel: idx % transitionTerm === 0 ? maxHotel : prevMaxHotel,
+      },
+    });
+
+    return acc;
+  }, visitSchedules);
+
+  const recommendList = {
+    ...omit(queryParamsDataFromDB[0], ['gglNearbySearchRes', 'searchHotelRes']),
+    searchLocation,
+    totalNearbySearchCount: gglNearbySearchRes.length,
+    totalHotelSearchCount: searchHotelRes.length,
+    spotPerDay,
+    travelNights,
+    travelDays,
+    hotelTransition,
+    transitionTerm,
+    recommendedNearbySearchCount,
+    recommendedMinHotelCount,
+    recommendedMidHotelCount,
+    recommendedMaxHotelCount,
+    visitSchedulesCount: visitSchedules.length,
+    visitSchedules,
+  };
+
+  return recommendList;
 };
+
+const getRecommendList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetRecommendListReqParams>,
+    res: Express.IBTypedResponse<GetRecommendListResponse>,
+  ) => {
+    try {
+      const params = req.body;
+      const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: recommendListFromDB,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+        } else if (err.type === 'EXTERNALAPI') {
+          res.json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 const filtersForSearchFromBookingCom = asyncWrapper(
   async (
@@ -1165,25 +1439,6 @@ const filtersForSearchFromBookingCom = asyncWrapper(
     });
   },
 );
-
-const searchLocationsFromBookingComInnerAsyncFn = async (
-  params: SearchLocationsFromBookingComReqParams,
-): Promise<SearchLocationsFromBookingComInnerAsyncFnResponse[]> => {
-  const { name } = params;
-  const options = {
-    method: 'GET' as Method,
-    url: 'https://booking-com.p.rapidapi.com/v1/hotels/locations',
-    params: { locale: 'en-us', name },
-    headers: {
-      'X-RapidAPI-Key': process.env.RAPID_API_KEY ?? '',
-      'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-    },
-  };
-  const rawResponse = await axios.request(options);
-  const fetchedData =
-    rawResponse.data as SearchLocationsFromBookingComRawResponse[];
-  return fetchedData;
-};
 
 const searchLocationsFromBookingCom = asyncWrapper(
   async (
@@ -1339,6 +1594,7 @@ scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
+scheduleRouter.post('/getRecommendList', getRecommendList);
 scheduleRouter.post(
   '/getRecommendListWithLatLngt',
   getRecommendListWithLatLngt,
