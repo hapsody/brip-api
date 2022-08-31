@@ -101,17 +101,19 @@ model QueryParams {
   radius    Float? /// unit: km, ex) 20
 
   // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
-  hotelOrderBy          String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
-  hotelAdultsNumber     Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
-  hotelUnits            String? /// metric | imperial ex) metric
-  hotelRoomNumber       Int? ///  Number of rooms ex) 1
-  hotelCheckinDate      DateTime? /// '2022-09-30';
-  hotelCheckoutDate     DateTime? /// '2022-10-01';
-  hotelFilterByCurrency String? /// default USD, 'USD' | 'KRW'; 
-  hotelChildrenAges     String? /// ex) 유아 연령 배열 '5,3'
-  hotelChildrenNumber   Int? /// ex) 유아 수 ex) 2
-  searchHotelRes        SearchHotelRes[]
-  gglNearbySearchRes    GglNearbySearchRes[]
+  hotelOrderBy             String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
+  hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
+  hotelUnits               String? /// metric | imperial ex) metric
+  hotelRoomNumber          Int? ///  Number of rooms ex) 1
+  hotelCheckinDate         DateTime? /// '2022-09-30';
+  hotelCheckoutDate        DateTime? /// '2022-10-01';
+  hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
+  hotelChildrenAges        String? /// ex) 유아 연령 배열 '5,3'
+  hotelChildrenNumber      Int? /// ex) 유아 수 ex) 2
+  hotelCategoriesFilterIds String? /// 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
+  hotelIncludeAdjacency    Boolean?
+  searchHotelRes           SearchHotelRes[]
+  gglNearbySearchRes       GglNearbySearchRes[]
 }
 
 model SearchHotelRes {

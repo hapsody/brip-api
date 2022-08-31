@@ -461,9 +461,14 @@ describe('Auth Express Router E2E Test', () => {
       expect(iBparams.id).toBeGreaterThan(0);
 
       expect(typeof iBparams.id).toBe('number');
-      expect(iBparams.keyword).toBe(
-        params.searchCond.nearbySearchReqParams.keyword,
-      );
+      if (iBparams.keyword === null || iBparams.keyword === '') {
+        expect(params.searchCond.nearbySearchReqParams.keyword).toBe('');
+      } else {
+        expect(iBparams.keyword).toBe(
+          params.searchCond.nearbySearchReqParams.keyword,
+        );
+      }
+
       expect(iBparams.latitude).toBeCloseTo(
         Number.parseFloat(
           params.searchCond.nearbySearchReqParams.location.latitude,

@@ -89,6 +89,8 @@ const createQueryParamId = async (
     longitude: paramLngt,
     childrenAges,
     childrenNumber,
+    categoriesFilterIds,
+    includeAdjacency,
     // mock
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
@@ -96,8 +98,8 @@ const createQueryParamId = async (
 
   const queryParamResult = await prismaX.queryParams.create({
     data: {
-      keyword,
-      radius,
+      keyword: isEmpty(keyword) ? null : keyword,
+      radius: radius > 0 ? radius : null,
       latitude: parseFloat(nearbySearchLat ?? paramLat),
       longitude: parseFloat(nearbySearchLngt ?? paramLngt),
       hotelOrderBy: orderBy,
@@ -105,9 +107,13 @@ const createQueryParamId = async (
       hotelRoomNumber: roomNumber,
       hotelCheckinDate: new Date(checkinDate),
       hotelCheckoutDate: new Date(checkoutDate),
-      hotelFilterByCurrency: filterByCurrency,
+      hotelFilterByCurrency: isEmpty(filterByCurrency)
+        ? null
+        : filterByCurrency,
       hotelChildrenAges: childrenAges?.toString(),
       hotelChildrenNumber: childrenNumber,
+      hotelCategoriesFilterIds: categoriesFilterIds?.toString(),
+      hotelIncludeAdjacency: includeAdjacency,
     },
   });
   return queryParamResult.id;
@@ -621,20 +627,20 @@ const searchHotelInnerAsyncFn = async (
   // } = nearbySearchReqParams ?? defaultNearbySearchReqParams;
 
   const {
-    orderBy,
-    adultsNumber,
-    roomNumber,
-    checkinDate,
-    checkoutDate,
-    filterByCurrency,
+    orderBy = 'popularity',
+    adultsNumber = 2,
+    roomNumber = 1,
+    checkinDate = getToday(),
+    checkoutDate = getTomorrow(),
+    filterByCurrency = 'USD',
     latitude: paramLat,
     longitude: paramLngt,
-    pageNumber,
-    includeAdjacency,
+    pageNumber = 0,
+    includeAdjacency = true,
     childrenAges,
     childrenNumber,
     categoriesFilterIds,
-    mock,
+    mock = true,
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
   if (childrenAges && childrenAges.length > 0 && !isNumber(childrenNumber)) {
@@ -684,9 +690,15 @@ const searchHotelInnerAsyncFn = async (
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
         include_adjacency: includeAdjacency ?? 'false',
-        children_number: childrenNumber?.toString(),
-        children_ages: childrenAges?.toString(),
-        categories_filter_ids: categoriesFilterIds?.toString(),
+        ...(isNumber(childrenNumber) && {
+          children_number: childrenNumber.toString(),
+        }),
+        ...(childrenAges &&
+          !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
+        ...(categoriesFilterIds &&
+          !isEmpty(categoriesFilterIds) && {
+            categories_filter_ids: categoriesFilterIds?.toString(),
+          }),
         // categories_filter_ids: 'class::2,class::4,free_cancellation::1',
       },
       headers: {
