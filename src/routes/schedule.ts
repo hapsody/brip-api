@@ -246,7 +246,22 @@ const storeDataRelatedWithQueryParams = async (
 const searchLocationsFromBookingComInnerAsyncFn = async (
   params: SearchLocationsFromBookingComReqParams,
 ): Promise<SearchLocationsFromBookingComInnerAsyncFnResponse[]> => {
-  const { name } = params;
+  const { name, mock = true } = params;
+
+  if (mock) {
+    const responseData = await prisma.mockBookingDotComHotelResource.findFirst({
+      where: {
+        reqType: 'SEARCH_LOCATIONS',
+      },
+      orderBy: [{ id: 'desc' }],
+    });
+    const result = responseData
+      ? (JSON.parse(
+          responseData?.responseData,
+        ) as SearchLocationsFromBookingComRawResponse[])
+      : [];
+    return result;
+  }
   const options = {
     method: 'GET' as Method,
     url: 'https://booking-com.p.rapidapi.com/v1/hotels/locations',

@@ -162,6 +162,7 @@ export interface GetRecommendListWithLatLngtReqParams {
 export interface SearchLocationsFromBookingComReqParams {
   // locale: 'en-us';
   name: string;
+  mock?: boolean;
 }
 export interface FiltersForSearchFromBookingComReqParams {
   adultsNumber: number;
