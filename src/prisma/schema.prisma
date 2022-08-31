@@ -157,9 +157,18 @@ model SearchHotelRes {
   queryParamsId           Int
 }
 
+/// 개발용 booking.com hotels mock data type 구분용
+enum BookingComReqType {
+  SEARCH_HOTELS_BY_COORDINATES
+  SEARCH_LOCATIONS
+  FILTERS_FOR_SEARCH
+  SEARCH_HOTELS
+}
+
 model MockBookingDotComHotelResource {
-  id           Int      @id @default(autoincrement())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
-  responseData String   @db.LongText
+  id           Int               @id @default(autoincrement())
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @default(now())
+  reqType      BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
+  responseData String            @db.LongText
 }

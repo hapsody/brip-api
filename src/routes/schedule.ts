@@ -521,100 +521,6 @@ export const nearbySearch = asyncWrapper(
   },
 );
 
-export const addMockHotelResource = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<{
-      orderBy?: // default popularity
-      | 'popularity'
-        | 'class_ascending'
-        | 'class_descending'
-        | 'distance'
-        | 'upsort_bh'
-        | 'review_score'
-        | 'price';
-      adultsNumber: number;
-      // units: 'metric';
-      roomNumber?: number; // Number of rooms
-      checkinDate: Date; // '2022-09-30';
-      checkoutDate: Date; // '2022-10-01';
-      filterByCurrency?: 'USD' | 'KRW'; // default USD;
-      // locale: 'en-us';
-      latitude: string; // 위도좌표 ex) 21.4286856;
-      longitude: string; // 경도 ex) -158.1389763;
-      pageNumber?: number; // default 0;
-      includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
-    }>,
-    res: Express.IBTypedResponse<IBResFormat>,
-  ) => {
-    const {
-      body: {
-        orderBy,
-        adultsNumber,
-        roomNumber,
-        checkinDate,
-        checkoutDate,
-        filterByCurrency,
-        latitude: paramLat,
-        longitude: paramLngt,
-        pageNumber,
-        includeAdjacency,
-      },
-    } = req;
-
-    const options = {
-      method: 'GET' as Method,
-      url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
-      params: {
-        order_by: orderBy ?? 'popularity',
-        adults_number: adultsNumber.toString(),
-        units: 'metric',
-        room_number: roomNumber ? roomNumber.toString() : '1',
-        checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
-        checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
-        filter_by_currency: filterByCurrency ?? 'USD',
-        locale: 'en-us',
-        latitude: paramLat.toString(),
-        longitude: paramLngt.toString(),
-        page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency ?? 'false',
-      },
-      headers: {
-        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
-        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-      },
-    };
-    const response = await axios.request(options);
-
-    const data = JSON.stringify(response.data);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    await prisma.mockBookingDotComHotelResource.create({
-      data: {
-        responseData: data,
-      },
-    });
-
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: response.data as object,
-    });
-  },
-);
-
-// export const readMockHotelResource = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<{}>,
-//     res: Express.IBTypedResponse<IBResFormat>,
-//   ) => {
-//     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-//     const result = await readHotelDataFromMock();
-
-//     res.json({
-//       ...ibDefs.SUCCESS,
-//       IBparams: result ? (JSON.parse(result.responseData) as Object) : {},
-//     });
-//   },
-// );
-
 const searchHotelInnerAsyncFn = async (
   queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
@@ -666,7 +572,12 @@ const searchHotelInnerAsyncFn = async (
   const data = await (async () => {
     if (mock) {
       const responseData =
-        await prisma.mockBookingDotComHotelResource.findFirst();
+        await prisma.mockBookingDotComHotelResource.findFirst({
+          where: {
+            reqType: 'SEARCH_HOTELS_BY_COORDINATES',
+          },
+          orderBy: [{ id: 'desc' }],
+        });
       const { result } = responseData
         ? (JSON.parse(responseData?.responseData) as {
             result: SearchedData[];
@@ -1601,9 +1512,151 @@ const prismaTest = asyncWrapper(
 //   },
 // );
 
+export const addMockHotelResource = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{
+      orderBy?: // default popularity
+      | 'popularity'
+        | 'class_ascending'
+        | 'class_descending'
+        | 'distance'
+        | 'upsort_bh'
+        | 'review_score'
+        | 'price';
+      adultsNumber: number;
+      // units: 'metric';
+      roomNumber?: number; // Number of rooms
+      checkinDate: Date; // '2022-09-30';
+      checkoutDate: Date; // '2022-10-01';
+      filterByCurrency?: 'USD' | 'KRW'; // default USD;
+      // locale: 'en-us';
+      latitude: string; // 위도좌표 ex) 21.4286856;
+      longitude: string; // 경도 ex) -158.1389763;
+      pageNumber?: number; // default 0;
+      includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
+    }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const {
+      body: {
+        orderBy,
+        adultsNumber,
+        roomNumber,
+        checkinDate,
+        checkoutDate,
+        filterByCurrency,
+        latitude: paramLat,
+        longitude: paramLngt,
+        pageNumber,
+        includeAdjacency,
+      },
+    } = req;
+
+    const options = {
+      method: 'GET' as Method,
+      url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
+      params: {
+        order_by: orderBy ?? 'popularity',
+        adults_number: adultsNumber.toString(),
+        units: 'metric',
+        room_number: roomNumber ? roomNumber.toString() : '1',
+        checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
+        checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
+        filter_by_currency: filterByCurrency ?? 'USD',
+        locale: 'en-us',
+        latitude: paramLat.toString(),
+        longitude: paramLngt.toString(),
+        page_number: pageNumber ? pageNumber.toString() : '0',
+        include_adjacency: includeAdjacency ?? 'false',
+      },
+      headers: {
+        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+      },
+    };
+    const response = await axios.request(options);
+
+    const data = JSON.stringify(response.data);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    await prisma.mockBookingDotComHotelResource.create({
+      data: {
+        responseData: data,
+      },
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: response.data as object,
+    });
+  },
+);
+
+export const addMockSearchLocationsResource = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{
+      name: string;
+    }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const params = req.body;
+
+    const { name } = params;
+    const options = {
+      method: 'GET' as Method,
+      url: 'https://booking-com.p.rapidapi.com/v1/hotels/locations',
+      params: { locale: 'en-us', name },
+      headers: {
+        'X-RapidAPI-Key': process.env.RAPID_API_KEY ?? '',
+        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+      },
+    };
+
+    let rawResponse = { data: {} };
+    let data: string = '';
+    try {
+      rawResponse = await axios.request(options);
+
+      rawResponse.data as SearchLocationsFromBookingComRawResponse[];
+      data = JSON.stringify(rawResponse.data);
+    } catch (err) {
+      throw new IBError({
+        type: 'EXTERNALAPI',
+        message: (err as Error).message,
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    await prisma.mockBookingDotComHotelResource.create({
+      data: {
+        reqType: 'SEARCH_LOCATIONS',
+        responseData: data,
+      },
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: rawResponse.data as object,
+    });
+  },
+);
+
+// export const readMockHotelResource = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<{}>,
+//     res: Express.IBTypedResponse<IBResFormat>,
+//   ) => {
+//     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+//     const result = await readHotelDataFromMock();
+
+//     res.json({
+//       ...ibDefs.SUCCESS,
+//       IBparams: result ? (JSON.parse(result.responseData) as Object) : {},
+//     });
+//   },
+// );
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
-scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
 scheduleRouter.post('/getRecommendList', getRecommendList);
@@ -1620,5 +1673,10 @@ scheduleRouter.post(
 scheduleRouter.post(
   '/searchLocationsFromBookingCom',
   searchLocationsFromBookingCom,
+);
+scheduleRouter.post('/addMockHotelResource', addMockHotelResource);
+scheduleRouter.post(
+  '/addMockSearchLocationsResource',
+  addMockSearchLocationsResource,
 );
 export default scheduleRouter;
