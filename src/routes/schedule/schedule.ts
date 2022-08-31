@@ -990,7 +990,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       gglNearbySearchRes: GglNearbySearchRes[];
     };
 
-  const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
+  const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
 
@@ -1227,7 +1227,7 @@ const getRecommendListInnerAsyncFn = async (
       gglNearbySearchRes: GglNearbySearchRes[];
     };
 
-  const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
+  const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
 
