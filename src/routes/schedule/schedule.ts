@@ -1235,8 +1235,22 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     acc.push({
-      spot: thatDaySpot,
-      restaurant: thatDayRestaurant,
+      spot: thatDaySpot.map(e => {
+        return {
+          ...e,
+          spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+            e.place_id as string
+          }`,
+        };
+      }),
+      restaurant: thatDayRestaurant.map(e => {
+        return {
+          ...e,
+          spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+            e.place_id as string
+          }`,
+        };
+      }),
       hotel: {
         minBudgetHotel: idx % transitionTerm === 0 ? minHotel : prevMinHotel,
         midBudgetHotel: idx % transitionTerm === 0 ? midHotel : prevMidHotel,
