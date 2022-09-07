@@ -7,6 +7,59 @@ export const childrenNumber = 2;
 export const childrenAges = [1, 3];
 
 export const params = {
+  // searchCond: {
+  //   minBudget,
+  //   maxBudget,
+  //   currency: 'USD',
+  //   travelType: {
+  //     landActivity: true,
+  //     golf: false,
+  //     relaxation: false,
+  //     resort: false,
+  //     hotel: true,
+  //     oceanActivity: false,
+  //     experience: false,
+  //     groupActivity: false,
+  //     learning: false,
+  //     shopping: false,
+  //     waterPark: false,
+  //     visitTourSpot: false,
+  //     packageTour: false,
+  //     nativeExperience: false,
+  //     noIdea: false,
+  //   },
+  //   travelIntensity: 6,
+  //   travelStartDate,
+  //   travelEndDate,
+  //   hotelTransition,
+
+  //   nearbySearchReqParams: {
+  //     keyword: '',
+  //     location: {
+  //       latitude: '21.471383921418447',
+  //       longitude: '-158.02821312813884',
+  //     },
+  //     radius: 4000,
+  //   },
+  //   searchHotelReqParams: {
+  //     radius: 4000,
+  //     orderBy: 'popularity',
+  //     adultsNumber: 2,
+
+  //     childrenNumber,
+  //     childrenAges,
+
+  //     roomNumber: 1,
+  //     checkinDate: '2022-09-30T00:00:00',
+  //     checkoutDate: '2022-10-03T00:00:00',
+  //     latitude: '21.4286856',
+  //     longitude: '-158.1389763',
+  //     pageNumber: 0,
+  //     includeAdjacency: true,
+  //     mock: true,
+  //   },
+  // },
+
   searchCond: {
     minBudget,
     maxBudget,
@@ -32,53 +85,53 @@ export const params = {
     travelStartDate,
     travelEndDate,
     hotelTransition,
-
     nearbySearchReqParams: {
       keyword: '',
       location: {
-        latitude: '21.471383921418447',
-        longitude: '-158.02821312813884',
+        latitude: '33.501298',
+        longitude: '126.525482',
       },
       radius: 4000,
+      loadAll: true,
     },
     searchHotelReqParams: {
       radius: 4000,
       orderBy: 'popularity',
       adultsNumber: 2,
-
       childrenNumber,
       childrenAges,
-
       roomNumber: 1,
       checkinDate: '2022-09-30T00:00:00',
-      checkoutDate: '2022-10-03T00:00:00',
-      latitude: '21.4286856',
-      longitude: '-158.1389763',
+      checkoutDate: '2022-10-10T00:00:00',
+      latitude: '33.501298',
+      longitude: '126.525482',
       pageNumber: 0,
       includeAdjacency: true,
+      categoriesFilterIds: ['property_type::204'],
       mock: true,
     },
   },
-  evalCond: {
-    nearbySearch: {
-      orderBy: [
-        {
-          column: 'rating',
-          sort: 'desc',
-        },
-      ],
-    },
-    hotelSearch: {
-      orderBy: [
-        {
-          column: 'review_score',
-          sort: 'desc',
-        },
-        {
-          column: 'distance',
-          sort: 'asc',
-        },
-      ],
-    },
-  },
+
+  // evalCond: {
+  //   nearbySearch: {
+  //     orderBy: [
+  //       {
+  //         column: 'rating',
+  //         sort: 'desc',
+  //       },
+  //     ],
+  //   },
+  //   hotelSearch: {
+  //     orderBy: [
+  //       {
+  //         column: 'review_score',
+  //         sort: 'desc',
+  //       },
+  //       {
+  //         column: 'distance',
+  //         sort: 'asc',
+  //       },
+  //     ],
+  //   },
+  // },
 };

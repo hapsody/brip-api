@@ -47,7 +47,9 @@ describe('Correct case test', () => {
 
       expect(typeof iBparams.id).toBe('number');
       if (iBparams.keyword === null || iBparams.keyword === '') {
-        expect(params.searchCond.nearbySearchReqParams.keyword).toBe('');
+        expect([undefined, null, '']).toContain(
+          params.searchCond.nearbySearchReqParams.keyword,
+        );
       } else {
         expect(iBparams.keyword).toBe(
           params.searchCond.nearbySearchReqParams.keyword,
@@ -101,9 +103,13 @@ describe('Correct case test', () => {
       const checkResponse = await request(app)
         .post('/schedule/getListQueryParams')
         .send({
-          id: iBparams.id,
-          nearbySearch: {},
-          hotelSearch: {},
+          where: {
+            id: iBparams.id,
+          },
+          include: {
+            gglNearbySearchRes: true,
+            searchHotelRes: true,
+          },
         });
       const { searchHotelRes: checkHotelRes } = (
         checkResponse.body as GetListQueryParamsResponse
