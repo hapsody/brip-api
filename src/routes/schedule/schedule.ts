@@ -951,6 +951,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     travelStartDate,
     travelEndDate,
     hotelTransition = 0, // 호텔 바꾸는 횟수
+    nearbySearchReqParams: { loadAll },
   } = searchCond;
 
   const travelNights = getTravelNights(
@@ -975,9 +976,11 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
 
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
-  await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+  // await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+  await getAllNearbySearchPages(searchCond, queryParamId, loadAll);
 
   const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
+
   // Get high priority candidate data from composite search result.
   const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
     getListQueryParamsWithId,
@@ -1135,6 +1138,7 @@ const getRecommendListInnerAsyncFn = async (
     travelStartDate,
     travelEndDate,
     hotelTransition = 0, // 호텔 바꾸는 횟수
+    nearbySearchReqParams: { loadAll },
   } = searchCond;
 
   const travelNights = getTravelNights(
@@ -1212,7 +1216,8 @@ const getRecommendListInnerAsyncFn = async (
 
   // Do composite search
   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
-  await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+  // await nearbySearchInnerAsyncFn(searchCond, queryParamId);
+  await getAllNearbySearchPages(searchCond, queryParamId, loadAll);
 
   const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
   // Get high priority candidate data from composite search result.
