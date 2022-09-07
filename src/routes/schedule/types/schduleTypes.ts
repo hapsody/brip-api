@@ -2,6 +2,7 @@ import {
   SearchHotelRes,
   GglNearbySearchRes,
   QueryParams,
+  Prisma,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -128,26 +129,27 @@ export interface NearbySearchInnerAsyncFnRes {
   pageToken: string | undefined;
 }
 
-export type OrderSortType = 'desc' | 'asc';
-export interface GetListQueryParamsReqParams {
-  id?: number;
-  hotelSearch?: {
-    orderBy?: {
-      column: keyof SearchHotelRes;
-      sort?: OrderSortType;
-    }[];
-    // select?: [keyof SearchHotelRes];
-    select?: Record<keyof SearchHotelRes, boolean>;
-  };
-  nearbySearch?: {
-    orderBy?: {
-      column: keyof GglNearbySearchRes;
-      sort?: OrderSortType;
-    }[];
-    // select?: [keyof NearBySearchReqParams];
-    select?: Record<keyof GglNearbySearchRes, boolean>;
-  };
-}
+// export type OrderSortType = 'desc' | 'asc';
+// export interface GetListQueryParamsReqParams {
+//   id?: number;
+//   hotelSearch?: {
+//     orderBy?: {
+//       column: keyof SearchHotelRes;
+//       sort?: OrderSortType;
+//     }[];
+//     // select?: [keyof SearchHotelRes];
+//     select?: Record<keyof SearchHotelRes, boolean>;
+//   };
+//   nearbySearch?: {
+//     orderBy?: {
+//       column: keyof GglNearbySearchRes;
+//       sort?: OrderSortType;
+//     }[];
+//     // select?: [keyof NearBySearchReqParams];
+//     select?: Record<keyof GglNearbySearchRes, boolean>;
+//   };
+// }
+export type GetListQueryParamsReqParams = Prisma.QueryParamsFindManyArgs;
 
 export interface GetRecommendListReqParams {
   searchCond: QueryReqParams & { searchLocation: string };
@@ -156,7 +158,7 @@ export interface GetRecommendListReqParams {
 
 export interface GetRecommendListWithLatLngtReqParams {
   searchCond: QueryReqParams;
-  evalCond: GetListQueryParamsReqParams;
+  // evalCond: GetListQueryParamsReqParams;
 }
 
 export interface SearchLocationsFromBookingComReqParams {
@@ -192,6 +194,7 @@ export interface FiltersForSearchFromBookingComReqParams {
 
 export type VisitSchedules = {
   spot: GglNearbySearchRes[];
+  restaurant: GglNearbySearchRes[];
   hotel: {
     minBudgetHotel: SearchHotelRes | undefined;
     midBudgetHotel: SearchHotelRes | undefined;
@@ -200,16 +203,19 @@ export type VisitSchedules = {
 }[];
 
 export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
-  totalNearbySearchCount: number;
+  // totalNearbySearchCount: number;
   totalHotelSearchCount: number;
   spotPerDay: number;
+  mealPerDay: number;
   travelNights: number;
   travelDays: number;
   hotelTransition: number;
   transitionTerm: number;
   visitSchedulesCount: number;
   visitSchedules: VisitSchedules;
-  recommendedNearbySearchCount: number;
+  // recommendedNearbySearchCount: number;
+  recommendedSpotCount: number;
+  recommendedRestaurantCount: number;
   recommendedMinHotelCount: number;
   recommendedMidHotelCount: number;
   recommendedMaxHotelCount: number;
