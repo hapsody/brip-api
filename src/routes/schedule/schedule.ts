@@ -1103,6 +1103,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
             },
           },
         },
+        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
       },
       searchHotelRes: {
         orderBy: [
@@ -1130,6 +1131,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
             },
           },
         },
+        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
       },
     },
   };
@@ -1308,8 +1310,10 @@ const getRecommendListWithLatLngt = asyncWrapper(
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
+          return;
         }
       }
+      throw err;
     }
   },
 );
