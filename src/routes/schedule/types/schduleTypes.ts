@@ -390,3 +390,57 @@ export const bookingComFilterCategories = {
   bedAndBreakfasts: 'property_type::208',
   villas: 'property_type::213',
 };
+
+export const getQueryParamsForRestaurant = (
+  queryParamId: number,
+): GetListQueryParamsReqParams => {
+  return {
+    where: { id: queryParamId },
+    include: {
+      gglNearbySearchRes: {
+        where: {
+          types: {
+            some: {
+              value: {
+                equals: 'restaurant',
+              },
+            },
+          },
+        },
+        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+      },
+      searchHotelRes: {
+        orderBy: [
+          {
+            review_score: 'desc',
+          },
+          {
+            distance: 'asc',
+          },
+        ],
+      },
+    },
+  };
+};
+
+export const getQueryParamsForTourSpot = (
+  queryParamId: number,
+): GetListQueryParamsReqParams => {
+  return {
+    where: { id: queryParamId },
+    include: {
+      gglNearbySearchRes: {
+        where: {
+          types: {
+            none: {
+              value: {
+                equals: 'restaurant',
+              },
+            },
+          },
+        },
+        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+      },
+    },
+  };
+};
