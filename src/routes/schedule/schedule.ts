@@ -1007,9 +1007,18 @@ const evalSpikedPlaces = ({
     seperatedIdxs: number[];
   };
   type DistanceMap = {
-    withHotel: MetaDataForSpike;
-    withRestaurant: MetaDataForSpike;
-    withSpot: MetaDataForSpike;
+    withHotel: {
+      data: SearchHotelRes[];
+      metaDataForDistance: MetaDataForSpike;
+    };
+    withRestaurant: {
+      data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
+      metaDataForDistance: MetaDataForSpike;
+    };
+    withSpot: {
+      data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
+      metaDataForDistance: MetaDataForSpike;
+    };
   }[];
   const getDistance = ({
     startPoint,
@@ -1081,16 +1090,19 @@ const evalSpikedPlaces = ({
 
   const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
     const withHotelDistances = searchHotelRes.map(innerHotel => {
-      return getDistance({
-        startPoint: {
-          lat: outerHotel.latitude,
-          lngt: outerHotel.longitude,
-        },
-        endPoint: {
-          lat: innerHotel.latitude,
-          lngt: innerHotel.longitude,
-        },
-      });
+      return {
+        data: innerHotel,
+        distance: getDistance({
+          startPoint: {
+            lat: outerHotel.latitude,
+            lngt: outerHotel.longitude,
+          },
+          endPoint: {
+            lat: innerHotel.latitude,
+            lngt: innerHotel.longitude,
+          },
+        }),
+      };
     });
     withHotelDistances.sort((a, b) => {
       if (a > b) {
@@ -1102,21 +1114,21 @@ const evalSpikedPlaces = ({
       return 0;
     });
 
-    // const { withHotelDelta, withHotelDeltaAvg, withHotelDeltaSepAvg, sepIdxs } =
-    //   evalMetaData(withHotelDistances);
-
     const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
       const location = JSON.parse(spot.geometry.location) as LatLngt;
-      return getDistance({
-        startPoint: {
-          lat: outerHotel.latitude,
-          lngt: outerHotel.longitude,
-        },
-        endPoint: {
-          lat: location.lat,
-          lngt: location.lngt,
-        },
-      });
+      return {
+        data: spot,
+        distance: getDistance({
+          startPoint: {
+            lat: outerHotel.latitude,
+            lngt: outerHotel.longitude,
+          },
+          endPoint: {
+            lat: location.lat,
+            lngt: location.lngt,
+          },
+        }),
+      };
     });
     withSpotDistances.sort((a, b) => {
       if (a > b) {
@@ -1131,17 +1143,19 @@ const evalSpikedPlaces = ({
     const withRestaurantDistances = restaurantGglNearbySearchRes.map(
       restaurant => {
         const location = JSON.parse(restaurant.geometry.location) as LatLngt;
-
-        return getDistance({
-          startPoint: {
-            lat: outerHotel.latitude,
-            lngt: outerHotel.longitude,
-          },
-          endPoint: {
-            lat: location.lat,
-            lngt: location.lngt,
-          },
-        });
+        return {
+          data: restaurant,
+          distance: getDistance({
+            startPoint: {
+              lat: outerHotel.latitude,
+              lngt: outerHotel.longitude,
+            },
+            endPoint: {
+              lat: location.lat,
+              lngt: location.lngt,
+            },
+          }),
+        };
       },
     );
     withRestaurantDistances.sort((a, b) => {
@@ -1155,9 +1169,24 @@ const evalSpikedPlaces = ({
     });
 
     return {
-      withHotel: evalMetaData(withHotelDistances),
-      withSpot: evalMetaData(withSpotDistances),
-      withRestaurant: evalMetaData(withRestaurantDistances),
+      withHotel: {
+        data: withHotelDistances.map(e => e.data),
+        metaDataForDistance: evalMetaData(
+          withHotelDistances.map(e => e.distance),
+        ),
+      },
+      withSpot: {
+        data: withSpotDistances.map(e => e.data),
+        metaDataForDistance: evalMetaData(
+          withSpotDistances.map(e => e.distance),
+        ),
+      },
+      withRestaurant: {
+        data: withRestaurantDistances.map(e => e.data),
+        metaDataForDistance: evalMetaData(
+          withSpotDistances.map(e => e.distance),
+        ),
+      },
     };
   });
 
