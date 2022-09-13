@@ -3,6 +3,7 @@ import {
   GglNearbySearchRes,
   QueryParams,
   Prisma,
+  Gglgeometry,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -247,7 +248,7 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 };
 
 export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
-  gglNearbySearchRes: GglNearbySearchRes[];
+  gglNearbySearchRes: (GglNearbySearchRes & { geometry: Gglgeometry })[];
   searchHotelRes: SearchHotelRes[];
 })[];
 
@@ -407,6 +408,9 @@ export const getQueryParamsForRestaurant = (
             },
           },
         },
+        include: {
+          geometry: true,
+        },
         orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
       },
       searchHotelRes: {
@@ -438,6 +442,9 @@ export const getQueryParamsForTourSpot = (
               },
             },
           },
+        },
+        include: {
+          geometry: true,
         },
         orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
       },

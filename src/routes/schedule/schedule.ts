@@ -12,13 +12,7 @@ import {
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import {
-  PrismaClient,
-  SearchHotelRes,
-  GglNearbySearchRes,
-  Prisma,
-  QueryParams,
-} from '@prisma/client';
+import { PrismaClient, SearchHotelRes, Prisma } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -165,16 +159,16 @@ const storeDataRelatedWithQueryParams = async (
             create: {
               location: JSON.stringify({
                 lat: item.geometry?.location?.lat,
-                lng: item.geometry?.location?.lng,
+                lngt: item.geometry?.location?.lng,
               }),
               viewport: JSON.stringify({
                 northeast: {
                   lat: item.geometry?.viewport?.northeast?.lat,
-                  lng: item.geometry?.viewport?.northeast?.lng,
+                  lngt: item.geometry?.viewport?.northeast?.lng,
                 },
                 southwest: {
                   lat: item.geometry?.viewport?.southwest?.lat,
-                  lng: item.geometry?.viewport?.southwest?.lng,
+                  lngt: item.geometry?.viewport?.southwest?.lng,
                 },
               }),
             },
@@ -1089,15 +1083,114 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     getQueryParamsForTourSpot(queryParamId),
   );
   const { searchHotelRes, gglNearbySearchRes: restaurantGglNearbySearchRes } =
-    restaurantQueryParamsDataFromDB[0] as QueryParams & {
-      searchHotelRes: SearchHotelRes[];
-      gglNearbySearchRes: GglNearbySearchRes[];
-    };
+    restaurantQueryParamsDataFromDB[0];
   const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
-    spotQueryParamsDataFromDB[0] as QueryParams & {
-      gglNearbySearchRes: GglNearbySearchRes[];
-    };
+    spotQueryParamsDataFromDB[0];
 
+  type DistanceMap = {
+    withHotel: number[];
+    withRestaurant: number[];
+    withSpot: number[];
+    withHotelSorted: number[];
+    withRestaurantSorted: number[];
+    withSpotSorted: number[];
+  }[];
+
+  type LatLngt = { lat: number; lngt: number };
+  const getDistance = ({
+    startPoint,
+    endPoint,
+  }: {
+    startPoint: LatLngt;
+    endPoint: LatLngt;
+  }) => {
+    return (
+      (endPoint.lat - startPoint.lat) ** 2 +
+      (endPoint.lngt - startPoint.lngt) ** 2
+    );
+  };
+
+  const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
+    const withHotel = searchHotelRes.map(innerHotel => {
+      return getDistance({
+        startPoint: {
+          lat: outerHotel.latitude,
+          lngt: outerHotel.longitude,
+        },
+        endPoint: {
+          lat: innerHotel.latitude,
+          lngt: innerHotel.longitude,
+        },
+      });
+    });
+    const withHotelSorted = withHotel.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    const withSpot = touringSpotGglNearbySearchRes.map(spot => {
+      const location = JSON.parse(spot.geometry.location) as LatLngt;
+      return getDistance({
+        startPoint: {
+          lat: outerHotel.latitude,
+          lngt: outerHotel.longitude,
+        },
+        endPoint: {
+          lat: location.lat,
+          lngt: location.lngt,
+        },
+      });
+    });
+    const withSpotSorted = withSpot.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    const withRestaurant = restaurantGglNearbySearchRes.map(restaurant => {
+      const location = JSON.parse(restaurant.geometry.location) as LatLngt;
+
+      return getDistance({
+        startPoint: {
+          lat: outerHotel.latitude,
+          lngt: outerHotel.longitude,
+        },
+        endPoint: {
+          lat: location.lat,
+          lngt: location.lngt,
+        },
+      });
+    });
+    const withRestaurantSorted = withRestaurant.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    return {
+      withHotel,
+      withSpot,
+      withRestaurant,
+      withHotelSorted,
+      withSpotSorted,
+      withRestaurantSorted,
+    };
+  });
+
+  console.log(distanceMaps);
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
