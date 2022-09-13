@@ -12,7 +12,13 @@ import {
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import { PrismaClient, SearchHotelRes, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  SearchHotelRes,
+  Prisma,
+  GglNearbySearchRes,
+  Gglgeometry,
+} from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -979,6 +985,186 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
+const evalSpikedPlaces = ({
+  searchHotelRes,
+  touringSpotGglNearbySearchRes,
+  restaurantGglNearbySearchRes,
+}: {
+  searchHotelRes: SearchHotelRes[];
+  touringSpotGglNearbySearchRes: (GglNearbySearchRes & {
+    geometry: Gglgeometry;
+  })[];
+  restaurantGglNearbySearchRes: (GglNearbySearchRes & {
+    geometry: Gglgeometry;
+  })[];
+}) => {
+  type LatLngt = { lat: number; lngt: number };
+  type MetaDataForSpike = {
+    distances: number[];
+    delta: number[];
+    deltaAvg: number[];
+    deltaSepAvg: number[];
+    seperatedIdxs: number[];
+  };
+  type DistanceMap = {
+    withHotel: MetaDataForSpike;
+    withRestaurant: MetaDataForSpike;
+    withSpot: MetaDataForSpike;
+  }[];
+  const getDistance = ({
+    startPoint,
+    endPoint,
+  }: {
+    startPoint: LatLngt;
+    endPoint: LatLngt;
+  }) => {
+    return (
+      (endPoint.lat - startPoint.lat) ** 2 +
+      (endPoint.lngt - startPoint.lngt) ** 2
+    );
+  };
+
+  const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
+    let prevValue = 0;
+    const withXDelta = withXDistances.map(v => {
+      const retValue = v - prevValue;
+      prevValue = v;
+      return retValue;
+    });
+
+    let sum = 0;
+    const withXDeltaAvg = withXDelta.map((v, i) => {
+      sum += v;
+      return sum / (i + 1);
+    });
+    const calibValue = 1.7;
+    const totalDeltaAvg = sum / withXDelta.length;
+    const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
+
+    sum = 0;
+    const withXDeltaSepAvg = withXDelta.map((d, i) => {
+      sum += d;
+      const curSeperatedAvg = sum / (i + 1);
+      // let seperatedIdx = -1;
+      if (
+        d > totalDeltaAvg * calibValue &&
+        d > curSeperatedAvg &&
+        d > withHotelCalibDeltaAvg[i]
+      ) {
+        sum = withXDelta[i];
+        // seperatedIdx = i;
+      }
+
+      return curSeperatedAvg;
+    });
+
+    const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
+      const d = withXDelta[i];
+      if (
+        d > totalDeltaAvg * calibValue &&
+        d > curSeperatedAvg &&
+        d > withHotelCalibDeltaAvg[i]
+      ) {
+        return i;
+      }
+      return -1;
+    });
+
+    return {
+      distances: withXDistances,
+      delta: withXDelta,
+      deltaAvg: withXDeltaAvg,
+      deltaSepAvg: withXDeltaSepAvg,
+      seperatedIdxs: sepIdxs,
+    };
+  };
+
+  const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
+    const withHotelDistances = searchHotelRes.map(innerHotel => {
+      return getDistance({
+        startPoint: {
+          lat: outerHotel.latitude,
+          lngt: outerHotel.longitude,
+        },
+        endPoint: {
+          lat: innerHotel.latitude,
+          lngt: innerHotel.longitude,
+        },
+      });
+    });
+    withHotelDistances.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    // const { withHotelDelta, withHotelDeltaAvg, withHotelDeltaSepAvg, sepIdxs } =
+    //   evalMetaData(withHotelDistances);
+
+    const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
+      const location = JSON.parse(spot.geometry.location) as LatLngt;
+      return getDistance({
+        startPoint: {
+          lat: outerHotel.latitude,
+          lngt: outerHotel.longitude,
+        },
+        endPoint: {
+          lat: location.lat,
+          lngt: location.lngt,
+        },
+      });
+    });
+    withSpotDistances.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    const withRestaurantDistances = restaurantGglNearbySearchRes.map(
+      restaurant => {
+        const location = JSON.parse(restaurant.geometry.location) as LatLngt;
+
+        return getDistance({
+          startPoint: {
+            lat: outerHotel.latitude,
+            lngt: outerHotel.longitude,
+          },
+          endPoint: {
+            lat: location.lat,
+            lngt: location.lngt,
+          },
+        });
+      },
+    );
+    withRestaurantDistances.sort((a, b) => {
+      if (a > b) {
+        return 1;
+      }
+      if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+
+    return {
+      withHotel: evalMetaData(withHotelDistances),
+      withSpot: evalMetaData(withSpotDistances),
+      withRestaurant: evalMetaData(withRestaurantDistances),
+    };
+  });
+
+  // console.log(distanceMaps);
+  return distanceMaps;
+};
+
 const getRecommendListWithLatLngtInnerAsyncFn = async (
   params: GetRecommendListWithLatLngtReqParams,
 ): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
@@ -1087,110 +1273,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
     spotQueryParamsDataFromDB[0];
 
-  type DistanceMap = {
-    withHotel: number[];
-    withRestaurant: number[];
-    withSpot: number[];
-    withHotelSorted: number[];
-    withRestaurantSorted: number[];
-    withSpotSorted: number[];
-  }[];
-
-  type LatLngt = { lat: number; lngt: number };
-  const getDistance = ({
-    startPoint,
-    endPoint,
-  }: {
-    startPoint: LatLngt;
-    endPoint: LatLngt;
-  }) => {
-    return (
-      (endPoint.lat - startPoint.lat) ** 2 +
-      (endPoint.lngt - startPoint.lngt) ** 2
-    );
-  };
-
-  const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
-    const withHotel = searchHotelRes.map(innerHotel => {
-      return getDistance({
-        startPoint: {
-          lat: outerHotel.latitude,
-          lngt: outerHotel.longitude,
-        },
-        endPoint: {
-          lat: innerHotel.latitude,
-          lngt: innerHotel.longitude,
-        },
-      });
-    });
-    const withHotelSorted = withHotel.sort((a, b) => {
-      if (a > b) {
-        return 1;
-      }
-      if (a < b) {
-        return -1;
-      }
-      return 0;
-    });
-
-    const withSpot = touringSpotGglNearbySearchRes.map(spot => {
-      const location = JSON.parse(spot.geometry.location) as LatLngt;
-      return getDistance({
-        startPoint: {
-          lat: outerHotel.latitude,
-          lngt: outerHotel.longitude,
-        },
-        endPoint: {
-          lat: location.lat,
-          lngt: location.lngt,
-        },
-      });
-    });
-    const withSpotSorted = withSpot.sort((a, b) => {
-      if (a > b) {
-        return 1;
-      }
-      if (a < b) {
-        return -1;
-      }
-      return 0;
-    });
-
-    const withRestaurant = restaurantGglNearbySearchRes.map(restaurant => {
-      const location = JSON.parse(restaurant.geometry.location) as LatLngt;
-
-      return getDistance({
-        startPoint: {
-          lat: outerHotel.latitude,
-          lngt: outerHotel.longitude,
-        },
-        endPoint: {
-          lat: location.lat,
-          lngt: location.lngt,
-        },
-      });
-    });
-    const withRestaurantSorted = withRestaurant.sort((a, b) => {
-      if (a > b) {
-        return 1;
-      }
-      if (a < b) {
-        return -1;
-      }
-      return 0;
-    });
-
-    return {
-      withHotel,
-      withSpot,
-      withRestaurant,
-      withHotelSorted,
-      withSpotSorted,
-      withRestaurantSorted,
-    };
+  const distanceMaps = evalSpikedPlaces({
+    searchHotelRes,
+    touringSpotGglNearbySearchRes,
+    restaurantGglNearbySearchRes,
   });
 
-  console.log(distanceMaps);
+  distanceMaps.forEach((e, i) => {
+    console.log(`[${i}]: ${JSON.stringify(e.withRestaurant, null, 2)}`);
+  });
+
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
