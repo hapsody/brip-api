@@ -426,6 +426,19 @@ const nearbySearchInnerAsyncFn = async (
   };
 };
 
+/**
+ * 구글 nearbySearch시에는 한 페이지당 20개의 목록만을 보여준다.
+ * 전체 일정중 필요한 스팟(관광지) 또는 식당이 충분한 숫자가 확보되어야 하는데
+ * nearbySearch 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
+ * 이때 사용할 끝 페이지까지 계속해서 자동으로 nearbySearch를 요청하는 함수
+ * 끝 페이지까지 여러번 쿼리하면 이 함수에서 구글로부터 응답받은 모든 GglNearbySearchRes 데이터들은 하나의 ifAlreadyQueryId와 관계된채 중복없이 DB에 저장됨을 보장한다.
+ * @param queryReqParams
+ * @param ifAlreadyQueryId DB에는 QueryParams에 GglNearbySearchRes, SearchHotelRes가 한번에 관계되어 있다.
+ * DB에 GglNearbySearchRes 를 create할때 QueryParams id를 알려주어야 관계를 맺을수 있기 때문에 해당 파라미터로 받아 외래키로 관계를 형성한다.
+ * @param loopLoadAll 끝 페이지까지 읽는 로직을 실행할것인지 결정한다. false라면 첫번째 페이지 값만 리턴한다.
+ * @returns
+ */
+
 const getAllNearbySearchPages = async (
   queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
@@ -507,6 +520,9 @@ const getAllNearbySearchPages = async (
   return loopFuncRes;
 };
 
+/**
+ * 구글 nearbySearch를 수행 요청하는 api endpoint 함수
+ */
 export const nearbySearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryReqParams>,
@@ -539,6 +555,14 @@ export const nearbySearch = asyncWrapper(
   },
 );
 
+/**
+ * queryReqParams의 조건에 맞춰 booking.com api로 호텔을 검색한다.
+ * /searchHotel api 호출시 실제 동작부를 형성한다. (비슷한 동작부를 다른곳에서 사용하기 용이하도록 모듈로써 사용하기 위해 endpoint 함수와 wrapper-inner함수로써 분리함)
+ * @param queryReqParams
+ * @param ifAlreadyQueryId DB에는 QueryParams에 GglNearbySearchRes, SearchHotelRes가 한번에 관계되어 있다.
+ * DB에 hotelSearchRes 를 create할때 QueryParams id를 알려주어야 관계를 맺을수 있기 때문에 해당 파라미터로 받아 관계를 형성한다.
+ * @return
+ */
 const searchHotelInnerAsyncFn = async (
   queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
@@ -757,6 +781,10 @@ const searchHotelInnerAsyncFn = async (
   return { hotelSearchResult: data, queryParamId };
 };
 
+/**
+ * QueryReqParams의 조건에 맞춰 booking.com api로 호텔을 검색한다.
+ * 실제 동작부인 searchHotelInnerAsync 함수를 호출하는 wrapper 함수로써의 역할만 수행한다.
+ */
 export const searchHotel = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryReqParams>,
@@ -791,6 +819,12 @@ export const searchHotel = asyncWrapper(
   },
 );
 
+/**
+ * internal(함수 내부 개발중 데이터 확인용 함수)
+ * nearbySearch 와 hotelSearch를 복합 검색하도록 nearbySearchInnerAsyncFn과 hotelSearchInnerAsyncFn를 함께 호출하는 api endpoint 함수
+ * 여행일수에 해당하는 관광지 수를 충분히 확보할수 있도록 수가 부족할 경우 범위를 늘려(radiusExtending) 재검색하는 기능을 포함한다.
+ * 범위를 늘려 재검색하면 DB에는
+ */
 export const compositeSearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryReqParams>,
@@ -850,6 +884,11 @@ export const compositeSearch = asyncWrapper(
   },
 );
 
+/**
+ * DB로부터 QueryParams 모델 데이터를 불러 응신한다.
+ * 구글 nearbySearch, rapid api booking.com hotelSearch를 한번의 쿼리로 복합 검색시(compositeSearch / getRecommendListWithLatLngt 등 ...)
+ * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수
+ */
 const getListQueryParamsInnerAsyncFn = async (
   params: GetListQueryParamsReqParams,
 ): Promise<GetListQueryParamsInnerAsyncFnResponse> => {
@@ -970,6 +1009,12 @@ const getListQueryParamsInnerAsyncFn = async (
   return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnResponse;
 };
 
+/**
+ * internal(함수 내부 개발중 데이터 확인용 함수)
+ * DB로부터 QueryParams 모델 데이터를 불러 응신한다.
+ * 구글 nearbySearch, rapid api booking.com hotelSearch를 한번의 쿼리로 복합 검색시(compositeSearch / getRecommendListWithLatLngt 등 ...)
+ * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수인 getListQueryParamsInnerAsyncFn를 호출할 wrapper endpoint api 함수이다.
+ */
 const getListQueryParams = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
@@ -1190,7 +1235,6 @@ const evalSperatedPlaces = ({
     };
   });
 
-  // console.log(distanceMaps);
   return distanceMaps;
 };
 
@@ -1199,13 +1243,13 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
 ): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
   const { searchCond } = params;
   const {
-    minBudget = 0,
-    maxBudget = 0,
+    minBudget = 0, // 여행 전체일정중 최소비용
+    maxBudget = 0, // 여행 전체 일정중 최대 비용
     // currency,
     // travelType,
     // travelIntensity,
-    travelStartDate,
-    travelEndDate,
+    travelStartDate, // 여행 시작일
+    travelEndDate, // 여행 종료일
     hotelTransition = 0, // 호텔 바꾸는 횟수
     nearbySearchReqParams,
     searchHotelReqParams,
@@ -1237,7 +1281,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
   const travelDays = travelNights + 1;
 
-  const radiusExtendRetryLimit = 5;
+  const radiusExtendRetryLimit = 5; // 구글 nearbySearch 시에 전체일정중 필요한 관광지나 식당수가 모자랄 경우 범위를 넓혀서 재검색하는데 이 재시도 리미트 횟수
   let radiusExtendRetry = 1;
 
   while (
