@@ -917,6 +917,16 @@ const evalSperatedPlaces = ({
   touringSpotGglNearbySearchRes,
   restaurantGglNearbySearchRes,
 }: EvalSeperatedPlacesReqParams) => {
+  const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
+    if (a.distance > b.distance) {
+      return 1;
+    }
+    if (a.distance < b.distance) {
+      return -1;
+    }
+    return 0;
+  };
+
   const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
     const withHotelDistances = searchHotelRes.map(innerHotel => {
       return {
@@ -933,19 +943,6 @@ const evalSperatedPlaces = ({
         }),
       };
     });
-
-    const sortByDistance = (
-      a: { distance: number },
-      b: { distance: number },
-    ) => {
-      if (a.distance > b.distance) {
-        return 1;
-      }
-      if (a.distance < b.distance) {
-        return -1;
-      }
-      return 0;
-    };
     withHotelDistances.sort(sortByDistance);
 
     const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
@@ -987,6 +984,7 @@ const evalSperatedPlaces = ({
     withRestaurantDistances.sort(sortByDistance);
 
     return {
+      me: outerHotel,
       withHotel: {
         data: withHotelDistances.map(e => e.data),
         metaDataForDistance: evalMetaData(
@@ -1212,15 +1210,25 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const midBudgetHotel = idx % transitionTerm === 0 ? midHotel : prevMidHotel;
     const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
-    const minBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
-      item => item.id === minBudgetHotel?.id,
+    const minBudgetHotelIdx = distanceMapsFromHotel.findIndex(
+      item => item.me.id === minBudgetHotel?.id,
     );
-    const midBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
-      item => item.id === midBudgetHotel?.id,
+    const midBudgetHotelIdx = distanceMapsFromHotel.findIndex(
+      item => item.me.id === minBudgetHotel?.id,
     );
-    const maxBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
-      item => item.id === maxBudgetHotel?.id,
+    const maxBudgetHotelIdx = distanceMapsFromHotel.findIndex(
+      item => item.me.id === minBudgetHotel?.id,
     );
+    // const hotelToHotel = distanceMapsFromHotel[0].withHotel.data;
+    // const minBudgetHotelIdx = hotelToHotel.findIndex(
+    //   item => item.id === minBudgetHotel?.id,
+    // );
+    // const midBudgetHotelIdx = hotelToHotel.findIndex(
+    //   item => item.id === midBudgetHotel?.id,
+    // );
+    // const maxBudgetHotelIdx = hotelToHotel.findIndex(
+    //   item => item.id === maxBudgetHotel?.id,
+    // );
 
     let restaurantsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
     let spotsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];

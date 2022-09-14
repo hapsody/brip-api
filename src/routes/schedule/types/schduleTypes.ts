@@ -483,6 +483,7 @@ export type MetaDataForSpike = {
   seperatedIdxs: number[];
 };
 export type DistanceMap = {
+  me: SearchHotelRes;
   withHotel: {
     data: SearchHotelRes[];
     metaDataForDistance: MetaDataForSpike;
