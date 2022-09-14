@@ -985,7 +985,7 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
-const evalSpikedPlaces = ({
+const evalSperatedPlaces = ({
   searchHotelRes,
   touringSpotGglNearbySearchRes,
   restaurantGglNearbySearchRes,
@@ -1105,10 +1105,10 @@ const evalSpikedPlaces = ({
       };
     });
     withHotelDistances.sort((a, b) => {
-      if (a > b) {
+      if (a.distance > b.distance) {
         return 1;
       }
-      if (a < b) {
+      if (a.distance < b.distance) {
         return -1;
       }
       return 0;
@@ -1131,10 +1131,10 @@ const evalSpikedPlaces = ({
       };
     });
     withSpotDistances.sort((a, b) => {
-      if (a > b) {
+      if (a.distance > b.distance) {
         return 1;
       }
-      if (a < b) {
+      if (a.distance < b.distance) {
         return -1;
       }
       return 0;
@@ -1159,10 +1159,10 @@ const evalSpikedPlaces = ({
       },
     );
     withRestaurantDistances.sort((a, b) => {
-      if (a > b) {
+      if (a.distance > b.distance) {
         return 1;
       }
-      if (a < b) {
+      if (a.distance < b.distance) {
         return -1;
       }
       return 0;
@@ -1190,7 +1190,7 @@ const evalSpikedPlaces = ({
     };
   });
 
-  // console.log(distanceMaps);
+  console.log(distanceMaps);
   return distanceMaps;
 };
 
@@ -1302,39 +1302,45 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
     spotQueryParamsDataFromDB[0];
 
-  const distanceMaps = evalSpikedPlaces({
+  const distanceMapsFromHotel = evalSperatedPlaces({
     searchHotelRes,
-    touringSpotGglNearbySearchRes,
-    restaurantGglNearbySearchRes,
+    touringSpotGglNearbySearchRes: touringSpotGglNearbySearchRes.slice(
+      0,
+      spotPerDay * travelDays,
+    ),
+    restaurantGglNearbySearchRes: restaurantGglNearbySearchRes.slice(
+      0,
+      mealPerDay * travelDays,
+    ),
   });
 
-  distanceMaps.forEach((e, i) => {
-    console.log(`[${i}]: ${JSON.stringify(e.withRestaurant, null, 2)}`);
-  });
+  // distanceMapsFromHotel.forEach((e, i) => {
+  //   console.log(`[${i}]: ${JSON.stringify(e.withRestaurant, null, 2)}`);
+  // });
 
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
 
     const minHotelBudget = minBudget * minHotelBudgetPortion;
-    const dailyMinBudget = minHotelBudget / transitionTerm;
+    const dailyMinBudget = minHotelBudget / travelNights;
 
     const midBudget = (minBudget + maxBudget) / 2;
     const flexPortionLimit = 1.3;
     const midHotelBudget = midBudget * midHotelBudgetPortion;
-    const dailyMidBudget = (midHotelBudget * flexPortionLimit) / transitionTerm;
+    const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;
 
     const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
-    const dailyMaxBudget = maxHotelBudget / transitionTerm;
+    const dailyMaxBudget = maxHotelBudget / travelNights;
 
     const minFilteredHotels = copiedHotelRes.filter(
-      hotel => hotel.min_total_price < dailyMinBudget,
+      hotel => hotel.min_total_price / travelNights < dailyMinBudget,
     );
-    const midFilteredHotels = copiedHotelRes.filter(hotel => {
-      return hotel.min_total_price < dailyMidBudget;
-    });
+    const midFilteredHotels = copiedHotelRes.filter(
+      hotel => hotel.min_total_price / travelNights < dailyMidBudget,
+    );
     const maxFilteredHotels = copiedHotelRes.filter(
-      hotel => hotel.min_total_price < dailyMaxBudget,
+      hotel => hotel.min_total_price / travelNights < dailyMaxBudget,
     );
     return {
       minFilteredHotels,
@@ -1348,8 +1354,9 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const visitSchedules: VisitSchedules = [];
 
   const arr = Array.from(Array(travelDays));
-  let recommendedSpotCount = 0;
-  let recommendedRestaurantCount = 0;
+  // let recommendedSpotCount = 0;
+  // let recommendedRestaurantCount = 0;
+
   let recommendedMinHotelCount = 0;
   let recommendedMidHotelCount = 0;
   let recommendedMaxHotelCount = 0;
@@ -1360,21 +1367,21 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let midHotel: SearchHotelRes | undefined;
   let maxHotel: SearchHotelRes | undefined;
   arr.reduce((acc: VisitSchedules, cur, idx) => {
-    const thatDaySpot = touringSpotGglNearbySearchRes.slice(
-      idx * spotPerDay,
-      (idx + 1) * spotPerDay <= touringSpotGglNearbySearchRes.length
-        ? (idx + 1) * spotPerDay
-        : touringSpotGglNearbySearchRes.length - 1,
-    );
-    recommendedSpotCount += thatDaySpot.length;
+    // const thatDaySpot = touringSpotGglNearbySearchRes.slice(
+    //   idx * spotPerDay,
+    //   (idx + 1) * spotPerDay <= touringSpotGglNearbySearchRes.length
+    //     ? (idx + 1) * spotPerDay
+    //     : touringSpotGglNearbySearchRes.length - 1,
+    // );
+    // recommendedSpotCount += thatDaySpot.length;
 
-    const thatDayRestaurant = restaurantGglNearbySearchRes.slice(
-      idx * mealPerDay,
-      (idx + 1) * mealPerDay <= restaurantGglNearbySearchRes.length
-        ? (idx + 1) * mealPerDay
-        : restaurantGglNearbySearchRes.length - 1,
-    );
-    recommendedRestaurantCount += thatDayRestaurant.length;
+    // const thatDayRestaurant = restaurantGglNearbySearchRes.slice(
+    //   idx * mealPerDay,
+    //   (idx + 1) * mealPerDay <= restaurantGglNearbySearchRes.length
+    //     ? (idx + 1) * mealPerDay
+    //     : restaurantGglNearbySearchRes.length - 1,
+    // );
+    // recommendedRestaurantCount += thatDayRestaurant.length;
 
     if (idx % transitionTerm === 0) {
       minHotel = minFilteredHotels.pop();
@@ -1388,28 +1395,176 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       if (midHotel) recommendedMidHotelCount += 1;
       if (maxHotel) recommendedMaxHotelCount += 1;
     }
+    const minBudgetHotel = idx % transitionTerm === 0 ? minHotel : prevMinHotel;
+    const midBudgetHotel = idx % transitionTerm === 0 ? midHotel : prevMidHotel;
+    const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
+
+    const minBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
+      item => item.id === minBudgetHotel?.id,
+    );
+    const midBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
+      item => item.id === midBudgetHotel?.id,
+    );
+    const maxBudgetHotelIdx = distanceMapsFromHotel[0].withHotel.data.findIndex(
+      item => item.id === maxBudgetHotel?.id,
+    );
+
+    let restaurantsFromMinHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    let spotsFromMinHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    if (minBudgetHotelIdx > -1) {
+      restaurantsFromMinHotel =
+        distanceMapsFromHotel[minBudgetHotelIdx].withRestaurant.data;
+      spotsFromMinHotel =
+        distanceMapsFromHotel[minBudgetHotelIdx].withSpot.data;
+    }
+    let restaurantsFromMidHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    let spotsFromMidHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    if (midBudgetHotelIdx > -1) {
+      restaurantsFromMidHotel =
+        distanceMapsFromHotel[midBudgetHotelIdx].withRestaurant.data;
+      spotsFromMidHotel =
+        distanceMapsFromHotel[midBudgetHotelIdx].withSpot.data;
+    }
+    let restaurantsFromMaxHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    let spotsFromMaxHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[] = [];
+    if (maxBudgetHotelIdx > -1) {
+      restaurantsFromMaxHotel =
+        distanceMapsFromHotel[maxBudgetHotelIdx].withRestaurant.data;
+      spotsFromMaxHotel =
+        distanceMapsFromHotel[maxBudgetHotelIdx].withSpot.data;
+    }
+
+    const thatDayRestaurantFromMinHotel = restaurantsFromMinHotel.slice(
+      idx * mealPerDay,
+      (idx + 1) * mealPerDay <= restaurantsFromMinHotel.length
+        ? (idx + 1) * mealPerDay
+        : restaurantsFromMinHotel.length - 1,
+    );
+    // recommendedMinHotelCount += thatDayRestaurantFromMinHotel.length;
+    const thatDayRestaurantFromMidHotel = restaurantsFromMidHotel.slice(
+      idx * mealPerDay,
+      (idx + 1) * mealPerDay <= restaurantsFromMidHotel.length
+        ? (idx + 1) * mealPerDay
+        : restaurantsFromMidHotel.length - 1,
+    );
+    // recommendedMidHotelCount += thatDayRestaurantFromMidHotel.length;
+    const thatDayRestaurantFromMaxHotel = restaurantsFromMaxHotel.slice(
+      idx * mealPerDay,
+      (idx + 1) * mealPerDay <= restaurantsFromMaxHotel.length
+        ? (idx + 1) * mealPerDay
+        : restaurantsFromMaxHotel.length - 1,
+    );
+    // recommendedMaxHotelCount += thatDayRestaurantFromMaxHotel.length;
+
+    const thatDaySpotFromMinHotel = spotsFromMinHotel.slice(
+      idx * spotPerDay,
+      (idx + 1) * spotPerDay <= spotsFromMinHotel.length
+        ? (idx + 1) * spotPerDay
+        : spotsFromMinHotel.length - 1,
+    );
+    // recommendedMinHotelCount += thatDaySpotFromMinHotel.length;
+
+    const thatDaySpotFromMidHotel = spotsFromMidHotel.slice(
+      idx * spotPerDay,
+      (idx + 1) * spotPerDay <= spotsFromMidHotel.length
+        ? (idx + 1) * spotPerDay
+        : spotsFromMidHotel.length - 1,
+    );
+    // recommendedMaxHotelCount += thatDaySpotFromMidHotel.length;
+
+    const thatDaySpotFromMaxHotel = spotsFromMaxHotel.slice(
+      idx * spotPerDay,
+      (idx + 1) * spotPerDay <= spotsFromMaxHotel.length
+        ? (idx + 1) * spotPerDay
+        : spotsFromMaxHotel.length - 1,
+    );
+    // recommendedMaxHotelCount += thatDaySpotFromMaxHotel.length;
 
     acc.push({
-      spot: thatDaySpot.map(e => {
-        return {
-          ...e,
-          spotUrl: `https://www.google.com/maps/place/?q=place_id:${
-            e.place_id as string
-          }`,
-        };
-      }),
-      restaurant: thatDayRestaurant.map(e => {
-        return {
-          ...e,
-          spotUrl: `https://www.google.com/maps/place/?q=place_id:${
-            e.place_id as string
-          }`,
-        };
-      }),
+      // spot: thatDaySpot.map(e => {
+      //   return {
+      //     ...e,
+      //     spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+      //       e.place_id as string
+      //     }`,
+      //   };
+      // }),
+      // restaurant: thatDayRestaurant.map(e => {
+      //   return {
+      //     ...e,
+      //     spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+      //       e.place_id as string
+      //     }`,
+      //   };
+      // }),
+      spot: {
+        spotsFromMinHotel: thatDaySpotFromMinHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+        spotsFromMidHotel: thatDaySpotFromMidHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+        spotsFromMaxHotel: thatDaySpotFromMaxHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+      },
+      restaurant: {
+        restaurantsFromMinHotel: thatDayRestaurantFromMinHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+        restaurantsFromMidHotel: thatDayRestaurantFromMidHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+        restaurantsFromMaxHotel: thatDayRestaurantFromMaxHotel.map(e => {
+          return {
+            ...e,
+            spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+              e.place_id as string
+            }`,
+          };
+        }),
+      },
       hotel: {
-        minBudgetHotel: idx % transitionTerm === 0 ? minHotel : prevMinHotel,
-        midBudgetHotel: idx % transitionTerm === 0 ? midHotel : prevMidHotel,
-        maxBudgetHotel: idx % transitionTerm === 0 ? maxHotel : prevMaxHotel,
+        minBudgetHotel,
+        midBudgetHotel,
+        maxBudgetHotel,
       },
     });
 
@@ -1429,8 +1584,8 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     travelDays,
     hotelTransition,
     transitionTerm,
-    recommendedSpotCount,
-    recommendedRestaurantCount,
+    // recommendedSpotCount,
+    // recommendedRestaurantCount,
     recommendedMinHotelCount,
     recommendedMidHotelCount,
     recommendedMaxHotelCount,

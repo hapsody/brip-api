@@ -194,8 +194,30 @@ export interface FiltersForSearchFromBookingComReqParams {
 }
 
 export type VisitSchedules = {
-  spot: GglNearbySearchRes[];
-  restaurant: GglNearbySearchRes[];
+  // spot: GglNearbySearchRes[];
+  // restaurant: GglNearbySearchRes[];
+  spot: {
+    spotsFromMinHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+    spotsFromMidHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+    spotsFromMaxHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+  };
+  restaurant: {
+    restaurantsFromMinHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+    restaurantsFromMidHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+    restaurantsFromMaxHotel: (GglNearbySearchRes & {
+      geometry: Gglgeometry;
+    })[];
+  };
   hotel: {
     minBudgetHotel: SearchHotelRes | undefined;
     midBudgetHotel: SearchHotelRes | undefined;
@@ -215,8 +237,8 @@ export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
   visitSchedulesCount: number;
   visitSchedules: VisitSchedules;
   // recommendedNearbySearchCount: number;
-  recommendedSpotCount: number;
-  recommendedRestaurantCount: number;
+  // recommendedSpotCount: number;
+  // recommendedRestaurantCount: number;
   recommendedMinHotelCount: number;
   recommendedMidHotelCount: number;
   recommendedMaxHotelCount: number;
