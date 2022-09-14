@@ -1190,7 +1190,7 @@ const evalSperatedPlaces = ({
     };
   });
 
-  console.log(distanceMaps);
+  // console.log(distanceMaps);
   return distanceMaps;
 };
 
@@ -1383,7 +1383,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     // );
     // recommendedRestaurantCount += thatDayRestaurant.length;
 
-    if (idx % transitionTerm === 0) {
+    if (idx % transitionTerm === 0 && idx < arr.length - 1) {
       minHotel = minFilteredHotels.pop();
       midHotel = midFilteredHotels.pop();
       maxHotel = maxFilteredHotels.pop();
@@ -1562,9 +1562,10 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
         }),
       },
       hotel: {
-        minBudgetHotel,
-        midBudgetHotel,
-        maxBudgetHotel,
+        // 여행 마지막날은 숙박하지 않는다.
+        minBudgetHotel: idx === arr.length - 1 ? undefined : minBudgetHotel,
+        midBudgetHotel: idx === arr.length - 1 ? undefined : midBudgetHotel,
+        maxBudgetHotel: idx === arr.length - 1 ? undefined : maxBudgetHotel,
       },
     });
 

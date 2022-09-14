@@ -1,5 +1,5 @@
-export const minBudget = 100;
-export const maxBudget = 3000;
+export const minBudget = 1000000;
+export const maxBudget = 3000000;
 export const travelStartDate = '2022-09-30T00:00:00';
 export const travelEndDate = '2022-10-02T00:00:00';
 export const hotelTransition = 1;
@@ -98,8 +98,8 @@ export const params = {
       radius: 4000,
       orderBy: 'popularity',
       adultsNumber: 2,
-      childrenNumber,
-      childrenAges,
+      // childrenNumber,
+      // childrenAges,
       roomNumber: 1,
       checkinDate: '2022-09-30T00:00:00',
       checkoutDate: '2022-10-10T00:00:00',
@@ -108,7 +108,7 @@ export const params = {
       pageNumber: 0,
       includeAdjacency: true,
       categoriesFilterIds: ['property_type::204'],
-      mock: true,
+      mock: false,
     },
   },
 

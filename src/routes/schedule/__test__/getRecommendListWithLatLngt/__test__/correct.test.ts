@@ -137,11 +137,13 @@ describe('Correct case test', () => {
       for await (const visitSchedule of visitSchedules) {
         const { spot, hotel } = visitSchedule;
         const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
+        expect(spot.spotsFromMinHotel.length).toBe(iBparams.spotPerDay);
+        expect(spot.spotsFromMidHotel.length).toBe(iBparams.spotPerDay);
+        expect(spot.spotsFromMaxHotel.length).toBe(iBparams.spotPerDay);
         // eslint-disable-next-line no-restricted-syntax
-        for await (const aSpot of spot) {
+        for await (const aSpot of spot.spotsFromMinHotel) {
           expect(aSpot.queryParamsId).toBe(iBparams.id);
         }
-        expect(spot.length).toBe(iBparams.spotPerDay);
 
         if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
           expect(minBudgetHotel.queryParamsId).toBe(iBparams.id);
