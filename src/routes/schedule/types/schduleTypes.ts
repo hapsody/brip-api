@@ -473,3 +473,40 @@ export const getQueryParamsForTourSpot = (
     },
   };
 };
+
+export type LatLngt = { lat: number; lngt: number };
+export type MetaDataForSpike = {
+  distances: number[];
+  delta: number[];
+  deltaAvg: number[];
+  deltaSepAvg: number[];
+  seperatedIdxs: number[];
+};
+export type DistanceMap = {
+  withHotel: {
+    data: SearchHotelRes[];
+    metaDataForDistance: MetaDataForSpike;
+  };
+  withRestaurant: {
+    data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
+    metaDataForDistance: MetaDataForSpike;
+  };
+  withSpot: {
+    data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
+    metaDataForDistance: MetaDataForSpike;
+  };
+}[];
+
+export interface EvalSeperatedPlacesReqParams {
+  searchHotelRes: SearchHotelRes[];
+  touringSpotGglNearbySearchRes: (GglNearbySearchRes & {
+    geometry: Gglgeometry;
+  })[];
+  restaurantGglNearbySearchRes: (GglNearbySearchRes & {
+    geometry: Gglgeometry;
+  })[];
+}
+
+export type GglNearbySearchResIncludedGeometry = GglNearbySearchRes & {
+  geometry: Gglgeometry;
+};

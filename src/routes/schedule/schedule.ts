@@ -12,13 +12,7 @@ import {
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import {
-  PrismaClient,
-  SearchHotelRes,
-  Prisma,
-  GglNearbySearchRes,
-  Gglgeometry,
-} from '@prisma/client';
+import { PrismaClient, SearchHotelRes, Prisma } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -28,10 +22,6 @@ import {
   NearbySearchInnerAsyncFnRes,
   SearchedData,
   GetListQueryParamsReqParams,
-  // OrderSortType,
-  // GetRecommendListReqParams,
-  // GetRecommendListResponse,
-  // GetRecommendListInnerAsyncFnResponse,
   GetRecommendListWithLatLngtReqParams,
   GetRecommendListWithLatLngtResponse,
   GetRecommendListWithLatLngtInnerAsyncFnResponse,
@@ -52,6 +42,12 @@ import {
   FiltersForSearchFromBookingRawResponse,
   getQueryParamsForRestaurant,
   getQueryParamsForTourSpot,
+  LatLngt,
+  MetaDataForSpike,
+  DistanceMap,
+  EvalSeperatedPlacesReqParams,
+  SearchHotelReqParams,
+  GglNearbySearchResIncludedGeometry,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -376,48 +372,13 @@ const nearbySearchInnerAsyncFn = async (
   console.log(queryUrl);
 
   const response = await axios.get(queryUrl);
-  // if (compositeSearch) {
-  //   const travelDays = getTravelNights(
-  //     compositeSearch.checkinDate,
-  //     compositeSearch.checkoutDate,
-  //   );
-  //   let { results } = response.data as Partial<{
-  //     results: google.maps.places.IBPlaceResult[];
-  //   }>;
-  //   const retryLimit = 5;
-  //   let retry = 1;
-  //   while (
-  //     results &&
-  //     results.length < travelDays * spotPerDay &&
-  //     retry <= retryLimit
-  //   ) {
-  //     const reQueryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-  //       location?.latitude
-  //     }%2C${location?.longitude}&radius=${radius * (1 + retry)}&key=${
-  //       process.env.GCP_MAPS_APIKEY as string
-  //     }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-  //     console.log(`[retry:${retry}]: ${reQueryUrl}`);
-
-  //     // eslint-disable-next-line no-await-in-loop
-  //     response = await axios.get(reQueryUrl);
-  //     results = (
-  //       response.data as Partial<{
-  //         results: google.maps.places.IBPlaceResult[];
-  //       }>
-  //     ).results;
-  //     // console.log(`nearbySearch numOfResult: ${results ? results.length : 0}`);
-  //     retry += 1;
-  //   }
-  // }
 
   const { results, queryParamId } = await storeDataRelatedWithQueryParams(
     queryReqParams,
     response,
     ifAlreadyQueryId,
   );
-  // console.log(JSON.stringify(response.data, null, 2));
-  // console.log(`response.status: ${response.status}`);
-  // console.log(`response.statusText: ${response.statusText}`);
+
   return {
     nearbySearchResult: results,
     queryParamId,
@@ -447,7 +408,7 @@ const getAllNearbySearchPages = async (
   let retry = 1;
   const retryLimit = 5;
 
-  // do while loop
+  // do while loop version
   // do {
   //   const loopQueryParams: QueryReqParams = {
   //     nearbySearchReqParams: {
@@ -468,7 +429,7 @@ const getAllNearbySearchPages = async (
   //   console.log(retry);
   // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
 
-  // recursion
+  // recursion version
   const loopFunc = async (curPageToken: string) => {
     const loopQueryParams: QueryReqParams = {
       ...defaultQueryParams,
@@ -568,11 +529,6 @@ const searchHotelInnerAsyncFn = async (
   ifAlreadyQueryId?: number,
 ) => {
   const { searchHotelReqParams } = queryReqParams;
-  // const {
-  //   keyword,
-  //   radius,
-  //   location: { latitude: nearbySearchLat, longitude: nearbySearchLngt },
-  // } = nearbySearchReqParams ?? defaultNearbySearchReqParams;
 
   const {
     orderBy = 'popularity',
@@ -672,20 +628,6 @@ const searchHotelInnerAsyncFn = async (
     queryReqParams,
     ifAlreadyQueryId,
   );
-
-  // const queryParamResult = await prismaX.queryReqParams.create({
-  //   data: {
-  //     latitude: paramLat,
-  //     longitude: paramLngt,
-  //     hotelOrderBy: orderBy ?? 'popularity',
-  //     hotelAdultsNumber: adultsNumber,
-  //     hotelUnits: 'metric',
-  //     hotelRoomNumber: roomNumber ?? 1,
-  //     hotelCheckinDate: new Date(checkinDate),
-  //     hotelCheckoutDate: new Date(checkoutDate),
-  //     hotelFilterByCurrency: filterByCurrency ?? 'USD',
-  //   },
-  // });
 
   const createSearchHotelResPromises = data.map(item => {
     const {
@@ -790,22 +732,6 @@ export const searchHotel = asyncWrapper(
     req: Express.IBTypedReqBody<QueryReqParams>,
     res: Express.IBTypedResponse<SearchHotelResponse>,
   ) => {
-    // const {
-    //   body: {
-    // orderBy,
-    // adultsNumber,
-    // roomNumber,
-    // checkinDate,
-    // checkoutDate,
-    // filterByCurrency,
-    // latitude: paramLat,
-    // longitude: paramLngt,
-    // pageNumber,
-    // includeAdjacency,
-    // mock,
-    //   },
-    // } = req;
-
     const queryReqParams = req.body;
     const { hotelSearchResult } = await searchHotelInnerAsyncFn(queryReqParams);
 
@@ -892,120 +818,8 @@ export const compositeSearch = asyncWrapper(
 const getListQueryParamsInnerAsyncFn = async (
   params: GetListQueryParamsReqParams,
 ): Promise<GetListQueryParamsInnerAsyncFnResponse> => {
-  // const { id, hotelSearch, nearbySearch: nearbySearchX } = params;
-  // const hotelOrderBy = hotelSearch!.orderBy;
-  // const nearbyOrderBy = nearbySearchX!.orderBy;
-  // const cond: {
-  //   where: { id: number } | undefined;
-  //   include: {
-  //     searchHotelRes: {
-  //       select?: Record<keyof SearchHotelRes, boolean>;
-  //       orderBy?:
-  //         | {
-  //             [x: string]: OrderSortType;
-  //           }[]
-  //         | undefined;
-  //     };
-  //     gglNearbySearchRes: {
-  //       select?: Record<keyof GglNearbySearchRes, boolean>;
-  //       orderBy?:
-  //         | {
-  //             [x: string]: OrderSortType;
-  //           }[]
-  //         | undefined;
-  //     };
-  //   };
-  // } = {
-  //   where: id ? { id } : undefined,
-  //   include: {
-  //     searchHotelRes: {
-  //       select: hotelSearch!.select ?? undefined,
-  //       orderBy:
-  //         hotelOrderBy && hotelOrderBy.length > 0
-  //           ? hotelOrderBy.map(item => {
-  //               return { [`${item.column}`]: item?.sort ?? 'asc' };
-  //             })
-  //           : undefined,
-  //     },
-  //     gglNearbySearchRes: {
-  //       select: nearbySearchX!.select ?? undefined,
-  //       orderBy:
-  //         nearbyOrderBy && nearbyOrderBy.length > 0
-  //           ? nearbyOrderBy.map(item => {
-  //               return { [`${item.column}`]: item?.sort ?? 'asc' };
-  //             })
-  //           : undefined,
-  //     },
-  //   },
-  // };
-
-  // if (!cond.include.searchHotelRes.select) {
-  //   const { searchHotelRes } = cond.include;
-  //   const newSearchHotelRes = omit(searchHotelRes, ['select']);
-  //   cond.include.searchHotelRes = newSearchHotelRes;
-  // }
-  // if (!cond.include.searchHotelRes.orderBy) {
-  //   const { searchHotelRes } = cond.include;
-  //   const newSearchHotelRes = omit(searchHotelRes, ['orderBy']);
-  //   cond.include.searchHotelRes = newSearchHotelRes;
-  // }
-
-  // if (!cond.include.gglNearbySearchRes.select) {
-  //   const { gglNearbySearchRes } = cond.include;
-  //   const newGglNearbySearchRes = omit(gglNearbySearchRes, ['select']);
-  //   cond.include.gglNearbySearchRes = newGglNearbySearchRes;
-  // }
-  // if (!cond.include.gglNearbySearchRes.orderBy) {
-  //   const { gglNearbySearchRes } = cond.include;
-  //   const newGglNearbySearchRes = omit(gglNearbySearchRes, ['orderBy']);
-  //   cond.include.gglNearbySearchRes = newGglNearbySearchRes;
-  // }
-
-  // const queryParamsDataFromDB = await prisma.queryParams.findMany(cond);
-  // return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnResponse;
-
   const queryParamsDataFromDB = await prisma.queryParams.findMany(params);
 
-  // const queryParamsDataFromDB = await prisma.queryParams.findMany({
-  //   where: {
-  //     id: 203,
-  //   },
-  //   include: {
-  //     gglNearbySearchRes: {
-  //       include: {
-  //         types: true,
-  //       },
-  //       where: {
-  //         types: {
-  //           some: {
-  //             value: {
-  //               equals: 'restaurant',
-  //             },
-  //           },
-  //         },
-  //       },
-  //       // include: {
-
-  //       //   types: true,
-  //       // },
-  //     },
-  //     searchHotelRes: {
-  //       orderBy: [
-  //         {
-  //           review_score: 'desc',
-  //         },
-  //         {
-  //           distance: 'asc',
-  //         },
-  //       ],
-  //       select: {
-  //         hotel_name: true,
-  //         review_score: true,
-  //         distance: true,
-  //       },
-  //     },
-  //   },
-  // });
   return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnResponse;
 };
 
@@ -1030,109 +844,79 @@ const getListQueryParams = asyncWrapper(
   },
 );
 
+const getDistance = ({
+  startPoint,
+  endPoint,
+}: {
+  startPoint: LatLngt;
+  endPoint: LatLngt;
+}) => {
+  return (
+    (endPoint.lat - startPoint.lat) ** 2 +
+    (endPoint.lngt - startPoint.lngt) ** 2
+  );
+};
+
+const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
+  let prevValue = 0;
+  const withXDelta = withXDistances.map(v => {
+    const retValue = v - prevValue;
+    prevValue = v;
+    return retValue;
+  });
+
+  let sum = 0;
+  const withXDeltaAvg = withXDelta.map((v, i) => {
+    sum += v;
+    return sum / (i + 1);
+  });
+  const calibValue = 1.7;
+  const totalDeltaAvg = sum / withXDelta.length;
+  const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
+
+  sum = 0;
+  const withXDeltaSepAvg = withXDelta.map((d, i) => {
+    sum += d;
+    const curSeperatedAvg = sum / (i + 1);
+    // let seperatedIdx = -1;
+    if (
+      d > totalDeltaAvg * calibValue &&
+      d > curSeperatedAvg &&
+      d > withHotelCalibDeltaAvg[i]
+    ) {
+      sum = withXDelta[i];
+      // seperatedIdx = i;
+    }
+
+    return curSeperatedAvg;
+  });
+
+  const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
+    const d = withXDelta[i];
+    if (
+      d > totalDeltaAvg * calibValue &&
+      d > curSeperatedAvg &&
+      d > withHotelCalibDeltaAvg[i]
+    ) {
+      return i;
+    }
+    return -1;
+  });
+
+  return {
+    distances: withXDistances,
+    delta: withXDelta,
+    deltaAvg: withXDeltaAvg,
+    deltaSepAvg: withXDeltaSepAvg,
+    seperatedIdxs: sepIdxs,
+  };
+};
+
 const evalSperatedPlaces = ({
   searchHotelRes,
   touringSpotGglNearbySearchRes,
   restaurantGglNearbySearchRes,
-}: {
-  searchHotelRes: SearchHotelRes[];
-  touringSpotGglNearbySearchRes: (GglNearbySearchRes & {
-    geometry: Gglgeometry;
-  })[];
-  restaurantGglNearbySearchRes: (GglNearbySearchRes & {
-    geometry: Gglgeometry;
-  })[];
-}) => {
-  type LatLngt = { lat: number; lngt: number };
-  type MetaDataForSpike = {
-    distances: number[];
-    delta: number[];
-    deltaAvg: number[];
-    deltaSepAvg: number[];
-    seperatedIdxs: number[];
-  };
-  type DistanceMap = {
-    withHotel: {
-      data: SearchHotelRes[];
-      metaDataForDistance: MetaDataForSpike;
-    };
-    withRestaurant: {
-      data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
-      metaDataForDistance: MetaDataForSpike;
-    };
-    withSpot: {
-      data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
-      metaDataForDistance: MetaDataForSpike;
-    };
-  }[];
-  const getDistance = ({
-    startPoint,
-    endPoint,
-  }: {
-    startPoint: LatLngt;
-    endPoint: LatLngt;
-  }) => {
-    return (
-      (endPoint.lat - startPoint.lat) ** 2 +
-      (endPoint.lngt - startPoint.lngt) ** 2
-    );
-  };
-
-  const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
-    let prevValue = 0;
-    const withXDelta = withXDistances.map(v => {
-      const retValue = v - prevValue;
-      prevValue = v;
-      return retValue;
-    });
-
-    let sum = 0;
-    const withXDeltaAvg = withXDelta.map((v, i) => {
-      sum += v;
-      return sum / (i + 1);
-    });
-    const calibValue = 1.7;
-    const totalDeltaAvg = sum / withXDelta.length;
-    const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
-
-    sum = 0;
-    const withXDeltaSepAvg = withXDelta.map((d, i) => {
-      sum += d;
-      const curSeperatedAvg = sum / (i + 1);
-      // let seperatedIdx = -1;
-      if (
-        d > totalDeltaAvg * calibValue &&
-        d > curSeperatedAvg &&
-        d > withHotelCalibDeltaAvg[i]
-      ) {
-        sum = withXDelta[i];
-        // seperatedIdx = i;
-      }
-
-      return curSeperatedAvg;
-    });
-
-    const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
-      const d = withXDelta[i];
-      if (
-        d > totalDeltaAvg * calibValue &&
-        d > curSeperatedAvg &&
-        d > withHotelCalibDeltaAvg[i]
-      ) {
-        return i;
-      }
-      return -1;
-    });
-
-    return {
-      distances: withXDistances,
-      delta: withXDelta,
-      deltaAvg: withXDeltaAvg,
-      deltaSepAvg: withXDeltaSepAvg,
-      seperatedIdxs: sepIdxs,
-    };
-  };
-
+}: EvalSeperatedPlacesReqParams) => {
   const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
     const withHotelDistances = searchHotelRes.map(innerHotel => {
       return {
@@ -1149,7 +933,11 @@ const evalSperatedPlaces = ({
         }),
       };
     });
-    withHotelDistances.sort((a, b) => {
+
+    const sortByDistance = (
+      a: { distance: number },
+      b: { distance: number },
+    ) => {
       if (a.distance > b.distance) {
         return 1;
       }
@@ -1157,7 +945,8 @@ const evalSperatedPlaces = ({
         return -1;
       }
       return 0;
-    });
+    };
+    withHotelDistances.sort(sortByDistance);
 
     const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
       const location = JSON.parse(spot.geometry.location) as LatLngt;
@@ -1175,15 +964,7 @@ const evalSperatedPlaces = ({
         }),
       };
     });
-    withSpotDistances.sort((a, b) => {
-      if (a.distance > b.distance) {
-        return 1;
-      }
-      if (a.distance < b.distance) {
-        return -1;
-      }
-      return 0;
-    });
+    withSpotDistances.sort(sortByDistance);
 
     const withRestaurantDistances = restaurantGglNearbySearchRes.map(
       restaurant => {
@@ -1203,15 +984,7 @@ const evalSperatedPlaces = ({
         };
       },
     );
-    withRestaurantDistances.sort((a, b) => {
-      if (a.distance > b.distance) {
-        return 1;
-      }
-      if (a.distance < b.distance) {
-        return -1;
-      }
-      return 0;
-    });
+    withRestaurantDistances.sort(sortByDistance);
 
     return {
       withHotel: {
@@ -1351,16 +1124,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     touringSpotGglNearbySearchRes: touringSpotGglNearbySearchRes.slice(
       0,
       spotPerDay * travelDays,
-    ),
+    ), // 여행일수 * 일별 관람 장소수로 자르는 이유는 rating별로 정렬된 touringSpot 리스트중 상위 점수만 취하여 사용하기 위해서이다.
     restaurantGglNearbySearchRes: restaurantGglNearbySearchRes.slice(
       0,
       mealPerDay * travelDays,
-    ),
+    ), // 여행일수 * 일별 식사수로 자르는 이유는 rating별로 정렬된 restaurantGglNearbySearchRes 리스트중 상위 점수만 취하여 사용하기 위해서이다.
   });
-
-  // distanceMapsFromHotel.forEach((e, i) => {
-  //   console.log(`[${i}]: ${JSON.stringify(e.withRestaurant, null, 2)}`);
-  // });
 
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
@@ -1453,36 +1222,24 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       item => item.id === maxBudgetHotel?.id,
     );
 
-    let restaurantsFromMinHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
-    let spotsFromMinHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
+    let restaurantsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
+    let spotsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
     if (minBudgetHotelIdx > -1) {
       restaurantsFromMinHotel =
         distanceMapsFromHotel[minBudgetHotelIdx].withRestaurant.data;
       spotsFromMinHotel =
         distanceMapsFromHotel[minBudgetHotelIdx].withSpot.data;
     }
-    let restaurantsFromMidHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
-    let spotsFromMidHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
+    let restaurantsFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
+    let spotsFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
     if (midBudgetHotelIdx > -1) {
       restaurantsFromMidHotel =
         distanceMapsFromHotel[midBudgetHotelIdx].withRestaurant.data;
       spotsFromMidHotel =
         distanceMapsFromHotel[midBudgetHotelIdx].withSpot.data;
     }
-    let restaurantsFromMaxHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
-    let spotsFromMaxHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[] = [];
+    let restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
+    let spotsFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
     if (maxBudgetHotelIdx > -1) {
       restaurantsFromMaxHotel =
         distanceMapsFromHotel[maxBudgetHotelIdx].withRestaurant.data;
@@ -2081,44 +1838,85 @@ const prismaTest = asyncWrapper(
 
 export const addMockHotelResource = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<{
-      orderBy?: // default popularity
-      | 'popularity'
-        | 'class_ascending'
-        | 'class_descending'
-        | 'distance'
-        | 'upsort_bh'
-        | 'review_score'
-        | 'price';
-      adultsNumber: number;
-      // units: 'metric';
-      roomNumber?: number; // Number of rooms
-      checkinDate: Date; // '2022-09-30';
-      checkoutDate: Date; // '2022-10-01';
-      filterByCurrency?: 'USD' | 'KRW'; // default USD;
-      // locale: 'en-us';
-      latitude: string; // 위도좌표 ex) 21.4286856;
-      longitude: string; // 경도 ex) -158.1389763;
-      pageNumber?: number; // default 0;
-      includeAdjacency?: boolean; // default false. Include nearby places. If there are few hotels in the selected location, nearby locations will be added. You should pay attention to the `primary_count` parameter - it is the number of hotels from the beginning of the array that matches the strict filter.
-    }>,
+    req: Express.IBTypedReqBody<SearchHotelReqParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const {
-      body: {
-        orderBy,
-        adultsNumber,
-        roomNumber,
-        checkinDate,
-        checkoutDate,
-        filterByCurrency,
-        latitude: paramLat,
-        longitude: paramLngt,
-        pageNumber,
-        includeAdjacency,
-      },
-    } = req;
+    // const {
+    //   body: {
+    //     orderBy,
+    //     adultsNumber,
+    //     roomNumber,
+    //     checkinDate,
+    //     checkoutDate,
+    //     filterByCurrency,
+    //     latitude: paramLat,
+    //     longitude: paramLngt,
+    //     pageNumber,
+    //     includeAdjacency,
+    //     childrenNumber,
+    //     childrenAges,
+    //     categoriesFilterIds,
+    //   },
+    // } = req;
 
+    const {
+      orderBy = 'popularity',
+      adultsNumber = 2,
+      roomNumber = 1,
+      checkinDate = getToday(),
+      checkoutDate = getTomorrow(),
+      filterByCurrency = 'USD',
+      latitude: paramLat,
+      longitude: paramLngt,
+      pageNumber = 0,
+      includeAdjacency = true,
+      childrenAges,
+      childrenNumber,
+      categoriesFilterIds,
+    } = req.body ?? defaultSearchHotelReqParams;
+
+    if (childrenAges && childrenAges.length > 0 && !isNumber(childrenNumber)) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message:
+          'childrenNumber 파라미터가 제공되지 않았거나 number 타입이 아닙니다.',
+      });
+    }
+    if (
+      (isNumber(childrenNumber) && isNil(childrenAges)) ||
+      (isNumber(childrenNumber) &&
+        childrenAges &&
+        childrenAges.length < childrenNumber)
+    ) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message:
+          'childrenAges 파라미터가 제공되지 않았거나 childrenAges 배열의 요소의 수가 childrenNumber보다 적습니다.',
+      });
+    }
+
+    // const options = {
+    //   method: 'GET' as Method,
+    //   url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
+    //   params: {
+    //     order_by: orderBy ?? 'popularity',
+    //     adults_number: adultsNumber.toString(),
+    //     units: 'metric',
+    //     room_number: roomNumber ? roomNumber.toString() : '1',
+    //     checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
+    //     checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
+    //     filter_by_currency: filterByCurrency ?? 'USD',
+    //     locale: 'en-us',
+    //     latitude: paramLat.toString(),
+    //     longitude: paramLngt.toString(),
+    //     page_number: pageNumber ? pageNumber.toString() : '0',
+    //     include_adjacency: includeAdjacency ?? 'false',
+    //   },
+    //   headers: {
+    //     'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+    //     'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+    //   },
+    // };
     const options = {
       method: 'GET' as Method,
       url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
@@ -2135,6 +1933,16 @@ export const addMockHotelResource = asyncWrapper(
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
         include_adjacency: includeAdjacency ?? 'false',
+        ...(isNumber(childrenNumber) && {
+          children_number: childrenNumber.toString(),
+        }),
+        ...(childrenAges &&
+          !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
+        ...(categoriesFilterIds &&
+          !isEmpty(categoriesFilterIds) && {
+            categories_filter_ids: categoriesFilterIds?.toString(),
+          }),
+        // categories_filter_ids: 'class::2,class::4,free_cancellation::1',
       },
       headers: {
         'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
