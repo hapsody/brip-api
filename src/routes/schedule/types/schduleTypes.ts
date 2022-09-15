@@ -270,7 +270,7 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 };
 
 export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
-  gglNearbySearchRes: (GglNearbySearchRes & { geometry: Gglgeometry })[];
+  gglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
   searchHotelRes: SearchHotelRes[];
 })[];
 
@@ -482,8 +482,10 @@ export type MetaDataForSpike = {
   deltaSepAvg: number[];
   seperatedIdxs: number[];
 };
-export type DistanceMap = {
-  me: SearchHotelRes;
+export type DistanceMap<
+  Type extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+> = {
+  me: Type;
   withHotel: {
     data: SearchHotelRes[];
     metaDataForDistance: MetaDataForSpike;
@@ -500,12 +502,9 @@ export type DistanceMap = {
 
 export interface EvalSeperatedPlacesReqParams {
   searchHotelRes: SearchHotelRes[];
-  touringSpotGglNearbySearchRes: (GglNearbySearchRes & {
-    geometry: Gglgeometry;
-  })[];
-  restaurantGglNearbySearchRes: (GglNearbySearchRes & {
-    geometry: Gglgeometry;
-  })[];
+  touringSpotGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
+  restaurantGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
+  baseType?: 'hotel' | 'spot' | 'restaurant';
 }
 
 export type GglNearbySearchResIncludedGeometry = GglNearbySearchRes & {

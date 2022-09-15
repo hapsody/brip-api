@@ -912,10 +912,13 @@ const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
   };
 };
 
-const evalSperatedPlaces = ({
+const evalSperatedPlaces = <
+  BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+>({
   searchHotelRes,
   touringSpotGglNearbySearchRes,
   restaurantGglNearbySearchRes,
+  baseType = 'hotel',
 }: EvalSeperatedPlacesReqParams) => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
     if (a.distance > b.distance) {
@@ -927,18 +930,37 @@ const evalSperatedPlaces = ({
     return 0;
   };
 
-  const distanceMaps: DistanceMap = searchHotelRes.map(outerHotel => {
-    const withHotelDistances = searchHotelRes.map(innerHotel => {
+  const distanceMaps: DistanceMap<BaseListType> = (() => {
+    if (baseType === 'hotel') return searchHotelRes;
+    if (baseType === 'spot') return touringSpotGglNearbySearchRes;
+    return restaurantGglNearbySearchRes;
+  })().map((outerItem: unknown) => {
+    let lat = 0;
+    let lngt = 0;
+    if ((outerItem as SearchHotelRes) !== undefined) {
+      lat = (outerItem as SearchHotelRes).latitude;
+      lngt = (outerItem as SearchHotelRes).longitude;
+    } else if (
+      (outerItem as GglNearbySearchResIncludedGeometry) !== undefined
+    ) {
+      const location = JSON.parse(
+        (outerItem as GglNearbySearchResIncludedGeometry).geometry.location,
+      ) as LatLngt;
+      lat = location.lat;
+      lngt = location.lngt;
+    }
+
+    const withHotelDistances = searchHotelRes.map(hotel => {
       return {
-        data: innerHotel,
+        data: hotel,
         distance: getDistance({
           startPoint: {
-            lat: outerHotel.latitude,
-            lngt: outerHotel.longitude,
+            lat,
+            lngt,
           },
           endPoint: {
-            lat: innerHotel.latitude,
-            lngt: innerHotel.longitude,
+            lat: hotel.latitude,
+            lngt: hotel.longitude,
           },
         }),
       };
@@ -951,8 +973,8 @@ const evalSperatedPlaces = ({
         data: spot,
         distance: getDistance({
           startPoint: {
-            lat: outerHotel.latitude,
-            lngt: outerHotel.longitude,
+            lat,
+            lngt,
           },
           endPoint: {
             lat: location.lat,
@@ -970,8 +992,8 @@ const evalSperatedPlaces = ({
           data: restaurant,
           distance: getDistance({
             startPoint: {
-              lat: outerHotel.latitude,
-              lngt: outerHotel.longitude,
+              lat,
+              lngt,
             },
             endPoint: {
               lat: location.lat,
@@ -984,7 +1006,7 @@ const evalSperatedPlaces = ({
     withRestaurantDistances.sort(sortByDistance);
 
     return {
-      me: outerHotel,
+      me: outerItem as BaseListType,
       withHotel: {
         data: withHotelDistances.map(e => e.data),
         metaDataForDistance: evalMetaData(
@@ -1117,7 +1139,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
     spotQueryParamsDataFromDB[0];
 
-  const distanceMapsFromHotel = evalSperatedPlaces({
+  const distanceMapsFromHotel = evalSperatedPlaces<SearchHotelRes>({
     searchHotelRes,
     touringSpotGglNearbySearchRes: touringSpotGglNearbySearchRes.slice(
       0,
