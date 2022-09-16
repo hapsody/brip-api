@@ -1443,13 +1443,6 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       [];
     if (minBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
-      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
-      //   baseNode: minBudgetHotel,
-      //   scheduleNodeLists: minNodeLists,
-      // });
-      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
-      // thatDaySpotFromMinHotel.push(destination);
-      // let prevDest = destination;
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         minBudgetHotel;
       const mealOrder = new MealOrder();
@@ -1499,13 +1492,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
 
     if (midBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
-      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
-      //   baseNode: midBudgetHotel,
-      //   scheduleNodeLists: midNodeLists,
-      // });
-      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
-      // thatDaySpotFromMidHotel.push(destination);
-      // let prevDest = destination;
+
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         midBudgetHotel;
       const mealOrder = new MealOrder();
@@ -1554,13 +1541,6 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       [];
     if (maxBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
-      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
-      //   baseNode: maxBudgetHotel,
-      //   scheduleNodeLists: maxNodeLists,
-      // });
-      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
-      // thatDaySpotFromMaxHotel.push(destination);
-      // let prevDest = destination;
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         maxBudgetHotel;
       const mealOrder = new MealOrder();
@@ -1722,251 +1702,6 @@ const getRecommendListWithLatLngt = asyncWrapper(
   },
 );
 
-// const getRecommendListInnerAsyncFn = async (
-//   params: GetRecommendListReqParams,
-// ): Promise<GetRecommendListInnerAsyncFnResponse> => {
-//   const { searchCond, evalCond } = params;
-//   const {
-//     searchLocation,
-//     minBudget = 0,
-//     maxBudget = 0,
-//     // currency,
-//     // travelType,
-//     // travelIntensity,
-//     travelStartDate,
-//     travelEndDate,
-//     hotelTransition = 0, // 호텔 바꾸는 횟수
-//     nearbySearchReqParams: { loadAll },
-//   } = searchCond;
-
-//   const travelNights = getTravelNights(
-//     // searchCond.searchHotelReqParams.checkinDate,
-//     // searchCond.searchHotelReqParams.checkoutDate,
-//     travelStartDate,
-//     travelEndDate,
-//   );
-//   if (travelNights < 1) {
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message: '여행 시작일과 종료일의 차이가 1미만입니다.',
-//     });
-//   }
-
-//   if (travelNights < hotelTransition)
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message:
-//         "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
-//     });
-
-//   let locationsArr: SearchLocationsFromBookingComInnerAsyncFnResponse[] = [];
-//   try {
-//     locationsArr = await searchLocationsFromBookingComInnerAsyncFn({
-//       name: searchLocation,
-//     });
-//   } catch (err) {
-//     if (err instanceof IBError) {
-//       throw err;
-//     }
-//   }
-
-//   const { dest_id: destId } = locationsArr.find(item =>
-//     Object.keys(item).find(e => e === 'region'),
-//   ) ?? {
-//     dest_id: '',
-//   };
-
-//   if (isEmpty(destId)) {
-//     throw new IBError({
-//       type: 'EXTERNALAPI',
-//       message:
-//         'booking.com /v1/hotels/locations api 결과값이 정상적으로 응답되지 않았습니다. (dest_id 값이 없습니다.)',
-//     });
-//   }
-
-//   // const filters = await filterForSearchFromBookingComInnerAsyncFn({
-//   //   adultsNumber: searchHotelReqParams.adultsNumber,
-//   //   destType: 'region',
-//   //   orderBy: searchHotelReqParams.orderBy,
-//   //   checkoutDate: searchHotelReqParams.checkoutDate,
-//   //   checkinDate: searchHotelReqParams.checkinDate,
-//   //   filterByCurrency: 'USD',
-//   //   destId: Number(destId) ?? 0,
-//   //   roomNumber: searchHotelReqParams.roomNumber,
-//   //   categoriesFilterIds: searchHotelReqParams.categoriesFilterIds,
-//   //   childrenNumber: searchHotelReqParams.childrenNumber,
-//   //   includeAdjacency: searchHotelReqParams.includeAdjacency,
-//   //   pageNumber: searchHotelReqParams.pageNumber,
-//   //   childrenAges: searchHotelReqParams.childrenAges,
-//   //   // categoriesFilterIds: [],
-//   // });
-
-//   // const hotelTypeFilter = filters
-//   //   ?.find(e => e.id === 'property_type')
-//   //   ?.categories?.find(e => e.name === 'Hotels');
-
-//   // const hotelTypeFilterId = hotelTypeFilter?.id ?? 'property_type::204'; // hotels filter id
-
-//   // searchCond.searchHotelReqParams.categoriesFilterIds = [
-//   //   ...(searchCond.searchHotelReqParams.categoriesFilterIds ?? []),
-//   //   bookingComFilterCategoryList.hotels,
-//   // ];
-
-//   // Do composite search
-//   const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
-//   // await nearbySearchInnerAsyncFn(searchCond, queryParamId);
-//   await getAllNearbySearchPages(searchCond, queryParamId, loadAll);
-
-//   const getListQueryParamsWithId = { ...evalCond, id: queryParamId };
-//   // Get high priority candidate data from composite search result.
-//   const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
-//     getListQueryParamsWithId,
-//   );
-//   const travelDays = travelNights + 1;
-
-//   const { searchHotelRes, gglNearbySearchRes } =
-//     queryParamsDataFromDB[0] as QueryParams & {
-//       searchHotelRes: SearchHotelRes[];
-//       gglNearbySearchRes: GglNearbySearchRes[];
-//     };
-
-//   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-//   const filterHotelWithBudget = () => {
-//     const copiedHotelRes = Array.from(searchHotelRes).reverse();
-
-//     const minHotelBudget = minBudget * minHotelBudgetPortion;
-//     const dailyMinBudget = minHotelBudget / transitionTerm;
-
-//     const midBudget = (minBudget + maxBudget) / 2;
-//     const flexPortionLimit = 1.3;
-//     const midHotelBudget = midBudget * midHotelBudgetPortion;
-//     const dailyMidBudget = (midHotelBudget * flexPortionLimit) / transitionTerm;
-
-//     const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
-//     const dailyMaxBudget = maxHotelBudget / transitionTerm;
-
-//     const minFilteredHotels = copiedHotelRes.filter(
-//       hotel => hotel.min_total_price < dailyMinBudget,
-//     );
-//     const midFilteredHotels = copiedHotelRes.filter(hotel => {
-//       return hotel.min_total_price < dailyMidBudget;
-//     });
-//     const maxFilteredHotels = copiedHotelRes.filter(
-//       hotel => hotel.min_total_price < dailyMaxBudget,
-//     );
-//     return {
-//       minFilteredHotels,
-//       midFilteredHotels,
-//       maxFilteredHotels,
-//     };
-//   };
-//   const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
-//     filterHotelWithBudget();
-
-//   const visitSchedules: VisitSchedules = [];
-//   // const minBudgetHotel: SearchHotelRes[] = [];
-//   // const midBudgetHotel: SearchHotelRes[] = [];
-//   // const maxBudgetHotel: SearchHotelRes[] = [];
-
-//   const arr = Array.from(Array(travelDays));
-//   let recommendedNearbySearchCount = 0;
-//   let recommendedMinHotelCount = 0;
-//   let recommendedMidHotelCount = 0;
-//   let recommendedMaxHotelCount = 0;
-//   let prevMinHotel: SearchHotelRes | undefined;
-//   let prevMidHotel: SearchHotelRes | undefined;
-//   let prevMaxHotel: SearchHotelRes | undefined;
-//   let minHotel: SearchHotelRes | undefined;
-//   let midHotel: SearchHotelRes | undefined;
-//   let maxHotel: SearchHotelRes | undefined;
-//   arr.reduce((acc: VisitSchedules, cur, idx) => {
-//     const thatDaySpot = gglNearbySearchRes.slice(
-//       idx * spotPerDay,
-//       (idx + 1) * spotPerDay <= gglNearbySearchRes.length
-//         ? (idx + 1) * spotPerDay
-//         : gglNearbySearchRes.length - 1,
-//     );
-//     recommendedNearbySearchCount += thatDaySpot.length;
-
-//     if (idx % transitionTerm === 0) {
-//       minHotel = minFilteredHotels.pop();
-//       midHotel = midFilteredHotels.pop();
-//       maxHotel = maxFilteredHotels.pop();
-//       prevMinHotel = minHotel;
-//       prevMidHotel = midHotel;
-//       prevMaxHotel = maxHotel;
-
-//       if (minHotel) recommendedMinHotelCount += 1;
-//       if (midHotel) recommendedMidHotelCount += 1;
-//       if (maxHotel) recommendedMaxHotelCount += 1;
-//     }
-
-//     acc.push({
-//       spot: thatDaySpot,
-//       hotel: {
-//         minBudgetHotel: idx % transitionTerm === 0 ? minHotel : prevMinHotel,
-//         midBudgetHotel: idx % transitionTerm === 0 ? midHotel : prevMidHotel,
-//         maxBudgetHotel: idx % transitionTerm === 0 ? maxHotel : prevMaxHotel,
-//       },
-//     });
-
-//     return acc;
-//   }, visitSchedules);
-
-//   const recommendList = {
-//     ...omit(queryParamsDataFromDB[0], ['gglNearbySearchRes', 'searchHotelRes']),
-//     searchLocation,
-//     totalNearbySearchCount: gglNearbySearchRes.length,
-//     totalHotelSearchCount: searchHotelRes.length,
-//     spotPerDay,
-//     travelNights,
-//     travelDays,
-//     hotelTransition,
-//     transitionTerm,
-//     recommendedNearbySearchCount,
-//     recommendedMinHotelCount,
-//     recommendedMidHotelCount,
-//     recommendedMaxHotelCount,
-//     visitSchedulesCount: visitSchedules.length,
-//     visitSchedules,
-//   };
-
-//   return recommendList;
-// };
-
-// const getRecommendList = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<GetRecommendListReqParams>,
-//     res: Express.IBTypedResponse<GetRecommendListResponse>,
-//   ) => {
-//     try {
-//       const params = req.body;
-//       const recommendListFromDB = await getRecommendListInnerAsyncFn(params);
-//       res.json({
-//         ...ibDefs.SUCCESS,
-//         IBparams: recommendListFromDB,
-//       });
-//     } catch (err) {
-//       if (err instanceof IBError) {
-//         if (err.type === 'INVALIDPARAMS') {
-//           res.json({
-//             ...ibDefs.INVALIDPARAMS,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//         } else if (err.type === 'EXTERNALAPI') {
-//           res.json({
-//             ...ibDefs.EXTERNALAPI,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//         }
-//       }
-//       throw err;
-//     }
-//   },
-// );
-
 const filtersForSearchFromBookingCom = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<FiltersForSearchFromBookingComReqParams>,
@@ -2035,28 +1770,6 @@ const prismaTest = asyncWrapper(
 //     } = req;
 //     let pageToken: string | undefined;
 //     let resArr: google.maps.places.PlaceResult[] = [];
-
-//     // do {
-//     //   const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-//     //     location?.latitude
-//     //   }%2C${location?.longitude}&radius=${radius}&key=${
-//     //     process.env.GCP_MAPS_APIKEY as string
-//     //   }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-//     //   console.log(queryUrl);
-//     //   // eslint-disable-next-line no-await-in-loop
-//     // const response = await axios.get(queryUrl);
-//     // if (response?.statusText === 'OK') {
-//     //   // eslint-disable-next-line @typescript-eslint/naming-convention
-//     //   const { results, next_page_token } = response.data as {
-//     //     next_page_token: string;
-//     //     results: google.maps.places.PlaceResult[];
-//     //   };
-
-//     //   pageToken = next_page_token;
-//     //   resArr = [...resArr, ...results];
-//     // }
-//     //   // console.log(JSON.stringify(response.data, null, 2));
-//     // } while (pageToken);
 
 //     const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
 //       location?.latitude
@@ -2135,24 +1848,6 @@ export const addMockHotelResource = asyncWrapper(
     req: Express.IBTypedReqBody<SearchHotelReqParams>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    // const {
-    //   body: {
-    //     orderBy,
-    //     adultsNumber,
-    //     roomNumber,
-    //     checkinDate,
-    //     checkoutDate,
-    //     filterByCurrency,
-    //     latitude: paramLat,
-    //     longitude: paramLngt,
-    //     pageNumber,
-    //     includeAdjacency,
-    //     childrenNumber,
-    //     childrenAges,
-    //     categoriesFilterIds,
-    //   },
-    // } = req;
-
     const {
       orderBy = 'popularity',
       adultsNumber = 2,
@@ -2189,28 +1884,6 @@ export const addMockHotelResource = asyncWrapper(
       });
     }
 
-    // const options = {
-    //   method: 'GET' as Method,
-    //   url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
-    //   params: {
-    //     order_by: orderBy ?? 'popularity',
-    //     adults_number: adultsNumber.toString(),
-    //     units: 'metric',
-    //     room_number: roomNumber ? roomNumber.toString() : '1',
-    //     checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
-    //     checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
-    //     filter_by_currency: filterByCurrency ?? 'USD',
-    //     locale: 'en-us',
-    //     latitude: paramLat.toString(),
-    //     longitude: paramLngt.toString(),
-    //     page_number: pageNumber ? pageNumber.toString() : '0',
-    //     include_adjacency: includeAdjacency ?? 'false',
-    //   },
-    //   headers: {
-    //     'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
-    //     'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-    //   },
-    // };
     const options = {
       method: 'GET' as Method,
       url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
