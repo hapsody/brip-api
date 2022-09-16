@@ -102,6 +102,9 @@ export type SearchedData = Omit<
     net_amount: {
       value: number;
     };
+    gross_amount_per_night: {
+      value: number;
+    };
   };
   checkin: {
     from: string;

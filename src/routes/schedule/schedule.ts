@@ -649,6 +649,8 @@ const searchHotelInnerAsyncFn = async (
           value: included_taxes_and_charges_amount,
         },
         net_amount: { value: net_amount },
+
+        gross_amount_per_night: { value: gross_amount_per_night },
       },
       countrycode,
       default_language,
@@ -685,6 +687,7 @@ const searchHotelInnerAsyncFn = async (
           },
         },
         min_total_price,
+        gross_amount_per_night,
         gross_amount,
         included_taxes_and_charges_amount,
         net_amount,
