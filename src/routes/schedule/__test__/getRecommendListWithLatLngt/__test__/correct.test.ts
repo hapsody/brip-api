@@ -117,9 +117,11 @@ describe('Correct case test', () => {
 
       const {
         visitSchedules,
-        recommendedMinHotelCount,
-        recommendedMidHotelCount,
-        recommendedMaxHotelCount,
+        metaInfo: {
+          recommendedMinHotelCount,
+          recommendedMidHotelCount,
+          recommendedMaxHotelCount,
+        },
       } = iBparams;
 
       let minBudgetHotelCount = 0;
@@ -137,9 +139,15 @@ describe('Correct case test', () => {
       for await (const visitSchedule of visitSchedules) {
         const { spot, hotel } = visitSchedule;
         const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
-        expect(spot.spotsFromMinHotel.length).toBe(iBparams.spotPerDay);
-        expect(spot.spotsFromMidHotel.length).toBe(iBparams.spotPerDay);
-        expect(spot.spotsFromMaxHotel.length).toBe(iBparams.spotPerDay);
+        expect(spot.spotsFromMinHotel.length).toBe(
+          iBparams.metaInfo.spotPerDay,
+        );
+        expect(spot.spotsFromMidHotel.length).toBe(
+          iBparams.metaInfo.spotPerDay,
+        );
+        expect(spot.spotsFromMaxHotel.length).toBe(
+          iBparams.metaInfo.spotPerDay,
+        );
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot.spotsFromMinHotel) {
           expect(aSpot.queryParamsId).toBe(iBparams.id);

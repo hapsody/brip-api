@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
+import { isUndefined } from 'lodash';
 
 export interface NearBySearchReqParams {
   keyword: string;
@@ -214,22 +215,28 @@ export type VisitSchedules = {
 }[];
 
 export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
-  // totalNearbySearchCount: number;
-  totalHotelSearchCount: number;
-  spotPerDay: number;
-  mealPerDay: number;
-  travelNights: number;
-  travelDays: number;
-  hotelTransition: number;
-  transitionTerm: number;
+  metaInfo: {
+    // totalNearbySearchCount: number;
+    totalHotelSearchCount: number;
+    totalRestaurantSearchCount: number;
+    totalSpotSearchCount: number;
+    spotPerDay: number;
+    mealPerDay: number;
+    mealSchedule: number[];
+    travelNights: number;
+    travelDays: number;
+    hotelTransition: number;
+    transitionTerm: number;
+    // recommendedNearbySearchCount: number;
+    // recommendedSpotCount: number;
+    // recommendedRestaurantCount: number;
+    recommendedMinHotelCount: number;
+    recommendedMidHotelCount: number;
+    recommendedMaxHotelCount: number;
+  };
+
   visitSchedulesCount: number;
   visitSchedules: VisitSchedules;
-  // recommendedNearbySearchCount: number;
-  // recommendedSpotCount: number;
-  // recommendedRestaurantCount: number;
-  recommendedMinHotelCount: number;
-  recommendedMidHotelCount: number;
-  recommendedMaxHotelCount: number;
 };
 export type GetRecommendListInnerAsyncFnResponse =
   | (GetRecommendListWithLatLngtInnerAsyncFnResponse & {
@@ -520,3 +527,21 @@ export type ScheduleNodeList = {
   restaurant: GglNearbySearchResIncludedGeometry[];
   spot: GglNearbySearchResIncludedGeometry[];
 };
+
+export class MealOrder {
+  mealOrder = [-1, 1, 3];
+
+  getNextMealOrder = (): number => {
+    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+    let nextMealOrder: number | undefined;
+    do {
+      nextMealOrder = this.mealOrder.shift();
+      if (isUndefined(nextMealOrder)) return -2;
+    } while (nextMealOrder === -1);
+
+    return nextMealOrder;
+  };
+}
