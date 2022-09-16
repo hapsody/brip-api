@@ -12,7 +12,12 @@ import {
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import { PrismaClient, SearchHotelRes, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  SearchHotelRes,
+  Prisma,
+  // GglNearbySearchRes,
+} from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -43,11 +48,12 @@ import {
   getQueryParamsForRestaurant,
   getQueryParamsForTourSpot,
   LatLngt,
-  MetaDataForSpike,
+  // MetaDataForSpike,
   DistanceMap,
-  EvalSeperatedPlacesReqParams,
+  // EvalSeperatedPlacesReqParams,
   SearchHotelReqParams,
   GglNearbySearchResIncludedGeometry,
+  ScheduleNodeList,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -857,69 +863,68 @@ const getDistance = ({
   );
 };
 
-const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
-  let prevValue = 0;
-  const withXDelta = withXDistances.map(v => {
-    const retValue = v - prevValue;
-    prevValue = v;
-    return retValue;
-  });
+// const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
+//   let prevValue = 0;
+//   const withXDelta = withXDistances.map(v => {
+//     const retValue = v - prevValue;
+//     prevValue = v;
+//     return retValue;
+//   });
 
-  let sum = 0;
-  const withXDeltaAvg = withXDelta.map((v, i) => {
-    sum += v;
-    return sum / (i + 1);
-  });
-  const calibValue = 1.7;
-  const totalDeltaAvg = sum / withXDelta.length;
-  const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
+//   let sum = 0;
+//   const withXDeltaAvg = withXDelta.map((v, i) => {
+//     sum += v;
+//     return sum / (i + 1);
+//   });
+//   const calibValue = 1.7;
+//   const totalDeltaAvg = sum / withXDelta.length;
+//   const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
 
-  sum = 0;
-  const withXDeltaSepAvg = withXDelta.map((d, i) => {
-    sum += d;
-    const curSeperatedAvg = sum / (i + 1);
-    // let seperatedIdx = -1;
-    if (
-      d > totalDeltaAvg * calibValue &&
-      d > curSeperatedAvg &&
-      d > withHotelCalibDeltaAvg[i]
-    ) {
-      sum = withXDelta[i];
-      // seperatedIdx = i;
-    }
+//   sum = 0;
+//   const withXDeltaSepAvg = withXDelta.map((d, i) => {
+//     sum += d;
+//     const curSeperatedAvg = sum / (i + 1);
+//     // let seperatedIdx = -1;
+//     if (
+//       d > totalDeltaAvg * calibValue &&
+//       d > curSeperatedAvg &&
+//       d > withHotelCalibDeltaAvg[i]
+//     ) {
+//       sum = withXDelta[i];
+//       // seperatedIdx = i;
+//     }
 
-    return curSeperatedAvg;
-  });
+//     return curSeperatedAvg;
+//   });
 
-  const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
-    const d = withXDelta[i];
-    if (
-      d > totalDeltaAvg * calibValue &&
-      d > curSeperatedAvg &&
-      d > withHotelCalibDeltaAvg[i]
-    ) {
-      return i;
-    }
-    return -1;
-  });
+//   const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
+//     const d = withXDelta[i];
+//     if (
+//       d > totalDeltaAvg * calibValue &&
+//       d > curSeperatedAvg &&
+//       d > withHotelCalibDeltaAvg[i]
+//     ) {
+//       return i;
+//     }
+//     return -1;
+//   });
 
-  return {
-    distances: withXDistances,
-    delta: withXDelta,
-    deltaAvg: withXDeltaAvg,
-    deltaSepAvg: withXDeltaSepAvg,
-    seperatedIdxs: sepIdxs,
-  };
-};
+//   return {
+//     distances: withXDistances,
+//     delta: withXDelta,
+//     deltaAvg: withXDeltaAvg,
+//     deltaSepAvg: withXDeltaSepAvg,
+//     seperatedIdxs: sepIdxs,
+//   };
+// };
 
-const evalSperatedPlaces = <
-  BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
->({
-  searchHotelRes,
-  touringSpotGglNearbySearchRes,
-  restaurantGglNearbySearchRes,
-  baseType = 'hotel',
-}: EvalSeperatedPlacesReqParams) => {
+const orderByDistanceFromNode = ({
+  baseNode,
+  scheduleNodeLists,
+}: {
+  baseNode: SearchHotelRes | GglNearbySearchResIncludedGeometry;
+  scheduleNodeLists: ScheduleNodeList;
+}): DistanceMap => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
     if (a.distance > b.distance) {
       return 1;
@@ -930,106 +935,316 @@ const evalSperatedPlaces = <
     return 0;
   };
 
-  const distanceMaps: DistanceMap<BaseListType> = (() => {
-    if (baseType === 'hotel') return searchHotelRes;
-    if (baseType === 'spot') return touringSpotGglNearbySearchRes;
-    return restaurantGglNearbySearchRes;
-  })().map((outerItem: unknown) => {
-    let lat = 0;
-    let lngt = 0;
-    if ((outerItem as SearchHotelRes) !== undefined) {
-      lat = (outerItem as SearchHotelRes).latitude;
-      lngt = (outerItem as SearchHotelRes).longitude;
-    } else if (
-      (outerItem as GglNearbySearchResIncludedGeometry) !== undefined
-    ) {
-      const location = JSON.parse(
-        (outerItem as GglNearbySearchResIncludedGeometry).geometry.location,
-      ) as LatLngt;
-      lat = location.lat;
-      lngt = location.lngt;
-    }
-
-    const withHotelDistances = searchHotelRes.map(hotel => {
+  const baseLocation = (() => {
+    if ((baseNode as SearchHotelRes).latitude !== undefined)
       return {
-        data: hotel,
-        distance: getDistance({
-          startPoint: {
-            lat,
-            lngt,
-          },
-          endPoint: {
-            lat: hotel.latitude,
-            lngt: hotel.longitude,
-          },
-        }),
+        latitude: (baseNode as SearchHotelRes).latitude,
+        longitude: (baseNode as SearchHotelRes).longitude,
       };
-    });
-    withHotelDistances.sort(sortByDistance);
-
-    const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
-      const location = JSON.parse(spot.geometry.location) as LatLngt;
-      return {
-        data: spot,
-        distance: getDistance({
-          startPoint: {
-            lat,
-            lngt,
-          },
-          endPoint: {
-            lat: location.lat,
-            lngt: location.lngt,
-          },
-        }),
-      };
-    });
-    withSpotDistances.sort(sortByDistance);
-
-    const withRestaurantDistances = restaurantGglNearbySearchRes.map(
-      restaurant => {
-        const location = JSON.parse(restaurant.geometry.location) as LatLngt;
-        return {
-          data: restaurant,
-          distance: getDistance({
-            startPoint: {
-              lat,
-              lngt,
-            },
-            endPoint: {
-              lat: location.lat,
-              lngt: location.lngt,
-            },
-          }),
-        };
-      },
-    );
-    withRestaurantDistances.sort(sortByDistance);
-
+    const location = JSON.parse(
+      (baseNode as GglNearbySearchResIncludedGeometry).geometry.location,
+    ) as LatLngt;
     return {
-      me: outerItem as BaseListType,
-      withHotel: {
-        data: withHotelDistances.map(e => e.data),
-        metaDataForDistance: evalMetaData(
-          withHotelDistances.map(e => e.distance),
-        ),
-      },
-      withSpot: {
-        data: withSpotDistances.map(e => e.data),
-        metaDataForDistance: evalMetaData(
-          withSpotDistances.map(e => e.distance),
-        ),
-      },
-      withRestaurant: {
-        data: withRestaurantDistances.map(e => e.data),
-        metaDataForDistance: evalMetaData(
-          withSpotDistances.map(e => e.distance),
-        ),
-      },
+      latitude: location.lat,
+      longitude: location.lngt,
+    };
+  })();
+  const withHotels = scheduleNodeLists.hotel.map(hotel => {
+    return {
+      data: hotel,
+      distance: getDistance({
+        startPoint: {
+          lat: baseLocation.latitude,
+          lngt: baseLocation.longitude,
+        },
+        endPoint: {
+          lat: hotel.latitude,
+          lngt: hotel.longitude,
+        },
+      }),
     };
   });
+  withHotels.sort(sortByDistance);
 
-  return distanceMaps;
+  const withSpots = scheduleNodeLists.spot.map(spot => {
+    const spotLocation = JSON.parse(spot.geometry.location) as LatLngt;
+
+    return {
+      data: spot,
+      distance: getDistance({
+        startPoint: {
+          lat: baseLocation.latitude,
+          lngt: baseLocation.longitude,
+        },
+        endPoint: {
+          lat: spotLocation.lat,
+          lngt: spotLocation.lngt,
+        },
+      }),
+    };
+  });
+  withSpots.sort(sortByDistance);
+
+  const withRestaurants = scheduleNodeLists.restaurant.map(restaurant => {
+    const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
+
+    return {
+      data: restaurant,
+      distance: getDistance({
+        startPoint: {
+          lat: baseLocation.latitude,
+          lngt: baseLocation.longitude,
+        },
+        endPoint: {
+          lat: spotLocation.lat,
+          lngt: spotLocation.lngt,
+        },
+      }),
+    };
+  });
+  withRestaurants.sort(sortByDistance);
+
+  return {
+    data: baseNode,
+    withHotels,
+    withSpots,
+    withRestaurants,
+  };
 };
+
+// const orderByDistanceFromNode = <
+//   MyType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+// >({
+//   baseNode,
+//   scheduleNodeLists,
+//   baseListType = 'hotel',
+// }: {
+//   baseNode: MyType;
+//   scheduleNodeLists: ScheduleNodeList;
+//   baseListType: PlaceType;
+// }): DistanceMap<MyType> => {
+//   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
+//     if (a.distance > b.distance) {
+//       return 1;
+//     }
+//     if (a.distance < b.distance) {
+//       return -1;
+//     }
+//     return 0;
+//   };
+
+//   const baseLocation = (() => {
+//     if (baseListType === 'hotel')
+//       return {
+//         latitude: (baseNode as SearchHotelRes).latitude,
+//         longitude: (baseNode as SearchHotelRes).longitude,
+//       };
+//     const location = JSON.parse(
+//       (baseNode as GglNearbySearchResIncludedGeometry).geometry.location,
+//     ) as LatLngt;
+//     return {
+//       latitude: location.lat,
+//       longitude: location.lngt,
+//     };
+//   })();
+//   const withHotels = scheduleNodeLists.hotel.map(hotel => {
+//     return {
+//       data: hotel,
+//       distance: getDistance({
+//         startPoint: {
+//           lat: baseLocation.latitude,
+//           lngt: baseLocation.longitude,
+//         },
+//         endPoint: {
+//           lat: hotel.latitude,
+//           lngt: hotel.longitude,
+//         },
+//       }),
+//     };
+//   });
+//   withHotels.sort(sortByDistance);
+
+//   const withSpots = scheduleNodeLists.spot.map(spot => {
+//     const spotLocation = JSON.parse(spot.geometry.location) as LatLngt;
+
+//     return {
+//       data: spot,
+//       distance: getDistance({
+//         startPoint: {
+//           lat: baseLocation.latitude,
+//           lngt: baseLocation.longitude,
+//         },
+//         endPoint: {
+//           lat: spotLocation.lat,
+//           lngt: spotLocation.lngt,
+//         },
+//       }),
+//     };
+//   });
+//   withSpots.sort(sortByDistance);
+
+//   const withRestaurants = scheduleNodeLists.spot.map(restaurant => {
+//     const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
+
+//     return {
+//       data: restaurant,
+//       distance: getDistance({
+//         startPoint: {
+//           lat: baseLocation.latitude,
+//           lngt: baseLocation.longitude,
+//         },
+//         endPoint: {
+//           lat: spotLocation.lat,
+//           lngt: spotLocation.lngt,
+//         },
+//       }),
+//     };
+//   });
+//   withRestaurants.sort(sortByDistance);
+
+//   return {
+//     data: baseNode,
+//     withHotels,
+//     withSpots,
+//     withRestaurants,
+//   };
+// };
+
+// const evalSperatedPlaces = <
+//   BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+// >({
+//   searchHotelRes,
+//   touringSpotGglNearbySearchRes,
+//   restaurantGglNearbySearchRes,
+//   baseType = 'hotel',
+// }: EvalSeperatedPlacesReqParams) => {
+//   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
+//     if (a.distance > b.distance) {
+//       return 1;
+//     }
+//     if (a.distance < b.distance) {
+//       return -1;
+//     }
+//     return 0;
+//   };
+
+//   const distanceMaps: DistanceMap<BaseListType> = (() => {
+//     if (baseType === 'hotel') return searchHotelRes;
+//     if (baseType === 'spot') return touringSpotGglNearbySearchRes;
+//     return restaurantGglNearbySearchRes;
+//   })().map((outerItem: unknown) => {
+//     let lat = 0;
+//     let lngt = 0;
+//     if ((outerItem as SearchHotelRes) !== undefined) {
+//       lat = (outerItem as SearchHotelRes).latitude;
+//       lngt = (outerItem as SearchHotelRes).longitude;
+//     } else if (
+//       (outerItem as GglNearbySearchResIncludedGeometry) !== undefined
+//     ) {
+//       const location = JSON.parse(
+//         (outerItem as GglNearbySearchResIncludedGeometry).geometry.location,
+//       ) as LatLngt;
+//       lat = location.lat;
+//       lngt = location.lngt;
+//     }
+
+//     const withHotelDistances = searchHotelRes.map(hotel => {
+//       return {
+//         data: hotel,
+//         distance: getDistance({
+//           startPoint: {
+//             lat,
+//             lngt,
+//           },
+//           endPoint: {
+//             lat: hotel.latitude,
+//             lngt: hotel.longitude,
+//           },
+//         }),
+//       };
+//     });
+//     withHotelDistances.sort(sortByDistance);
+
+//     const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
+//       const location = JSON.parse(spot.geometry.location) as LatLngt;
+//       return {
+//         data: spot,
+//         distance: getDistance({
+//           startPoint: {
+//             lat,
+//             lngt,
+//           },
+//           endPoint: {
+//             lat: location.lat,
+//             lngt: location.lngt,
+//           },
+//         }),
+//       };
+//     });
+//     withSpotDistances.sort(sortByDistance);
+
+//     const withRestaurantDistances = restaurantGglNearbySearchRes.map(
+//       restaurant => {
+//         const location = JSON.parse(restaurant.geometry.location) as LatLngt;
+//         return {
+//           data: restaurant,
+//           distance: getDistance({
+//             startPoint: {
+//               lat,
+//               lngt,
+//             },
+//             endPoint: {
+//               lat: location.lat,
+//               lngt: location.lngt,
+//             },
+//           }),
+//         };
+//       },
+//     );
+//     withRestaurantDistances.sort(sortByDistance);
+//     return {
+//       me: outerItem as BaseListType,
+//       withHotel: {
+//         data: withHotelDistances.map(e => e.data),
+//         metaDataForDistance: evalMetaData(
+//           withHotelDistances.map(e => e.distance),
+//         ),
+//       },
+//       withSpot: {
+//         data: withSpotDistances.map(e => e.data),
+//         metaDataForDistance: evalMetaData(
+//           withSpotDistances.map(e => e.distance),
+//         ),
+//       },
+//       withRestaurant: {
+//         data: withRestaurantDistances.map(e => e.data),
+//         metaDataForDistance: evalMetaData(
+//           withSpotDistances.map(e => e.distance),
+//         ),
+//       },
+//     };
+//   });
+
+//   return distanceMaps;
+// };
+
+class MealOrder {
+  mealOrder = [-1, 1, 3];
+
+  getNextMealOrder = () => {
+    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+    let nextMealOrder: number | undefined;
+    do {
+      nextMealOrder = this.mealOrder.shift();
+      if (isUndefined(nextMealOrder)) return -2;
+    } while (nextMealOrder === -1);
+
+    return nextMealOrder;
+  };
+}
 
 const getRecommendListWithLatLngtInnerAsyncFn = async (
   params: GetRecommendListWithLatLngtReqParams,
@@ -1139,18 +1354,6 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
     spotQueryParamsDataFromDB[0];
 
-  const distanceMapsFromHotel = evalSperatedPlaces<SearchHotelRes>({
-    searchHotelRes,
-    touringSpotGglNearbySearchRes: touringSpotGglNearbySearchRes.slice(
-      0,
-      spotPerDay * travelDays,
-    ), // 여행일수 * 일별 관람 장소수로 자르는 이유는 rating별로 정렬된 touringSpot 리스트중 상위 점수만 취하여 사용하기 위해서이다.
-    restaurantGglNearbySearchRes: restaurantGglNearbySearchRes.slice(
-      0,
-      mealPerDay * travelDays,
-    ), // 여행일수 * 일별 식사수로 자르는 이유는 rating별로 정렬된 restaurantGglNearbySearchRes 리스트중 상위 점수만 취하여 사용하기 위해서이다.
-  });
-
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
     const copiedHotelRes = Array.from(searchHotelRes).reverse();
@@ -1199,23 +1402,25 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let minHotel: SearchHotelRes | undefined;
   let midHotel: SearchHotelRes | undefined;
   let maxHotel: SearchHotelRes | undefined;
+  let minNodeLists: ScheduleNodeList = {
+    hotel: searchHotelRes,
+    restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
+    spot: touringSpotGglNearbySearchRes.slice(0, spotPerDay * travelDays),
+  };
+
+  let midNodeLists = {
+    hotel: searchHotelRes,
+    restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
+    spot: touringSpotGglNearbySearchRes.slice(0, spotPerDay * travelDays),
+  };
+
+  let maxNodeLists = {
+    hotel: searchHotelRes,
+    restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
+    spot: touringSpotGglNearbySearchRes.slice(0, spotPerDay * travelDays),
+  };
+
   arr.reduce((acc: VisitSchedules, cur, idx) => {
-    // const thatDaySpot = touringSpotGglNearbySearchRes.slice(
-    //   idx * spotPerDay,
-    //   (idx + 1) * spotPerDay <= touringSpotGglNearbySearchRes.length
-    //     ? (idx + 1) * spotPerDay
-    //     : touringSpotGglNearbySearchRes.length - 1,
-    // );
-    // recommendedSpotCount += thatDaySpot.length;
-
-    // const thatDayRestaurant = restaurantGglNearbySearchRes.slice(
-    //   idx * mealPerDay,
-    //   (idx + 1) * mealPerDay <= restaurantGglNearbySearchRes.length
-    //     ? (idx + 1) * mealPerDay
-    //     : restaurantGglNearbySearchRes.length - 1,
-    // );
-    // recommendedRestaurantCount += thatDayRestaurant.length;
-
     if (idx % transitionTerm === 0 && idx < arr.length - 1) {
       minHotel = minFilteredHotels.pop();
       midHotel = midFilteredHotels.pop();
@@ -1232,114 +1437,173 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const midBudgetHotel = idx % transitionTerm === 0 ? midHotel : prevMidHotel;
     const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
-    const minBudgetHotelIdx = distanceMapsFromHotel.findIndex(
-      item => item.me.id === minBudgetHotel?.id,
-    );
-    const midBudgetHotelIdx = distanceMapsFromHotel.findIndex(
-      item => item.me.id === minBudgetHotel?.id,
-    );
-    const maxBudgetHotelIdx = distanceMapsFromHotel.findIndex(
-      item => item.me.id === minBudgetHotel?.id,
-    );
-    // const hotelToHotel = distanceMapsFromHotel[0].withHotel.data;
-    // const minBudgetHotelIdx = hotelToHotel.findIndex(
-    //   item => item.id === minBudgetHotel?.id,
-    // );
-    // const midBudgetHotelIdx = hotelToHotel.findIndex(
-    //   item => item.id === midBudgetHotel?.id,
-    // );
-    // const maxBudgetHotelIdx = hotelToHotel.findIndex(
-    //   item => item.id === maxBudgetHotel?.id,
-    // );
-
-    let restaurantsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
-    let spotsFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
-    if (minBudgetHotelIdx > -1) {
-      restaurantsFromMinHotel =
-        distanceMapsFromHotel[minBudgetHotelIdx].withRestaurant.data;
-      spotsFromMinHotel =
-        distanceMapsFromHotel[minBudgetHotelIdx].withSpot.data;
+    // minHotel의 idx 해당일 spot들 구하기
+    const thatDaySpotFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
+    const thatDayRestaurantFromMinHotel: GglNearbySearchResIncludedGeometry[] =
+      [];
+    if (minBudgetHotel) {
+      let destination: GglNearbySearchResIncludedGeometry;
+      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
+      //   baseNode: minBudgetHotel,
+      //   scheduleNodeLists: minNodeLists,
+      // });
+      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
+      // thatDaySpotFromMinHotel.push(destination);
+      // let prevDest = destination;
+      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
+        minBudgetHotel;
+      const mealOrder = new MealOrder();
+      let nextMealOrder = mealOrder.getNextMealOrder();
+      for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+        if (nextMealOrder === i) {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: minNodeLists,
+          });
+          destination = distanceMapsFromBase.withRestaurants[0].data;
+          thatDayRestaurantFromMinHotel.push(destination);
+          prevDest = destination;
+          minNodeLists = {
+            ...minNodeLists,
+            restaurant: distanceMapsFromBase.withRestaurants
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMinHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+          nextMealOrder = mealOrder.getNextMealOrder();
+        } else {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: minNodeLists,
+          });
+          destination = distanceMapsFromBase.withSpots[0].data;
+          thatDaySpotFromMinHotel.push(destination);
+          prevDest = destination;
+          minNodeLists = {
+            ...minNodeLists,
+            spot: distanceMapsFromBase.withSpots
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMinHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+        }
+      }
     }
-    let restaurantsFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
-    let spotsFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
-    if (midBudgetHotelIdx > -1) {
-      restaurantsFromMidHotel =
-        distanceMapsFromHotel[midBudgetHotelIdx].withRestaurant.data;
-      spotsFromMidHotel =
-        distanceMapsFromHotel[midBudgetHotelIdx].withSpot.data;
+
+    // midHotel의 idx 해당일 spot들 구하기
+    const thatDaySpotFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
+    const thatDayRestaurantFromMidHotel: GglNearbySearchResIncludedGeometry[] =
+      [];
+
+    if (midBudgetHotel) {
+      let destination: GglNearbySearchResIncludedGeometry;
+      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
+      //   baseNode: midBudgetHotel,
+      //   scheduleNodeLists: midNodeLists,
+      // });
+      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
+      // thatDaySpotFromMidHotel.push(destination);
+      // let prevDest = destination;
+      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
+        midBudgetHotel;
+      const mealOrder = new MealOrder();
+      let nextMealOrder = mealOrder.getNextMealOrder();
+      for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+        if (nextMealOrder === i) {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: midNodeLists,
+          });
+          destination = distanceMapsFromBase.withRestaurants[0].data;
+          thatDayRestaurantFromMidHotel.push(destination);
+          prevDest = destination;
+          midNodeLists = {
+            ...midNodeLists,
+            restaurant: distanceMapsFromBase.withRestaurants
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMidHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+          nextMealOrder = mealOrder.getNextMealOrder();
+        } else {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: midNodeLists,
+          });
+          destination = distanceMapsFromBase.withSpots[0].data;
+          thatDaySpotFromMidHotel.push(destination);
+          prevDest = destination;
+          midNodeLists = {
+            ...midNodeLists,
+            spot: distanceMapsFromBase.withSpots
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMidHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+        }
+      }
     }
-    let restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
-    let spotsFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
-    if (maxBudgetHotelIdx > -1) {
-      restaurantsFromMaxHotel =
-        distanceMapsFromHotel[maxBudgetHotelIdx].withRestaurant.data;
-      spotsFromMaxHotel =
-        distanceMapsFromHotel[maxBudgetHotelIdx].withSpot.data;
+
+    // maxHotel의 idx 해당일 spot들 구하기
+    const thatDaySpotFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
+    const thatDayRestaurantFromMaxHotel: GglNearbySearchResIncludedGeometry[] =
+      [];
+    if (maxBudgetHotel) {
+      let destination: GglNearbySearchResIncludedGeometry;
+      // const distanceMapsFromMinHotel = orderByDistanceFromNode({
+      //   baseNode: maxBudgetHotel,
+      //   scheduleNodeLists: maxNodeLists,
+      // });
+      // destination = distanceMapsFromMinHotel.withSpots[0].data; // 0번째는 baseNode로 제공된 곳으로부터 가장 가까운 곳이다.
+      // thatDaySpotFromMaxHotel.push(destination);
+      // let prevDest = destination;
+      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
+        maxBudgetHotel;
+      const mealOrder = new MealOrder();
+      let nextMealOrder = mealOrder.getNextMealOrder();
+      for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+        if (nextMealOrder === i) {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: maxNodeLists,
+          });
+          destination = distanceMapsFromBase.withRestaurants[0].data;
+          thatDayRestaurantFromMaxHotel.push(destination);
+          prevDest = destination;
+          maxNodeLists = {
+            ...maxNodeLists,
+            restaurant: distanceMapsFromBase.withRestaurants
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMaxHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+          nextMealOrder = mealOrder.getNextMealOrder();
+        } else {
+          const distanceMapsFromBase = orderByDistanceFromNode({
+            baseNode: prevDest,
+            scheduleNodeLists: maxNodeLists,
+          });
+          destination = distanceMapsFromBase.withSpots[0].data;
+          thatDaySpotFromMaxHotel.push(destination);
+          prevDest = destination;
+          maxNodeLists = {
+            ...maxNodeLists,
+            spot: distanceMapsFromBase.withSpots
+              .map(s => {
+                return s.data;
+              })
+              .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMaxHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+          };
+        }
+      }
     }
-
-    const thatDayRestaurantFromMinHotel = restaurantsFromMinHotel.slice(
-      idx * mealPerDay,
-      (idx + 1) * mealPerDay <= restaurantsFromMinHotel.length
-        ? (idx + 1) * mealPerDay
-        : restaurantsFromMinHotel.length - 1,
-    );
-    // recommendedMinHotelCount += thatDayRestaurantFromMinHotel.length;
-    const thatDayRestaurantFromMidHotel = restaurantsFromMidHotel.slice(
-      idx * mealPerDay,
-      (idx + 1) * mealPerDay <= restaurantsFromMidHotel.length
-        ? (idx + 1) * mealPerDay
-        : restaurantsFromMidHotel.length - 1,
-    );
-    // recommendedMidHotelCount += thatDayRestaurantFromMidHotel.length;
-    const thatDayRestaurantFromMaxHotel = restaurantsFromMaxHotel.slice(
-      idx * mealPerDay,
-      (idx + 1) * mealPerDay <= restaurantsFromMaxHotel.length
-        ? (idx + 1) * mealPerDay
-        : restaurantsFromMaxHotel.length - 1,
-    );
-    // recommendedMaxHotelCount += thatDayRestaurantFromMaxHotel.length;
-
-    const thatDaySpotFromMinHotel = spotsFromMinHotel.slice(
-      idx * spotPerDay,
-      (idx + 1) * spotPerDay <= spotsFromMinHotel.length
-        ? (idx + 1) * spotPerDay
-        : spotsFromMinHotel.length - 1,
-    );
-    // recommendedMinHotelCount += thatDaySpotFromMinHotel.length;
-
-    const thatDaySpotFromMidHotel = spotsFromMidHotel.slice(
-      idx * spotPerDay,
-      (idx + 1) * spotPerDay <= spotsFromMidHotel.length
-        ? (idx + 1) * spotPerDay
-        : spotsFromMidHotel.length - 1,
-    );
-    // recommendedMaxHotelCount += thatDaySpotFromMidHotel.length;
-
-    const thatDaySpotFromMaxHotel = spotsFromMaxHotel.slice(
-      idx * spotPerDay,
-      (idx + 1) * spotPerDay <= spotsFromMaxHotel.length
-        ? (idx + 1) * spotPerDay
-        : spotsFromMaxHotel.length - 1,
-    );
-    // recommendedMaxHotelCount += thatDaySpotFromMaxHotel.length;
 
     acc.push({
-      // spot: thatDaySpot.map(e => {
-      //   return {
-      //     ...e,
-      //     spotUrl: `https://www.google.com/maps/place/?q=place_id:${
-      //       e.place_id as string
-      //     }`,
-      //   };
-      // }),
-      // restaurant: thatDayRestaurant.map(e => {
-      //   return {
-      //     ...e,
-      //     spotUrl: `https://www.google.com/maps/place/?q=place_id:${
-      //       e.place_id as string
-      //     }`,
-      //   };
-      // }),
       spot: {
         spotsFromMinHotel: thatDaySpotFromMinHotel.map(e => {
           return {

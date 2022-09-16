@@ -197,26 +197,14 @@ export type VisitSchedules = {
   // spot: GglNearbySearchRes[];
   // restaurant: GglNearbySearchRes[];
   spot: {
-    spotsFromMinHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
-    spotsFromMidHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
-    spotsFromMaxHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
+    spotsFromMinHotel: GglNearbySearchResIncludedGeometry[];
+    spotsFromMidHotel: GglNearbySearchResIncludedGeometry[];
+    spotsFromMaxHotel: GglNearbySearchResIncludedGeometry[];
   };
   restaurant: {
-    restaurantsFromMinHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
-    restaurantsFromMidHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
-    restaurantsFromMaxHotel: (GglNearbySearchRes & {
-      geometry: Gglgeometry;
-    })[];
+    restaurantsFromMinHotel: GglNearbySearchResIncludedGeometry[];
+    restaurantsFromMidHotel: GglNearbySearchResIncludedGeometry[];
+    restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometry[];
   };
   hotel: {
     minBudgetHotel: SearchHotelRes | undefined;
@@ -475,38 +463,60 @@ export const getQueryParamsForTourSpot = (
 };
 
 export type LatLngt = { lat: number; lngt: number };
-export type MetaDataForSpike = {
-  distances: number[];
-  delta: number[];
-  deltaAvg: number[];
-  deltaSepAvg: number[];
-  seperatedIdxs: number[];
-};
-export type DistanceMap<
-  Type extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
-> = {
-  me: Type;
-  withHotel: {
-    data: SearchHotelRes[];
-    metaDataForDistance: MetaDataForSpike;
-  };
-  withRestaurant: {
-    data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
-    metaDataForDistance: MetaDataForSpike;
-  };
-  withSpot: {
-    data: (GglNearbySearchRes & { geometry: Gglgeometry })[];
-    metaDataForDistance: MetaDataForSpike;
-  };
-}[];
+// export type MetaDataForSpike = {
+//   distances: number[];
+//   delta: number[];
+//   deltaAvg: number[];
+//   deltaSepAvg: number[];
+//   seperatedIdxs: number[];
+// };
+// export type DistanceMap<
+//   Type extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+// > = {
+//   me: Type;
+//   withHotel: {
+//     data: SearchHotelRes[];
+//     metaDataForDistance: MetaDataForSpike;
+//   };
+//   withRestaurant: {
+//     data: GglNearbySearchResIncludedGeometry[];
+//     metaDataForDistance: MetaDataForSpike;
+//   };
+//   withSpot: {
+//     data: GglNearbySearchResIncludedGeometry[];
+//     metaDataForDistance: MetaDataForSpike;
+//   };
+// }[];
 
-export interface EvalSeperatedPlacesReqParams {
-  searchHotelRes: SearchHotelRes[];
-  touringSpotGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-  restaurantGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-  baseType?: 'hotel' | 'spot' | 'restaurant';
-}
+// export interface EvalSeperatedPlacesReqParams {
+//   searchHotelRes: SearchHotelRes[];
+//   touringSpotGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
+//   restaurantGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
+//   baseType?: 'hotel' | 'spot' | 'restaurant';
+// }
+
+export type DistanceMap = {
+  data: SearchHotelRes | GglNearbySearchResIncludedGeometry;
+  withHotels: {
+    data: SearchHotelRes;
+    distance: number;
+  }[];
+  withRestaurants: {
+    data: GglNearbySearchResIncludedGeometry;
+    distance: number;
+  }[];
+  withSpots: {
+    data: GglNearbySearchResIncludedGeometry;
+    distance: number;
+  }[];
+};
 
 export type GglNearbySearchResIncludedGeometry = GglNearbySearchRes & {
   geometry: Gglgeometry;
+};
+
+export type ScheduleNodeList = {
+  hotel: SearchHotelRes[];
+  restaurant: GglNearbySearchResIncludedGeometry[];
+  spot: GglNearbySearchResIncludedGeometry[];
 };
