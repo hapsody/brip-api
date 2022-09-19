@@ -55,15 +55,15 @@ import {
   GglNearbySearchResIncludedGeometry,
   ScheduleNodeList,
   MealOrder,
+  mealPerDay,
+  spotPerDay,
+  minHotelBudgetPortion,
+  midHotelBudgetPortion,
+  maxHotelBudgetPortion,
+  VisitOrder,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
-const mealPerDay = 2;
-const spotPerDay = 2;
-export const minHotelBudgetPortion = 0.5;
-export const midHotelBudgetPortion = 0.6;
-export const maxHotelBudgetPortion = 0.7;
-// const hotelPerDay = 1;
 
 const createQueryParamId = async (
   prismaX: Omit<
@@ -825,7 +825,7 @@ export const compositeSearch = asyncWrapper(
  * 구글 nearbySearch, rapid api booking.com hotelSearch를 한번의 쿼리로 복합 검색시(compositeSearch / getRecommendListWithLatLngt 등 ...)
  * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수
  */
-const getListQueryParamsInnerAsyncFn = async (
+export const getListQueryParamsInnerAsyncFn = async (
   params: GetListQueryParamsReqParams,
 ): Promise<GetListQueryParamsInnerAsyncFnResponse> => {
   const queryParamsDataFromDB = await prisma.queryParams.findMany(params);
@@ -1346,9 +1346,9 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
 
     const minHotelBudget = minBudget * minHotelBudgetPortion;
     const dailyMinBudget = minHotelBudget / travelNights;
-
     const midBudget = (minBudget + maxBudget) / 2;
     const flexPortionLimit = 1.3;
+
     const midHotelBudget = midBudget * midHotelBudgetPortion;
     const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;
 
@@ -1427,10 +1427,15 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDaySpotFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
     const thatDayRestaurantFromMinHotel: GglNearbySearchResIncludedGeometry[] =
       [];
+    const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
     if (minBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         minBudgetHotel;
+      thatDayVisitOrderFromMinHotel.push({
+        type: 'hotel',
+        id: prevDest,
+      });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
       for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
@@ -1441,6 +1446,10 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMinHotel.push(destination);
+          thatDayVisitOrderFromMinHotel.push({
+            type: 'restaurant',
+            id: destination,
+          });
           prevDest = destination;
           minNodeLists = {
             ...minNodeLists,
@@ -1458,7 +1467,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMinHotel.push(destination);
+          thatDayVisitOrderFromMinHotel.push({
+            type: 'spot',
+            id: destination,
+          });
           prevDest = destination;
+
           minNodeLists = {
             ...minNodeLists,
             spot: distanceMapsFromBase.withSpots
@@ -1475,12 +1489,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDaySpotFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
     const thatDayRestaurantFromMidHotel: GglNearbySearchResIncludedGeometry[] =
       [];
-
+    const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
     if (midBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
 
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         midBudgetHotel;
+      thatDayVisitOrderFromMidHotel.push({
+        type: 'hotel',
+        id: prevDest,
+      });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
       for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
@@ -1491,7 +1509,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMidHotel.push(destination);
+          thatDayVisitOrderFromMidHotel.push({
+            type: 'restaurant',
+            id: destination,
+          });
           prevDest = destination;
+
           midNodeLists = {
             ...midNodeLists,
             restaurant: distanceMapsFromBase.withRestaurants
@@ -1508,6 +1531,10 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMidHotel.push(destination);
+          thatDayVisitOrderFromMidHotel.push({
+            type: 'spot',
+            id: destination,
+          });
           prevDest = destination;
           midNodeLists = {
             ...midNodeLists,
@@ -1525,10 +1552,15 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDaySpotFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
     const thatDayRestaurantFromMaxHotel: GglNearbySearchResIncludedGeometry[] =
       [];
+    const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
     if (maxBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
       let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
         maxBudgetHotel;
+      thatDayVisitOrderFromMaxHotel.push({
+        type: 'hotel',
+        id: prevDest,
+      });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
       for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
@@ -1539,6 +1571,10 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMaxHotel.push(destination);
+          thatDayVisitOrderFromMaxHotel.push({
+            type: 'restaurant',
+            id: destination,
+          });
           prevDest = destination;
           maxNodeLists = {
             ...maxNodeLists,
@@ -1556,6 +1592,10 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           });
           destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMaxHotel.push(destination);
+          thatDayVisitOrderFromMaxHotel.push({
+            type: 'spot',
+            id: destination,
+          });
           prevDest = destination;
           maxNodeLists = {
             ...maxNodeLists,
@@ -1570,6 +1610,11 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     acc.push({
+      visitOrder: {
+        ordersFromMinHotel: thatDayVisitOrderFromMinHotel,
+        ordersFromMidHotel: thatDayVisitOrderFromMidHotel,
+        ordersFromMaxHotel: thatDayVisitOrderFromMaxHotel,
+      },
       spot: {
         spotsFromMinHotel: thatDaySpotFromMinHotel.map(e => {
           return {

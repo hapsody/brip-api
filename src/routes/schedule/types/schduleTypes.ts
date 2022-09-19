@@ -9,6 +9,13 @@ import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
 import { isUndefined } from 'lodash';
 
+export const mealPerDay = 2;
+export const spotPerDay = 2;
+export const minHotelBudgetPortion = 0.5;
+export const midHotelBudgetPortion = 0.6;
+export const maxHotelBudgetPortion = 0.7;
+// const hotelPerDay = 1;
+
 export interface NearBySearchReqParams {
   keyword: string;
   location: {
@@ -197,9 +204,19 @@ export interface FiltersForSearchFromBookingComReqParams {
   childrenAges?: number[];
 }
 
+export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
+export type VisitOrder = {
+  type: VisitPlaceType;
+  id: SearchHotelRes | GglNearbySearchResIncludedGeometry;
+};
 export type VisitSchedules = {
   // spot: GglNearbySearchRes[];
   // restaurant: GglNearbySearchRes[];
+  visitOrder: {
+    ordersFromMinHotel: VisitOrder[];
+    ordersFromMidHotel: VisitOrder[];
+    ordersFromMaxHotel: VisitOrder[];
+  };
   spot: {
     spotsFromMinHotel: GglNearbySearchResIncludedGeometry[];
     spotsFromMidHotel: GglNearbySearchResIncludedGeometry[];

@@ -8,12 +8,15 @@ import {
   GetRecommendListWithLatLngtResponse,
   GetListQueryParamsResponse,
   GetRecommendListWithLatLngtInnerAsyncFnResponse,
-} from '../../../types/schduleTypes';
-import {
-  getTravelNights,
+  // getQueryParamsForRestaurant,
+  // getQueryParamsForTourSpot,
   minHotelBudgetPortion,
   midHotelBudgetPortion,
   maxHotelBudgetPortion,
+} from '../../../types/schduleTypes';
+import {
+  getTravelNights,
+  // getListQueryParamsInnerAsyncFn,
 } from '../../../schedule';
 
 import {
@@ -310,6 +313,26 @@ describe('Correct case test', () => {
         });
       }
     });
-    it('전체 여행일정중 추천된 전체 장소들을 확인하여 같은날 추천된 장소들끼리 에 가장 최선의 선택(거리)이었는지 검증', async () => {});
+    it('전체 여행일정중 추천된 전체 장소들을 확인하여 같은날 추천된 장소들끼리 에 가장 최선의 선택(거리)이었는지 검증', async () => {
+      // 추천된 전체 장소 불러오기
+      // const restaurantQueryParamsDataFromDB =
+      //   await getListQueryParamsInnerAsyncFn(
+      //     getQueryParamsForRestaurant(queryParamId),
+      //   );
+      // const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+      //   getQueryParamsForTourSpot(queryParamId),
+      // );
+      // const {
+      //   searchHotelRes,
+      //   gglNearbySearchRes: restaurantGglNearbySearchRes,
+      // } = restaurantQueryParamsDataFromDB[0];
+      // const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
+      //   spotQueryParamsDataFromDB[0];
+      // // api 호출 결과와 함께 분석
+      // const hotels = recommendRes.visitSchedules.map(
+      //   schedule => schedule.hotel,
+      // );
+      // hotels.map(e => e.minBudgetHotel);
+    });
   });
 });
