@@ -27,73 +27,78 @@ import {
   params,
 } from './testData';
 
+// let queryParamId = -1;
+let recommendRawResult: GetRecommendListWithLatLngtResponse;
+let recommendRes: GetRecommendListWithLatLngtInnerAsyncFnResponse;
+beforeAll(async () => {
+  const response = await request(app)
+    .post('/schedule/getRecommendListWithLatLngt')
+    .send(params);
+
+  recommendRawResult = response.body as GetRecommendListWithLatLngtResponse;
+  recommendRes =
+    recommendRawResult.IBparams as GetRecommendListWithLatLngtInnerAsyncFnResponse;
+  // queryParamId = recommendRes.id;
+});
+
 jest.setTimeout(100000);
 
 describe('Correct case test', () => {
   describe('1차적 정상 요청 예시 검증', () => {
     it('First Case', async () => {
-      const response = await request(app)
-        .post('/schedule/getRecommendListWithLatLngt')
-        .send(params);
-
-      const result = response.body as GetRecommendListWithLatLngtResponse;
-
-      const iBparams =
-        result.IBparams as GetRecommendListWithLatLngtInnerAsyncFnResponse;
-
       // 파라미터 입력값이 제대로 반영된 결과인지 파라미터 값과 응답값 비교 part
-      expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
-      expect(iBparams.id).toBeGreaterThan(0);
+      expect(recommendRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+      expect(recommendRes.id).toBeGreaterThan(0);
 
-      expect(typeof iBparams.id).toBe('number');
-      if (iBparams.keyword === null || iBparams.keyword === '') {
+      expect(typeof recommendRes.id).toBe('number');
+      if (recommendRes.keyword === null || recommendRes.keyword === '') {
         expect([undefined, null, '']).toContain(
           params.searchCond.nearbySearchReqParams.keyword,
         );
       } else {
-        expect(iBparams.keyword).toBe(
+        expect(recommendRes.keyword).toBe(
           params.searchCond.nearbySearchReqParams.keyword,
         );
       }
 
-      expect(iBparams.latitude).toBeCloseTo(
+      expect(recommendRes.latitude).toBeCloseTo(
         Number.parseFloat(
           params.searchCond.nearbySearchReqParams.location.latitude,
         ),
         6,
       );
-      expect(iBparams.longitude).toBeCloseTo(
+      expect(recommendRes.longitude).toBeCloseTo(
         Number.parseFloat(
           params.searchCond.nearbySearchReqParams.location.longitude,
         ),
         6,
       );
-      expect(iBparams.radius).toBe(
+      expect(recommendRes.radius).toBe(
         params.searchCond.nearbySearchReqParams.radius,
       );
-      expect(iBparams.hotelOrderBy).toBe(
+      expect(recommendRes.hotelOrderBy).toBe(
         params.searchCond.searchHotelReqParams.orderBy,
       );
-      expect(iBparams.hotelAdultsNumber).toBe(
+      expect(recommendRes.hotelAdultsNumber).toBe(
         params.searchCond.searchHotelReqParams.adultsNumber,
       );
-      expect(iBparams.hotelUnits).toBeNull();
-      expect(iBparams.hotelRoomNumber).toBe(
+      expect(recommendRes.hotelUnits).toBeNull();
+      expect(recommendRes.hotelRoomNumber).toBe(
         params.searchCond.searchHotelReqParams.roomNumber,
       );
-      expect(iBparams.hotelCheckinDate).toBe(
+      expect(recommendRes.hotelCheckinDate).toBe(
         new Date(
           params.searchCond.searchHotelReqParams.checkinDate,
         ).toISOString(),
       );
-      expect(iBparams.hotelCheckoutDate).toBe(
+      expect(recommendRes.hotelCheckoutDate).toBe(
         new Date(
           params.searchCond.searchHotelReqParams.checkoutDate,
         ).toISOString(),
       );
-      expect(iBparams.hotelFilterByCurrency).toBeNull();
+      expect(recommendRes.hotelFilterByCurrency).toBeNull();
 
-      expect(typeof iBparams.visitSchedulesCount).toBe('number');
+      expect(typeof recommendRes.visitSchedulesCount).toBe('number');
 
       // 검색 된 호텔 결과값 확인 부분
       // 1. recommendedXXXHotelCount와 여행일수 및 hotelTransition 입력 파라미터에 따른 도출 결과 수와 일치하는지 비교
@@ -104,7 +109,7 @@ describe('Correct case test', () => {
         .post('/schedule/getListQueryParams')
         .send({
           where: {
-            id: iBparams.id,
+            id: recommendRes.id,
           },
           include: {
             gglNearbySearchRes: true,
@@ -122,7 +127,7 @@ describe('Correct case test', () => {
           recommendedMidHotelCount,
           recommendedMaxHotelCount,
         },
-      } = iBparams;
+      } = recommendRes;
 
       let minBudgetHotelCount = 0;
       let midBudgetHotelCount = 0;
@@ -140,33 +145,33 @@ describe('Correct case test', () => {
         const { spot, hotel } = visitSchedule;
         const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
         expect(spot.spotsFromMinHotel.length).toBe(
-          iBparams.metaInfo.spotPerDay,
+          recommendRes.metaInfo.spotPerDay,
         );
         expect(spot.spotsFromMidHotel.length).toBe(
-          iBparams.metaInfo.spotPerDay,
+          recommendRes.metaInfo.spotPerDay,
         );
         expect(spot.spotsFromMaxHotel.length).toBe(
-          iBparams.metaInfo.spotPerDay,
+          recommendRes.metaInfo.spotPerDay,
         );
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot.spotsFromMinHotel) {
-          expect(aSpot.queryParamsId).toBe(iBparams.id);
+          expect(aSpot.queryParamsId).toBe(recommendRes.id);
         }
 
         if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
-          expect(minBudgetHotel.queryParamsId).toBe(iBparams.id);
+          expect(minBudgetHotel.queryParamsId).toBe(recommendRes.id);
           prevMinBudgetHotel = minBudgetHotel;
           minBudgetHotelCount += 1;
         }
 
         if (midBudgetHotel && prevMidBudgetHotel?.id !== midBudgetHotel.id) {
-          expect(midBudgetHotel.queryParamsId).toBe(iBparams.id);
+          expect(midBudgetHotel.queryParamsId).toBe(recommendRes.id);
           prevMidBudgetHotel = midBudgetHotel;
           midBudgetHotelCount += 1;
         }
 
         if (maxBudgetHotel && prevMaxBudgetHotel?.id !== maxBudgetHotel.id) {
-          expect(maxBudgetHotel.queryParamsId).toBe(iBparams.id);
+          expect(maxBudgetHotel.queryParamsId).toBe(recommendRes.id);
           prevMaxBudgetHotel = maxBudgetHotel;
           maxBudgetHotelCount += 1;
         }
@@ -239,11 +244,72 @@ describe('Correct case test', () => {
   });
   describe(' 호텔 결과값이 정상적인지 분석', () => {
     it('위경도 근방 호텔인지 검증', async () => {});
-    it('체크인 체크 아웃 날짜 범주에 포함하는지 검증', async () => {});
-    it('입력한 order_by 결과값에 맞게 정렬되었는지 검증', async () => {});
-    it('카테고리에 해당하는 결과값이 맞는지 검증', async () => {});
-    it('동일한 조건에 page_number만 다를경우 page_number 마다의 호텔 결과가 중복되지 않고 바뀌는지 검증, ', async () => {});
-    it('evalCond 파라미터에 입력한 orderBy 결과값에 맞게 정렬되었는지 검증', async () => {});
+    it('체크인 체크 아웃 날짜 범주에 포함하는지 검증', async () => {
+      // 개별 호텔 정보에 체크인 체크아웃 날짜가 씌여있지 않아 검증불가
+      // const { visitSchedules } = recommendRes;
+      // const hotels = visitSchedules.map(schedule => schedule.hotel);
+    });
+    it('카테고리에 해당하는 결과값이 맞는지 검증', () => {
+      const { visitSchedules } = recommendRes;
+      const hotels = visitSchedules.map(schedule => schedule.hotel);
+      const categoryIdx =
+        params.searchCond.searchHotelReqParams.categoriesFilterIds.findIndex(
+          e => e === 'property_type::204', // Hotel
+        );
+      if (categoryIdx > -1) {
+        hotels.forEach(hotel => {
+          if (hotel.minBudgetHotel) {
+            expect(hotel.minBudgetHotel?.accommodation_type_name).toContain(
+              'Hotel',
+            );
+          }
+          if (hotel.midBudgetHotel) {
+            expect(hotel.midBudgetHotel?.accommodation_type_name).toContain(
+              'Hotel',
+            );
+          }
+          if (hotel.maxBudgetHotel) {
+            expect(hotel.maxBudgetHotel?.accommodation_type_name).toContain(
+              'Hotel',
+            );
+          }
+        });
+      }
+    });
+    it('동일한 조건에 page_number만 다를경우 page_number 마다의 호텔 결과가 중복되지 않고 바뀌는지 검증, ', async () => {
+      // 호텔 외부 API 인 search-by-coordinates 수작업 검증 o, 테스트코드에 포함시켜 반복 쿼리 테스트할 필요 x
+      // booking.com 로직에 오류가 없는한 동일한 기조의 결과값을 응답할 것임
+    });
+    it('evalCond 파라미터에 입력한 orderBy 결과값에 맞게 정렬되었는지 검증', () => {
+      const { visitSchedules } = recommendRes;
+      const hotels = visitSchedules.map(schedule => schedule.hotel);
+      if (params.searchCond.searchHotelReqParams.orderBy === 'review_score') {
+        let prevIdx = -1;
+        hotels.forEach((hotel, index) => {
+          if (prevIdx > -1) {
+            const curMinHotelReviewScore = hotel.minBudgetHotel?.review_score;
+            const prevMinHotelReviewScore =
+              hotels[prevIdx].minBudgetHotel?.review_score;
+
+            if (curMinHotelReviewScore && prevMinHotelReviewScore) {
+              expect(curMinHotelReviewScore).not.toBeUndefined();
+              expect(prevMinHotelReviewScore).not.toBeUndefined();
+              if (index > prevIdx) {
+                expect(prevMinHotelReviewScore).toBeGreaterThanOrEqual(
+                  curMinHotelReviewScore,
+                );
+              } else {
+                expect(curMinHotelReviewScore).toBeGreaterThanOrEqual(
+                  prevMinHotelReviewScore,
+                );
+              }
+            }
+          }
+
+          prevIdx = index;
+        });
+      }
+    });
     it('전체 여행일정중 추천된 전체 장소들을 확인하여 같은날 추천된 장소들끼리 에 가장 최선의 선택(거리)이었는지 검증', async () => {});
   });
 });

@@ -96,7 +96,7 @@ export const params = {
     },
     searchHotelReqParams: {
       radius: 4000,
-      orderBy: 'popularity',
+      orderBy: 'review_score', // popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price
       adultsNumber: 2,
       // childrenNumber,
       // childrenAges,
