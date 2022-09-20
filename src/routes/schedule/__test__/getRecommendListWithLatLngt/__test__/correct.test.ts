@@ -18,6 +18,7 @@ import {
   GglNearbySearchResIncludedGeometry,
   VisitOrder,
   VisitPlaceType,
+  flexPortionLimit,
 } from '../../../types/schduleTypes';
 import {
   getTravelNights,
@@ -53,8 +54,8 @@ beforeAll(async () => {
 jest.setTimeout(100000);
 
 describe('Correct case test', () => {
-  describe('1차적 정상 요청 예시 검증', () => {
-    it('First Case', async () => {
+  describe('정상 요청 예시 검증', () => {
+    it('파라미터 입력값이 제대로 반영된 결과인지 파라미터 값과 응답값 비교', () => {
       // 파라미터 입력값이 제대로 반영된 결과인지 파라미터 값과 응답값 비교 part
       expect(recommendRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
       expect(recommendRes.id).toBeGreaterThan(0);
@@ -104,11 +105,13 @@ describe('Correct case test', () => {
       expect(recommendRes.hotelFilterByCurrency).toBeNull();
 
       expect(typeof recommendRes.visitSchedulesCount).toBe('number');
+    });
 
-      // 검색 된 호텔 결과값 확인 부분
+    it('호텔 결과값 유효성 확인', async () => {
+      // 아래 로직으로 검색 된 호텔 결과값 확인된 부분
       // 1. recommendedXXXHotelCount와 여행일수 및 hotelTransition 입력 파라미터에 따른 도출 결과 수와 일치하는지 비교
       // 2. 각 일자별 추천 호텔들이 min, mid, max 하루치 예산을 초과하지 않는지 확인
-      // 3. 추천된 호텔이 없을 경우 실제 테스트때 검색된 호텔 결과들을 불러 예산을 초과하여 추천되지 않았는지 검증
+      // 3. 만약 /getRecommendListWithLatLngt api를 통해 응답된 값중에 추천된 호텔이 없이 비어있는 항목이 있는 경우 예산이 해당 쿼리에서 전체 검색된 호텔 결과들을 불러 예산을 초과하여 추천되지 않았는지 검증
       // 4. 추천된 호텔이 있을 경우 추천된 호텔의 일일 숙박비 총합이 하루 예산을 넘지 않는지 검증
       const checkResponse = await request(app)
         .post('/schedule/getListQueryParams')
@@ -207,7 +210,7 @@ describe('Correct case test', () => {
         const dailyMinBudget = minHotelBudget / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
-          item => item.min_total_price < dailyMinBudget,
+          item => item.min_total_price / travelNights < dailyMinBudget,
         );
         expect(filtered).toHaveLength(0);
       } else {
@@ -219,7 +222,6 @@ describe('Correct case test', () => {
       const midBudget = (minBudget + maxBudget) / 2;
       if (recommendedMidHotelCount === 0) {
         const midHotelBudget = midBudget * midHotelBudgetPortion;
-        const flexPortionLimit = 1.3;
         const dailyMidBudget =
           (midHotelBudget * flexPortionLimit) / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);

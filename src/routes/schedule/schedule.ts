@@ -61,6 +61,7 @@ import {
   midHotelBudgetPortion,
   maxHotelBudgetPortion,
   VisitOrder,
+  flexPortionLimit,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -1406,7 +1407,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const minHotelBudget = minBudget * minHotelBudgetPortion;
     const dailyMinBudget = minHotelBudget / travelNights;
     const midBudget = (minBudget + maxBudget) / 2;
-    const flexPortionLimit = 1.3;
+    // const flexPortionLimit = 1.3;
 
     const midHotelBudget = midBudget * midHotelBudgetPortion;
     const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;

@@ -14,6 +14,7 @@ export const spotPerDay = 2;
 export const minHotelBudgetPortion = 0.5;
 export const midHotelBudgetPortion = 0.6;
 export const maxHotelBudgetPortion = 0.7;
+export const flexPortionLimit = 1.3;
 // const hotelPerDay = 1;
 
 export interface NearBySearchReqParams {
