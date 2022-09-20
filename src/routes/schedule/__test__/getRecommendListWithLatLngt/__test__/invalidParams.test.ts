@@ -179,10 +179,7 @@ describe('Invalid parameter case tests', () => {
             ...params.searchCond,
             nearbySearchReqParams: {
               ...params.searchCond.nearbySearchReqParams,
-              location: {
-                latitude: undefined,
-                longitude: undefined,
-              },
+              location: {},
             },
           },
         })
@@ -194,6 +191,31 @@ describe('Invalid parameter case tests', () => {
       expect(emptyLocationResult.IBcode).toBe('3001');
       expect(emptyLocationResult.IBdetail).toBe(
         '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+      );
+    });
+
+    it('params 중 hotel latitude, longitude 미제공', async () => {
+      // # hotel latitude, longitude 미제공
+      const emptyHotelLocationResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            searchHotelReqParams: {
+              latitude: undefined,
+              longitude: undefined,
+            },
+          },
+        })
+        .expect(400);
+
+      const emptyHotelLocationResult =
+        emptyHotelLocationResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(emptyHotelLocationResult.IBcode).toBe('3001');
+      expect(emptyHotelLocationResult.IBdetail).toBe(
+        '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
       );
     });
   });

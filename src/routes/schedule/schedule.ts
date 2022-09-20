@@ -1257,6 +1257,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   } = searchCond;
 
   const { radius = 4000, location } = nearbySearchReqParams;
+  const { latitude: hotelLat, longitude: hotelLngt } = searchHotelReqParams;
 
   if (minBudget === 0 || maxBudget === 0) {
     throw new IBError({
@@ -1274,6 +1275,14 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       type: 'INVALIDPARAMS',
       message:
         '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+    });
+  }
+
+  if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
     });
   }
 
