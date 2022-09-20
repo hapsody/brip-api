@@ -1256,10 +1256,24 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     searchHotelReqParams,
   } = searchCond;
 
+  const { radius = 4000, location } = nearbySearchReqParams;
+
   if (minBudget === 0 || maxBudget === 0) {
     throw new IBError({
       type: 'INVALIDPARAMS',
       message: 'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+    });
+  }
+
+  if (
+    isEmpty(location) ||
+    isEmpty(location.latitude) ||
+    isEmpty(location.longitude)
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
     });
   }
 
@@ -1317,7 +1331,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       nearbySearchReqParams: {
         ...nearbySearchReqParams,
         keyword: 'restaurant',
-        radius: nearbySearchReqParams.radius * radiusExtendRetry,
+        radius: radius * radiusExtendRetry,
       },
     };
     // eslint-disable-next-line no-await-in-loop
@@ -1344,7 +1358,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       nearbySearchReqParams: {
         ...nearbySearchReqParams,
         keyword: 'tourist places',
-        radius: nearbySearchReqParams.radius * radiusExtendRetry,
+        radius: radius * radiusExtendRetry,
       },
     };
     // eslint-disable-next-line no-await-in-loop

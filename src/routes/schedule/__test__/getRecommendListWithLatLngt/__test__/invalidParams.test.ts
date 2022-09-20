@@ -30,7 +30,7 @@ describe('Invalid parameter case tests', () => {
     // it('params 내의 모든 프로퍼티 값이 => null', async () => {}); // not need case
     // it('params 내의 모든 프로퍼티 값이 => undefined', async () => {});  //not need case
 
-    it('params 중 일부의 타입이 잘못 전달됨', async () => {
+    it('params 중 minBudget 또는 maxBudget 누락', async () => {
       // # minBudget 또는 maxBudget 누락
       const emptyMinBudgetResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
@@ -69,8 +69,9 @@ describe('Invalid parameter case tests', () => {
       expect(emptyMaxBudgetResult.IBdetail).toBe(
         'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
       );
+    });
 
-      // # travelStartDate 또는 travelEndDate 누락
+    it('params 중 travelStartDate 또는 travelEndDate 누락', async () => {
       const emptyDateResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
         .send({
@@ -90,6 +91,8 @@ describe('Invalid parameter case tests', () => {
       expect(emptyDateResult.IBdetail).toBe(
         'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
       );
+    });
+    it('params 중 travelStartDate 또는 travelEndDate의 ISOString 타입이 아닌 travelStartDate, travelEndDate', async () => {
       // # ISOString 타입이 아닌 travelStartDate, travelEndDate
       const InvalidDateTypeResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
@@ -109,6 +112,88 @@ describe('Invalid parameter case tests', () => {
       expect(InvalidDateTypeResult.IBcode).toBe('3001');
       expect(InvalidDateTypeResult.IBdetail).toBe(
         'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+      );
+    });
+
+    it('params 중 latitude, longitude 미제공', async () => {
+      // # latitude, longitude 미제공
+      const emptyLatLngtResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            nearbySearchReqParams: {
+              ...params.searchCond.nearbySearchReqParams,
+              location: {
+                latitude: undefined,
+                longitude: undefined,
+              },
+            },
+          },
+        })
+        .expect(400);
+
+      const emptyLatLngtResult =
+        emptyLatLngtResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(emptyLatLngtResult.IBcode).toBe('3001');
+      expect(emptyLatLngtResult.IBdetail).toBe(
+        '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+      );
+    });
+    it('params 중 latitude, longitude null 제공', async () => {
+      // # latitude, longitude 미제공
+      const nullLatLngtResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            nearbySearchReqParams: {
+              ...params.searchCond.nearbySearchReqParams,
+              location: {
+                latitude: null,
+                longitude: null,
+              },
+            },
+          },
+        })
+        .expect(400);
+
+      const nullLatLngtResult =
+        nullLatLngtResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(nullLatLngtResult.IBcode).toBe('3001');
+      expect(nullLatLngtResult.IBdetail).toBe(
+        '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+      );
+    });
+    it('params 중 location 미제공', async () => {
+      // # location 미제공
+      const emptyLocationResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            nearbySearchReqParams: {
+              ...params.searchCond.nearbySearchReqParams,
+              location: {
+                latitude: undefined,
+                longitude: undefined,
+              },
+            },
+          },
+        })
+        .expect(400);
+
+      const emptyLocationResult =
+        emptyLocationResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(emptyLocationResult.IBcode).toBe('3001');
+      expect(emptyLocationResult.IBdetail).toBe(
+        '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
       );
     });
   });
