@@ -1235,6 +1235,13 @@ export const orderByDistanceFromNode = ({
 const getRecommendListWithLatLngtInnerAsyncFn = async (
   params: GetRecommendListWithLatLngtReqParams,
 ): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
+  if (isEmpty(params)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'parameter가 필요합니다.',
+    });
+  }
+
   const { searchCond } = params;
   const {
     minBudget = 0, // 여행 전체일정중 최소비용
@@ -1725,7 +1732,7 @@ const getRecommendListWithLatLngt = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
-          res.json({
+          res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
