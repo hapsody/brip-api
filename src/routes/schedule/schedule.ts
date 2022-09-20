@@ -1263,6 +1263,19 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     });
   }
 
+  if (
+    isEmpty(travelStartDate) ||
+    isEmpty(travelEndDate) ||
+    !(new Date(travelStartDate) instanceof Date) ||
+    !(new Date(travelEndDate) instanceof Date)
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+    });
+  }
+
   const travelNights = getTravelNights(
     // searchCond.searchHotelReqParams.checkinDate,
     // searchCond.searchHotelReqParams.checkoutDate,
