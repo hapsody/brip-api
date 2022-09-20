@@ -922,7 +922,7 @@ const getDistance = ({
 //   };
 // };
 
-const orderByDistanceFromNode = ({
+export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
 }: {
@@ -1434,7 +1434,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
         minBudgetHotel;
       thatDayVisitOrderFromMinHotel.push({
         type: 'hotel',
-        id: prevDest,
+        data: prevDest,
       });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
@@ -1448,7 +1448,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDayRestaurantFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'restaurant',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
           minNodeLists = {
@@ -1469,7 +1469,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDaySpotFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'spot',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
 
@@ -1497,7 +1497,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
         midBudgetHotel;
       thatDayVisitOrderFromMidHotel.push({
         type: 'hotel',
-        id: prevDest,
+        data: prevDest,
       });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
@@ -1511,7 +1511,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDayRestaurantFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'restaurant',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
 
@@ -1533,7 +1533,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDaySpotFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'spot',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
           midNodeLists = {
@@ -1559,7 +1559,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
         maxBudgetHotel;
       thatDayVisitOrderFromMaxHotel.push({
         type: 'hotel',
-        id: prevDest,
+        data: prevDest,
       });
       const mealOrder = new MealOrder();
       let nextMealOrder = mealOrder.getNextMealOrder();
@@ -1573,7 +1573,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDayRestaurantFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'restaurant',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
           maxNodeLists = {
@@ -1594,7 +1594,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
           thatDaySpotFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'spot',
-            id: destination,
+            data: destination,
           });
           prevDest = destination;
           maxNodeLists = {

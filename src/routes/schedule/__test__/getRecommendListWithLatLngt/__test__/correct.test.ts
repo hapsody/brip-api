@@ -1,22 +1,28 @@
 import request from 'supertest';
 import app from '@src/app';
-// import prisma from '@src/prisma';
+import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
 import { ibDefs } from '@src/utils';
-import { SearchHotelRes } from '@prisma/client';
+import { GglNearbySearchRes, SearchHotelRes } from '@prisma/client';
 import {
   GetRecommendListWithLatLngtResponse,
   GetListQueryParamsResponse,
   GetRecommendListWithLatLngtInnerAsyncFnResponse,
-  // getQueryParamsForRestaurant,
-  // getQueryParamsForTourSpot,
+  getQueryParamsForRestaurant,
+  getQueryParamsForTourSpot,
   minHotelBudgetPortion,
   midHotelBudgetPortion,
   maxHotelBudgetPortion,
+  mealPerDay,
+  spotPerDay,
+  GglNearbySearchResIncludedGeometry,
+  VisitOrder,
+  VisitPlaceType,
 } from '../../../types/schduleTypes';
 import {
   getTravelNights,
-  // getListQueryParamsInnerAsyncFn,
+  getListQueryParamsInnerAsyncFn,
+  orderByDistanceFromNode,
 } from '../../../schedule';
 
 import {
@@ -30,7 +36,7 @@ import {
   params,
 } from './testData';
 
-// let queryParamId = -1;
+let queryParamId = -1;
 let recommendRawResult: GetRecommendListWithLatLngtResponse;
 let recommendRes: GetRecommendListWithLatLngtInnerAsyncFnResponse;
 beforeAll(async () => {
@@ -41,7 +47,7 @@ beforeAll(async () => {
   recommendRawResult = response.body as GetRecommendListWithLatLngtResponse;
   recommendRes =
     recommendRawResult.IBparams as GetRecommendListWithLatLngtInnerAsyncFnResponse;
-  // queryParamId = recommendRes.id;
+  queryParamId = recommendRes.id;
 });
 
 jest.setTimeout(100000);
@@ -314,25 +320,245 @@ describe('Correct case test', () => {
       }
     });
     it('전체 여행일정중 추천된 전체 장소들을 확인하여 같은날 추천된 장소들끼리 에 가장 최선의 선택(거리)이었는지 검증', async () => {
+      const assertOrderType = (thisOrder: VisitOrder): VisitOrder => {
+        switch (thisOrder.type) {
+          case 'hotel': {
+            return {
+              type: 'hotel',
+              data: thisOrder.data as SearchHotelRes,
+            };
+          }
+          case 'spot':
+            return {
+              type: 'spot',
+              data: thisOrder.data as GglNearbySearchResIncludedGeometry,
+            };
+          case 'restaurant':
+          default: {
+            return {
+              type: 'restaurant',
+              data: thisOrder.data as GglNearbySearchResIncludedGeometry,
+            };
+          }
+        }
+      };
       // 추천된 전체 장소 불러오기
-      // const restaurantQueryParamsDataFromDB =
-      //   await getListQueryParamsInnerAsyncFn(
-      //     getQueryParamsForRestaurant(queryParamId),
-      //   );
-      // const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
-      //   getQueryParamsForTourSpot(queryParamId),
-      // );
-      // const {
-      //   searchHotelRes,
-      //   gglNearbySearchRes: restaurantGglNearbySearchRes,
-      // } = restaurantQueryParamsDataFromDB[0];
-      // const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
-      //   spotQueryParamsDataFromDB[0];
-      // // api 호출 결과와 함께 분석
-      // const hotels = recommendRes.visitSchedules.map(
-      //   schedule => schedule.hotel,
-      // );
-      // hotels.map(e => e.minBudgetHotel);
+      const restaurantQueryParamsDataFromDB =
+        await getListQueryParamsInnerAsyncFn(
+          getQueryParamsForRestaurant(queryParamId),
+        );
+      const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+        getQueryParamsForTourSpot(queryParamId),
+      );
+      const {
+        searchHotelRes,
+        gglNearbySearchRes: restaurantGglNearbySearchRes,
+      } = restaurantQueryParamsDataFromDB[0];
+      const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
+        spotQueryParamsDataFromDB[0];
+
+      const travelNights = getTravelNights(
+        new Date(params.searchCond.travelStartDate),
+        new Date(params.searchCond.travelEndDate),
+      );
+      const travelDays = travelNights + 1;
+
+      const minHotelBudget = minBudget * minHotelBudgetPortion;
+      const dailyMinBudget = minHotelBudget / travelNights;
+      const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1));
+      // api 호출 결과와 함께 분석
+      const schedules = recommendRes.visitSchedules.map(
+        schedule => schedule.visitOrder,
+      );
+      type CrossCheckResultType = {
+        result: boolean;
+        day: number;
+        order: number;
+        type: VisitPlaceType;
+        data?: SearchHotelRes | GglNearbySearchRes;
+      };
+      const allDayBestMatch: CrossCheckResultType[] = [];
+
+      let nodeLists = {
+        hotel: searchHotelRes,
+        restaurant: restaurantGglNearbySearchRes.slice(
+          0,
+          travelDays * mealPerDay,
+        ),
+        spot: touringSpotGglNearbySearchRes.slice(0, travelDays * spotPerDay),
+      };
+
+      let dayIdx = 0;
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const schedule of schedules) {
+        const { ordersFromMinHotel } = schedule;
+        let prevMinOrder: VisitOrder = assertOrderType(ordersFromMinHotel[0]);
+        // for (let i = 0; i < mealPerDay + spotPerDay + 1; i += 1) {
+        let i = 0;
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const todayMinOrders of ordersFromMinHotel) {
+          // todayMinOrders = ordersFromMinHotel[i];
+          const curMinOrder = assertOrderType(todayMinOrders);
+
+          // eslint-disable-next-line @typescript-eslint/no-loop-func
+          const matchPromise = (async ({
+            type,
+            curOrder,
+            prevOrder,
+          }): Promise<CrossCheckResultType> => {
+            return new Promise<CrossCheckResultType>(resolve => {
+              switch (type) {
+                case 'hotel': {
+                  prisma.searchHotelRes
+                    .findMany({
+                      where: {
+                        queryParamsId: queryParamId,
+                      },
+                      orderBy: [
+                        {
+                          review_score: 'desc',
+                        },
+                        {
+                          distance: 'asc',
+                        },
+                      ],
+                    })
+                    .then(hotels => {
+                      if (hotels) {
+                        const bestHotels = hotels.filter(
+                          hotel =>
+                            hotel.gross_amount_per_night < dailyMinBudget,
+                        );
+
+                        let hotelIdx = (dayIdx + 1) / transitionTerm - 1; // 여행중 n일째 묵고 있을 호텔은 기준에 맞춰 정렬한 리스트중 몇번째 호텔인가를 계산
+                        hotelIdx =
+                          hotelIdx > hotelTransition
+                            ? hotelTransition
+                            : hotelIdx;
+                        if (
+                          bestHotels &&
+                          bestHotels.length > hotelIdx &&
+                          curOrder.data.id === bestHotels[hotelIdx].id
+                        ) {
+                          resolve({
+                            result: true,
+                            day: dayIdx,
+                            order: i,
+                            type: 'hotel',
+                            data: bestHotels[hotelIdx],
+                          });
+                        }
+                      }
+                      // if (res && res.id === curOrder.data.id) resolve(true);
+
+                      resolve({
+                        result: false,
+                        day: dayIdx,
+                        order: i,
+                        type: 'hotel',
+                        data: undefined,
+                      });
+                    })
+                    .catch(() => {
+                      resolve({
+                        result: false,
+                        day: dayIdx,
+                        order: i,
+                        type: 'hotel',
+                        data: undefined,
+                      });
+                    });
+                  break;
+                }
+
+                case 'spot': {
+                  const distanceMap = orderByDistanceFromNode({
+                    baseNode: prevOrder.data,
+                    scheduleNodeLists: nodeLists,
+                  });
+                  nodeLists = {
+                    ...nodeLists,
+                    spot: distanceMap.withSpots
+                      .map(e => e.data)
+                      .slice(1, distanceMap.withSpots.length),
+                  };
+                  if (curOrder.data.id === distanceMap.withSpots[0].data.id) {
+                    resolve({
+                      result: true,
+                      day: dayIdx,
+                      order: i,
+                      type: 'spot',
+                      data: distanceMap.withSpots[0].data,
+                    });
+                    break;
+                  }
+
+                  resolve({
+                    result: false,
+                    day: dayIdx,
+                    order: i,
+                    type: 'spot',
+                    data: distanceMap.withSpots[0].data,
+                  });
+                  break;
+                }
+                case 'restaurant':
+                default: {
+                  const distanceMap = orderByDistanceFromNode({
+                    baseNode: prevOrder.data,
+                    scheduleNodeLists: nodeLists,
+                  });
+                  nodeLists = {
+                    ...nodeLists,
+                    restaurant: distanceMap.withRestaurants
+                      .map(e => e.data)
+                      .slice(1, distanceMap.withRestaurants.length),
+                  };
+                  if (
+                    curOrder.data.id === distanceMap.withRestaurants[0].data.id
+                  ) {
+                    resolve({
+                      result: true,
+                      day: dayIdx,
+                      order: i,
+                      type: 'restaurant',
+                      data: distanceMap.withRestaurants[0].data,
+                    });
+                    break;
+                  }
+
+                  resolve({
+                    result: false,
+                    day: dayIdx,
+                    order: i,
+                    type: 'restaurant',
+                    data: distanceMap.withRestaurants[0].data,
+                  });
+                  break;
+                }
+              }
+            });
+          })({
+            type: curMinOrder.type,
+            curOrder: curMinOrder,
+            prevOrder: prevMinOrder,
+          });
+          const matchResult = await matchPromise;
+          // eslint-disable-next-line no-await-in-loop
+          allDayBestMatch.push(matchResult);
+          prevMinOrder = curMinOrder;
+          i += 1;
+        }
+
+        // }
+        // return allDayBestMatchPromises;
+        dayIdx += 1;
+      }
+
+      const finalMatchResult = allDayBestMatch.findIndex(e => !e);
+      // const result = await Promise.all(allDayBestMatchPromises);
+      // const finalMatchResult = result.findIndex(e => !e);
+      expect(finalMatchResult).toBe(-1);
     });
   });
 });

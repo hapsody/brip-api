@@ -207,7 +207,7 @@ export interface FiltersForSearchFromBookingComReqParams {
 export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
 export type VisitOrder = {
   type: VisitPlaceType;
-  id: SearchHotelRes | GglNearbySearchResIncludedGeometry;
+  data: SearchHotelRes | GglNearbySearchResIncludedGeometry;
 };
 export type VisitSchedules = {
   // spot: GglNearbySearchRes[];
