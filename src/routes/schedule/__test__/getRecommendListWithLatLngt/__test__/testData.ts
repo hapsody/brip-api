@@ -111,27 +111,4 @@ export const params = {
       mock: true,
     },
   },
-
-  // evalCond: {
-  //   nearbySearch: {
-  //     orderBy: [
-  //       {
-  //         column: 'rating',
-  //         sort: 'desc',
-  //       },
-  //     ],
-  //   },
-  //   hotelSearch: {
-  //     orderBy: [
-  //       {
-  //         column: 'review_score',
-  //         sort: 'desc',
-  //       },
-  //       {
-  //         column: 'distance',
-  //         sort: 'asc',
-  //       },
-  //     ],
-  //   },
-  // },
 };

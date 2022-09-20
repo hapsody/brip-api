@@ -1256,6 +1256,13 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     searchHotelReqParams,
   } = searchCond;
 
+  if (minBudget === 0 || maxBudget === 0) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+    });
+  }
+
   const travelNights = getTravelNights(
     // searchCond.searchHotelReqParams.checkinDate,
     // searchCond.searchHotelReqParams.checkoutDate,

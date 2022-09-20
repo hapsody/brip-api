@@ -10,7 +10,7 @@ import // getTravelNights,
 // orderByDistanceFromNode,
 '../../../schedule';
 
-// import { params } from './testData';
+import { params } from './testData';
 
 jest.setTimeout(100000);
 
@@ -27,8 +27,48 @@ describe('Invalid parameter case tests', () => {
 
       expect(recommendRawResult.IBcode).toBe('3001');
     });
-    it('params 내의 모든 프로퍼티 값이 => null', async () => {});
-    it('params 내의 모든 프로퍼티 값이 => undefined', async () => {});
-    it('params 중 일부의 타입이 잘못 전달됨', async () => {});
+    // it('params 내의 모든 프로퍼티 값이 => null', async () => {}); // not need case
+    // it('params 내의 모든 프로퍼티 값이 => undefined', async () => {});  //not need case
+
+    it('params 중 일부의 타입이 잘못 전달됨', async () => {
+      // minBudget 또는 maxBudget 누락
+      const emptyMinBudgetResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            minBudget: undefined,
+          },
+        })
+        .expect(400);
+
+      const emptyMinBudgetResult =
+        emptyMinBudgetResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(emptyMinBudgetResult.IBcode).toBe('3001');
+      expect(emptyMinBudgetResult.IBdetail).toBe(
+        'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+      );
+
+      const emptyMaxBudgetResponse = await request(app)
+        .post('/schedule/getRecommendListWithLatLngt')
+        .send({
+          ...params,
+          searchCond: {
+            ...params.searchCond,
+            minBudget: undefined,
+          },
+        })
+        .expect(400);
+
+      const emptyMaxBudgetResult =
+        emptyMaxBudgetResponse.body as GetRecommendListWithLatLngtResponse;
+
+      expect(emptyMaxBudgetResult.IBcode).toBe('3001');
+      expect(emptyMaxBudgetResult.IBdetail).toBe(
+        'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+      );
+    });
   });
 });
