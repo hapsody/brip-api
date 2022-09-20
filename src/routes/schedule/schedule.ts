@@ -1320,7 +1320,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     });
 
   // 호텔 검색
-  const { queryParamId } = await searchHotelInnerAsyncFn(searchCond);
+  const sameDatedSearchHotelReqParams = {
+    ...searchCond.searchHotelReqParams,
+    checkinDate: searchCond.searchHotelReqParams.checkinDate ?? travelStartDate,
+    checkoutDate: searchCond.searchHotelReqParams.checkoutDate ?? travelEndDate,
+  };
+  const sameDatedSearchCond = {
+    ...searchCond,
+    searchHotelReqParams: sameDatedSearchHotelReqParams,
+  };
+  const { queryParamId } = await searchHotelInnerAsyncFn(sameDatedSearchCond);
   // 식당 검색
   let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
   const travelDays = travelNights + 1;
@@ -1336,7 +1345,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       console.log(`restaurant radiusExtendRetry:${radiusExtendRetry}`);
     const radiusModifiedQueryParams = {
       ...defaultQueryParams,
-      searchHotelReqParams,
+      sameDatedSearchHotelReqParams,
       nearbySearchReqParams: {
         ...nearbySearchReqParams,
         keyword: 'restaurant',
@@ -1363,7 +1372,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
       console.log(`touring spot radiusExtendRetry:${radiusExtendRetry}`);
     const radiusModifiedQueryParams = {
       ...defaultQueryParams,
-      searchHotelReqParams,
+      sameDatedSearchHotelReqParams,
       nearbySearchReqParams: {
         ...nearbySearchReqParams,
         keyword: 'tourist places',

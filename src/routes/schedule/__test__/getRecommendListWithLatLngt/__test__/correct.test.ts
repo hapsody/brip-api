@@ -96,14 +96,10 @@ describe('Correct case test', () => {
         params.searchCond.searchHotelReqParams.roomNumber,
       );
       expect(recommendRes.hotelCheckinDate).toBe(
-        new Date(
-          params.searchCond.searchHotelReqParams.checkinDate,
-        ).toISOString(),
+        new Date(params.searchCond.travelStartDate).toISOString(),
       );
       expect(recommendRes.hotelCheckoutDate).toBe(
-        new Date(
-          params.searchCond.searchHotelReqParams.checkoutDate,
-        ).toISOString(),
+        new Date(params.searchCond.travelEndDate).toISOString(),
       );
       expect(recommendRes.hotelFilterByCurrency).toBeNull();
 
