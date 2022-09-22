@@ -107,14 +107,26 @@ export const signIn = (
 export const signUp = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<{
-      email: string;
+      id: string;
       password: string;
-      name: string;
+      phone: string;
+      phoneAuthCode: string;
+      nickName: string;
+      cc: string;
+      userToken: string;
     }>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
     const {
-      body: { email, password, name },
+      body: {
+        id: email,
+        password,
+        phone,
+        // phoneAuthCode,
+        nickName,
+        cc: countryCode,
+        userToken,
+      },
     } = req;
 
     if (isEmpty(email) || isEmpty(password)) {
@@ -131,7 +143,10 @@ export const signUp = asyncWrapper(
       create: {
         email,
         password: hash,
-        name,
+        phone,
+        nickName,
+        countryCode,
+        userToken,
       },
     });
 

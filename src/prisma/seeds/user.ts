@@ -4,11 +4,15 @@ const prisma = new PrismaClient();
 
 async function main() {
   const exampleUser = await prisma.user.upsert({
-    where: { email: 'hapsody@gmail.com' },
+    where: { email: 'hawaii@gmail.com' },
     update: {},
     create: {
-      email: 'hapsody@gmail.com',
-      password: 'qwer1234!',
+      email: 'hawaii@gmail.com',
+      password: 'qwer1234',
+      phone: '+821012345678',
+      nickName: '유쾌한인어',
+      countryCode: 'KR',
+      userToken: 'ba879ba79sd798dab798a7db9a54dfs3',
     },
   });
   console.log(exampleUser);
