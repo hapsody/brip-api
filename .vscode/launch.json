@@ -4,7 +4,6 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-
     {
       "command": "yarn stop;yarn start",
       "name": "terminal debug",
@@ -17,11 +16,11 @@
       "name": "test debug",
       "request": "launch",
       "type": "node-terminal"
-    }
+    },
 
     {
-      "command": "yarn test getRecommendListWithLatLngt",
-      "name": "test getRecommendListWithLatLngt",
+      "command": "yarn test signUp",
+      "name": "test signUp",
       "request": "launch",
       "type": "node-terminal"
     }

@@ -33,9 +33,9 @@ export interface IBResFormat {
 
 // # 성공
 // 200 : OK, 요청 정상 처리
-// 201 : Created, 생성 요청 성공
-// 202 : Accepted, 비동기 요청 성공
-// 204 : No Content, 요청 정상 처리, 응답 데이터 없음.
+// 201 : Created, 생성 요청 성공, 클라이언트의 요청을 서버가 정상적으로 처리했고 새로운 리소스가 생겼다.
+// 202 : Accepted, 비동기 요청, 클라이언트의 요청은 정상적이나, 서버가 아직 요청을 완료하지 못했다.
+// 204 : No Content, 클라이언트의 요청은 정상적이다. 하지만 컨텐츠를 제공하지 않는다.
 // # 실패
 // 400 : Bad Request, 요청이 부적절 할 때, 유효성 검증 실패, 필수 값 누락 등.
 // 401 : Unauthorized, 인증 실패, 로그인하지 않은 사용자 또는 권한 없는 사용자 처리
@@ -45,11 +45,11 @@ export interface IBResFormat {
 // 405 : Method Not Allowed, 사용 불가능한 Method를 이용한 경우.
 // 406 : Not Acceptable, 요청된 리소스의 미디어 타입을 제공하지 못할 때 사용.
 // 408 : Request Timeout
-// 409 : Conflict, 리소스 상태에 위반되는 행위 시 사용.
+// 409 : Conflict, 리소스 상태에 위반되는 행위 시 사용., 해당 요청의 처리 중 비지니스 로직상 불가능하거나 모순이 생긴 경우
 // 413 : Payload Too Large
 // 423 : Locked
 // 428 : Precondition Required
-// 429 : Too Many Requests
+// 429 : Too Many Requests, 클라이언트가 일정 시간 동안 너무 많은 요청을 보낸 경우
 //
 // 500 : 서버 에러
 
@@ -141,7 +141,6 @@ export const ibDefs: IBResFormats = {
     IBdetail: '',
     IBparams: {},
   },
-
   DUPLICATEDDATA: {
     IBcode: '2003',
     IBmessage: 'DB 데이터에 중복된 값이 존재합니다.',

@@ -104,6 +104,10 @@ export const signIn = (
   // return res.status(200).send('hello world');
 };
 
+export type SignUpResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: User | {};
+};
+
 export const signUp = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<{
@@ -115,32 +119,58 @@ export const signUp = asyncWrapper(
       cc: string;
       userToken: string;
     }>,
-    res: Express.IBTypedResponse<IBResFormat>,
+    res: Express.IBTypedResponse<SignUpResponse>,
   ) => {
+    if (isEmpty(req.body)) {
+      res.status(400).json({
+        ...ibDefs.INVALIDPARAMS,
+        IBdetail: `파라미터가 제공되지 않았습니다.`,
+      });
+      return;
+    }
+
     const {
       body: {
         id: email,
         password,
         phone,
-        // phoneAuthCode,
+        phoneAuthCode,
         nickName,
         cc: countryCode,
         userToken,
       },
     } = req;
 
-    if (isEmpty(email) || isEmpty(password)) {
-      res.status(400).json({ ...ibDefs.INVALIDPARAMS });
+    const emptyCheckArr: string[] = [];
+    if (isEmpty(email)) emptyCheckArr.push('id');
+    if (isEmpty(password)) emptyCheckArr.push('password');
+    if (isEmpty(phone)) emptyCheckArr.push('phone');
+    if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
+    if (isEmpty(nickName)) emptyCheckArr.push('nickName');
+    if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
+    if (isEmpty(userToken)) emptyCheckArr.push('userToken');
+    if (!isEmpty(emptyCheckArr)) {
+      res.status(400).json({
+        ...ibDefs.INVALIDPARAMS,
+        IBdetail: `${emptyCheckArr.toString()} 파라미터가 제공되지 않았습니다.`,
+      });
       return;
     }
 
     const hash = genBcryptHash(password);
-    const createdUser = await prisma.user.upsert({
+    const preCheckIfAlreadyExist = await prisma.user.findFirst({
       where: {
         email,
       },
-      update: {},
-      create: {
+    });
+
+    if (!isEmpty(preCheckIfAlreadyExist)) {
+      res.status(409).json({ ...ibDefs.DUPLICATEDDATA });
+      return;
+    }
+
+    const createdUser = await prisma.user.create({
+      data: {
         email,
         password: hash,
         phone,
@@ -149,7 +179,6 @@ export const signUp = asyncWrapper(
         userToken,
       },
     });
-
     const userWithoutPw = _.omit(createdUser, ['password']);
 
     res.json({
