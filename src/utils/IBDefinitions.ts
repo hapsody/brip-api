@@ -70,6 +70,7 @@ export interface IBResFormats {
   INVALIDSTATUS: IBResFormat; // 400
   INVALIDPARAMS: IBResFormat; // 400
   UNEXPECTED: IBResFormat; // 500
+  INVALIDENVPARAMS: IBResFormat; // 500
   EXTERNALAPI: IBResFormat; // 500
 }
 
@@ -168,6 +169,12 @@ export const ibDefs: IBResFormats = {
   UNEXPECTED: {
     IBcode: '5000',
     IBmessage: '예기치 못한 에러가 발생했습니다.',
+    IBdetail: '',
+    IBparams: {},
+  },
+  INVALIDENVPARAMS: {
+    IBcode: '5001',
+    IBmessage: '올바르지 않은 서버설정으로 인한 에러 입니다.',
     IBdetail: '',
     IBparams: {},
   },

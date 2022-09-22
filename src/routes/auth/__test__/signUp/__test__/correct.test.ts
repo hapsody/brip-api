@@ -4,10 +4,10 @@ import prisma from '@src/prisma';
 import { compare } from 'bcrypt';
 import { User } from '@prisma/client';
 import { params } from './testData';
-import { SignUpResponse } from '../../../auth';
+import { SignUpResponseType } from '../../../auth';
 
 const { correctParam } = params;
-let signUpRawResult: SignUpResponse;
+let signUpRawResult: SignUpResponseType;
 let user: User;
 beforeAll(async () => {
   const preCheckIfAlreadyExist = await prisma.user.findFirst({
@@ -24,7 +24,7 @@ beforeAll(async () => {
   }
   const response = await request(app).post('/auth/signUp').send(correctParam);
 
-  signUpRawResult = response.body as SignUpResponse;
+  signUpRawResult = response.body as SignUpResponseType;
   user = signUpRawResult.IBparams as User;
   expect(user.id).not.toBeUndefined(); // User DB 생성 실패
 });

@@ -104,22 +104,23 @@ export const signIn = (
   // return res.status(200).send('hello world');
 };
 
-export type SignUpResponse = Omit<IBResFormat, 'IBparams'> & {
+export type SignUpRequestType = {
+  id: string;
+  password: string;
+  phone: string;
+  phoneAuthCode: string;
+  nickName: string;
+  cc: string;
+  userToken: string;
+};
+export type SignUpResponseType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: User | {};
 };
 
 export const signUp = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<{
-      id: string;
-      password: string;
-      phone: string;
-      phoneAuthCode: string;
-      nickName: string;
-      cc: string;
-      userToken: string;
-    }>,
-    res: Express.IBTypedResponse<SignUpResponse>,
+    req: Express.IBTypedReqBody<SignUpRequestType>,
+    res: Express.IBTypedResponse<SignUpResponseType>,
   ) => {
     if (isEmpty(req.body)) {
       res.status(400).json({
@@ -188,6 +189,32 @@ export const signUp = asyncWrapper(
   },
 );
 
+export type ReqNonMembersUserTokenRequestType = {};
+export interface ReqNonMembersUserTokenSuccessResType {
+  userToken: string;
+}
+
+export type ReqNonMembersUserTokenResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqNonMembersUserTokenSuccessResType | {};
+};
+export const reqNonMembersUserToken = (
+  req: Express.IBTypedReqBody<ReqNonMembersUserTokenRequestType>,
+  res: Express.IBTypedResponse<ReqNonMembersUserTokenResType>,
+): void => {
+  if (isEmpty(process.env.JWT_SECRET)) {
+    res.status(500).json({ ...ibDefs.INVALIDENVPARAMS });
+    return;
+  }
+  const userToken = jwt.sign({}, process.env.JWT_SECRET as string);
+
+  res.json({
+    ...ibDefs.SUCCESS,
+    IBparams: {
+      userToken,
+    },
+  });
+};
+
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
     testParam: string;
@@ -233,5 +260,6 @@ export const authGuardTest = (
 authRouter.post('/signIn', signIn);
 authRouter.post('/signUp', signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
+authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 
 export default authRouter;

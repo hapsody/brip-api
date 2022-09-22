@@ -1,7 +1,7 @@
 import request from 'supertest';
 import app from '@src/app';
 import { params } from './testData';
-import { SignUpResponse } from '../../../auth';
+import { SignUpResponseType } from '../../../auth';
 
 const { invalidParam } = params;
 
@@ -12,7 +12,7 @@ describe('InvalidParams test', () => {
         .post('/auth/signUp')
         .send(invalidParam.undefinedBody);
 
-      const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponse;
+      const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponseType;
 
       expect(undefinedBodyRawRes.statusCode).toBe(400);
       expect(undefinedBodyRes.IBcode).toBe('3001');
@@ -24,7 +24,7 @@ describe('InvalidParams test', () => {
           .post('/auth/signUp')
           .send(invalidParam.partNullOrUndefined);
 
-        const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponse;
+        const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponseType;
 
         expect(undefinedBodyRawRes.statusCode).toBe(400);
         expect(undefinedBodyRes.IBcode).toBe('3001');
