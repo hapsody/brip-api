@@ -67,6 +67,8 @@ model GglNearbySearchResType {
   value              String?              @unique
 }
 
+/// 구글 nearbySearch 검색 결과
+/// google document: https://developers.google.com/maps/documentation/places/web-service/search-nearby?hl=ko
 model GglNearbySearchRes {
   id                    Int                      @id @default(autoincrement())
   createdAt             DateTime                 @default(now())
@@ -76,21 +78,22 @@ model GglNearbySearchRes {
   icon                  String?
   icon_background_color String?
   icon_mask_base_uri    String?
-  name                  String?
-  opening_hours         Boolean
-  place_id              String?
-  price_level           Int?
-  rating                Float?
-  types                 GglNearbySearchResType[]
-  user_ratings_total    Int?
-  vicinity              String?
-  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id])
+  name                  String? /// 검색된 장소 이름 
+  opening_hours         Boolean /// 검색시각 기준으로 현재 영업 상태인지
+  place_id              String? /// 구글이 부여한 place의 고유값
+  price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
+  rating                Float? /// 별점, 0-5 
+  types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
+  user_ratings_total    Int? /// 별점을 준 유저수
+  vicinity              String? /// 주소
+  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id]) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
   plus_codeId           Int?
-  photos                GglPhotos[]
+  photos                GglPhotos[] /// 장소 사진 url
   QueryParams           QueryParams?             @relation(fields: [queryParamsId], references: [id])
   queryParamsId         Int?
 }
 
+/// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
 model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -105,12 +108,12 @@ model QueryParams {
   hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
   hotelUnits               String? /// metric | imperial ex) metric
   hotelRoomNumber          Int? ///  Number of rooms ex) 1
-  hotelCheckinDate         DateTime? /// '2022-09-30';
-  hotelCheckoutDate        DateTime? /// '2022-10-01';
+  hotelCheckinDate         DateTime? /// 유저가 입력한 여행 시작일 '2022-09-30';
+  hotelCheckoutDate        DateTime? ///  유저가 입력한 여행 종료일 '2022-10-01';
   hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
-  hotelChildrenAges        String? /// ex) 유아 연령 배열 '5,3'
-  hotelChildrenNumber      Int? /// ex) 유아 수 ex) 2
-  hotelCategoriesFilterIds String? /// 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
+  hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
+  hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
+  hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
   hotelIncludeAdjacency    Boolean?
   searchHotelRes           SearchHotelRes[]
   gglNearbySearchRes       GglNearbySearchRes[]
@@ -167,6 +170,7 @@ enum BookingComReqType {
   SEARCH_HOTELS
 }
 
+/// 개발용, booking.com hotel 검색 api 쿼리 비용을 줄이기 위해 mydb에 저장할수 있도록 model을 마련함
 model MockBookingDotComHotelResource {
   id           Int               @id @default(autoincrement())
   createdAt    DateTime          @default(now())
