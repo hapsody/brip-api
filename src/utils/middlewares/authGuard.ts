@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import passport from 'passport';
-import { User } from '@prisma/client';
 import { NextFunction } from 'express';
-import { ibDefs, IBResFormat } from '../IBDefinitions';
+import { ibDefs, IBResFormat, GuardRes } from '../IBDefinitions';
 
 const accessTokenValidCheck = (
   req: Express.IBAuthGuardRequest,
@@ -11,7 +10,11 @@ const accessTokenValidCheck = (
 ): void => {
   passport.authenticate(
     'jwt',
-    (authError: Error, user: User, info: { name: string; message: string }) => {
+    (
+      authError: Error,
+      user: GuardRes,
+      info: { name: string; message: string },
+    ) => {
       // console.log(authError, user, info);
       if (authError && authError instanceof Error) {
         if (authError.message === 'NOTEXISTDATA') {
@@ -47,7 +50,9 @@ const accessTokenValidCheck = (
 
       req.locals = {
         ...req.locals,
-        user,
+        grade: user.grade,
+        tokenId: user.tokenId,
+        user: user.user,
       };
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       next();

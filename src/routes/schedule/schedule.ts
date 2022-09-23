@@ -1833,18 +1833,11 @@ const prismaTest = asyncWrapper(
     req: Express.IBTypedReqBody<{}>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const testFromDB = await prisma.queryParams.findMany({
-      include: {
-        searchHotelRes: {
-          select: { review_score: true, distance: true },
-          orderBy: [{ distance: 'asc' }, { review_score: 'desc' }],
-        },
-      },
-    });
+    const testFromDB = await prisma.nonMembersCount.count();
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: testFromDB as object,
+      IBparams: testFromDB,
     });
   },
 );

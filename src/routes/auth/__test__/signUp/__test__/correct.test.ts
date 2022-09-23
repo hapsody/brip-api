@@ -4,7 +4,11 @@ import prisma from '@src/prisma';
 import { compare } from 'bcrypt';
 import { User } from '@prisma/client';
 import { params } from './testData';
-import { SignUpResponseType } from '../../../auth';
+import {
+  SignUpResponseType,
+  ReqNonMembersUserTokenResType,
+  ReqNonMembersUserTokenSuccessResType,
+} from '../../../auth';
 
 const { correctParam } = params;
 let signUpRawResult: SignUpResponseType;
@@ -22,7 +26,17 @@ beforeAll(async () => {
       },
     });
   }
-  const response = await request(app).post('/auth/signUp').send(correctParam);
+  const userTokenRawRes = await request(app)
+    .post('/auth/reqNonMembersUserToken')
+    .send();
+  const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
+  const userToken =
+    userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
+
+  const response = await request(app)
+    .post('/auth/signUp')
+    .set('Authorization', `Bearer ${userToken.userToken}`)
+    .send(correctParam);
 
   signUpRawResult = response.body as SignUpResponseType;
   user = signUpRawResult.IBparams as User;
@@ -36,7 +50,7 @@ describe('Correct case test', () => {
       expect(user.phone).toBe(correctParam.phone);
       expect(user.nickName).toBe(correctParam.nickName);
       expect(user.countryCode).toBe(correctParam.cc);
-      expect(user.userToken).toBe(correctParam.userToken);
+      // expect(user.userTokenId).toBe(correctParam.userToken);
       expect(user.password).toBeUndefined();
 
       const dbUser = await prisma.user.findFirst({

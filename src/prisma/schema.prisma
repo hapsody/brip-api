@@ -19,7 +19,7 @@ model User {
   phone       String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
   nickName    String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
   countryCode String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userToken   String /// 비회원이었을 시절의 유저 토큰 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) ba879ba79sd798dab798a7db9a54dfs3
+  userTokenId String   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
 }
@@ -180,4 +180,10 @@ model MockBookingDotComHotelResource {
   updatedAt    DateTime          @default(now())
   reqType      BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
   responseData String            @db.LongText
+}
+
+model NonMembersCount {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }

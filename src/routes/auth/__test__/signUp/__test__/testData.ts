@@ -6,7 +6,7 @@ export const params = {
     phoneAuthCode: '123456',
     nickName: '유쾌한인어',
     cc: 'KR',
-    userToken: 'ba879ba79sd798dab798a7db9a54dfs3',
+    // userToken: 'ba879ba79sd798dab798a7db9a54dfs3',
   },
   invalidParam: {
     undefinedBody: undefined,

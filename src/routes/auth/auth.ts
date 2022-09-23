@@ -6,6 +6,8 @@ import {
   genBcryptHash,
   IBResFormat,
   accessTokenValidCheck,
+  IBError,
+  UserTokenPayload,
 } from '@src/utils';
 import _, { isEmpty } from 'lodash';
 import jwt from 'jsonwebtoken';
@@ -111,7 +113,7 @@ export type SignUpRequestType = {
   phoneAuthCode: string;
   nickName: string;
   cc: string;
-  userToken: string;
+  // userToken: string;
 };
 export type SignUpResponseType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: User | {};
@@ -131,6 +133,7 @@ export const signUp = asyncWrapper(
     }
 
     const {
+      locals,
       body: {
         id: email,
         password,
@@ -138,7 +141,7 @@ export const signUp = asyncWrapper(
         phoneAuthCode,
         nickName,
         cc: countryCode,
-        userToken,
+        // userToken,
       },
     } = req;
 
@@ -149,7 +152,7 @@ export const signUp = asyncWrapper(
     if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
     if (isEmpty(nickName)) emptyCheckArr.push('nickName');
     if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
-    if (isEmpty(userToken)) emptyCheckArr.push('userToken');
+    // if (isEmpty(userToken)) emptyCheckArr.push('userToken');
     if (!isEmpty(emptyCheckArr)) {
       res.status(400).json({
         ...ibDefs.INVALIDPARAMS,
@@ -170,6 +173,11 @@ export const signUp = asyncWrapper(
       return;
     }
 
+    if (locals && locals.grade === 'member') {
+      res.status(409).json({ ...ibDefs.NOTAUTHORIZED });
+      return;
+    }
+
     const createdUser = await prisma.user.create({
       data: {
         email,
@@ -177,7 +185,7 @@ export const signUp = asyncWrapper(
         phone,
         nickName,
         countryCode,
-        userToken,
+        userTokenId: locals?.tokenId?.toString() ?? 'error',
       },
     });
     const userWithoutPw = _.omit(createdUser, ['password']);
@@ -197,23 +205,51 @@ export interface ReqNonMembersUserTokenSuccessResType {
 export type ReqNonMembersUserTokenResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqNonMembersUserTokenSuccessResType | {};
 };
-export const reqNonMembersUserToken = (
-  req: Express.IBTypedReqBody<ReqNonMembersUserTokenRequestType>,
-  res: Express.IBTypedResponse<ReqNonMembersUserTokenResType>,
-): void => {
-  if (isEmpty(process.env.JWT_SECRET)) {
-    res.status(500).json({ ...ibDefs.INVALIDENVPARAMS });
-    return;
-  }
-  const userToken = jwt.sign({}, process.env.JWT_SECRET as string);
 
-  res.json({
-    ...ibDefs.SUCCESS,
-    IBparams: {
-      userToken,
-    },
-  });
-};
+export const reqNonMembersUserToken = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqNonMembersUserTokenRequestType>,
+    res: Express.IBTypedResponse<ReqNonMembersUserTokenResType>,
+  ) => {
+    try {
+      if (isEmpty(process.env.JWT_SECRET)) {
+        throw new IBError({ type: 'INVALIDENVPARAMS', message: '' });
+      }
+
+      const newOne = await prisma.nonMembersCount.create({
+        data: {},
+      });
+
+      const userTokenPayload: UserTokenPayload = {
+        grade: 'nonMember',
+        tokenId: newOne.id,
+      };
+      const userToken = jwt.sign(
+        userTokenPayload,
+        process.env.JWT_SECRET as string,
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          userToken,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDENVPARAMS') {
+          res.status(500).json({
+            ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
@@ -258,7 +294,7 @@ export const authGuardTest = (
 // authRouter.post('/somethingPath', somethingFunc, somethingHandler);
 
 authRouter.post('/signIn', signIn);
-authRouter.post('/signUp', signUp);
+authRouter.post('/signUp', accessTokenValidCheck, signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 

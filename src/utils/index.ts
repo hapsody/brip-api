@@ -1,4 +1,12 @@
-import { ibDefs, IBResFormats, IBResFormat, IBError } from './IBDefinitions';
+import {
+  ibDefs,
+  IBResFormats,
+  IBResFormat,
+  IBError,
+  UserTokenPayload,
+  MemberGrade,
+  GuardRes,
+} from './IBDefinitions';
 import asyncWrapper from './asyncWrapper';
 import somethingHandler from './middlewares/somethingHandler';
 import accessTokenValidCheck from './middlewares/authGuard';
@@ -11,6 +19,9 @@ export {
   IBResFormat,
   asyncWrapper,
   IBError,
+  UserTokenPayload,
+  MemberGrade,
+  GuardRes,
   somethingHandler,
   accessTokenValidCheck,
   genBcryptHash,

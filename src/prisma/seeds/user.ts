@@ -12,7 +12,7 @@ async function main() {
       phone: '+821012345678',
       nickName: '유쾌한인어',
       countryCode: 'KR',
-      userToken: 'ba879ba79sd798dab798a7db9a54dfs3',
+      userTokenId: '0',
     },
   });
   console.log(exampleUser);

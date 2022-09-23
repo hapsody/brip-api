@@ -5,8 +5,8 @@ import {
   VerifiedCallback,
   VerifyCallback,
 } from 'passport-jwt';
-import { User } from '@prisma/client';
 import prisma from '@src/prisma';
+import { UserTokenPayload, GuardRes } from '@src/utils';
 
 type JwtAsyncFn = (
   jwtPayload: unknown,
@@ -33,16 +33,36 @@ export default (passport: PassportStatic): void => {
       },
       wrapper(async (jwtPayload: unknown, done: VerifiedCallback) => {
         // try {
-        const { email } = jwtPayload as { email: string };
+        const userTokenPayload = jwtPayload as UserTokenPayload;
+        if (userTokenPayload.grade === 'member') {
+          const { email } = userTokenPayload;
 
-        const user: User | null = await prisma.user.findFirst({
-          where: { email },
-        });
+          const user = await prisma.user.findFirst({
+            where: { email },
+          });
+          if (!user) {
+            done(new Error('NOTEXISTDATA'));
+            return;
+          }
 
-        if (user) {
-          done(null, user);
+          const guardRes: GuardRes = {
+            grade: 'member',
+            user,
+          };
+          if (user) {
+            done(null, guardRes);
+            return;
+          }
+        } else {
+          // if userTokenPayload.grade member
+          const guardRes: GuardRes = {
+            grade: 'nonMember',
+            tokenId: userTokenPayload.tokenId,
+          };
+          done(null, guardRes);
           return;
         }
+
         done(new Error('NOTEXISTDATA'));
         // done(null, false, { reason: 'Invalid or Non authentication data' });
         // } catch (error) {

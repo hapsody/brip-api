@@ -1,3 +1,5 @@
+import { User } from '@prisma/client';
+
 export class IBError extends Error {
   type: keyof IBResFormats;
 
@@ -174,7 +176,7 @@ export const ibDefs: IBResFormats = {
   },
   INVALIDENVPARAMS: {
     IBcode: '5001',
-    IBmessage: '올바르지 않은 서버설정으로 인한 에러 입니다.',
+    IBmessage: '올바르지 않은 서버 환경변수 값으로 인한 에러 입니다.',
     IBdetail: '',
     IBparams: {},
   },
@@ -185,3 +187,16 @@ export const ibDefs: IBResFormats = {
     IBparams: {},
   },
 };
+
+export type MemberGrade = 'nonMember' | 'member';
+export interface UserTokenPayload {
+  grade: MemberGrade;
+  email?: string; // grade가 member 일 경우 존재
+  tokenId: number;
+}
+
+export interface GuardRes {
+  grade: MemberGrade;
+  tokenId?: number;
+  user?: User;
+}
