@@ -15,15 +15,15 @@ declare type LocalStrategyCBFunc = (
 export default (passport: PassportStatic): void => {
   const local = new LocalStrategy(
     {
-      usernameField: 'email',
+      usernameField: 'id',
       passwordField: 'password',
     },
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    async (email, password, done: LocalStrategyCBFunc): Promise<void> => {
+    async (id, password, done: LocalStrategyCBFunc): Promise<void> => {
       try {
         const user: User | null = await prisma.user.findFirst({
           where: {
-            email,
+            email: id,
           },
         });
 

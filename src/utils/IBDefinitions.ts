@@ -192,11 +192,11 @@ export type MemberGrade = 'nonMember' | 'member';
 export interface UserTokenPayload {
   grade: MemberGrade;
   email?: string; // grade가 member 일 경우 존재
-  tokenId: number;
+  tokenId: string;
 }
 
 export interface GuardRes {
   grade: MemberGrade;
-  tokenId?: number;
+  tokenId?: string;
   user?: User;
 }

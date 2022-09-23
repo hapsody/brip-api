@@ -66,8 +66,14 @@ export const signIn = (
       }
 
       const randNo = Math.random().toString().substr(2, 6);
+      const userTokenPayload: UserTokenPayload = {
+        grade: 'member',
+        email: user.email,
+        tokenId: user.userTokenId,
+      };
       const accessToken = jwt.sign(
-        { email: user.email, randNo },
+        // { email: user.email, randNo },
+        userTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '12h',
@@ -222,7 +228,7 @@ export const reqNonMembersUserToken = asyncWrapper(
 
       const userTokenPayload: UserTokenPayload = {
         grade: 'nonMember',
-        tokenId: newOne.id,
+        tokenId: newOne.id.toString(),
       };
       const userToken = jwt.sign(
         userTokenPayload,
