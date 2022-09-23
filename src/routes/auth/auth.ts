@@ -76,7 +76,7 @@ export const signIn = (
         userTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
-          expiresIn: '12h',
+          expiresIn: '14d',
         },
       );
 
@@ -85,7 +85,7 @@ export const signIn = (
         { email: user.email, randNo },
         process.env.JWT_SECRET || 'test_secret',
         {
-          expiresIn: '30d',
+          expiresIn: '60d',
         },
       );
 
