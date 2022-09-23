@@ -210,4 +210,13 @@ model CardNewsGroup {
   thumbnailUri    String            @db.Text
   cardNewsContent CardNewsContent[]
   no              Int
+  cardTag         CardTag[]
+}
+
+model CardTag {
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+  value         String          @unique
+  cardNewsGroup CardNewsGroup[]
 }
