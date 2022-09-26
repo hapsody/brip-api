@@ -21,6 +21,10 @@ declare global {
       body: T;
     }
 
+    export interface IBTypedReqQuery<T> extends IBAuthGuardRequest {
+      query: T;
+    }
+
     export interface IBTypedResponse<ResBody> extends Express.Response {
       status(code: StatusCode): this;
       json: Send<ResBody, this>;

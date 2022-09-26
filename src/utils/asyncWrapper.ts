@@ -12,10 +12,11 @@ import { ibDefs } from './IBDefinitions';
  * express-async-handler 를 설치 사용하도록 한다.
  */
 declare type AsyncFn = (
-  req: Request,
-  res: Response,
+  req: Express.Request,
+  res: Express.Response,
   next?: NextFunction,
 ) => Promise<void>;
+
 const asyncWrapper = (asyncFn: AsyncFn) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     asyncFn(req, res, next).catch((e: Error) => {

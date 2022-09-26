@@ -187,3 +187,36 @@ model NonMembersCount {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
+
+/// 카드 뉴스 1장에 대응하는 모델
+model CardNewsContent {
+  id              Int           @id @default(autoincrement())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now())
+  no              Int
+  title           String
+  content         String
+  bgPicUri        String        @db.Text
+  cardNewsGroup   CardNewsGroup @relation(fields: [cardNewsGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cardNewsGroupId Int
+}
+
+/// 각 카드 뉴스 여러장을 갖는 카드 뉴스기사 전체 한편에 대응하는 모델
+model CardNewsGroup {
+  id              Int               @id @default(autoincrement())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now())
+  title           String
+  thumbnailUri    String            @db.Text
+  cardNewsContent CardNewsContent[]
+  no              Int
+  cardTag         CardTag[]
+}
+
+model CardTag {
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+  value         String          @unique
+  cardNewsGroup CardNewsGroup[]
+}
