@@ -197,7 +197,7 @@ model CardNewsContent {
   title           String
   content         String
   bgPicUri        String        @db.Text
-  cardNewsGroup   CardNewsGroup @relation(fields: [cardNewsGroupId], references: [id])
+  cardNewsGroup   CardNewsGroup @relation(fields: [cardNewsGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   cardNewsGroupId Int
 }
 

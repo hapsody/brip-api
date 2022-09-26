@@ -7,6 +7,7 @@ import {
   IBError,
   accessTokenValidCheck,
 } from '@src/utils';
+import { CardTag } from '@prisma/client';
 
 const authRouter: express.Application = express();
 
@@ -22,7 +23,7 @@ export interface GetContentListSuccessResType {
   cards: {
     cardId: number;
     cardNo: number;
-    tag: string[];
+    tag: CardTag[];
     cardTitle: string;
     cardContent: string;
     cardBgUri: string;
@@ -43,7 +44,10 @@ export const getContentList = asyncWrapper(
       const foundNewsGrp = await prisma.cardNewsGroup.findMany({
         take: Number(take),
         skip: Number(skip),
-        include: { cardNewsContent: true },
+        include: {
+          cardNewsContent: true,
+          cardTag: true,
+        },
       });
 
       const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
@@ -57,7 +61,7 @@ export const getContentList = asyncWrapper(
               return {
                 cardId: card.id,
                 cardNo: card.no,
-                tag: [],
+                tag: group.cardTag,
                 cardTitle: card.title,
                 cardContent: card.content,
                 cardBgUri: card.bgPicUri,
