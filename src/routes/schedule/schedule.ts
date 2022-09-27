@@ -235,8 +235,8 @@ const storeDataRelatedWithQueryParams = async (
         },
       });
     });
-
-    await Promise.all(promises);
+    await prisma.$transaction(promises);
+    // await Promise.all(promises);
     // try {
     //   await Promise.all(promises);
     // } catch (e) {
@@ -720,7 +720,8 @@ const searchHotelInnerAsyncFn = async (
       },
     });
   });
-  await Promise.all(createSearchHotelResPromises);
+  await prisma.$transaction(createSearchHotelResPromises);
+  // await Promise.all(createSearchHotelResPromises);
   // try {
   //   await Promise.all(createSearchHotelResPromises);
   // } catch (e) {
