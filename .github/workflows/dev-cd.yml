@@ -58,7 +58,10 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GCP_MAPS_APIKEY: ${{ secrets.GCP_MAPS_APIKEY }}
           RAPID_API_KEY: ${{ secrets.RAPID_API_KEY }}
-        run: npm test
+        run: yarn test
+      # Workaround to avoid Post Use step failures. See: https://github.com/actions/setup-node/issues/317
+      - run: mkdir -p /home/runner/.cache/yarn/v6
+        continue-on-error: true
 
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v1
