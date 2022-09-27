@@ -236,16 +236,17 @@ const storeDataRelatedWithQueryParams = async (
       });
     });
 
-    try {
-      await Promise.all(promises);
-    } catch (e) {
-      await prisma.queryParams.delete({
-        where: {
-          id: queryParamId,
-        },
-      });
-      throw e;
-    }
+    await Promise.all(promises);
+    // try {
+    //   await Promise.all(promises);
+    // } catch (e) {
+    //   await prisma.queryParams.delete({
+    //     where: {
+    //       id: queryParamId,
+    //     },
+    //   });
+    //   throw e;
+    // }
   }
   return { results, queryParamId };
 };
@@ -719,17 +720,17 @@ const searchHotelInnerAsyncFn = async (
       },
     });
   });
-
-  try {
-    await Promise.all(createSearchHotelResPromises);
-  } catch (e) {
-    await prisma.queryParams.delete({
-      where: {
-        id: queryParamId,
-      },
-    });
-    throw e;
-  }
+  await Promise.all(createSearchHotelResPromises);
+  // try {
+  //   await Promise.all(createSearchHotelResPromises);
+  // } catch (e) {
+  //   await prisma.queryParams.delete({
+  //     where: {
+  //       id: queryParamId,
+  //     },
+  //   });
+  //   throw e;
+  // }
 
   return { hotelSearchResult: data, queryParamId };
 };

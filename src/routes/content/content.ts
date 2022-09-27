@@ -12,6 +12,7 @@ import { CardTag } from '@prisma/client';
 const authRouter: express.Application = express();
 
 export type GetContentListRequestType = {
+  keyword: string;
   skip: number;
   take: number;
 };
@@ -40,8 +41,20 @@ export const getContentList = asyncWrapper(
     res: Express.IBTypedResponse<GetContentListResType>,
   ) => {
     try {
-      const { take, skip } = req.query;
+      const { keyword, take, skip } = req.query;
       const foundNewsGrp = await prisma.cardNewsGroup.findMany({
+        where: {
+          OR: [
+            { title: { contains: keyword } },
+            {
+              cardTag: {
+                some: {
+                  value: { contains: keyword },
+                },
+              },
+            },
+          ],
+        },
         take: Number(take),
         skip: Number(skip),
         include: {

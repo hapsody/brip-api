@@ -67,7 +67,7 @@ model GglNearbySearchResType {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @default(now())
   GglNearbySearchRes GglNearbySearchRes[]
-  value              String?              @unique
+  value              String               @unique
 }
 
 /// 구글 nearbySearch 검색 결과
@@ -143,7 +143,7 @@ model SearchHotelRes {
   checkout                String /// ex) {"until":"11:00","from":"10:00"}
   distance                Float /// search한 geo location으로부터 거리 ex) 5.62
   review_score_word       String /// ex) Wonderful
-  review_score            Float /// ex) 8.2
+  review_score            Float? /// ex) 8.2
   // currency                String /// ex) USD
   currency_code           String /// ex) USD
   timezone                String /// ex) "Pacific/Honolulu",

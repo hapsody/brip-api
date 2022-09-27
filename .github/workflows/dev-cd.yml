@@ -41,10 +41,22 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      - run: npm ci
-
-      # - run: npm run build --if-present
-      - run: npm test
+      - name: Install modules
+        run: yarn
+      - name: Set up Prisma migration and generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+        run: |
+          yarn migrate
+          yarn generate
+          yarn seed
+      - name: test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: npm test
 
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v1
