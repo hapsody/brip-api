@@ -16,7 +16,7 @@ async function main() {
   const hash = genBcryptHash(userData.password);
   const exampleUser = await prisma.user.upsert({
     where: { email: 'hawaii@gmail.com' },
-    update: {},
+    update: { ...userData, password: hash },
     create: { ...userData, password: hash },
   });
   console.log(exampleUser);
