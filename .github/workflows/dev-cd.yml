@@ -56,6 +56,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GCP_MAPS_APIKEY: ${{ secrets.GCP_MAPS_APIKEY }}
+          RAPID_API_KEY: ${{ secrets.RAPID_API_KEY }}
         run: npm test
 
       # - name: Configure AWS credentials
