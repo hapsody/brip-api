@@ -2,7 +2,7 @@ import request from 'supertest';
 import app from '@src/app';
 import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
-import { ibDefs } from '@src/utils';
+import { ibDefs, IBResFormat } from '@src/utils';
 import { GglNearbySearchRes, SearchHotelRes } from '@prisma/client';
 import {
   GetRecommendListWithLatLngtResponse,
@@ -41,6 +41,15 @@ let queryParamId = -1;
 let recommendRawResult: GetRecommendListWithLatLngtResponse;
 let recommendRes: GetRecommendListWithLatLngtInnerAsyncFnResponse;
 beforeAll(async () => {
+  const mockData = await prisma.mockBookingDotComHotelResource.findMany();
+  if (mockData.length === 0) {
+    const addMockTransactionRawRes = await request(app)
+      .post('/schedule/addMockHotelResource')
+      .send({ ...params.searchCond.searchHotelReqParams, mock: undefined });
+    const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
+    expect(IBcode).toBe('1000');
+  }
+
   const response = await request(app)
     .post('/schedule/getRecommendListWithLatLngt')
     .send(params);
