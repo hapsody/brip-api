@@ -60,7 +60,7 @@ beforeAll(async () => {
   queryParamId = recommendRes.id;
 });
 
-jest.setTimeout(100000);
+jest.setTimeout(120000);
 
 describe('Correct case test', () => {
   describe('정상 요청 예시 검증', () => {

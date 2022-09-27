@@ -5,7 +5,7 @@ import app from '@src/app';
 import { ibDefs } from '@src/utils';
 import { NearbySearchResponse } from '../types/schduleTypes';
 
-jest.setTimeout(100000);
+jest.setTimeout(120000);
 
 describe('Schedule Express Router E2E Test', () => {
   describe('POST /nearbySearch', () => {
