@@ -24,6 +24,7 @@ describe('somethingHandler E2E Test', () => {
           );
         });
         req.locals = {
+          grade: 'nonMember',
           resMessages: testRet,
         };
         next();
