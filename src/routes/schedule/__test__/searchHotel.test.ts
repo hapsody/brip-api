@@ -1,11 +1,24 @@
 import request from 'supertest';
 import app from '@src/app';
+import prisma from '@src/prisma';
 // import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
-import { ibDefs } from '@src/utils';
+import { ibDefs, IBResFormat } from '@src/utils';
 import { SearchHotelResponse } from '../types/schduleTypes';
+import { params } from './getRecommendListWithLatLngt/__test__/testData';
 
 jest.setTimeout(120000);
+
+beforeAll(async () => {
+  const mockData = await prisma.mockBookingDotComHotelResource.findMany();
+  if (mockData.length === 0) {
+    const addMockTransactionRawRes = await request(app)
+      .post('/schedule/addMockHotelResource')
+      .send({ ...params.searchCond.searchHotelReqParams, mock: undefined });
+    const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
+    expect(IBcode).toBe('1000');
+  }
+});
 
 describe('Schedule Express Router E2E Test', () => {
   describe('POST /searchHotel', () => {

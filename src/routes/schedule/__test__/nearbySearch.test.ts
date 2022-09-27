@@ -55,10 +55,12 @@ describe('Schedule Express Router E2E Test', () => {
         // expect(item).toHaveProperty('photos');
 
         if (item.photos && item.photos.length > 0) {
-          expect(item.photos?.at(0)).toHaveProperty('height');
-          expect(item.photos?.at(0)).toHaveProperty('html_attributions');
-          expect(item.photos?.at(0)).toHaveProperty('photo_reference');
-          expect(item.photos?.at(0)).toHaveProperty('width');
+          for (let i = 0; i < item.photos.length; i += 1) {
+            expect(item.photos[i]).toHaveProperty('height');
+            expect(item.photos[i]).toHaveProperty('html_attributions');
+            expect(item.photos[i]).toHaveProperty('photo_reference');
+            expect(item.photos[i]).toHaveProperty('width');
+          }
         }
         expect(item).toHaveProperty('place_id');
         expect(item).toHaveProperty('plus_code');
