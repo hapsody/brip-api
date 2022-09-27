@@ -1,11 +1,24 @@
 import request from 'supertest';
 import app from '@src/app';
+import prisma from '@src/prisma';
 // import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
-import { ibDefs } from '@src/utils';
+import { ibDefs, IBResFormat } from '@src/utils';
 import { CompositeSearchResponse } from '../types/schduleTypes';
+import { params } from './getRecommendListWithLatLngt/__test__/testData';
 
 jest.setTimeout(120000);
+
+beforeAll(async () => {
+  const mockData = await prisma.mockBookingDotComHotelResource.findMany();
+  if (mockData.length === 0) {
+    const addMockTransactionRawRes = await request(app)
+      .post('/schedule/addMockHotelResource')
+      .send({ ...params.searchCond.searchHotelReqParams, mock: undefined });
+    const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
+    expect(IBcode).toBe('1000');
+  }
+});
 
 describe('Schedule Express Router E2E Test', () => {
   describe('POST /compositeSearch', () => {
@@ -155,10 +168,16 @@ describe('Schedule Express Router E2E Test', () => {
         // expect(item).toHaveProperty('photos');
 
         if (item.photos && item.photos.length > 0) {
-          expect(item.photos?.at(0)).toHaveProperty('height');
-          expect(item.photos?.at(0)).toHaveProperty('html_attributions');
-          expect(item.photos?.at(0)).toHaveProperty('photo_reference');
-          expect(item.photos?.at(0)).toHaveProperty('width');
+          for (let i = 0; i < item.photos.length; i += 1) {
+            expect(item.photos[i]).toHaveProperty('height');
+            expect(item.photos[i]).toHaveProperty('html_attributions');
+            expect(item.photos[i]).toHaveProperty('photo_reference');
+            expect(item.photos[i]).toHaveProperty('width');
+          }
+          // expect(item.photos?.at(0)).toHaveProperty('height');
+          // expect(item.photos?.at(0)).toHaveProperty('html_attributions');
+          // expect(item.photos?.at(0)).toHaveProperty('photo_reference');
+          // expect(item.photos?.at(0)).toHaveProperty('width');
         }
 
         expect(item).toHaveProperty('place_id');
