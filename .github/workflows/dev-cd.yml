@@ -40,7 +40,7 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          cache: 'yarn'
       - name: Install modules
         run: yarn
       - name: Set up Prisma migration and generate
@@ -59,9 +59,9 @@ jobs:
           GCP_MAPS_APIKEY: ${{ secrets.GCP_MAPS_APIKEY }}
           RAPID_API_KEY: ${{ secrets.RAPID_API_KEY }}
         run: yarn test
-      # Workaround to avoid Post Use step failures. See: https://github.com/actions/setup-node/issues/317
-      - run: mkdir -p /home/runner/.cache/yarn/v6
-        continue-on-error: true
+      # # Workaround to avoid Post Use step failures. See: https://github.com/actions/setup-node/issues/317
+      # - run: mkdir -p /home/runner/.cache/yarn/v6
+      #   continue-on-error: true
 
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v1
