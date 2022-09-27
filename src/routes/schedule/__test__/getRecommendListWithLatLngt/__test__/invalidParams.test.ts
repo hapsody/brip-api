@@ -12,7 +12,7 @@ import // getTravelNights,
 
 import { params } from './testData';
 
-jest.setTimeout(100000);
+jest.setTimeout(120000);
 
 describe('Invalid parameter case tests', () => {
   describe('Case: null이나 undefined 파라미터 전달 부분', () => {
