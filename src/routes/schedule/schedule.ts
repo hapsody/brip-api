@@ -2115,6 +2115,7 @@ export const reqSchedule = (
       favoriteTravelType,
       // favoriteAccommodation,
       // favoriteAccommodationLocation,
+      mock,
     } = params;
 
     const scheduleHash = uuidv4();
@@ -2158,7 +2159,7 @@ export const reqSchedule = (
         latitude: '33.501298', // 제주
         longitude: '126.525482', // 제주
         categoriesFilterIds: ['property_type::204'], // filter: hotel
-        mock: true,
+        mock: mock ?? false,
       },
       nearbySearchReqParams: {
         keyword: '',

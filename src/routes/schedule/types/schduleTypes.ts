@@ -581,6 +581,7 @@ export interface ReqScheduleParams {
   favoriteTravelType: string[];
   favoriteAccommodation: string[];
   favoriteAccommodationLocation: string[];
+  mock?: boolean;
 }
 
 export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
