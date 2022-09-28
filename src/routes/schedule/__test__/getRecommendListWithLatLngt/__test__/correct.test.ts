@@ -207,8 +207,8 @@ describe('Correct case test', () => {
       const travelNights = getTravelNights(
         // searchCond.searchHotelReqParams.checkinDate,
         // searchCond.searchHotelReqParams.checkoutDate,
-        new Date(travelStartDate),
-        new Date(travelEndDate),
+        travelStartDate,
+        travelEndDate,
       );
       // const travelDays = travelNights + 1;
       const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
@@ -365,8 +365,8 @@ describe('Correct case test', () => {
         spotQueryParamsDataFromDB[0];
 
       const travelNights = getTravelNights(
-        new Date(params.searchCond.travelStartDate),
-        new Date(params.searchCond.travelEndDate),
+        params.searchCond.travelStartDate,
+        params.searchCond.travelEndDate,
       );
       const travelDays = travelNights + 1;
 

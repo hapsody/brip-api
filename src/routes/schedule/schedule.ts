@@ -17,9 +17,12 @@ import {
   SearchHotelRes,
   Prisma,
   // GglNearbySearchRes,
+  From,
+  PlaceType,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
+import { v4 as uuidv4 } from 'uuid';
 import {
   QueryReqParams,
   defaultNearbySearchReqParams,
@@ -62,6 +65,9 @@ import {
   maxHotelBudgetPortion,
   VisitOrder,
   flexPortionLimit,
+  ReqScheduleParams,
+  ReqScheduleResponse,
+  TravelType,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -127,8 +133,8 @@ const createQueryParamId = async (
 };
 
 export const getTravelNights = (
-  checkinDate: Date,
-  checkoutDate: Date,
+  checkinDate: string,
+  checkoutDate: string,
 ): number => {
   const mCheckinDate = moment(checkinDate);
   const mCheckoutDate = moment(checkoutDate);
@@ -306,7 +312,7 @@ const filterForSearchFromBookingComInnerAsyncFn = async (
     roomNumber,
     categoriesFilterIds,
     childrenNumber,
-    includeAdjacency,
+    includeAdjacency = true,
     pageNumber,
     childrenAges,
   } = params;
@@ -338,7 +344,7 @@ const filterForSearchFromBookingComInnerAsyncFn = async (
         childrenNumber && childrenNumber >= 1
           ? childrenNumber.toString()
           : undefined,
-      include_adjacency: includeAdjacency ?? 'true',
+      include_adjacency: includeAdjacency?.valueOf().toString() ?? 'true',
       page_number: pageNumber?.toString() ?? '0',
       children_ages:
         isUndefined(childrenAges) || childrenAges?.toString() === ''
@@ -607,10 +613,11 @@ const searchHotelInnerAsyncFn = async (
         latitude: paramLat.toString(),
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency ?? 'false',
-        ...(isNumber(childrenNumber) && {
-          children_number: childrenNumber.toString(),
-        }),
+        include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
+        ...(isNumber(childrenNumber) &&
+          childrenNumber > 0 && {
+            children_number: childrenNumber.toString(),
+          }),
         ...(childrenAges &&
           !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
         ...(categoriesFilterIds &&
@@ -1765,6 +1772,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     },
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
+    queryParamId,
   };
 
   return recommendList;
@@ -1990,10 +1998,11 @@ export const addMockHotelResource = asyncWrapper(
         latitude: paramLat.toString(),
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency ?? 'false',
-        ...(isNumber(childrenNumber) && {
-          children_number: childrenNumber.toString(),
-        }),
+        include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
+        ...(isNumber(childrenNumber) &&
+          childrenNumber > 0 && {
+            children_number: childrenNumber.toString(),
+          }),
         ...(childrenAges &&
           !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
         ...(categoriesFilterIds &&
@@ -2088,6 +2097,207 @@ export const addMockSearchLocationsResource = asyncWrapper(
 //   },
 // );
 
+export const reqSchedule = (
+  req: Express.IBTypedReqBody<ReqScheduleParams>,
+  res: Express.IBTypedResponse<ReqScheduleResponse>,
+): void => {
+  try {
+    const params = req.body;
+    const {
+      minMoney,
+      maxMoney,
+      startDate,
+      endDate,
+      adult,
+      child,
+      infant,
+      travelHard,
+      favoriteTravelType,
+      // favoriteAccommodation,
+      // favoriteAccommodationLocation,
+    } = params;
+
+    const scheduleHash = uuidv4();
+    const travelType: TravelType = favoriteTravelType.reduce(
+      (acc: TravelType, cur: string) => {
+        let newAcc: TravelType = {};
+        switch (cur) {
+          case 'landActivity':
+            newAcc = { ...acc, landActivity: true };
+            break;
+          default:
+            break;
+        }
+        return newAcc;
+      },
+      {},
+    );
+
+    const childrenAges = Array.from({ length: Number(child) }, () => 5).concat(
+      Array.from({ length: Number(infant) }, () => 1),
+    );
+
+    const getRecommendFuncParam: QueryReqParams = {
+      minBudget: Number(minMoney),
+      maxBudget: Number(maxMoney),
+      travelStartDate: startDate,
+      travelEndDate: endDate,
+      currency: 'KRW',
+      travelType,
+      travelIntensity: Number(travelHard),
+      hotelTransition: 0,
+      searchHotelReqParams: {
+        orderBy: 'review_score',
+        adultsNumber: Number(adult),
+        roomNumber: 1,
+        checkinDate: startDate,
+        checkoutDate: endDate,
+        childrenNumber: Number(child) + Number(infant),
+        childrenAges,
+        filterByCurrency: 'USD',
+        latitude: '33.501298', // 제주
+        longitude: '126.525482', // 제주
+        categoriesFilterIds: ['property_type::204'], // filter: hotel
+        mock: true,
+      },
+      nearbySearchReqParams: {
+        keyword: '',
+        location: {
+          latitude: '33.501298', // 제주
+          longitude: '126.525482', // 제주
+        },
+        radius: 4000,
+        loadAll: true,
+      },
+    };
+
+    getRecommendListWithLatLngtInnerAsyncFn({
+      searchCond: getRecommendFuncParam,
+    })
+      .then(recommendListFromDB => {
+        const { queryParamId, metaInfo, visitSchedules, visitSchedulesCount } =
+          recommendListFromDB;
+        const promise1 = prisma.metaScheduleInfo.create({
+          data: {
+            totalHotelSearchCount: metaInfo.totalHotelSearchCount,
+            totalRestaurantSearchCount: metaInfo.totalRestaurantSearchCount,
+            totalSpotSearchCount: metaInfo.totalSpotSearchCount,
+            spotPerDay: metaInfo.spotPerDay,
+            mealPerDay: metaInfo.mealPerDay,
+            mealSchedule: metaInfo.mealSchedule.toString(),
+            travelNights: metaInfo.travelNights,
+            travelDays: metaInfo.travelDays,
+            hotelTransition: metaInfo.hotelTransition,
+            transitionTerm: metaInfo.transitionTerm,
+            recommendedMinHotelCount: metaInfo.recommendedMinHotelCount,
+            recommendedMidHotelCount: metaInfo.recommendedMidHotelCount,
+            recommendedMaxHotelCount: metaInfo.recommendedMaxHotelCount,
+            visitSchedulesCount,
+            queryParamsId: queryParamId,
+          },
+        });
+
+        type VisitScheduleDataType = {
+          dayNo: number;
+          from: From;
+          type: PlaceType;
+          dataId: number;
+        };
+        const visitScheduleStoreData = visitSchedules.reduce(
+          (acc: VisitScheduleDataType[], cur, idx) => {
+            const minVisitOrder: VisitScheduleDataType[] =
+              cur.visitOrder.ordersFromMinHotel.map(item => {
+                return {
+                  dayNo: idx + 1,
+                  from: 'MIN',
+                  type: item.type.toUpperCase() as PlaceType,
+                  dataId: item.data.id,
+                };
+              });
+
+            const midVisitOrder: VisitScheduleDataType[] =
+              cur.visitOrder.ordersFromMidHotel.map(item => {
+                return {
+                  dayNo: idx + 1,
+                  from: 'MID',
+                  type: item.type.toUpperCase() as PlaceType,
+                  dataId: item.data.id,
+                };
+              });
+
+            const maxVisitOrder: VisitScheduleDataType[] =
+              cur.visitOrder.ordersFromMaxHotel.map(item => {
+                return {
+                  dayNo: idx + 1,
+                  from: 'MAX',
+                  type: item.type.toUpperCase() as PlaceType,
+                  dataId: item.data.id,
+                };
+              });
+            const newAcc = [
+              ...acc,
+              ...minVisitOrder,
+              ...midVisitOrder,
+              ...maxVisitOrder,
+            ];
+            return newAcc;
+          },
+          [],
+        );
+
+        const promise2 = visitScheduleStoreData.map(item => {
+          return prisma.visitSchedule.create({
+            data: {
+              dayNo: item.dayNo,
+              from: item.from,
+              type: item.type,
+              dataId: item.dataId,
+              queryParamsId: queryParamId,
+            },
+          });
+        });
+
+        const promise3 = prisma.queryParams.update({
+          where: { id: queryParamId },
+          data: {
+            scheduleHash,
+          },
+        });
+
+        const promises = [promise1, ...promise2, promise3];
+        prisma
+          .$transaction(promises)
+          .then(() => {})
+          .catch(err => {
+            throw err;
+            // queryParam에 실패 결과 feedback 로직
+          });
+      })
+      .catch(getRecommendListErr => {
+        throw getRecommendListErr;
+        // queryParam에 실패 결과 feedback 로직
+      });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: { scheduleHash },
+    });
+    return;
+  } catch (err) {
+    if (err instanceof IBError) {
+      if (err.type === 'INVALIDPARAMS') {
+        res.status(400).json({
+          ...ibDefs.INVALIDPARAMS,
+          IBdetail: (err as Error).message,
+          IBparams: {} as object,
+        });
+        return;
+      }
+    }
+    throw err;
+  }
+};
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -2112,4 +2322,6 @@ scheduleRouter.post(
   '/addMockSearchLocationsResource',
   addMockSearchLocationsResource,
 );
+
+scheduleRouter.post('/reqSchedule', reqSchedule);
 export default scheduleRouter;
