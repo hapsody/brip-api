@@ -62,6 +62,9 @@ import {
   maxHotelBudgetPortion,
   VisitOrder,
   flexPortionLimit,
+  ReqScheduleParams,
+  ReqScheduleResponse,
+  TravelType,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -127,8 +130,8 @@ const createQueryParamId = async (
 };
 
 export const getTravelNights = (
-  checkinDate: Date,
-  checkoutDate: Date,
+  checkinDate: string,
+  checkoutDate: string,
 ): number => {
   const mCheckinDate = moment(checkinDate);
   const mCheckoutDate = moment(checkoutDate);
@@ -306,7 +309,7 @@ const filterForSearchFromBookingComInnerAsyncFn = async (
     roomNumber,
     categoriesFilterIds,
     childrenNumber,
-    includeAdjacency,
+    includeAdjacency = true,
     pageNumber,
     childrenAges,
   } = params;
@@ -338,7 +341,7 @@ const filterForSearchFromBookingComInnerAsyncFn = async (
         childrenNumber && childrenNumber >= 1
           ? childrenNumber.toString()
           : undefined,
-      include_adjacency: includeAdjacency ?? 'true',
+      include_adjacency: includeAdjacency?.valueOf().toString() ?? 'true',
       page_number: pageNumber?.toString() ?? '0',
       children_ages:
         isUndefined(childrenAges) || childrenAges?.toString() === ''
@@ -607,10 +610,11 @@ const searchHotelInnerAsyncFn = async (
         latitude: paramLat.toString(),
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency ?? 'false',
-        ...(isNumber(childrenNumber) && {
-          children_number: childrenNumber.toString(),
-        }),
+        include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
+        ...(isNumber(childrenNumber) &&
+          childrenNumber > 0 && {
+            children_number: childrenNumber.toString(),
+          }),
         ...(childrenAges &&
           !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
         ...(categoriesFilterIds &&
@@ -1990,10 +1994,11 @@ export const addMockHotelResource = asyncWrapper(
         latitude: paramLat.toString(),
         longitude: paramLngt.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency ?? 'false',
-        ...(isNumber(childrenNumber) && {
-          children_number: childrenNumber.toString(),
-        }),
+        include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
+        ...(isNumber(childrenNumber) &&
+          childrenNumber > 0 && {
+            children_number: childrenNumber.toString(),
+          }),
         ...(childrenAges &&
           !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
         ...(categoriesFilterIds &&
@@ -2088,6 +2093,109 @@ export const addMockSearchLocationsResource = asyncWrapper(
 //   },
 // );
 
+export const reqSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqScheduleParams>,
+    res: Express.IBTypedResponse<ReqScheduleResponse>,
+  ) => {
+    try {
+      const params = req.body;
+      const {
+        minMoney,
+        maxMoney,
+        startDate,
+        endDate,
+        adult,
+        child,
+        infant,
+        travelHard,
+        favoriteTravelType,
+        // favoriteAccommodation,
+        // favoriteAccommodationLocation,
+      } = params;
+
+      const travelType: TravelType = favoriteTravelType.reduce(
+        (acc: TravelType, cur: string) => {
+          let newAcc: TravelType = {};
+          switch (cur) {
+            case 'landActivity':
+              newAcc = { ...acc, landActivity: true };
+              break;
+            default:
+              break;
+          }
+          return newAcc;
+        },
+        {},
+      );
+
+      const childrenAges = Array.from(
+        { length: Number(child) },
+        () => 5,
+      ).concat(Array.from({ length: Number(infant) }, () => 1));
+
+      const getRecommendFuncParam: QueryReqParams = {
+        minBudget: Number(minMoney),
+        maxBudget: Number(maxMoney),
+        travelStartDate: startDate,
+        travelEndDate: endDate,
+        currency: 'KRW',
+        travelType,
+        travelIntensity: Number(travelHard),
+        hotelTransition: 0,
+        searchHotelReqParams: {
+          orderBy: 'review_score',
+          adultsNumber: Number(adult),
+          roomNumber: 1,
+          checkinDate: startDate,
+          checkoutDate: endDate,
+          childrenNumber: Number(child) + Number(infant),
+          childrenAges,
+          filterByCurrency: 'USD',
+          latitude: '33.501298', // 제주
+          longitude: '126.525482', // 제주
+          categoriesFilterIds: ['property_type::204'], // filter: hotel
+          mock: false,
+        },
+        nearbySearchReqParams: {
+          keyword: '',
+          location: {
+            latitude: '33.501298', // 제주
+            longitude: '126.525482', // 제주
+          },
+          radius: 4000,
+          loadAll: true,
+        },
+      };
+
+      const recommendListFromDB = await getRecommendListWithLatLngtInnerAsyncFn(
+        {
+          searchCond: getRecommendFuncParam,
+        },
+      );
+
+      console.log(recommendListFromDB);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: { scheduleHash: 'true' },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -2112,4 +2220,6 @@ scheduleRouter.post(
   '/addMockSearchLocationsResource',
   addMockSearchLocationsResource,
 );
+
+scheduleRouter.post('/reqSchedule', reqSchedule);
 export default scheduleRouter;

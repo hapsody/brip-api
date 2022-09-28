@@ -24,7 +24,7 @@ export interface NearBySearchReqParams {
     longitude: string; // 경도
   };
   radius: number;
-  pageToken: string;
+  pageToken?: string;
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
 export type Currency = 'USD' | 'KRW';
@@ -43,8 +43,8 @@ export interface SearchHotelReqParams {
   adultsNumber: number;
   // units: 'metric';
   roomNumber?: number; // Number of rooms
-  checkinDate: Date; // '2022-09-30';
-  checkoutDate: Date; // '2022-10-01';
+  checkinDate: string; // '2022-09-30';
+  checkoutDate: string; // '2022-10-01';
   filterByCurrency?: Currency; // default USD;
   // locale: 'en-us';
   latitude: string; // 위도좌표 ex) 21.4286856;
@@ -57,32 +57,34 @@ export interface SearchHotelReqParams {
   mock?: boolean; // default true
 }
 
+export interface TravelType {
+  // default { noIdea: true }
+  landActivity?: boolean; // 육상 액티비티
+  golf?: boolean;
+  relaxation?: boolean; // 휴양
+  resort?: boolean; // 리조트
+  hotel?: boolean;
+  oceanActivity?: boolean; // 해양 액티비티
+  experience?: boolean; // 체험
+  groupActivity?: boolean; // 그룹 액티비티
+  learning?: boolean; // 교습
+  shopping?: boolean; // 쇼핑
+  waterPark?: boolean; // 워터파크
+  visitTourSpot?: boolean; // 관광명소 방문
+  packageTour?: boolean; // 패키지 투어
+  nativeExperience?: boolean; // 현지 문화체험
+  noIdea?: boolean; // 모르겠음
+}
+
 export interface QueryReqParams {
   // searchLocation?: string; // ex) o'ahu ex) seoul
   minBudget?: number; // ex) 4000000,
   maxBudget?: number; // ex) 5000000,
   currency: Currency; // "USD" | "KRW" default USD
-  travelType: {
-    // default { noIdea: true }
-    landActivity?: boolean; // 육상 액티비티
-    golf?: boolean;
-    relaxation?: boolean; // 휴양
-    resort?: boolean; // 리조트
-    hotel?: boolean;
-    oceanActivity?: boolean; // 해양 액티비티
-    experience?: boolean; // 체험
-    groupActivity?: boolean; // 그룹 액티비티
-    learning?: boolean; // 교습
-    shopping?: boolean; // 쇼핑
-    waterPark?: boolean; // 워터파크
-    visitTourSpot?: boolean; // 관광명소 방문
-    packageTour?: boolean; // 패키지 투어
-    nativeExperience?: boolean; // 현지 문화체험
-    noIdea?: boolean; // 모르겠음
-  };
+  travelType: TravelType;
   travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: Date; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
-  travelEndDate: Date; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  travelStartDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
+  travelEndDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
@@ -414,10 +416,9 @@ export const defaultQueryParams = {
     noIdea: true, // 모르겠음
   },
   travelIntensity: 5, // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: new Date(moment(new Date()).startOf('day').format()), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
-  travelEndDate: new Date(
-    moment(new Date()).startOf('day').add(1, 'day').format(),
-  ), // 여행일정 종료일 ex) '2022-10-03T00:00:00';
+  travelStartDate: moment(new Date()).startOf('day').format(), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
+  travelEndDate: moment(new Date()).startOf('day').add(1, 'day').format(),
+  // 여행일정 종료일 ex) '2022-10-03T00:00:00';
 };
 
 export const bookingComFilterCategories = {
@@ -566,3 +567,25 @@ export class MealOrder {
     return nextMealOrder;
   };
 }
+
+export interface ReqScheduleParams {
+  minMoney: string;
+  maxMoney: string;
+  startDate: string;
+  endDate: string;
+  adult: string;
+  child: string;
+  infant: string;
+  travelHard: string;
+  favoriteTravelType: string[];
+  favoriteAccommodation: string[];
+  favoriteAccommodationLocation: string[];
+}
+
+export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams:
+    | {
+        scheduleHash: string;
+      }
+    | {};
+};
