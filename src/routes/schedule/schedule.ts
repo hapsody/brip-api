@@ -17,6 +17,8 @@ import {
   SearchHotelRes,
   Prisma,
   // GglNearbySearchRes,
+  From,
+  PlaceType,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
@@ -1769,6 +1771,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     },
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
+    queryParamId,
   };
 
   return recommendList;
@@ -2155,7 +2158,7 @@ export const reqSchedule = asyncWrapper(
           latitude: '33.501298', // 제주
           longitude: '126.525482', // 제주
           categoriesFilterIds: ['property_type::204'], // filter: hotel
-          mock: false,
+          mock: true,
         },
         nearbySearchReqParams: {
           keyword: '',
@@ -2174,7 +2177,90 @@ export const reqSchedule = asyncWrapper(
         },
       );
 
-      console.log(recommendListFromDB);
+      const { queryParamId, metaInfo, visitSchedules, visitSchedulesCount } =
+        recommendListFromDB;
+      const promise1 = prisma.metaScheduleInfo.create({
+        data: {
+          totalHotelSearchCount: metaInfo.totalHotelSearchCount,
+          totalRestaurantSearchCount: metaInfo.totalRestaurantSearchCount,
+          totalSpotSearchCount: metaInfo.totalSpotSearchCount,
+          spotPerDay: metaInfo.spotPerDay,
+          mealPerDay: metaInfo.mealPerDay,
+          mealSchedule: metaInfo.mealSchedule.toString(),
+          travelNights: metaInfo.travelNights,
+          travelDays: metaInfo.travelDays,
+          hotelTransition: metaInfo.hotelTransition,
+          transitionTerm: metaInfo.transitionTerm,
+          recommendedMinHotelCount: metaInfo.recommendedMinHotelCount,
+          recommendedMidHotelCount: metaInfo.recommendedMidHotelCount,
+          recommendedMaxHotelCount: metaInfo.recommendedMaxHotelCount,
+          visitSchedulesCount,
+          queryParamsId: queryParamId,
+        },
+      });
+
+      type VisitScheduleDataType = {
+        dayNo: number;
+        from: From;
+        type: PlaceType;
+        dataId: number;
+      };
+      const visitScheduleStoreData = visitSchedules.reduce(
+        (acc: VisitScheduleDataType[], cur, idx) => {
+          const minVisitOrder: VisitScheduleDataType[] =
+            cur.visitOrder.ordersFromMinHotel.map(item => {
+              return {
+                dayNo: idx + 1,
+                from: 'MIN',
+                type: item.type.toUpperCase() as PlaceType,
+                dataId: item.data.id,
+              };
+            });
+
+          const midVisitOrder: VisitScheduleDataType[] =
+            cur.visitOrder.ordersFromMidHotel.map(item => {
+              return {
+                dayNo: idx + 1,
+                from: 'MID',
+                type: item.type.toUpperCase() as PlaceType,
+                dataId: item.data.id,
+              };
+            });
+
+          const maxVisitOrder: VisitScheduleDataType[] =
+            cur.visitOrder.ordersFromMaxHotel.map(item => {
+              return {
+                dayNo: idx + 1,
+                from: 'MAX',
+                type: item.type.toUpperCase() as PlaceType,
+                dataId: item.data.id,
+              };
+            });
+          const newAcc = [
+            ...acc,
+            ...minVisitOrder,
+            ...midVisitOrder,
+            ...maxVisitOrder,
+          ];
+          return newAcc;
+        },
+        [],
+      );
+
+      const promise2 = visitScheduleStoreData.map(item => {
+        return prisma.visitSchedule.create({
+          data: {
+            dayNo: item.dayNo,
+            from: item.from,
+            type: item.type,
+            dataId: item.dataId,
+            queryParamsId: queryParamId,
+          },
+        });
+      });
+
+      const promises = [promise1, promise2].flat();
+      await prisma.$transaction(promises);
 
       res.json({
         ...ibDefs.SUCCESS,

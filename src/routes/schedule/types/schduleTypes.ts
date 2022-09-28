@@ -260,6 +260,7 @@ export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
 
   visitSchedulesCount: number;
   visitSchedules: VisitSchedules;
+  queryParamId: number;
 };
 export type GetRecommendListInnerAsyncFnResponse =
   | (GetRecommendListWithLatLngtInnerAsyncFnResponse & {
