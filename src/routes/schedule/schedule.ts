@@ -68,6 +68,8 @@ import {
   ReqScheduleParams,
   ReqScheduleResponse,
   TravelType,
+  GetScheduleParams,
+  GetScheduleResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2298,6 +2300,41 @@ export const reqSchedule = (
     throw err;
   }
 };
+
+export const getSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleParams>,
+    res: Express.IBTypedResponse<GetScheduleResponse>,
+  ) => {
+    const params = req.body;
+    const { scheduleHash } = params;
+
+    const queryParams = await prisma.queryParams.findFirst({
+      where: {
+        scheduleHash,
+      },
+      include: {
+        visitSchedule: true,
+        metaScheduleInfo: true,
+      },
+    });
+
+    if (!queryParams) {
+      res.status(202).json({
+        ...ibDefs.NOTEXISTDATA,
+        IBdetail:
+          '일정이 아직 생성되지 않았거나 존재하지 않는 scheduleHash 값입니다.',
+        IBparams: {},
+      });
+      return;
+    }
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: {},
+    });
+  },
+);
 
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);

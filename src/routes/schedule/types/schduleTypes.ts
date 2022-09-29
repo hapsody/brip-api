@@ -4,6 +4,7 @@ import {
   QueryParams,
   Prisma,
   Gglgeometry,
+  From,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -590,4 +591,25 @@ export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
         scheduleHash: string;
       }
     | {};
+};
+
+export interface GetScheduleParams {
+  scheduleHash: string;
+}
+
+export type GetScheduleResponsePayload = {
+  scheduleHash: string;
+  plan: {
+    id: string;
+    planType: From; // ex) MIN, MID, MAX
+    day: number; // ex) '01', '02', ...
+    titleList: {
+      id: string; // ex)  171273
+      title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+    }[];
+  }[];
+};
+
+export type GetScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleResponsePayload | {};
 };
