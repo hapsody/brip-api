@@ -95,6 +95,8 @@ model GglNearbySearchRes {
   photos                GglPhotos[] /// 장소 사진 url
   QueryParams           QueryParams?             @relation(fields: [queryParamsId], references: [id])
   queryParamsId         Int?
+  spotSchedule          VisitSchedule[]          @relation("Spot")
+  restaurantSchedule    VisitSchedule[]          @relation("Restaurant")
 }
 
 /// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
@@ -167,8 +169,9 @@ model SearchHotelRes {
   hotel_facilities        String  @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
 
-  QueryParams   QueryParams @relation(fields: [queryParamsId], references: [id])
+  QueryParams   QueryParams     @relation(fields: [queryParamsId], references: [id])
   queryParamsId Int
+  visitSchedule VisitSchedule[]
 }
 
 /// 개발용 booking.com hotels mock data type 구분용
@@ -253,13 +256,20 @@ model VisitSchedule {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now())
-  dayNo     Int // 본 스케쥴이 몇일차인지 일정인지
-  from      From // 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
-  type      PlaceType // 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
-  dataId    Int // 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
+  dayNo     Int /// 본 스케쥴이 몇일차 일정인지
+  from      From /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
+  type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
+  dataId    Int /// 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
 
   QueryParams   QueryParams? @relation(fields: [queryParamsId], references: [id])
   queryParamsId Int?
+
+  spot         GglNearbySearchRes? @relation(name: "Spot", fields: [spotId], references: [id])
+  spotId       Int?
+  restaurant   GglNearbySearchRes? @relation(name: "Restaurant", fields: [restaurantId], references: [id])
+  restaurantId Int?
+  hotel        SearchHotelRes?     @relation(fields: [hotelId], references: [id])
+  hotelId      Int?
 }
 
 enum From {

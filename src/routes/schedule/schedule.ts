@@ -2249,12 +2249,23 @@ export const reqSchedule = (
         );
 
         const promise2 = visitScheduleStoreData.map(item => {
+          const d: {
+            hotelId?: number;
+            spotId?: number;
+            restaurantId?: number;
+          } = {
+            ...(item.type === 'HOTEL' && { hotelId: item.dataId }),
+            ...(item.type === 'RESTAURANT' && { restaurantId: item.dataId }),
+            ...(item.type === 'SPOT' && { spotId: item.dataId }),
+          };
+
           return prisma.visitSchedule.create({
             data: {
               dayNo: item.dayNo,
               from: item.from,
               type: item.type,
               dataId: item.dataId,
+              ...d,
               queryParamsId: queryParamId,
             },
           });
@@ -2314,7 +2325,7 @@ export const getSchedule = asyncWrapper(
         scheduleHash,
       },
       include: {
-        visitSchedule: true,
+        visitSchedule: {},
         metaScheduleInfo: true,
       },
     });
@@ -2328,6 +2339,21 @@ export const getSchedule = asyncWrapper(
       });
       return;
     }
+
+    // queryParams.visitSchedule.map((v, i) => {
+    //   return {
+    //     scheduleHash,
+    //     plan: {
+    //       id: queryParams.id,
+    //       planType: 'MIN',
+    //       day: v.dayNo,
+    //       titleList: {
+    //         id: v.id,
+    //         title: v.
+    //       }
+    //     },
+    //   };
+    // });
 
     res.json({
       ...ibDefs.SUCCESS,
