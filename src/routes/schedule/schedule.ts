@@ -70,7 +70,6 @@ import {
   TravelType,
   GetScheduleParams,
   GetScheduleResponse,
-  GetScheduleResponsePayload,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2362,66 +2361,50 @@ export const getSchedule = asyncWrapper(
       e => e.from === 'MAX',
     );
 
+    const travelDays = queryParams?.metaScheduleInfo?.travelDays ?? 0;
+
     const filterXPlan = (planType: From) => {
       return {
-        id: queryParams.id.toString(),
         planType,
-        titleList: (() => {
-          if (planType === 'MIN') return minVisitSchedules;
-          if (planType === 'MID') return midVisitSchedules;
-          return maxVisitSchedules;
-        })().map(v => {
+        day: Array.from(Array(travelDays)).map((e, i) => {
+          const scheduleByDays = (() => {
+            if (planType === 'MIN') return minVisitSchedules;
+            if (planType === 'MID') return midVisitSchedules;
+            return maxVisitSchedules;
+          })().filter(k => {
+            if (k.dayNo === i + 1) return true;
+            return false;
+          });
+
           return {
-            id: v.id.toString(),
-            no: v.orderNo.toString(),
-            day: v.dayNo.toString(),
-            title: (() => {
-              if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
-              if (v.type === 'RESTAURANT') {
-                return v.restaurant?.name ?? 'error';
-              }
-              return v.spot?.name ?? 'error';
-            })(),
+            dayNo: `${i + 1}`,
+            titleList: scheduleByDays.map(v => {
+              return {
+                visitScheduleId: v.id.toString(),
+                orderNo: v.orderNo.toString(),
+                // dayNo: v.dayNo.toString(),
+                title: (() => {
+                  if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
+                  if (v.type === 'RESTAURANT') {
+                    return v.restaurant?.name ?? 'error';
+                  }
+                  return v.spot?.name ?? 'error';
+                })(),
+              };
+            }),
           };
         }),
       };
     };
     const plan = [filterXPlan('MIN'), filterXPlan('MID'), filterXPlan('MAX')];
 
-    const result: GetScheduleResponsePayload = {
-      scheduleHash,
-      plan,
-    };
-
-    // (
-    //   queryParams.visitSchedule as (VisitSchedule & {
-    //     hotel: SearchHotelRes | null;
-    //     restaurant: GglNearbySearchRes | null;
-    //     spot: GglNearbySearchRes | null;
-    //   })[]
-    // ).map(v => {
-    //   return {
-    //     id: queryParams.id.toString(),
-    //     planType: 'MIN',
-    //     day: v.dayNo,
-    //     titleList: v.
-
-    // {
-    //   id: v.id.toString(),
-    //   title: (() => {
-    //     if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
-    //     if (v.type === 'RESTAURANT') {
-    //       return v.restaurant?.name ?? 'error';
-    //     }
-    //     return v.spot?.name ?? 'error';
-    //   })(),
-    // },
-    //   };
-    // }),
-
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: result,
+      IBparams: {
+        queryParamsId: queryParams.id.toString(),
+        scheduleHash: queryParams.scheduleHash,
+        plan,
+      },
     });
   },
 );

@@ -598,15 +598,18 @@ export interface GetScheduleParams {
 }
 
 export type GetScheduleResponsePayload = {
-  scheduleHash: string;
+  queryParamsId: string; // 일정 요청 DB ID
+  scheduleHash: string; // 일정 요청 고유번호
   plan: {
-    id: string;
-    planType: From; // ex) MIN, MID, MAX
-    titleList: {
-      id: string; // ex)  171273
-      no: string;
-      day: string; // ex) '01', '02', ...
-      title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+    planType: From; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+    day: {
+      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+      titleList: {
+        visitScheduleId: string; // ex)  171273
+        dayNo?: string; // test code에서 확인용으로
+        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+      }[];
     }[];
   }[];
 };
