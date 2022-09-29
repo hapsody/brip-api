@@ -602,9 +602,10 @@ export type GetScheduleResponsePayload = {
   plan: {
     id: string;
     planType: From; // ex) MIN, MID, MAX
-    day: number; // ex) '01', '02', ...
     titleList: {
       id: string; // ex)  171273
+      no: string;
+      day: string; // ex) '01', '02', ...
       title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
     }[];
   }[];

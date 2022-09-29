@@ -19,8 +19,6 @@ import {
   // GglNearbySearchRes,
   From,
   PlaceType,
-  // VisitSchedule,
-  // GglNearbySearchRes,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
@@ -72,7 +70,7 @@ import {
   TravelType,
   GetScheduleParams,
   GetScheduleResponse,
-  // GetScheduleResponsePayload,
+  GetScheduleResponsePayload,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2354,34 +2352,46 @@ export const getSchedule = asyncWrapper(
       return;
     }
 
-    // const minVisitSchedules = queryParams.visitSchedule.filter(
-    //   e => e.from === 'MIN',
-    // );
-    // const midVisitSchedules = queryParams.visitSchedule.filter(
-    //   e => e.from === 'MID',
-    // );
-    // const maxVisitSchedules = queryParams.visitSchedule.filter(
-    //   e => e.from === 'MAX',
-    // );
+    const minVisitSchedules = queryParams.visitSchedule.filter(
+      e => e.from === 'MIN',
+    );
+    const midVisitSchedules = queryParams.visitSchedule.filter(
+      e => e.from === 'MID',
+    );
+    const maxVisitSchedules = queryParams.visitSchedule.filter(
+      e => e.from === 'MAX',
+    );
 
-    const result = {};
-    // const result: GetScheduleResponsePayload = {
-    //   scheduleHash,
-    //   plan: [
-    //     {
-    //       id: queryParams.id.toString(),
-    //       planType: 'MIN',
-    //       titleList:minVisitSchedules.map((v, i)=>{
-    //         return {
-    //           id: v.id.toString(),
-    //           no: v.
-    //           titleList:
+    const filterXPlan = (planType: From) => {
+      return {
+        id: queryParams.id.toString(),
+        planType,
+        titleList: (() => {
+          if (planType === 'MIN') return minVisitSchedules;
+          if (planType === 'MID') return midVisitSchedules;
+          return maxVisitSchedules;
+        })().map(v => {
+          return {
+            id: v.id.toString(),
+            no: v.orderNo.toString(),
+            day: v.dayNo.toString(),
+            title: (() => {
+              if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
+              if (v.type === 'RESTAURANT') {
+                return v.restaurant?.name ?? 'error';
+              }
+              return v.spot?.name ?? 'error';
+            })(),
+          };
+        }),
+      };
+    };
+    const plan = [filterXPlan('MIN'), filterXPlan('MID'), filterXPlan('MAX')];
 
-    //         }
-    //       })
-    //     }
-    //   ]
-    // }
+    const result: GetScheduleResponsePayload = {
+      scheduleHash,
+      plan,
+    };
 
     // (
     //   queryParams.visitSchedule as (VisitSchedule & {
@@ -2396,16 +2406,16 @@ export const getSchedule = asyncWrapper(
     //     day: v.dayNo,
     //     titleList: v.
 
-    //     {
-    //       id: v.id.toString(),
-    //       title: (() => {
-    //         if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
-    //         if (v.type === 'RESTAURANT') {
-    //           return v.restaurant?.name ?? 'error';
-    //         }
-    //         return v.spot?.name ?? 'error';
-    //       })(),
-    //     },
+    // {
+    //   id: v.id.toString(),
+    //   title: (() => {
+    //     if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
+    //     if (v.type === 'RESTAURANT') {
+    //       return v.restaurant?.name ?? 'error';
+    //     }
+    //     return v.spot?.name ?? 'error';
+    //   })(),
+    // },
     //   };
     // }),
 
@@ -2442,4 +2452,5 @@ scheduleRouter.post(
 );
 
 scheduleRouter.post('/reqSchedule', reqSchedule);
+scheduleRouter.post('/getSchedule', getSchedule);
 export default scheduleRouter;
