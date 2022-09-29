@@ -19,6 +19,8 @@ import {
   // GglNearbySearchRes,
   From,
   PlaceType,
+  // VisitSchedule,
+  // GglNearbySearchRes,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
@@ -70,6 +72,7 @@ import {
   TravelType,
   GetScheduleParams,
   GetScheduleResponse,
+  // GetScheduleResponsePayload,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2202,16 +2205,18 @@ export const reqSchedule = (
 
         type VisitScheduleDataType = {
           dayNo: number;
+          orderNo: number;
           from: From;
           type: PlaceType;
           dataId: number;
         };
         const visitScheduleStoreData = visitSchedules.reduce(
-          (acc: VisitScheduleDataType[], cur, idx) => {
+          (acc: VisitScheduleDataType[], cur, dayIdx) => {
             const minVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMinHotel.map(item => {
+              cur.visitOrder.ordersFromMinHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MIN',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2219,9 +2224,10 @@ export const reqSchedule = (
               });
 
             const midVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMidHotel.map(item => {
+              cur.visitOrder.ordersFromMidHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MID',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2229,9 +2235,10 @@ export const reqSchedule = (
               });
 
             const maxVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMaxHotel.map(item => {
+              cur.visitOrder.ordersFromMaxHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MAX',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2262,6 +2269,7 @@ export const reqSchedule = (
           return prisma.visitSchedule.create({
             data: {
               dayNo: item.dayNo,
+              orderNo: item.orderNo,
               from: item.from,
               type: item.type,
               dataId: item.dataId,
@@ -2325,7 +2333,13 @@ export const getSchedule = asyncWrapper(
         scheduleHash,
       },
       include: {
-        visitSchedule: {},
+        visitSchedule: {
+          include: {
+            spot: true,
+            restaurant: true,
+            hotel: true,
+          },
+        },
         metaScheduleInfo: true,
       },
     });
@@ -2340,24 +2354,64 @@ export const getSchedule = asyncWrapper(
       return;
     }
 
-    // queryParams.visitSchedule.map((v, i) => {
-    //   return {
-    //     scheduleHash,
-    //     plan: {
-    //       id: queryParams.id,
+    // const minVisitSchedules = queryParams.visitSchedule.filter(
+    //   e => e.from === 'MIN',
+    // );
+    // const midVisitSchedules = queryParams.visitSchedule.filter(
+    //   e => e.from === 'MID',
+    // );
+    // const maxVisitSchedules = queryParams.visitSchedule.filter(
+    //   e => e.from === 'MAX',
+    // );
+
+    const result = {};
+    // const result: GetScheduleResponsePayload = {
+    //   scheduleHash,
+    //   plan: [
+    //     {
+    //       id: queryParams.id.toString(),
     //       planType: 'MIN',
-    //       day: v.dayNo,
-    //       titleList: {
-    //         id: v.id,
-    //         title: v.
-    //       }
+    //       titleList:minVisitSchedules.map((v, i)=>{
+    //         return {
+    //           id: v.id.toString(),
+    //           no: v.
+    //           titleList:
+
+    //         }
+    //       })
+    //     }
+    //   ]
+    // }
+
+    // (
+    //   queryParams.visitSchedule as (VisitSchedule & {
+    //     hotel: SearchHotelRes | null;
+    //     restaurant: GglNearbySearchRes | null;
+    //     spot: GglNearbySearchRes | null;
+    //   })[]
+    // ).map(v => {
+    //   return {
+    //     id: queryParams.id.toString(),
+    //     planType: 'MIN',
+    //     day: v.dayNo,
+    //     titleList: v.
+
+    //     {
+    //       id: v.id.toString(),
+    //       title: (() => {
+    //         if (v.type === 'HOTEL') return v.hotel?.hotel_name ?? 'error';
+    //         if (v.type === 'RESTAURANT') {
+    //           return v.restaurant?.name ?? 'error';
+    //         }
+    //         return v.spot?.name ?? 'error';
+    //       })(),
     //     },
     //   };
-    // });
+    // }),
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: {},
+      IBparams: result,
     });
   },
 );
