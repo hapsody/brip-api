@@ -13,16 +13,16 @@ datasource db {
 }
 
 model User {
-  id          Int           @id @default(autoincrement())
-  email       String        @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
+  id          Int      @id @default(autoincrement())
+  email       String   @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
   password    String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
   phone       String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
   nickName    String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
   countryCode String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userTokenId String        @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
+  userTokenId String   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 }
 
 // enum OPENINGHOURS {
@@ -123,16 +123,28 @@ model QueryParams {
   hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
   searchHotelRes           SearchHotelRes[] /// 일정에 대응하는 호텔 후보지 검색 결과
   gglNearbySearchRes       GglNearbySearchRes[] /// 일정에 대응하는 주변 관광지와 식당 후보지 검색 결과
-  metaScheduleInfo         MetaScheduleInfo?    /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
-  visitSchedule            VisitSchedule[]  /// 스케쥴 생성 후 방문할 곳들에 대한 정보
-  // user                     User?                @relation(fields: [userId], references: [id]) 
-  // userId                   Int? 
-  userTokenId String? 
-  title   String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
-  thumbnail String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
-  scheduleHash             String? /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  metaScheduleInfo         MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
+  visitSchedule            VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
+  userTokenId              String? /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  // scheduleTitle             String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // schedulePlanType
+  scheduleHash             String?              @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  savedSchedule            ScheduleBank?
 }
 
+model ScheduleBank {
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now())
+  title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  planType      PlanType
+  scheduleHash  String      @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  queryParams   QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParamsId Int         @unique
+}
 
 model SearchHotelRes {
   id        Int      @id @default(autoincrement())
@@ -235,9 +247,9 @@ model CardTag {
 }
 
 model MetaScheduleInfo {
-  id                         Int         @id @default(autoincrement())
-  createdAt                  DateTime    @default(now())
-  updatedAt                  DateTime    @default(now())
+  id                         Int      @id @default(autoincrement())
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @default(now())
   totalHotelSearchCount      Int /// 검색된 호텔들의 수
   totalRestaurantSearchCount Int /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
   totalSpotSearchCount       Int /// 검색된 관광지의 수
@@ -246,16 +258,16 @@ model MetaScheduleInfo {
   mealSchedule               String /// 식사 일정,  ex) -1,0,2 
   // -1,0,2 => { breakfast: -1, lunch: 0, dinner: 2 }  라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함. 추가사항은 MealOrder 클래스 코멘트 참조.
 
-  travelNights               Int /// 여행'박' 수, ex) 1박 2일에서 1를 의미
-  travelDays                 Int /// 여행'일' 수, ex) 1박 2일에서 2를 의미
-  hotelTransition            Int /// 여행중 숙소를 몇번 변경할것인지
-  transitionTerm             Int /// 여행중 숙소를 몇일마다 바꿀것인지 
-  recommendedMinHotelCount   Int /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMidHotelCount   Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMaxHotelCount   Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  visitSchedulesCount        Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
-  queryParams                QueryParams @relation(fields: [queryParamsId], references: [id])
-  queryParamsId              Int         @unique
+  travelNights             Int /// 여행'박' 수, ex) 1박 2일에서 1를 의미
+  travelDays               Int /// 여행'일' 수, ex) 1박 2일에서 2를 의미
+  hotelTransition          Int /// 여행중 숙소를 몇번 변경할것인지
+  transitionTerm           Int /// 여행중 숙소를 몇일마다 바꿀것인지 
+  recommendedMinHotelCount Int /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMidHotelCount Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMaxHotelCount Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
+  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParamsId            Int         @unique
 }
 
 model VisitSchedule {
