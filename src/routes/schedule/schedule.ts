@@ -18,7 +18,7 @@ import {
   SearchHotelRes,
   Prisma,
   // GglNearbySearchRes,
-  From,
+  PlanType,
   PlaceType,
 } from '@prisma/client';
 import moment from 'moment';
@@ -73,6 +73,8 @@ import {
   GetScheduleResponse,
   GetScheduleListParams,
   GetScheduleListResponse,
+  SaveScheduleParams,
+  SaveScheduleResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2206,7 +2208,7 @@ export const reqSchedule = (
         type VisitScheduleDataType = {
           dayNo: number;
           orderNo: number;
-          from: From;
+          from: PlanType;
           type: PlaceType;
           dataId: number;
         };
@@ -2366,7 +2368,7 @@ export const getSchedule = asyncWrapper(
 
     const travelDays = queryParams?.metaScheduleInfo?.travelDays ?? 0;
 
-    const filterXPlan = (planType: From) => {
+    const filterXPlan = (planType: PlanType) => {
       return {
         planType,
         day: Array.from(Array(travelDays)).map((e, i) => {
@@ -2428,9 +2430,7 @@ export const getScheduleList = asyncWrapper(
 
       const queryParams = await prisma.queryParams.findMany({
         where: {
-          user: {
-            userTokenId,
-          },
+          userTokenId,
         },
         include: {
           visitSchedule: true,
@@ -2471,6 +2471,83 @@ export const getScheduleList = asyncWrapper(
   },
 );
 
+export const saveSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SaveScheduleParams>,
+    res: Express.IBTypedResponse<SaveScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      const {
+        title,
+        // keyword,
+        // planType,
+        scheduleHash,
+      } = req.body;
+
+      const queryParams = await prisma.queryParams.findFirst({
+        where: {
+          scheduleHash,
+        },
+      });
+
+      if (!queryParams) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'scheduleHash에 대응하는 일정 데이터가 존재하지 않습니다.',
+        });
+      }
+
+      const updateResult = await prisma.queryParams.update({
+        where: {
+          id: queryParams.id,
+        },
+        data: {
+          title,
+          thumbnail:
+            'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+          userTokenId,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          scheduleHash: updateResult.scheduleHash ?? 'null',
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -2499,4 +2576,5 @@ scheduleRouter.post(
 scheduleRouter.post('/reqSchedule', reqSchedule);
 scheduleRouter.post('/getSchedule', getSchedule);
 scheduleRouter.post('/getScheduleList', accessTokenValidCheck, getScheduleList);
+scheduleRouter.post('/saveSchedule', accessTokenValidCheck, saveSchedule);
 export default scheduleRouter;
