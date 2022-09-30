@@ -614,6 +614,31 @@ export type GetScheduleResponsePayload = {
   }[];
 };
 
+export interface GetScheduleListParams {
+  scheduleHash: string;
+}
+
 export type GetScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleResponsePayload | {};
+};
+
+export type GetScheduleListResponsePayload = {
+  queryParamsId: string; // 일정 요청 DB ID
+  scheduleHash: string; // 일정 요청 고유번호
+  plan: {
+    planType: From; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+    day: {
+      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+      titleList: {
+        visitScheduleId: string; // ex)  171273
+        dayNo?: string; // test code에서 확인용으로
+        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+      }[];
+    }[];
+  }[];
+};
+
+export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleListResponsePayload | {};
 };

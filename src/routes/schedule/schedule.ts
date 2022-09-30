@@ -9,6 +9,7 @@ import {
   IBError,
   getToday,
   getTomorrow,
+  accessTokenValidCheck,
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
@@ -70,6 +71,8 @@ import {
   TravelType,
   GetScheduleParams,
   GetScheduleResponse,
+  GetScheduleListParams,
+  GetScheduleListResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2409,6 +2412,65 @@ export const getSchedule = asyncWrapper(
   },
 );
 
+export const getScheduleList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleListParams>,
+    res: Express.IBTypedResponse<GetScheduleListResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      const queryParams = await prisma.queryParams.findMany({
+        where: {
+          user: {
+            userTokenId,
+          },
+        },
+        include: {
+          visitSchedule: true,
+          metaScheduleInfo: true,
+        },
+      });
+
+      const retValue = queryParams
+        .map(q => {
+          if (!q.title) return null;
+          return {
+            id: q.id,
+            title: q.title,
+            createdAt: q.createdAt,
+            thumbnail: q.thumbnail,
+            scheduleHash: q.scheduleHash,
+          };
+        })
+        .filter(e => e);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retValue,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -2436,4 +2498,5 @@ scheduleRouter.post(
 
 scheduleRouter.post('/reqSchedule', reqSchedule);
 scheduleRouter.post('/getSchedule', getSchedule);
+scheduleRouter.post('/getScheduleList', accessTokenValidCheck, getScheduleList);
 export default scheduleRouter;
