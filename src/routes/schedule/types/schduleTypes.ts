@@ -645,10 +645,10 @@ export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
 };
 
 export interface SaveScheduleParams {
-  title: string;
-  keyword: string[];
+  title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
+  keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
   planType: PlanType;
-  scheduleHash: string;
+  scheduleHash: string; ///  저장할 schedule의 고유 hash ex) "1bgfjv1asdnn1gbbnaidi125nh5hb1fh"
 }
 
 export type SaveScheduleResponsePayload = {
@@ -670,4 +670,45 @@ export type SaveScheduleResponsePayload = {
 
 export type SaveScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: SaveScheduleResponsePayload | {};
+};
+
+export interface GetDetailScheduleParams {
+  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+  day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
+  planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
+}
+
+export type GetDetailScheduleResponsePayload = {
+  id: string; /// ex) 1273712
+  dayCount: number; /// ex) 1, 2, 3
+  contentsCountAll: number; /// ex) 11
+  spotList: {
+    id: string; /// ex) 22748
+    spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+    previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+    spotName: string; /// ex) 'Turtle Bay Resort'
+    roomType?: string; /// ex)
+    spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+    contact: string; /// ex) '+18089228111'
+    //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+    startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+    endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+    night?: Number; /// 1박 ex)
+    days?: Number; /// 2일 ex)
+    checkIn?: String; /// ex) 15:00
+    checkOut?: String; ///  ex)  11:00
+    price?: String; ///  1박당? 전체?
+    rating?: number; /// ex) 8.7
+    lat?: number; /// ex) 33.47471823
+    lng?: number; /// ex) 126.17273718239
+    imageList?: {
+      id: string; /// ex) 18184
+      url: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
+      text: string; /// ex) ??
+    }[];
+  }[];
+};
+
+export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDetailScheduleResponsePayload | {};
 };

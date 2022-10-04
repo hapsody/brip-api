@@ -36,8 +36,8 @@ model GglPhotos {
 
   height             Int?
   width              Int?
-  html_attributuions String?
-  photo_reference    String
+  html_attributuions String? /// ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
+  photo_reference    String /// ex) AcYSjRjZms48ZpgsVFfCrPG27i8YwHmNSk11mEaYTOFTjXkMi-89j9d1lhT_7j6ud5IAHzMucNLf2hJGy9ZGbApjloPzqOIiZkK5WDzLlQq-9k9ppD770Km5YyNBGT4PWZzJuN-b5TMYNIE1cahIEdNrhEA4fb7huAQ90_jsPKqFfqpTLqx5
 
   gglNearbySearchRes GglNearbySearchRes[]
 }
@@ -130,9 +130,10 @@ model QueryParams {
   // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // schedulePlanType
   scheduleHash             String?              @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
-  savedSchedule            ScheduleBank?
+  savedSchedule            ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
 }
 
+/// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
 model ScheduleBank {
   id            Int         @id @default(autoincrement())
   createdAt     DateTime    @default(now())
@@ -147,12 +148,12 @@ model ScheduleBank {
 }
 
 model SearchHotelRes {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-
+  id                                Int      @id @default(autoincrement())
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @default(now())
+  unit_configuration_label          String /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   min_total_price                   Float /// ex) 572.61373972
-  gross_amount_per_night            Float @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
+  gross_amount_per_night            Float    @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
   gross_amount                      Float /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
   included_taxes_and_charges_amount Float /// 세금 포함한 금액
   net_amount                        Float /// 순액
