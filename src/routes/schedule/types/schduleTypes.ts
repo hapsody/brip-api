@@ -672,13 +672,13 @@ export type SaveScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: SaveScheduleResponsePayload | {};
 };
 
-export interface GetDetailScheduleParams {
+export interface GetDayScheduleParams {
   scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
   planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
 
-export type GetDetailScheduleResponsePayload = {
+export type GetDayScheduleResponsePayload = {
   id: string; /// ex) 1273712
   dayCount: number; /// ex) 1, 2, 3
   contentsCountAll: number; /// ex) 11
@@ -689,7 +689,9 @@ export type GetDetailScheduleResponsePayload = {
     spotName: string; /// ex) 'Turtle Bay Resort'
     roomType?: string; /// ex)
     spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
-    contact: string; /// ex) '+18089228111'
+    // contact: string; /// ex) '+18089228111'
+    hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+    placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
     //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
     startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
     endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
@@ -709,6 +711,6 @@ export type GetDetailScheduleResponsePayload = {
   }[];
 };
 
-export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDetailScheduleResponsePayload | {};
+export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleResponsePayload | {};
 };

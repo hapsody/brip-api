@@ -78,9 +78,9 @@ import {
   GetScheduleListResponse,
   SaveScheduleParams,
   SaveScheduleResponse,
-  GetDetailScheduleParams,
-  GetDetailScheduleResponse,
-  GetDetailScheduleResponsePayload,
+  GetDayScheduleParams,
+  GetDayScheduleResponse,
+  GetDayScheduleResponsePayload,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -2643,10 +2643,10 @@ export const saveSchedule = asyncWrapper(
   },
 );
 
-export const getDetailSchedule = asyncWrapper(
+export const getDaySchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetDetailScheduleParams>,
-    res: Express.IBTypedResponse<GetDetailScheduleResponse>,
+    req: Express.IBTypedReqBody<GetDayScheduleParams>,
+    res: Express.IBTypedResponse<GetDayScheduleResponse>,
   ) => {
     try {
       const { locals } = req;
@@ -2702,7 +2702,7 @@ export const getDetailSchedule = asyncWrapper(
         });
       }
 
-      const spotList: Pick<GetDetailScheduleResponsePayload, 'spotList'> = {
+      const spotList: Pick<GetDayScheduleResponsePayload, 'spotList'> = {
         spotList: queryParams.visitSchedule.map(v => {
           const place = (() => {
             if (v.type === 'HOTEL') return v.hotel;
@@ -2719,7 +2719,7 @@ export const getDetailSchedule = asyncWrapper(
               spotName: hotel.hotel_name,
               roomType: hotel.unit_configuration_label,
               spotAddr: hotel.address,
-              contact: 'none',
+              hotelBookingUrl: hotel.url,
               startDate: moment(queryParams.hotelCheckinDate).format(
                 'YYYY-MM-DD',
               ),
@@ -2758,7 +2758,8 @@ export const getDetailSchedule = asyncWrapper(
                   : 'none',
               spotName: restaurant.name ?? 'none',
               spotAddr: restaurant.vicinity ?? 'none',
-              contact: 'none',
+              // contact: 'none',
+              placeId: restaurant.place_id ?? 'none',
               startDate: moment(queryParams.hotelCheckinDate).format(
                 'YYYY-MM-DD',
               ),
@@ -2809,7 +2810,8 @@ export const getDetailSchedule = asyncWrapper(
                 : 'none',
             spotName: spot.name ?? 'none',
             spotAddr: spot.vicinity ?? 'none',
-            contact: 'none',
+            // contact: 'none',
+            placeId: spot.place_id ?? 'none',
             startDate: moment(queryParams.hotelCheckinDate).format(
               'YYYY-MM-DD',
             ),
@@ -2847,7 +2849,7 @@ export const getDetailSchedule = asyncWrapper(
         }),
       };
 
-      const retValue: GetDetailScheduleResponsePayload = {
+      const retValue: GetDayScheduleResponsePayload = {
         id: queryParams.id.toString(),
         dayCount: Number(day),
         contentsCountAll: spotList.spotList.length,
@@ -2912,9 +2914,5 @@ scheduleRouter.post('/reqSchedule', accessTokenValidCheck, reqSchedule);
 scheduleRouter.post('/getSchedule', accessTokenValidCheck, getSchedule);
 scheduleRouter.post('/getScheduleList', accessTokenValidCheck, getScheduleList);
 scheduleRouter.post('/saveSchedule', accessTokenValidCheck, saveSchedule);
-scheduleRouter.post(
-  '/getDetailSchedule',
-  accessTokenValidCheck,
-  getDetailSchedule,
-);
+scheduleRouter.post('/getDaySchedule', accessTokenValidCheck, getDaySchedule);
 export default scheduleRouter;
