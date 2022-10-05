@@ -365,18 +365,6 @@ const storeDataRelatedWithQueryParams = async (
         },
       });
     }
-
-    // await Promise.all(promises);
-    // try {
-    //   await Promise.all(promises);
-    // } catch (e) {
-    //   await prisma.queryParams.delete({
-    //     where: {
-    //       id: queryParamId,
-    //     },
-    //   });
-    //   throw e;
-    // }
   }
   return { results, queryParamId };
 };
@@ -1970,18 +1958,18 @@ const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
     // const testFromDB = await prisma.nonMembersCount.count();
-    const rawResult = await axios.get(
+    await axios.get(
       `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=AcYSjRiZPer89udPGpFKZg4ApRv7azA2xIIGoiPgf8I-Q1hZsmliZT6KupVtJfCv8NrvWAaSc6nMGsHQ0i2FO-YSKZOdbCRG1o9QRSKuNg6SOtba3bweA3o4psLy6CY037LYQuVzd3UMu0IAoGR8mf7_zN_ySGnK98e9RMR6PSbl1-BeUyq_&key=AIzaSyCy8gfiBApL39ZKjDVeWwR6hQKWIUR0SOw`,
     );
-    const protocol = rawResult.request?.protocol;
-    const host = rawResult.request?.host;
-    const path = rawResult.request?.path;
+    // const protocol = rawResult.request?.protocol;
+    // const host = rawResult.request?.host;
+    // const path = rawResult.request?.path;
 
-    const result = `${protocol as string}//${host as string}/${path as string}`;
+    // const result = `${protocol as string}//${host as string}/${path as string}`;
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: result,
+      IBparams: {} as object,
     });
   },
 );
@@ -2879,9 +2867,8 @@ export const getDaySchedule = asyncWrapper(
               id: v.id.toString(),
               spotType: v.type as string,
               previewImg:
-                restaurant.photos.length > 0 &&
-                restaurant.photos[0].html_attributuions
-                  ? restaurant.photos[0].html_attributuions
+                restaurant.photos.length > 0 && restaurant.photos[0].url
+                  ? restaurant.photos[0].url
                   : 'none',
               spotName: restaurant.name ?? 'none',
               spotAddr: restaurant.vicinity ?? 'none',
@@ -2917,7 +2904,7 @@ export const getDaySchedule = asyncWrapper(
               imageList: restaurant.photos.map(p => {
                 return {
                   id: p.id.toString(),
-                  url: p.html_attributuions ?? 'none',
+                  url: p.url ?? 'none',
                   text: 'text는 어디에 쓰이는지?',
                 };
               }),
@@ -2932,8 +2919,8 @@ export const getDaySchedule = asyncWrapper(
             id: v.id.toString(),
             spotType: v.type as string,
             previewImg:
-              spot.photos.length > 0 && spot.photos[0].html_attributuions
-                ? spot.photos[0].html_attributuions
+              spot.photos.length > 0 && spot.photos[0].url
+                ? spot.photos[0].url
                 : 'none',
             spotName: spot.name ?? 'none',
             spotAddr: spot.vicinity ?? 'none',
