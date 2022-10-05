@@ -13,16 +13,16 @@ datasource db {
 }
 
 model User {
-  id          Int           @id @default(autoincrement())
-  email       String        @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
+  id          Int      @id @default(autoincrement())
+  email       String   @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
   password    String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
   phone       String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
   nickName    String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
   countryCode String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userTokenId String        @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
-  queryParams QueryParams[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @default(now())
+  userTokenId String   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
+  // queryParams QueryParams[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 }
 
 // enum OPENINGHOURS {
@@ -36,8 +36,9 @@ model GglPhotos {
 
   height             Int?
   width              Int?
-  html_attributuions String?
-  photo_reference    String
+  html_attributuions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
+  photo_reference    String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
+  url                String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
 
   gglNearbySearchRes GglNearbySearchRes[]
 }
@@ -95,6 +96,8 @@ model GglNearbySearchRes {
   photos                GglPhotos[] /// 장소 사진 url
   QueryParams           QueryParams?             @relation(fields: [queryParamsId], references: [id])
   queryParamsId         Int?
+  spotSchedule          VisitSchedule[]          @relation("Spot")
+  restaurantSchedule    VisitSchedule[]          @relation("Restaurant")
 }
 
 /// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
@@ -118,23 +121,40 @@ model QueryParams {
   hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
   hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
   hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
-  hotelIncludeAdjacency    Boolean?
-  searchHotelRes           SearchHotelRes[]
-  gglNearbySearchRes       GglNearbySearchRes[]
-  metaScheduleInfo         MetaScheduleInfo?
-  visitSchedule            VisitSchedule[]
-  scheduleHash             String?
-  user                     User?                @relation(fields: [userId], references: [id])
-  userId                   Int?
+  hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
+  searchHotelRes           SearchHotelRes[] /// 일정에 대응하는 호텔 후보지 검색 결과
+  gglNearbySearchRes       GglNearbySearchRes[] /// 일정에 대응하는 주변 관광지와 식당 후보지 검색 결과
+  metaScheduleInfo         MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
+  visitSchedule            VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
+  userTokenId              String? /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  // scheduleTitle             String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // schedulePlanType
+  scheduleHash             String?              @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  savedSchedule            ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
+}
+
+/// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
+model ScheduleBank {
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now())
+  title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  planType      PlanType
+  scheduleHash  String      @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  queryParams   QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParamsId Int         @unique
 }
 
 model SearchHotelRes {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-
+  id                                Int      @id @default(autoincrement())
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @default(now())
+  unit_configuration_label          String /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   min_total_price                   Float /// ex) 572.61373972
-  gross_amount_per_night            Float @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
+  gross_amount_per_night            Float    @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
   gross_amount                      Float /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
   included_taxes_and_charges_amount Float /// 세금 포함한 금액
   net_amount                        Float /// 순액
@@ -167,8 +187,9 @@ model SearchHotelRes {
   hotel_facilities        String  @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
 
-  QueryParams   QueryParams @relation(fields: [queryParamsId], references: [id])
+  QueryParams   QueryParams     @relation(fields: [queryParamsId], references: [id])
   queryParamsId Int
+  visitSchedule VisitSchedule[]
 }
 
 /// 개발용 booking.com hotels mock data type 구분용
@@ -228,41 +249,51 @@ model CardTag {
 }
 
 model MetaScheduleInfo {
-  id                         Int         @id @default(autoincrement())
-  createdAt                  DateTime    @default(now())
-  updatedAt                  DateTime    @default(now())
-  totalHotelSearchCount      Int
-  totalRestaurantSearchCount Int
-  totalSpotSearchCount       Int
-  spotPerDay                 Int
-  mealPerDay                 Int
-  mealSchedule               String
-  travelNights               Int
-  travelDays                 Int
-  hotelTransition            Int
-  transitionTerm             Int
-  recommendedMinHotelCount   Int
-  recommendedMidHotelCount   Int
-  recommendedMaxHotelCount   Int
-  visitSchedulesCount        Int
-  queryParams                QueryParams @relation(fields: [queryParamsId], references: [id])
-  queryParamsId              Int         @unique
+  id                         Int      @id @default(autoincrement())
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @default(now())
+  totalHotelSearchCount      Int /// 검색된 호텔들의 수
+  totalRestaurantSearchCount Int /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
+  totalSpotSearchCount       Int /// 검색된 관광지의 수
+  spotPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 관광지 수
+  mealPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 식당 수
+  mealSchedule               String /// 식사 일정,  ex) -1,0,2 
+  // -1,0,2 => { breakfast: -1, lunch: 0, dinner: 2 }  라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함. 추가사항은 MealOrder 클래스 코멘트 참조.
+
+  travelNights             Int /// 여행'박' 수, ex) 1박 2일에서 1를 의미
+  travelDays               Int /// 여행'일' 수, ex) 1박 2일에서 2를 의미
+  hotelTransition          Int /// 여행중 숙소를 몇번 변경할것인지
+  transitionTerm           Int /// 여행중 숙소를 몇일마다 바꿀것인지 
+  recommendedMinHotelCount Int /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMidHotelCount Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMaxHotelCount Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
+  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParamsId            Int         @unique
 }
 
 model VisitSchedule {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now())
-  dayNo     Int // 본 스케쥴이 몇일차인지 일정인지
-  from      From // 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
-  type      PlaceType // 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
-  dataId    Int // 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
+  dayNo     Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
+  orderNo   Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
+  from      PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
+  type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
+  dataId    Int /// 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
 
   QueryParams   QueryParams? @relation(fields: [queryParamsId], references: [id])
   queryParamsId Int?
+
+  spot         GglNearbySearchRes? @relation(name: "Spot", fields: [spotId], references: [id])
+  spotId       Int?
+  restaurant   GglNearbySearchRes? @relation(name: "Restaurant", fields: [restaurantId], references: [id])
+  restaurantId Int?
+  hotel        SearchHotelRes?     @relation(fields: [hotelId], references: [id])
+  hotelId      Int?
 }
 
-enum From {
+enum PlanType {
   MIN
   MID
   MAX

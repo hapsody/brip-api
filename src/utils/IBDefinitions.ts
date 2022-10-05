@@ -65,7 +65,7 @@ export interface IBResFormats {
   NOTAUTHORIZED: IBResFormat; // 403
   KAKAOTOKENERROR: IBResFormat; // 401
   DBTRANSACTIONERROR: IBResFormat; // 500
-  NOTEXISTDATA: IBResFormat; // 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
+  NOTEXISTDATA: IBResFormat; // 202, 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
   NOTMATCHEDDATA: IBResFormat; // 404, 서버가 정상적으로 요청을 수신했으나 DB가 존재하지 않는 정상상황이다.
   DUPLICATEDDATA: IBResFormat; // 409
   EXPIREDDATA: IBResFormat; // 400

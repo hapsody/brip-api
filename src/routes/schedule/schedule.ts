@@ -9,6 +9,7 @@ import {
   IBError,
   getToday,
   getTomorrow,
+  accessTokenValidCheck,
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
@@ -17,8 +18,11 @@ import {
   SearchHotelRes,
   Prisma,
   // GglNearbySearchRes,
-  From,
+  PlanType,
   PlaceType,
+  GglNearbySearchRes,
+  GglPhotos,
+  Gglgeometry,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
@@ -68,6 +72,15 @@ import {
   ReqScheduleParams,
   ReqScheduleResponse,
   TravelType,
+  GetScheduleParams,
+  GetScheduleResponse,
+  GetScheduleListParams,
+  GetScheduleListResponse,
+  SaveScheduleParams,
+  SaveScheduleResponse,
+  GetDayScheduleParams,
+  GetDayScheduleResponse,
+  GetDayScheduleResponsePayload,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -163,8 +176,89 @@ const storeDataRelatedWithQueryParams = async (
         }>
       ).results ?? [];
 
-    const promises = results.map((item: google.maps.places.IBPlaceResult) => {
-      return prisma.gglNearbySearchRes.create({
+    // const promises = results.map((item: google.maps.places.IBPlaceResult) => {
+    //   return prisma.gglNearbySearchRes.create({
+    //     data: {
+    //       QueryParams: {
+    //         connect: {
+    //           id: queryParamId,
+    //         },
+    //       },
+    //       geometry: {
+    //         create: {
+    //           location: JSON.stringify({
+    //             lat: item.geometry?.location?.lat,
+    //             lngt: item.geometry?.location?.lng,
+    //           }),
+    //           viewport: JSON.stringify({
+    //             northeast: {
+    //               lat: item.geometry?.viewport?.northeast?.lat,
+    //               lngt: item.geometry?.viewport?.northeast?.lng,
+    //             },
+    //             southwest: {
+    //               lat: item.geometry?.viewport?.southwest?.lat,
+    //               lngt: item.geometry?.viewport?.southwest?.lng,
+    //             },
+    //           }),
+    //         },
+    //       },
+    //       icon: item.icon,
+    //       icon_background_color: item.icon_background_color,
+    //       icon_mask_base_uri: item.icon_mask_base_uri,
+    //       name: item.name,
+    //       opening_hours:
+    //         (
+    //           item.opening_hours as Partial<{
+    //             open_now: boolean;
+    //           }>
+    //         )?.open_now ?? false,
+    //       place_id: item.place_id,
+    //       price_level: item.price_level,
+    //       rating: item.rating,
+    //       types: (() => {
+    //         return item.types
+    //           ? {
+    //               connectOrCreate: item.types?.map(type => {
+    //                 return {
+    //                   create: { value: type },
+    //                   where: { value: type },
+    //                 };
+    //               }),
+    //             }
+    //           : {
+    //               create: {
+    //                 value: 'Not Applicaple',
+    //               },
+    //             };
+    //       })(),
+    //       user_ratings_total: item.user_ratings_total,
+    //       vicinity: item.vicinity,
+    //       plus_code: {
+    //         create: {
+    //           compund_code: item.plus_code?.compound_code ?? '',
+    //           global_code: item.plus_code?.global_code ?? '',
+    //         },
+    //       },
+    // photos: {
+    //   create: item.photos?.map(photo => {
+    //     return {
+    //       height: photo.height,
+    //       width: photo.width,
+    //       html_attributuions: JSON.stringify(photo.html_attributions),
+    //       photo_reference:
+    //         (photo as Partial<{ photo_reference: string }>)
+    //           .photo_reference ?? '',
+    //     };
+    //   }),
+    // },
+    //     },
+    //   });
+    // });
+    // const createdNearbyRes = await prisma.$transaction(promises);
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const item of results) {
+      await prisma.gglNearbySearchRes.create({
         data: {
           QueryParams: {
             connect: {
@@ -227,32 +321,50 @@ const storeDataRelatedWithQueryParams = async (
             },
           },
           photos: {
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributuions: JSON.stringify(photo.html_attributions),
-                photo_reference:
+            create: await (async () => {
+              const { photos } = item;
+              if (!photos) return undefined;
+              const retArr: {
+                height: number;
+                width: number;
+                html_attributuions: string;
+                photo_reference: string;
+                url?: string;
+              }[] = [];
+              // eslint-disable-next-line no-restricted-syntax
+              for await (const photo of photos) {
+                const photo_reference =
                   (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+                    .photo_reference ?? '';
+                const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
+                  process.env.GCP_MAPS_APIKEY as string
+                }`;
+
+                const rawResult: {
+                  request: {
+                    protocol: string;
+                    host: string;
+                    path: string;
+                  };
+                } = await axios.get(photoUrlReqParam);
+                // console.log(photoUrlReqParam);
+                const { protocol, host, path } = rawResult.request;
+                const url = `${protocol}//${host}/${path}`;
+
+                retArr.push({
+                  height: photo.height,
+                  width: photo.width,
+                  html_attributuions: JSON.stringify(photo.html_attributions),
+                  photo_reference,
+                  url,
+                });
+              }
+              return retArr;
+            })(),
           },
         },
       });
-    });
-    await prisma.$transaction(promises);
-    // await Promise.all(promises);
-    // try {
-    //   await Promise.all(promises);
-    // } catch (e) {
-    //   await prisma.queryParams.delete({
-    //     where: {
-    //       id: queryParamId,
-    //     },
-    //   });
-    //   throw e;
-    // }
+    }
   }
   return { results, queryParamId };
 };
@@ -647,6 +759,7 @@ const searchHotelInnerAsyncFn = async (
 
   const createSearchHotelResPromises = data.map(item => {
     const {
+      unit_configuration_label,
       min_total_price,
       composite_price_breakdown: {
         product_price_breakdowns: [
@@ -695,6 +808,7 @@ const searchHotelInnerAsyncFn = async (
             id: queryParamId,
           },
         },
+        unit_configuration_label,
         min_total_price,
         gross_amount_per_night,
         gross_amount,
@@ -1843,11 +1957,19 @@ const prismaTest = asyncWrapper(
     req: Express.IBTypedReqBody<{}>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const testFromDB = await prisma.nonMembersCount.count();
+    // const testFromDB = await prisma.nonMembersCount.count();
+    await axios.get(
+      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=AcYSjRiZPer89udPGpFKZg4ApRv7azA2xIIGoiPgf8I-Q1hZsmliZT6KupVtJfCv8NrvWAaSc6nMGsHQ0i2FO-YSKZOdbCRG1o9QRSKuNg6SOtba3bweA3o4psLy6CY037LYQuVzd3UMu0IAoGR8mf7_zN_ySGnK98e9RMR6PSbl1-BeUyq_&key=AIzaSyCy8gfiBApL39ZKjDVeWwR6hQKWIUR0SOw`,
+    );
+    // const protocol = rawResult.request?.protocol;
+    // const host = rawResult.request?.host;
+    // const path = rawResult.request?.path;
+
+    // const result = `${protocol as string}//${host as string}/${path as string}`;
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: testFromDB,
+      IBparams: {} as object,
     });
   },
 );
@@ -2102,6 +2224,20 @@ export const reqSchedule = (
   res: Express.IBTypedResponse<ReqScheduleResponse>,
 ): void => {
   try {
+    const watchStart = moment();
+    const { locals } = req;
+    const userTokenId = (() => {
+      if (locals && locals?.grade === 'member')
+        return locals?.user?.userTokenId;
+      return locals?.tokenId;
+    })();
+    if (!userTokenId) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      });
+    }
+
     const params = req.body;
     const {
       minMoney,
@@ -2115,6 +2251,7 @@ export const reqSchedule = (
       favoriteTravelType,
       // favoriteAccommodation,
       // favoriteAccommodationLocation,
+      mock,
     } = params;
 
     const scheduleHash = uuidv4();
@@ -2158,7 +2295,7 @@ export const reqSchedule = (
         latitude: '33.501298', // 제주
         longitude: '126.525482', // 제주
         categoriesFilterIds: ['property_type::204'], // filter: hotel
-        mock: true,
+        mock: mock ?? false,
       },
       nearbySearchReqParams: {
         keyword: '',
@@ -2199,16 +2336,18 @@ export const reqSchedule = (
 
         type VisitScheduleDataType = {
           dayNo: number;
-          from: From;
+          orderNo: number;
+          from: PlanType;
           type: PlaceType;
           dataId: number;
         };
         const visitScheduleStoreData = visitSchedules.reduce(
-          (acc: VisitScheduleDataType[], cur, idx) => {
+          (acc: VisitScheduleDataType[], cur, dayIdx) => {
             const minVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMinHotel.map(item => {
+              cur.visitOrder.ordersFromMinHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MIN',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2216,9 +2355,10 @@ export const reqSchedule = (
               });
 
             const midVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMidHotel.map(item => {
+              cur.visitOrder.ordersFromMidHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MID',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2226,9 +2366,10 @@ export const reqSchedule = (
               });
 
             const maxVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMaxHotel.map(item => {
+              cur.visitOrder.ordersFromMaxHotel.map((item, orderIdx) => {
                 return {
-                  dayNo: idx + 1,
+                  dayNo: dayIdx + 1,
+                  orderNo: orderIdx,
                   from: 'MAX',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
@@ -2246,12 +2387,24 @@ export const reqSchedule = (
         );
 
         const promise2 = visitScheduleStoreData.map(item => {
+          const d: {
+            hotelId?: number;
+            spotId?: number;
+            restaurantId?: number;
+          } = {
+            ...(item.type === 'HOTEL' && { hotelId: item.dataId }),
+            ...(item.type === 'RESTAURANT' && { restaurantId: item.dataId }),
+            ...(item.type === 'SPOT' && { spotId: item.dataId }),
+          };
+
           return prisma.visitSchedule.create({
             data: {
               dayNo: item.dayNo,
+              orderNo: item.orderNo,
               from: item.from,
               type: item.type,
               dataId: item.dataId,
+              ...d,
               queryParamsId: queryParamId,
             },
           });
@@ -2260,6 +2413,7 @@ export const reqSchedule = (
         const promise3 = prisma.queryParams.update({
           where: { id: queryParamId },
           data: {
+            userTokenId,
             scheduleHash,
           },
         });
@@ -2267,7 +2421,14 @@ export const reqSchedule = (
         const promises = [promise1, ...promise2, promise3];
         prisma
           .$transaction(promises)
-          .then(() => {})
+          .then(() => {
+            console.log(
+              `Making schedule is done. it's taken ${moment().diff(
+                watchStart,
+                'seconds',
+              )} seconds`,
+            );
+          })
           .catch(err => {
             throw err;
             // queryParam에 실패 결과 feedback 로직
@@ -2293,10 +2454,550 @@ export const reqSchedule = (
         });
         return;
       }
+      if (err.type === 'NOTEXISTDATA') {
+        res.status(202).json({
+          ...ibDefs.INVALIDPARAMS,
+          IBdetail: (err as Error).message,
+          IBparams: {} as object,
+        });
+        return;
+      }
     }
     throw err;
   }
 };
+
+export const getSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleParams>,
+    res: Express.IBTypedResponse<GetScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { scheduleHash } = params;
+
+      const queryParams = await prisma.queryParams.findFirst({
+        where: {
+          scheduleHash,
+        },
+        include: {
+          visitSchedule: {
+            include: {
+              spot: true,
+              restaurant: true,
+              hotel: true,
+            },
+          },
+          metaScheduleInfo: true,
+        },
+      });
+
+      if (!queryParams) {
+        res.status(202).json({
+          ...ibDefs.NOTEXISTDATA,
+          IBdetail:
+            '일정이 아직 생성되지 않았거나 존재하지 않는 scheduleHash 값입니다.',
+          IBparams: {},
+        });
+        return;
+      }
+
+      const minVisitSchedules = queryParams.visitSchedule.filter(
+        e => e.from === 'MIN',
+      );
+      const midVisitSchedules = queryParams.visitSchedule.filter(
+        e => e.from === 'MID',
+      );
+      const maxVisitSchedules = queryParams.visitSchedule.filter(
+        e => e.from === 'MAX',
+      );
+
+      const travelDays = queryParams?.metaScheduleInfo?.travelDays ?? 0;
+
+      const filterXPlan = (planType: PlanType) => {
+        return {
+          planType,
+          day: Array.from(Array(travelDays)).map((e, i) => {
+            const scheduleByDays = (() => {
+              if (planType === 'MIN') return minVisitSchedules;
+              if (planType === 'MID') return midVisitSchedules;
+              return maxVisitSchedules;
+            })().filter(k => {
+              if (k.dayNo === i + 1) return true;
+              return false;
+            });
+
+            return {
+              dayNo: `${i + 1}`,
+              titleList: scheduleByDays.map(v => {
+                return {
+                  visitScheduleId: v.id.toString(),
+                  orderNo: v.orderNo.toString(),
+                  // dayNo: v.dayNo.toString(),
+                  title: (() => {
+                    if (v.type === 'HOTEL')
+                      return v.hotel?.hotel_name ?? 'error';
+                    if (v.type === 'RESTAURANT') {
+                      return v.restaurant?.name ?? 'error';
+                    }
+                    return v.spot?.name ?? 'error';
+                  })(),
+                };
+              }),
+            };
+          }),
+        };
+      };
+      const plan = [filterXPlan('MIN'), filterXPlan('MID'), filterXPlan('MAX')];
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          queryParamsId: queryParams.id.toString(),
+          scheduleHash: queryParams.scheduleHash,
+          plan,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export const getScheduleList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleListParams>,
+    res: Express.IBTypedResponse<GetScheduleListResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const queryParams = await prisma.queryParams.findMany({
+        where: {
+          userTokenId,
+        },
+        include: {
+          // visitSchedule: true,
+          // metaScheduleInfo: true,
+          savedSchedule: true,
+        },
+      });
+
+      const retValue = queryParams
+        .map(q => {
+          const { savedSchedule } = q;
+          if (!savedSchedule) return null;
+
+          return {
+            id: savedSchedule.id,
+            title: savedSchedule.title,
+            createdAt: savedSchedule.createdAt,
+            thumbnail: savedSchedule.thumbnail,
+            scheduleHash: savedSchedule.scheduleHash,
+          };
+        })
+        .filter(e => e);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retValue,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export const saveSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SaveScheduleParams>,
+    res: Express.IBTypedResponse<SaveScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const {
+        title,
+        // keyword,
+        planType,
+        scheduleHash,
+      } = req.body;
+
+      const queryParams = await prisma.queryParams.findFirst({
+        where: {
+          scheduleHash,
+        },
+      });
+
+      if (!queryParams) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'scheduleHash에 대응하는 일정 데이터가 존재하지 않습니다.',
+        });
+      }
+
+      const createResult = await prisma.scheduleBank.create({
+        data: {
+          title,
+          thumbnail:
+            'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+          planType: planType.toUpperCase() as PlanType,
+          scheduleHash,
+          userTokenId,
+          queryParams: {
+            connect: {
+              id: queryParams.id,
+            },
+          },
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          scheduleHash: createResult.scheduleHash,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export const getDaySchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetDayScheduleParams>,
+    res: Express.IBTypedResponse<GetDayScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { scheduleHash, day, planType } = req.body;
+
+      const queryParams = await prisma.queryParams.findFirst({
+        where: {
+          scheduleHash,
+        },
+        include: {
+          visitSchedule: {
+            where: {
+              dayNo: { equals: Number(day) },
+              from: { equals: planType.toUpperCase() as PlanType },
+            },
+            include: {
+              spot: {
+                include: {
+                  photos: true,
+                  geometry: true,
+                },
+              },
+              restaurant: {
+                include: {
+                  photos: true,
+                  geometry: true,
+                },
+              },
+              hotel: true,
+            },
+          },
+          metaScheduleInfo: true,
+        },
+      });
+
+      if (!queryParams) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'scheduleHash에 대응하는 일정 데이터가 존재하지 않습니다.',
+        });
+      }
+
+      const spotList: Pick<GetDayScheduleResponsePayload, 'spotList'> = {
+        spotList: queryParams.visitSchedule.map(v => {
+          const place = (() => {
+            if (v.type === 'HOTEL') return v.hotel;
+            if (v.type === 'RESTAURANT') return v.restaurant;
+            return v.spot;
+          })();
+
+          if (v.type === 'HOTEL') {
+            const hotel = place as SearchHotelRes;
+            return {
+              id: v.id.toString(),
+              spotType: v.type as string,
+              previewImg: hotel.main_photo_url,
+              spotName: hotel.hotel_name,
+              roomType: hotel.unit_configuration_label,
+              spotAddr: hotel.address,
+              hotelBookingUrl: hotel.url,
+              startDate: moment(queryParams.hotelCheckinDate).format(
+                'YYYY-MM-DD',
+              ),
+              endDate: moment(queryParams.hotelCheckoutDate).format(
+                'YYYY-MM-DD',
+              ),
+              night: queryParams.metaScheduleInfo?.travelNights,
+              days: queryParams.metaScheduleInfo?.travelDays,
+              checkin: hotel.checkin,
+              checkout: hotel.checkout,
+              price: hotel.min_total_price.toString(),
+              rating: hotel.review_score ?? undefined,
+              lat: hotel.latitude,
+              lng: hotel.longitude,
+              imageList: [
+                {
+                  id: '1',
+                  url: hotel.main_photo_url,
+                  text: 'text는 어디에 쓰이는지?',
+                },
+              ],
+            };
+          }
+          if (v.type === 'RESTAURANT') {
+            const restaurant = place as GglNearbySearchRes & {
+              photos: GglPhotos[];
+              geometry?: Gglgeometry;
+            };
+            return {
+              id: v.id.toString(),
+              spotType: v.type as string,
+              previewImg:
+                restaurant.photos.length > 0 && restaurant.photos[0].url
+                  ? restaurant.photos[0].url
+                  : 'none',
+              spotName: restaurant.name ?? 'none',
+              spotAddr: restaurant.vicinity ?? 'none',
+              // contact: 'none',
+              placeId: restaurant.place_id ?? 'none',
+              startDate: moment(queryParams.hotelCheckinDate).format(
+                'YYYY-MM-DD',
+              ),
+              endDate: moment(queryParams.hotelCheckoutDate).format(
+                'YYYY-MM-DD',
+              ),
+              night: queryParams.metaScheduleInfo?.travelNights,
+              days: queryParams.metaScheduleInfo?.travelDays,
+              rating: restaurant.rating ?? undefined,
+              lat: restaurant.geometry
+                ? Number(
+                    (
+                      JSON.parse(restaurant.geometry?.location) as {
+                        lat: string;
+                      }
+                    ).lat,
+                  )
+                : undefined,
+              lng: restaurant.geometry
+                ? Number(
+                    (
+                      JSON.parse(restaurant.geometry?.location) as {
+                        lngt: string;
+                      }
+                    ).lngt,
+                  )
+                : undefined,
+              imageList: restaurant.photos.map(p => {
+                return {
+                  id: p.id.toString(),
+                  url: p.url ?? 'none',
+                  text: 'text는 어디에 쓰이는지?',
+                };
+              }),
+            };
+          }
+
+          const spot = place as GglNearbySearchRes & {
+            photos: GglPhotos[];
+            geometry?: Gglgeometry;
+          };
+          return {
+            id: v.id.toString(),
+            spotType: v.type as string,
+            previewImg:
+              spot.photos.length > 0 && spot.photos[0].url
+                ? spot.photos[0].url
+                : 'none',
+            spotName: spot.name ?? 'none',
+            spotAddr: spot.vicinity ?? 'none',
+            // contact: 'none',
+            placeId: spot.place_id ?? 'none',
+            startDate: moment(queryParams.hotelCheckinDate).format(
+              'YYYY-MM-DD',
+            ),
+            endDate: moment(queryParams.hotelCheckoutDate).format('YYYY-MM-DD'),
+            night: queryParams.metaScheduleInfo?.travelNights,
+            days: queryParams.metaScheduleInfo?.travelDays,
+            price: spot.price_level?.toString(),
+            rating: spot.rating ?? undefined,
+            lat: spot.geometry
+              ? Number(
+                  (
+                    JSON.parse(spot.geometry?.location) as {
+                      lat: string;
+                    }
+                  ).lat,
+                )
+              : undefined,
+            lng: spot.geometry
+              ? Number(
+                  (
+                    JSON.parse(spot.geometry?.location) as {
+                      lngt: string;
+                    }
+                  ).lngt,
+                )
+              : undefined,
+            imageList: spot.photos.map(p => {
+              return {
+                id: p.id.toString(),
+                url: p.url ?? 'none',
+                text: 'text는 어디에 쓰이는지?',
+              };
+            }),
+          };
+        }),
+      };
+
+      const retValue: GetDayScheduleResponsePayload = {
+        id: queryParams.id.toString(),
+        dayCount: Number(day),
+        contentsCountAll: spotList.spotList.length,
+        spotList: spotList.spotList,
+      };
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retValue,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
@@ -2323,5 +3024,9 @@ scheduleRouter.post(
   addMockSearchLocationsResource,
 );
 
-scheduleRouter.post('/reqSchedule', reqSchedule);
+scheduleRouter.post('/reqSchedule', accessTokenValidCheck, reqSchedule);
+scheduleRouter.post('/getSchedule', accessTokenValidCheck, getSchedule);
+scheduleRouter.post('/getScheduleList', accessTokenValidCheck, getScheduleList);
+scheduleRouter.post('/saveSchedule', accessTokenValidCheck, saveSchedule);
+scheduleRouter.post('/getDaySchedule', accessTokenValidCheck, getDaySchedule);
 export default scheduleRouter;

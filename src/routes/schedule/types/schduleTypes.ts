@@ -4,6 +4,7 @@ import {
   QueryParams,
   Prisma,
   Gglgeometry,
+  PlanType,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -581,6 +582,7 @@ export interface ReqScheduleParams {
   favoriteTravelType: string[];
   favoriteAccommodation: string[];
   favoriteAccommodationLocation: string[];
+  mock?: boolean;
 }
 
 export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
@@ -589,4 +591,126 @@ export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
         scheduleHash: string;
       }
     | {};
+};
+
+export interface GetScheduleParams {
+  scheduleHash: string;
+}
+
+export type GetScheduleResponsePayload = {
+  queryParamsId: string; // 일정 요청 DB ID
+  scheduleHash: string; // 일정 요청 고유번호
+  plan: {
+    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+    day: {
+      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+      titleList: {
+        visitScheduleId: string; // ex)  171273
+        dayNo?: string; // test code에서 확인용으로
+        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+      }[];
+    }[];
+  }[];
+};
+
+export type GetScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleResponsePayload | {};
+};
+
+export interface GetScheduleListParams {
+  skip: number;
+  take: number;
+}
+
+export type GetScheduleListResponsePayload = {
+  queryParamsId: string; // 일정 요청 DB ID
+  scheduleHash: string; // 일정 요청 고유번호
+  plan: {
+    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+    day: {
+      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+      titleList: {
+        visitScheduleId: string; // ex)  171273
+        dayNo?: string; // test code에서 확인용으로
+        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+      }[];
+    }[];
+  }[];
+};
+
+export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleListResponsePayload | {};
+};
+
+export interface SaveScheduleParams {
+  title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
+  keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
+  planType: PlanType;
+  scheduleHash: string; ///  저장할 schedule의 고유 hash ex) "1bgfjv1asdnn1gbbnaidi125nh5hb1fh"
+}
+
+export type SaveScheduleResponsePayload = {
+  queryParamsId: string; // 일정 요청 DB ID
+  scheduleHash: string; // 일정 요청 고유번호
+  plan: {
+    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+    day: {
+      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+      titleList: {
+        visitScheduleId: string; // ex)  171273
+        dayNo?: string; // test code에서 확인용으로
+        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+      }[];
+    }[];
+  }[];
+};
+
+export type SaveScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleResponsePayload | {};
+};
+
+export interface GetDayScheduleParams {
+  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+  day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
+  planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
+}
+
+export type GetDayScheduleResponsePayload = {
+  id: string; /// ex) 1273712
+  dayCount: number; /// ex) 1, 2, 3
+  contentsCountAll: number; /// ex) 11
+  spotList: {
+    id: string; /// ex) 22748
+    spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+    previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+    spotName: string; /// ex) 'Turtle Bay Resort'
+    roomType?: string; /// ex)
+    spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+    // contact: string; /// ex) '+18089228111'
+    hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+    placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+    //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+    startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+    endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+    night?: Number; /// 1박 ex)
+    days?: Number; /// 2일 ex)
+    checkIn?: String; /// ex) 15:00
+    checkOut?: String; ///  ex)  11:00
+    price?: String; ///  1박당? 전체?
+    rating?: number; /// ex) 8.7
+    lat?: number; /// ex) 33.47471823
+    lng?: number; /// ex) 126.17273718239
+    imageList?: {
+      id: string; /// ex) 18184
+      url: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
+      text: string; /// ex) ??
+    }[];
+  }[];
+};
+
+export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleResponsePayload | {};
 };
