@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import prisma from '@src/prisma';
+// import prisma from '@src/prisma';
+import { PrismaClient } from '@prisma/client';
 import passport from 'passport';
 import { NextFunction } from 'express';
 import { ibDefs, IBResFormat, GuardRes } from '../IBDefinitions';
+
+const prisma = new PrismaClient();
 
 const accessTokenValidCheck = (
   req: Express.IBAuthGuardRequest,
@@ -49,15 +52,25 @@ const accessTokenValidCheck = (
         return;
       }
 
-      const existUser = await prisma.user.findFirst({
-        where: {
-          userTokenId: user.tokenId,
-        },
-      });
-
-      if (!existUser) {
+      try {
+        const existUser = await prisma.user.findFirst({
+          where: {
+            userTokenId: user.tokenId,
+          },
+        });
+        if (!existUser) {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail:
+              'accessToken에 대응하는 User 정보가 DB 에 존재하지 않습니다.',
+          });
+          return;
+        }
+      } catch (err) {
+        console.error(err);
         res.status(404).json({
-          ...ibDefs.NOTEXISTDATA,
+          ...ibDefs.UNEXPECTED,
+          IBdetail: (err as Error).message,
         });
         return;
       }
