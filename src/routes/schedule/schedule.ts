@@ -2456,7 +2456,7 @@ export const reqSchedule = (
       }
       if (err.type === 'NOTEXISTDATA') {
         res.status(202).json({
-          ...ibDefs.INVALIDPARAMS,
+          ...ibDefs.NOTEXISTDATA,
           IBdetail: (err as Error).message,
           IBparams: {} as object,
         });
@@ -2585,7 +2585,7 @@ export const getSchedule = asyncWrapper(
 
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
-            ...ibDefs.INVALIDPARAMS,
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -2659,7 +2659,7 @@ export const getScheduleList = asyncWrapper(
         }
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
-            ...ibDefs.INVALIDPARAMS,
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -2746,7 +2746,7 @@ export const saveSchedule = asyncWrapper(
 
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
-            ...ibDefs.INVALIDPARAMS,
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -2987,7 +2987,7 @@ export const getDaySchedule = asyncWrapper(
 
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
-            ...ibDefs.INVALIDPARAMS,
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
