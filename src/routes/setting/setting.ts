@@ -57,7 +57,7 @@ export const reqTicket = asyncWrapper(
       }
       const { content } = req.body;
 
-      const createdTicket = await prisma.questionTicket.create({
+      await prisma.questionTicket.create({
         data: {
           content,
           user: {
@@ -70,7 +70,7 @@ export const reqTicket = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: createdTicket,
+        IBparams: {},
       });
     } catch (err) {
       if (err instanceof IBError) {
