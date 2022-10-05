@@ -52,7 +52,7 @@ const accessTokenValidCheck = (
         ...req.locals,
         grade: user.grade,
         tokenId: user.tokenId,
-        user: user.user,
+        user: user.user, // for member
       };
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       next();
