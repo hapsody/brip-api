@@ -176,8 +176,89 @@ const storeDataRelatedWithQueryParams = async (
         }>
       ).results ?? [];
 
-    const promises = results.map((item: google.maps.places.IBPlaceResult) => {
-      return prisma.gglNearbySearchRes.create({
+    // const promises = results.map((item: google.maps.places.IBPlaceResult) => {
+    //   return prisma.gglNearbySearchRes.create({
+    //     data: {
+    //       QueryParams: {
+    //         connect: {
+    //           id: queryParamId,
+    //         },
+    //       },
+    //       geometry: {
+    //         create: {
+    //           location: JSON.stringify({
+    //             lat: item.geometry?.location?.lat,
+    //             lngt: item.geometry?.location?.lng,
+    //           }),
+    //           viewport: JSON.stringify({
+    //             northeast: {
+    //               lat: item.geometry?.viewport?.northeast?.lat,
+    //               lngt: item.geometry?.viewport?.northeast?.lng,
+    //             },
+    //             southwest: {
+    //               lat: item.geometry?.viewport?.southwest?.lat,
+    //               lngt: item.geometry?.viewport?.southwest?.lng,
+    //             },
+    //           }),
+    //         },
+    //       },
+    //       icon: item.icon,
+    //       icon_background_color: item.icon_background_color,
+    //       icon_mask_base_uri: item.icon_mask_base_uri,
+    //       name: item.name,
+    //       opening_hours:
+    //         (
+    //           item.opening_hours as Partial<{
+    //             open_now: boolean;
+    //           }>
+    //         )?.open_now ?? false,
+    //       place_id: item.place_id,
+    //       price_level: item.price_level,
+    //       rating: item.rating,
+    //       types: (() => {
+    //         return item.types
+    //           ? {
+    //               connectOrCreate: item.types?.map(type => {
+    //                 return {
+    //                   create: { value: type },
+    //                   where: { value: type },
+    //                 };
+    //               }),
+    //             }
+    //           : {
+    //               create: {
+    //                 value: 'Not Applicaple',
+    //               },
+    //             };
+    //       })(),
+    //       user_ratings_total: item.user_ratings_total,
+    //       vicinity: item.vicinity,
+    //       plus_code: {
+    //         create: {
+    //           compund_code: item.plus_code?.compound_code ?? '',
+    //           global_code: item.plus_code?.global_code ?? '',
+    //         },
+    //       },
+    // photos: {
+    //   create: item.photos?.map(photo => {
+    //     return {
+    //       height: photo.height,
+    //       width: photo.width,
+    //       html_attributuions: JSON.stringify(photo.html_attributions),
+    //       photo_reference:
+    //         (photo as Partial<{ photo_reference: string }>)
+    //           .photo_reference ?? '',
+    //     };
+    //   }),
+    // },
+    //     },
+    //   });
+    // });
+    // const createdNearbyRes = await prisma.$transaction(promises);
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const item of results) {
+      await prisma.gglNearbySearchRes.create({
         data: {
           QueryParams: {
             connect: {
@@ -240,21 +321,51 @@ const storeDataRelatedWithQueryParams = async (
             },
           },
           photos: {
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributuions: JSON.stringify(photo.html_attributions),
-                photo_reference:
+            create: await (async () => {
+              const { photos } = item;
+              if (!photos) return undefined;
+              const retArr: {
+                height: number;
+                width: number;
+                html_attributuions: string;
+                photo_reference: string;
+                url?: string;
+              }[] = [];
+              // eslint-disable-next-line no-restricted-syntax
+              for await (const photo of photos) {
+                const photo_reference =
                   (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+                    .photo_reference ?? '';
+                const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
+                  process.env.GCP_MAPS_APIKEY as string
+                }`;
+
+                const rawResult: {
+                  request: {
+                    protocol: string;
+                    host: string;
+                    path: string;
+                  };
+                } = await axios.get(photoUrlReqParam);
+                // console.log(photoUrlReqParam);
+                const { protocol, host, path } = rawResult.request;
+                const url = `${protocol}//${host}/${path}`;
+
+                retArr.push({
+                  height: photo.height,
+                  width: photo.width,
+                  html_attributuions: JSON.stringify(photo.html_attributions),
+                  photo_reference,
+                  url,
+                });
+              }
+              return retArr;
+            })(),
           },
         },
       });
-    });
-    await prisma.$transaction(promises);
+    }
+
     // await Promise.all(promises);
     // try {
     //   await Promise.all(promises);
@@ -1858,11 +1969,19 @@ const prismaTest = asyncWrapper(
     req: Express.IBTypedReqBody<{}>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const testFromDB = await prisma.nonMembersCount.count();
+    // const testFromDB = await prisma.nonMembersCount.count();
+    const rawResult = await axios.get(
+      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=AcYSjRiZPer89udPGpFKZg4ApRv7azA2xIIGoiPgf8I-Q1hZsmliZT6KupVtJfCv8NrvWAaSc6nMGsHQ0i2FO-YSKZOdbCRG1o9QRSKuNg6SOtba3bweA3o4psLy6CY037LYQuVzd3UMu0IAoGR8mf7_zN_ySGnK98e9RMR6PSbl1-BeUyq_&key=AIzaSyCy8gfiBApL39ZKjDVeWwR6hQKWIUR0SOw`,
+    );
+    const protocol = rawResult.request?.protocol;
+    const host = rawResult.request?.host;
+    const path = rawResult.request?.path;
+
+    const result = `${protocol as string}//${host as string}/${path as string}`;
 
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: testFromDB,
+      IBparams: result,
     });
   },
 );
@@ -2117,6 +2236,7 @@ export const reqSchedule = (
   res: Express.IBTypedResponse<ReqScheduleResponse>,
 ): void => {
   try {
+    const watchStart = moment();
     const { locals } = req;
     const userTokenId = (() => {
       if (locals && locals?.grade === 'member')
@@ -2313,7 +2433,14 @@ export const reqSchedule = (
         const promises = [promise1, ...promise2, promise3];
         prisma
           .$transaction(promises)
-          .then(() => {})
+          .then(() => {
+            console.log(
+              `Making schedule is done. it's taken ${moment().diff(
+                watchStart,
+                'seconds',
+              )} seconds`,
+            );
+          })
           .catch(err => {
             throw err;
             // queryParam에 실패 결과 feedback 로직
@@ -2841,7 +2968,7 @@ export const getDaySchedule = asyncWrapper(
             imageList: spot.photos.map(p => {
               return {
                 id: p.id.toString(),
-                url: p.html_attributuions ?? 'none',
+                url: p.url ?? 'none',
                 text: 'text는 어디에 쓰이는지?',
               };
             }),

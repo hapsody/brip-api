@@ -38,6 +38,7 @@ model GglPhotos {
   width              Int?
   html_attributuions String? /// ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
   photo_reference    String /// ex) AcYSjRjZms48ZpgsVFfCrPG27i8YwHmNSk11mEaYTOFTjXkMi-89j9d1lhT_7j6ud5IAHzMucNLf2hJGy9ZGbApjloPzqOIiZkK5WDzLlQq-9k9ppD770Km5YyNBGT4PWZzJuN-b5TMYNIE1cahIEdNrhEA4fb7huAQ90_jsPKqFfqpTLqx5
+  url                String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
 
   gglNearbySearchRes GglNearbySearchRes[]
 }
