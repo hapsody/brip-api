@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
+import prisma from '@src/prisma';
 import passport from 'passport';
 import { NextFunction } from 'express';
 import { ibDefs, IBResFormat, GuardRes } from '../IBDefinitions';
@@ -10,7 +11,7 @@ const accessTokenValidCheck = (
 ): void => {
   passport.authenticate(
     'jwt',
-    (
+    async (
       authError: Error,
       user: GuardRes,
       info: { name: string; message: string },
@@ -44,6 +45,19 @@ const accessTokenValidCheck = (
       if (info && info.name === 'Error') {
         res.status(401).json({
           ...ibDefs.NOAUTHTOKEN,
+        });
+        return;
+      }
+
+      const existUser = await prisma.user.findFirst({
+        where: {
+          userTokenId: user.tokenId,
+        },
+      });
+
+      if (!existUser) {
+        res.status(404).json({
+          ...ibDefs.NOTEXISTDATA,
         });
         return;
       }
