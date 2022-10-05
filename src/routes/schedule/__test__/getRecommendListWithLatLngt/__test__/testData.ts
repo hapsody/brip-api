@@ -108,7 +108,7 @@ export const params = {
       pageNumber: 0,
       includeAdjacency: true,
       categoriesFilterIds: ['property_type::204'],
-      mock: process.env.HOTELSEARCH_TEST_MODE,
+      mock: true,
     },
   },
 };
