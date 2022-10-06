@@ -328,3 +328,12 @@ model BusinessQuestionTicket {
   user        User   @relation(fields: [userId], references: [id])
   userId      Int
 }
+
+model FaqList {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  question String
+  answer   String @db.Text
+}

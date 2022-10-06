@@ -204,7 +204,82 @@ export const reqBusinessTicket = asyncWrapper(
   },
 );
 
+export type GetFaqListRequestType = {
+  name: string;
+  phone: string;
+  content: string;
+};
+export interface GetFaqListSuccessResType {
+  title: string;
+  answer: string;
+}
+
+export type GetFaqListResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetFaqListSuccessResType[] | {};
+  // IBparams: {};
+};
+
+export const getFaqList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetFaqListRequestType>,
+    res: Express.IBTypedResponse<GetFaqListResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const faqList = await prisma.faqList.findMany();
+      const retArr = faqList.map(v => {
+        return {
+          title: v.question,
+          answer: v.answer,
+        };
+      });
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retArr,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 authRouter.post('/reqBusinessTicket', accessTokenValidCheck, reqBusinessTicket);
+authRouter.get('/getFaqList', accessTokenValidCheck, getFaqList);
 
 export default authRouter;
