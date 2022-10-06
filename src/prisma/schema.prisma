@@ -319,7 +319,7 @@ model QuestionTicket {
   updatedAt DateTime @default(now())
 
   content String @db.LongText
-  user    User   @relation(fields: [userId], references: [id])
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId  Int
 }
 
@@ -331,7 +331,7 @@ model BusinessQuestionTicket {
   companyName String
   phone       String
   content     String @db.LongText
-  user        User   @relation(fields: [userId], references: [id])
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId      Int
 }
 
@@ -364,6 +364,6 @@ model TripCreator {
   area      String /// 전문지역
   proposal  String   @db.Text /// 제휴 내용
   domain    String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    Int
 }
