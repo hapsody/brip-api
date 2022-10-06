@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
 import nodemailer from 'nodemailer';
+import { QuestionTicket, User } from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -34,142 +35,169 @@ export type ReqTicketResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
 
-export const reqTicket = (
-  req: Express.IBTypedReqBody<ReqTicketRequestType>,
-  res: Express.IBTypedResponse<ReqTicketResType>,
-): void => {
+const sendEmail = async (params: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}) => {
   try {
-    const { locals } = req;
-    const userTokenId = (() => {
-      if (locals && locals?.grade === 'member')
-        return locals?.user?.userTokenId;
-      // return locals?.tokenId;
-      throw new IBError({
-        type: 'NOTAUTHORIZED',
-        message: 'member 등급만 접근 가능합니다.',
-      });
-    })();
-    if (!userTokenId) {
-      throw new IBError({
-        type: 'NOTEXISTDATA',
-        message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-      });
-    }
-    const { content } = req.body;
+    const { from, to, subject, html } = params;
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // 메일 보내는 곳
+      port: 587,
+      host: 'smtp.gmlail.com',
+      secure: true,
+      requireTLS: true,
+      auth: {
+        user: process.env.SYSTEM_EAMIL_SENDER, // 보내는 메일의 주소
+        pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
+        // type: 'OAuth2',
+        // user: process.env.OAUTH_USER as string,
+        // clientId: process.env.OAUTH_CLIENT_ID as string,
+        // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
+        // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
+      },
+    });
 
-    prisma.questionTicket
-      .create({
-        data: {
-          content,
-          user: {
-            connect: {
-              userTokenId,
+    // send mail with defined transport object
+    // const info = await transporter.sendMail({
+    await transporter.sendMail({
+      from, // sender address
+      to, // list of receivers
+      subject, // Subject line
+      // text: '', // plain text body
+      html, // html body
+    });
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `nodemailer 이메일 전송중 문제가 발생했습니다. \n\n ${
+        (err as Error).message
+      }`,
+    });
+  }
+};
+
+export const reqTicket = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqTicketRequestType>,
+    res: Express.IBTypedResponse<ReqTicketResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const { content } = req.body;
+
+      let createdTicket: QuestionTicket & {
+        user: User;
+      };
+
+      try {
+        createdTicket = await prisma.questionTicket.create({
+          data: {
+            content,
+            user: {
+              connect: {
+                userTokenId,
+              },
             },
           },
-        },
-        include: {
-          user: true,
-        },
-      })
-      .then(createdTicket => {
-        res.json({
-          ...ibDefs.SUCCESS,
-          IBparams: {},
-        });
-
-        const transporter = nodemailer.createTransport({
-          service: 'gmail', // 메일 보내는 곳
-          port: 587,
-          host: 'smtp.gmlail.com',
-          secure: true,
-          requireTLS: true,
-          auth: {
-            user: process.env.SYSTEM_EAMIL_SENDER, // 보내는 메일의 주소
-            pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
-            // type: 'OAuth2',
-            // user: process.env.OAUTH_USER as string,
-            // clientId: process.env.OAUTH_CLIENT_ID as string,
-            // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
-            // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
+          include: {
+            user: true,
           },
         });
-
-        // send mail with defined transport object
-        // const info = await transporter.sendMail({
-        transporter
-          .sendMail({
-            from: `BRiP Admin" <${process.env.SYSTEM_EAMIL_SENDER as string}>`, // sender address
-            to: `${createdTicket.user.email}, hapsody@gmail.com`, // list of receivers
-            subject: 'BRiP System notification', // Subject line
-            // text: '', // plain text body
-            html: `<b>${createdTicket.createdAt.toLocaleString()}</b> 에 문의된 항목입니다. 
-            <br><br>
-            <b>이하 문의 본문: </b><br>
-            ${createdTicket.content}
-            `, // html body
-          })
-          .then(async () => {
-            await prisma.questionTicket.update({
-              where: {
-                id: createdTicket.id,
-              },
-              data: {
-                noti: true,
-              },
-            });
-          })
-          .catch(err => {
-            throw new IBError({
-              type: 'EXTERNALAPI',
-              message: `nodemailer 이메일 전송중 문제가 발생했습니다. \n\n ${
-                (err as Error).message
-              }`,
-            });
-          });
-      })
-      .catch(err => {
-        if (err instanceof IBError) {
-          throw err;
-        }
+      } catch (err) {
         throw new IBError({
           type: 'DBTRANSACTIONERROR',
           message: `DB에 ticket 생성중 문제가 발생했습니다. \n\n ${
             (err as Error).message
           }`,
         });
+      }
+
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        subject: 'BRiP System notification',
+        html: `<b>${createdTicket.user.email}</b> 에 의해 문의된 항목입니다. 
+        <br><br>
+        <b>이하 문의 본문: </b><br>
+        ${createdTicket.content}
+        <br><br>
+        <b>문의 작성일시: <${createdTicket.createdAt.toLocaleString()}></b>
+        `,
       });
-  } catch (err) {
-    if (err instanceof IBError) {
-      if (err.type === 'NOTAUTHORIZED') {
-        res.status(403).json({
-          ...ibDefs.NOTAUTHORIZED,
-          IBdetail: (err as Error).message,
-          IBparams: {} as object,
+
+      try {
+        await prisma.questionTicket.update({
+          where: {
+            id: createdTicket.id,
+          },
+          data: {
+            noti: true,
+          },
         });
-        return;
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `ticket에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
+        });
       }
 
-      if (err.type === 'NOTEXISTDATA') {
-        res.status(202).json({
-          ...ibDefs.NOTEXISTDATA,
-          IBdetail: (err as Error).message,
-          IBparams: {} as object,
-        });
-        return;
-      }
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
 
-      if (err.type === 'DBTRANSACTIONERROR') {
-        res.status(500).json({
-          ...ibDefs.DBTRANSACTIONERROR,
-          IBdetail: (err as Error).message,
-          IBparams: {} as object,
-        });
-        return;
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
       }
+      throw err;
     }
-    throw err;
-  }
-};
+  },
+);
 
 export type ReqBusinessTicketRequestType = {
   name: string;
