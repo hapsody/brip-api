@@ -12,6 +12,11 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+enum UserType {
+  COMMON
+  CREATOR
+}
+
 model User {
   id                     Int                      @id @default(autoincrement())
   email                  String                   @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
@@ -23,6 +28,7 @@ model User {
   // queryParams QueryParams[]
   questionTicket         QuestionTicket[]
   BusinessQuestionTicket BusinessQuestionTicket[]
+  tripCreator            TripCreator?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now())
 }
@@ -336,4 +342,28 @@ model FaqList {
 
   question String
   answer   String @db.Text
+}
+
+enum CreatorDomain {
+  TOUR
+  ACTIVITY
+  HIKING
+  HONEYMOON
+  GOLF
+  PACKAGE
+  EXPERIENCE
+  GROUPACTIVITY
+}
+
+model TripCreator {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  nickName  String   @unique /// creator 닉네임, 공백 허용x
+  phone     String /// creator 연락처 ex) 01020202121
+  area      String /// 전문지역
+  proposal  String   @db.Text /// 제휴 내용
+  domain    String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
 }
