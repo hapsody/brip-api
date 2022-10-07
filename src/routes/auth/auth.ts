@@ -212,6 +212,12 @@ export type ReqNonMembersUserTokenResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqNonMembersUserTokenSuccessResType | {};
 };
 
+/**
+ * 비회원일 경우도 DB에 저장되는 모든 데이터들의 소유자를 특정할수 있도록
+ * tokenId를 payload로 갖는 일종의 accessToken을 부여하는데
+ * reqNonMembersUserToken을 통해 유저 레벨의 api함수를 사용하기 위해
+ * 비회원이 사용할수 있는 비회원용 고유 토큰을 요청한다.
+ */
 export const reqNonMembersUserToken = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<ReqNonMembersUserTokenRequestType>,

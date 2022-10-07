@@ -1,5 +1,12 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
+import nodemailer from 'nodemailer';
+import {
+  QuestionTicket,
+  User,
+  BusinessQuestionTicket,
+  TripCreator,
+} from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -33,6 +40,50 @@ export type ReqTicketResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
 
+const sendEmail = async (params: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}) => {
+  try {
+    const { from, to, subject, html } = params;
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // 메일 보내는 곳
+      port: 587,
+      host: 'smtp.gmlail.com',
+      secure: true,
+      requireTLS: true,
+      auth: {
+        user: process.env.SYSTEM_EAMIL_SENDER, // 보내는 메일의 주소
+        pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
+        // type: 'OAuth2',
+        // user: process.env.OAUTH_USER as string,
+        // clientId: process.env.OAUTH_CLIENT_ID as string,
+        // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
+        // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
+      },
+    });
+
+    // send mail with defined transport object
+    // const info = await transporter.sendMail({
+    await transporter.sendMail({
+      from, // sender address
+      to, // list of receivers
+      subject, // Subject line
+      // text: '', // plain text body
+      html, // html body
+    });
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `nodemailer 이메일 전송중 문제가 발생했습니다. \n\n ${
+        (err as Error).message
+      }`,
+    });
+  }
+};
+
 export const reqTicket = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<ReqTicketRequestType>,
@@ -57,16 +108,63 @@ export const reqTicket = asyncWrapper(
       }
       const { content } = req.body;
 
-      await prisma.questionTicket.create({
-        data: {
-          content,
-          user: {
-            connect: {
-              userTokenId,
+      let createdTicket: QuestionTicket & {
+        user: User;
+      };
+
+      try {
+        createdTicket = await prisma.questionTicket.create({
+          data: {
+            content,
+            user: {
+              connect: {
+                userTokenId,
+              },
             },
           },
-        },
+          include: {
+            user: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `DB에 ticket 생성중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
+        });
+      }
+
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        subject: 'BRiP System - User Question Notification',
+        html: `<b>${createdTicket.user.email}</b> 에 의해 문의된 항목입니다. 
+        <br><br>
+        <b>이하 문의 본문: </b><br>
+        ${createdTicket.content}
+        <br><br>
+        <b>문의 작성일시: <${createdTicket.createdAt.toLocaleString()}></b>
+        `,
       });
+
+      try {
+        await prisma.questionTicket.update({
+          where: {
+            id: createdTicket.id,
+          },
+          data: {
+            noti: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `ticket에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
+        });
+      }
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -74,15 +172,6 @@ export const reqTicket = asyncWrapper(
       });
     } catch (err) {
       if (err instanceof IBError) {
-        // if (err.type === 'INVALIDENVPARAMS') {
-        //   res.status(500).json({
-        //     ...ibDefs.INVALIDENVPARAMS,
-        //     IBdetail: (err as Error).message,
-        //     IBparams: {} as object,
-        //   });
-        //   return;
-        // }
-
         if (err.type === 'NOTAUTHORIZED') {
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
@@ -91,9 +180,19 @@ export const reqTicket = asyncWrapper(
           });
           return;
         }
+
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -154,18 +253,66 @@ export const reqBusinessTicket = asyncWrapper(
       }
       const { name, phone, content } = req.body;
 
-      await prisma.businessQuestionTicket.create({
-        data: {
-          companyName: name,
-          phone,
-          content,
-          user: {
-            connect: {
-              userTokenId,
+      let createdTicket: BusinessQuestionTicket & {
+        user: User;
+      };
+      try {
+        createdTicket = await prisma.businessQuestionTicket.create({
+          data: {
+            companyName: name,
+            phone,
+            content,
+            user: {
+              connect: {
+                userTokenId,
+              },
             },
           },
-        },
+          include: {
+            user: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `DB에 businessQuestionTicket 생성중 문제가 발생했습니다. . \n\n ${
+            (err as Error).message
+          }`,
+        });
+      }
+
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        subject: 'BRiP System - Business Question Notification',
+        html: `<b>${
+          createdTicket.user.email
+        }</b> 에 의해 비지니스 문의한 항목입니다. 
+        <br><br>
+        <b>이하 문의 본문: </b><br>
+        ${createdTicket.content}
+        <br><br>
+        <b>문의 작성일시: <${createdTicket.createdAt.toLocaleString()}></b>
+        `,
       });
+
+      try {
+        await prisma.businessQuestionTicket.update({
+          where: {
+            id: createdTicket.id,
+          },
+          data: {
+            noti: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `businessQuestionTicket에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
+        });
+      }
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -193,6 +340,14 @@ export const reqBusinessTicket = asyncWrapper(
         if (err.type === 'NOTEXISTDATA') {
           res.status(202).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -332,6 +487,9 @@ export const reqTripCreator = asyncWrapper(
       }
       const { name, phone, area, content, checkList } = req.body;
 
+      let tripCreator: TripCreator & {
+        user: User;
+      };
       try {
         const alreadyCreator = await prisma.tripCreator.findUnique({
           where: {
@@ -346,7 +504,7 @@ export const reqTripCreator = asyncWrapper(
           });
         }
 
-        await prisma.tripCreator.create({
+        tripCreator = await prisma.tripCreator.create({
           data: {
             nickName: name,
             phone,
@@ -364,14 +522,51 @@ export const reqTripCreator = asyncWrapper(
               },
             },
           },
+          include: {
+            user: true,
+          },
         });
       } catch (err) {
+        console.log(err);
         if (err instanceof IBError) {
           throw err;
         }
         throw new IBError({
           type: 'DBTRANSACTIONERROR',
-          message: 'DB 생성중에 문제가 발생했습니다.',
+          message: 'tripCreator DB 생성중에 문제가 발생했습니다.',
+        });
+      }
+
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${tripCreator.user.email}, hapsody@gmail.com`,
+        subject: 'BRiP System - Trip Creator Proposal Notification',
+        html: `<b>${
+          tripCreator.user.email
+        }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
+        <br><br>
+        <b>이하 문의 본문: </b><br>
+        ${tripCreator.proposal}
+        <br><br>
+        <b>문의 작성일시: <${tripCreator.createdAt.toLocaleString()}></b>
+        `,
+      });
+
+      try {
+        await prisma.tripCreator.update({
+          where: {
+            id: tripCreator.id,
+          },
+          data: {
+            noti: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `tripCreator 에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
         });
       }
 
