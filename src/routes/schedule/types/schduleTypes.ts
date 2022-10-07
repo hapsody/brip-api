@@ -639,7 +639,7 @@ export type GetScheduleListResponsePayload = {
   //   }[];
   // }[];
   id: string; /// ex) 112345
-  tag: string; ///  태그 ex) "가족여행", "한달살기"
+  tag: string[]; ///  태그 ex) "가족여행", "한달살기"
   title: string; /// 타이틀 ex) "하와이 가족여행"
   createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"

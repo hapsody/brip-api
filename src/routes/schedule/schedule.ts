@@ -2624,11 +2624,18 @@ export const getScheduleList = asyncWrapper(
         take: Number(take),
         where: {
           userTokenId,
+          savedSchedule: {
+            NOT: undefined,
+          },
         },
         include: {
           // visitSchedule: true,
           // metaScheduleInfo: true,
-          savedSchedule: true,
+          savedSchedule: {
+            include: {
+              hashTag: true,
+            },
+          },
         },
       });
 
@@ -2639,6 +2646,7 @@ export const getScheduleList = asyncWrapper(
 
           return {
             id: savedSchedule.id,
+            tag: savedSchedule.hashTag.map(v => v.value),
             title: savedSchedule.title,
             createdAt: savedSchedule.createdAt,
             thumbnail: savedSchedule.thumbnail,
