@@ -624,24 +624,31 @@ export interface GetScheduleListParams {
 }
 
 export type GetScheduleListResponsePayload = {
-  queryParamsId: string; // 일정 요청 DB ID
-  scheduleHash: string; // 일정 요청 고유번호
-  plan: {
-    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: {
-      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-      titleList: {
-        visitScheduleId: string; // ex)  171273
-        dayNo?: string; // test code에서 확인용으로
-        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
-        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-      }[];
-    }[];
-  }[];
+  // queryParamsId: string; // 일정 요청 DB ID
+  // scheduleHash: string; // 일정 요청 고유번호
+  // plan: {
+  //   planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+  //   day: {
+  //     dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+  //     titleList: {
+  //       visitScheduleId: string; // ex)  171273
+  //       dayNo?: string; // test code에서 확인용으로
+  //       orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+  //       title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+  //     }[];
+  //   }[];
+  // }[];
+  id: string; /// ex) 112345
+  tag: string; ///  태그 ex) "가족여행", "한달살기"
+  title: string; /// 타이틀 ex) "하와이 가족여행"
+  createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
+  thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
+  scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
+  planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
 };
 
 export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetScheduleListResponsePayload | {};
+  IBparams: GetScheduleListResponsePayload[] | {};
 };
 
 export interface SaveScheduleParams {

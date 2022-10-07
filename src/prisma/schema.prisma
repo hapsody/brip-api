@@ -93,6 +93,8 @@ model GglNearbySearchRes {
   icon_mask_base_uri    String?
   name                  String? /// 검색된 장소 이름 
   opening_hours         Boolean /// 검색시각 기준으로 현재 영업 상태인지
+  // opening_periods       String? /// 오픈 클로즈 시간 ex)
+  // weekday_text          String? /// 일주일 기준 영업일 ex) 
   place_id              String? /// 구글이 부여한 place의 고유값
   price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
   rating                Float? /// 별점, 0-5 
@@ -144,16 +146,17 @@ model QueryParams {
 
 /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
 model ScheduleBank {
-  id            Int         @id @default(autoincrement())
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @default(now())
+  id            Int           @id @default(autoincrement())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now())
   title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   planType      PlanType
-  scheduleHash  String      @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
+  scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
-  queryParams   QueryParams @relation(fields: [queryParamsId], references: [id])
-  queryParamsId Int         @unique
+  queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id])
+  queryParamsId Int           @unique
 }
 
 model SearchHotelRes {
@@ -254,6 +257,14 @@ model CardTag {
   updatedAt     DateTime        @default(now())
   value         String          @unique
   cardNewsGroup CardNewsGroup[]
+}
+
+model ScheduleTag {
+  id           Int            @id @default(autoincrement())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @default(now())
+  value        String         @unique
+  scheduleBank ScheduleBank[]
 }
 
 model MetaScheduleInfo {

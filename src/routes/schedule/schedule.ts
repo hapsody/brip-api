@@ -2643,6 +2643,7 @@ export const getScheduleList = asyncWrapper(
             createdAt: savedSchedule.createdAt,
             thumbnail: savedSchedule.thumbnail,
             scheduleHash: savedSchedule.scheduleHash,
+            planType: savedSchedule.planType.toLowerCase(),
           };
         })
         .filter(e => e);
@@ -2695,23 +2696,33 @@ export const saveSchedule = asyncWrapper(
         });
       }
 
-      const {
-        title,
-        // keyword,
-        planType,
-        scheduleHash,
-      } = req.body;
+      const { title, keyword, planType, scheduleHash } = req.body;
 
       const queryParams = await prisma.queryParams.findFirst({
         where: {
           scheduleHash,
+        },
+        include: {
+          savedSchedule: {
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
       if (!queryParams) {
         throw new IBError({
           type: 'NOTEXISTDATA',
-          message: 'scheduleHash에 대응하는 일정 데이터가 존재하지 않습니다.',
+          message:
+            'scheduleHash에 대응하는 일정 데이터가 존재하지 않거나 아직 생성중입니다.',
+        });
+      }
+
+      if (queryParams.savedSchedule?.id) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 저장한 일정입니다.',
         });
       }
 
@@ -2722,6 +2733,18 @@ export const saveSchedule = asyncWrapper(
             'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
           planType: planType.toUpperCase() as PlanType,
           scheduleHash,
+          hashTag: {
+            connectOrCreate: keyword.map(k => {
+              return {
+                where: {
+                  value: k,
+                },
+                create: {
+                  value: k,
+                },
+              };
+            }),
+          },
           userTokenId,
           queryParams: {
             connect: {
@@ -2742,6 +2765,15 @@ export const saveSchedule = asyncWrapper(
         if (err.type === 'INVALIDPARAMS') {
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
