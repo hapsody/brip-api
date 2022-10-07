@@ -81,6 +81,11 @@ import {
   GetDayScheduleParams,
   GetDayScheduleResponse,
   GetDayScheduleResponsePayload,
+  GetDetailScheduleParams,
+  GetDetailScheduleResponse,
+  GetDetailScheduleResponsePayload,
+  GglPlaceDetailType,
+  GetPlaceDetailResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -3043,6 +3048,320 @@ export const getDaySchedule = asyncWrapper(
   },
 );
 
+const getPlaceDetail = async (params: { placeId: string }) => {
+  try {
+    const { placeId } = params;
+    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
+      process.env.GCP_MAPS_APIKEY as string
+    }`;
+    const rawResponse = await axios.get(queryUrl);
+    const fetchedData = rawResponse.data as GetPlaceDetailResponse;
+    return fetchedData.result;
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `google place detail api 요청중 문제가 발생했습니다.`,
+    });
+  }
+};
+
+export const getDetailSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetDetailScheduleParams>,
+    res: Express.IBTypedResponse<GetDetailScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { visitScheduleId } = req.body;
+
+      const visitSchedule = await prisma.visitSchedule.findUnique({
+        where: {
+          id: Number(visitScheduleId),
+        },
+        include: {
+          spot: {
+            include: {
+              geometry: true,
+              photos: true,
+            },
+          },
+          restaurant: {
+            include: {
+              geometry: true,
+              photos: true,
+            },
+          },
+          hotel: true,
+          QueryParams: true,
+        },
+      });
+
+      if (!visitSchedule) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            'visitScheduleId에 대응하는 일정 데이터가 존재하지 않습니다.',
+        });
+      }
+
+      if (visitSchedule.QueryParams?.userTokenId !== userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '다른 유저의 visitSchedule 데이터입니다.',
+        });
+      }
+
+      let detailData: GglPlaceDetailType = {};
+      if (visitSchedule.type === 'SPOT') {
+        detailData = await getPlaceDetail({
+          placeId: visitSchedule.spot?.place_id ?? '',
+        });
+      } else if (visitSchedule.type === 'RESTAURANT') {
+        detailData = await getPlaceDetail({
+          placeId: visitSchedule.restaurant?.place_id ?? '',
+        });
+      }
+
+      const place = (() => {
+        if (visitSchedule.type === 'HOTEL') return visitSchedule.hotel;
+        if (visitSchedule.type === 'RESTAURANT')
+          return visitSchedule.restaurant;
+        return visitSchedule.spot;
+      })();
+
+      let retValue: GetDetailScheduleResponsePayload | {} = {};
+      if (visitSchedule.type === 'HOTEL') {
+        console.log(1234);
+      } else if (visitSchedule.type === 'RESTAURANT') {
+        const restaurant = place as GglNearbySearchRes & {
+          geometry: Gglgeometry;
+          photos: GglPhotos[];
+        };
+
+        retValue = {
+          id: visitSchedule.id,
+          spotType: visitSchedule.type,
+          previewImg: (() => {
+            return restaurant.photos.length > 0 && restaurant.photos[0].url
+              ? restaurant.photos[0].url
+              : 'none';
+          })(),
+          spotName: (detailData as { name: string }).name,
+          roomType: null,
+          spotAddr: restaurant.vicinity,
+          // spotAddr: (detailData as { formatted_address: string })
+          //   .formatted_address,
+          placeId: restaurant.place_id,
+          priceLevel: Number(
+            (detailData as { price_level: number }).price_level,
+          ),
+          rating: restaurant.rating,
+          lat: restaurant.geometry
+            ? Number(
+                (
+                  JSON.parse(restaurant.geometry?.location) as {
+                    lat: string;
+                  }
+                ).lat,
+              )
+            : undefined,
+          lng: restaurant.geometry
+            ? Number(
+                (
+                  JSON.parse(restaurant.geometry?.location) as {
+                    lngt: string;
+                  }
+                ).lngt,
+              )
+            : undefined,
+          imageList: [],
+          contact: (detailData as { formatted_phone_number: string })
+            .formatted_phone_number,
+          weekdayOpeningHours: (detailData as { weekday_text: string[] })
+            .weekday_text,
+          reviews: (
+            detailData as {
+              reviews: {
+                author_name: string;
+                author_url: string;
+                language: string;
+                original_language: string;
+                profile_photo_url: string;
+                rating: number;
+                relative_time_description: string;
+                text: string;
+                time: number;
+                translated: boolean;
+              }[];
+            }
+          ).reviews,
+          takeout: (detailData as { takeout: boolean }).takeout,
+          googlePlaceTypes: (detailData as { types: string[] }).types,
+          url: (detailData as { url: string }).url,
+          userRatingsTotal: (detailData as { user_ratings_total: number })
+            .user_ratings_total,
+          website: (detailData as { website: string }).website,
+        };
+      } else if (visitSchedule.type === 'SPOT') {
+        const spot = place as GglNearbySearchRes & {
+          geometry: Gglgeometry;
+          photos: GglPhotos[];
+        };
+
+        retValue = {
+          id: visitSchedule.id,
+          spotType: visitSchedule.type,
+          previewImg: (() => {
+            return spot.photos.length > 0 && spot.photos[0].url
+              ? spot.photos[0].url
+              : 'none';
+          })(),
+          spotName: (detailData as { name: string }).name,
+          roomType: null,
+          spotAddr: spot.vicinity,
+          // spotAddr: (detailData as { formatted_address: string })
+          //   .formatted_address,
+          placeId: spot.place_id,
+          priceLevel: Number(
+            (detailData as { price_level: number }).price_level,
+          ),
+          rating: spot.rating,
+          lat: spot.geometry
+            ? Number(
+                (
+                  JSON.parse(spot.geometry?.location) as {
+                    lat: string;
+                  }
+                ).lat,
+              )
+            : undefined,
+          lng: spot.geometry
+            ? Number(
+                (
+                  JSON.parse(spot.geometry?.location) as {
+                    lngt: string;
+                  }
+                ).lngt,
+              )
+            : undefined,
+          imageList: await (async () => {
+            const { photos } = detailData as {
+              photos: {
+                height: number;
+                html_attributions: string[];
+                photo_reference: string;
+                width: number;
+              }[];
+            };
+            if (!photos) return undefined;
+            const retArr: {
+              height: number;
+              width: number;
+              html_attributuions: string;
+              photo_reference: string;
+              url?: string;
+            }[] = [];
+            // eslint-disable-next-line no-restricted-syntax
+            for await (const photo of photos) {
+              const photo_reference =
+                (photo as Partial<{ photo_reference: string }>)
+                  .photo_reference ?? '';
+              const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
+                process.env.GCP_MAPS_APIKEY as string
+              }`;
+
+              const rawResult: {
+                request: {
+                  protocol: string;
+                  host: string;
+                  path: string;
+                };
+              } = await axios.get(photoUrlReqParam);
+              // console.log(photoUrlReqParam);
+              const { protocol, host, path } = rawResult.request;
+              const url = `${protocol}//${host}/${path}`;
+
+              retArr.push({
+                height: photo.height,
+                width: photo.width,
+                html_attributuions: JSON.stringify(photo.html_attributions),
+                photo_reference,
+                url,
+              });
+            }
+            return retArr;
+          })(),
+          contact: (detailData as { formatted_phone_number: string })
+            .formatted_phone_number,
+          weekdayOpeningHours: (detailData as { weekday_text: string[] })
+            .weekday_text,
+          reviews: (
+            detailData as {
+              reviews: {
+                author_name: string;
+                author_url: string;
+                language: string;
+                original_language: string;
+                profile_photo_url: string;
+                rating: number;
+                relative_time_description: string;
+                text: string;
+                time: number;
+                translated: boolean;
+              }[];
+            }
+          ).reviews,
+          takeout: (detailData as { takeout: boolean }).takeout,
+          GooglePlaceTypes: (detailData as { types: string[] }).types,
+          url: (detailData as { url: string }).url,
+          userRatingsTotal: (detailData as { user_ratings_total: number })
+            .user_ratings_total,
+          website: (detailData as { website: string }).website,
+        };
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retValue,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -3073,4 +3392,9 @@ scheduleRouter.post('/getSchedule', accessTokenValidCheck, getSchedule);
 scheduleRouter.post('/getScheduleList', accessTokenValidCheck, getScheduleList);
 scheduleRouter.post('/saveSchedule', accessTokenValidCheck, saveSchedule);
 scheduleRouter.post('/getDaySchedule', accessTokenValidCheck, getDaySchedule);
+scheduleRouter.post(
+  '/getDetailSchedule',
+  accessTokenValidCheck,
+  getDetailSchedule,
+);
 export default scheduleRouter;

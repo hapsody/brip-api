@@ -721,3 +721,46 @@ export type GetDayScheduleResponsePayload = {
 export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetDayScheduleResponsePayload | {};
 };
+
+export interface GetDetailScheduleParams {
+  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
+}
+
+export type GetDetailScheduleResponsePayload = {
+  id: string; /// ex) 22748
+  spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+  previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+  spotName: string; /// ex) 'Turtle Bay Resort'
+  roomType?: string; /// ex)
+  spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+  // contact: string; /// ex) '+18089228111'
+  hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+  placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+  //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+  startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+  endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+  night?: Number; /// 1박 ex)
+  days?: Number; /// 2일 ex)
+  checkIn?: String; /// ex) 15:00
+  checkOut?: String; ///  ex)  11:00
+  price?: String; ///  1박당? 전체?
+  rating?: number; /// ex) 8.7
+  lat?: number; /// ex) 33.47471823
+  lng?: number; /// ex) 126.17273718239
+  imageList?: {
+    id: string; /// ex) 18184
+    url: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
+    text: string; /// ex) ??
+  }[];
+};
+
+export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDetailScheduleResponsePayload | {};
+};
+
+export type GglPlaceDetailType = {
+  /// google place detail types...
+};
+export type GetPlaceDetailResponse = {
+  result: GglPlaceDetailType[];
+};
