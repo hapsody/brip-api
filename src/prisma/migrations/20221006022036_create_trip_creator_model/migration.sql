@@ -11,7 +11,7 @@ CREATE TABLE `TripCreator` (
     `userId` INTEGER NOT NULL,
 
     UNIQUE INDEX `TripCreator_nickName_key`(`nickName`),
-    UNIQUE INDEX `TripCreator_userId_key`(`userId`),
+    -- UNIQUE INDEX `TripCreator_userId_key`(`userId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

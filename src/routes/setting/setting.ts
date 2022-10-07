@@ -1,7 +1,12 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
 import nodemailer from 'nodemailer';
-import { QuestionTicket, User, BusinessQuestionTicket } from '@prisma/client';
+import {
+  QuestionTicket,
+  User,
+  BusinessQuestionTicket,
+  TripCreator,
+} from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -482,6 +487,9 @@ export const reqTripCreator = asyncWrapper(
       }
       const { name, phone, area, content, checkList } = req.body;
 
+      let tripCreator: TripCreator & {
+        user: User;
+      };
       try {
         const alreadyCreator = await prisma.tripCreator.findUnique({
           where: {
@@ -496,7 +504,7 @@ export const reqTripCreator = asyncWrapper(
           });
         }
 
-        await prisma.tripCreator.create({
+        tripCreator = await prisma.tripCreator.create({
           data: {
             nickName: name,
             phone,
@@ -514,14 +522,51 @@ export const reqTripCreator = asyncWrapper(
               },
             },
           },
+          include: {
+            user: true,
+          },
         });
       } catch (err) {
+        console.log(err);
         if (err instanceof IBError) {
           throw err;
         }
         throw new IBError({
           type: 'DBTRANSACTIONERROR',
-          message: 'DB 생성중에 문제가 발생했습니다.',
+          message: 'tripCreator DB 생성중에 문제가 발생했습니다.',
+        });
+      }
+
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${tripCreator.user.email}, hapsody@gmail.com`,
+        subject: 'BRiP System - Trip Creator Proposal Notification',
+        html: `<b>${
+          tripCreator.user.email
+        }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
+        <br><br>
+        <b>이하 문의 본문: </b><br>
+        ${tripCreator.proposal}
+        <br><br>
+        <b>문의 작성일시: <${tripCreator.createdAt.toLocaleString()}></b>
+        `,
+      });
+
+      try {
+        await prisma.tripCreator.update({
+          where: {
+            id: tripCreator.id,
+          },
+          data: {
+            noti: true,
+          },
+        });
+      } catch (err) {
+        throw new IBError({
+          type: 'DBTRANSACTIONERROR',
+          message: `tripCreator 에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+            (err as Error).message
+          }`,
         });
       }
 
