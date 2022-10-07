@@ -289,8 +289,9 @@ export const reqBusinessTicket = asyncWrapper(
           createdTicket.user.email
         }</b> 에 의해 비지니스 문의한 항목입니다. 
         <br><br>
-        <b>이하 문의 본문: </b><br>
-        ${createdTicket.content}
+        회사명: ${createdTicket.companyName}, <br>
+        연락처: ${createdTicket.phone}, <br>
+        문의내용: ${createdTicket.content}
         <br><br>
         <b>문의 작성일시: <${createdTicket.createdAt.toLocaleString()}></b>
         `,
@@ -545,8 +546,16 @@ export const reqTripCreator = asyncWrapper(
           tripCreator.user.email
         }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
         <br><br>
-        <b>이하 문의 본문: </b><br>
-        ${tripCreator.proposal}
+        닉네임: ${tripCreator.nickName}, <br>
+        연락처: ${tripCreator.phone}, <br>
+        전문지역: ${tripCreator.area}, <br>
+        전문영역: ${tripCreator.domain
+          .split(',')
+          .map(v => {
+            return `${CreatorDomain[Number(v)]}`;
+          })
+          .toString()},  <br>
+        제휴내용: ${tripCreator.proposal}
         <br><br>
         <b>문의 작성일시: <${tripCreator.createdAt.toLocaleString()}></b>
         `,
