@@ -2617,7 +2617,11 @@ export const getScheduleList = asyncWrapper(
         });
       }
 
+      const { skip, take } = req.body;
+
       const queryParams = await prisma.queryParams.findMany({
+        skip: Number(skip),
+        take: Number(take),
         where: {
           userTokenId,
         },
