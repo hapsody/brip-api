@@ -787,6 +787,7 @@ const searchHotelInnerAsyncFn = async (
 
         gross_amount_per_night: { value: gross_amount_per_night },
       },
+      class: hotelClass,
       countrycode,
       default_language,
       address,
@@ -827,6 +828,7 @@ const searchHotelInnerAsyncFn = async (
         gross_amount,
         included_taxes_and_charges_amount,
         net_amount,
+        hotelClass,
         countrycode,
         default_language,
         address,
@@ -3132,32 +3134,117 @@ export const getDetailSchedule = asyncWrapper(
         });
       }
 
-      let detailData: GglPlaceDetailType = {};
-      if (visitSchedule.type === 'SPOT') {
-        detailData = await getPlaceDetail({
-          placeId: visitSchedule.spot?.place_id ?? '',
-        });
-      } else if (visitSchedule.type === 'RESTAURANT') {
-        detailData = await getPlaceDetail({
-          placeId: visitSchedule.restaurant?.place_id ?? '',
-        });
-      }
+      // let detailData: GglPlaceDetailType = {};
+      // if (visitSchedule.type === 'SPOT') {
+      //   detailData = await getPlaceDetail({
+      //     placeId: visitSchedule.spot?.place_id ?? '',
+      //   });
+      // } else if (visitSchedule.type === 'RESTAURANT') {
+      //   detailData = await getPlaceDetail({
+      //     placeId: visitSchedule.restaurant?.place_id ?? '',
+      //   });
+      // }
 
-      const place = (() => {
-        if (visitSchedule.type === 'HOTEL') return visitSchedule.hotel;
-        if (visitSchedule.type === 'RESTAURANT')
-          return visitSchedule.restaurant;
-        return visitSchedule.spot;
-      })();
+      // const place = (() => {
+      //   if (visitSchedule.type === 'HOTEL') return visitSchedule.hotel;
+      //   if (visitSchedule.type === 'RESTAURANT')
+      //     return visitSchedule.restaurant;
+      //   return visitSchedule.spot;
+      // })();
 
       let retValue: GetDetailScheduleResponsePayload | {} = {};
       if (visitSchedule.type === 'HOTEL') {
-        console.log(1234);
-      } else if (visitSchedule.type === 'RESTAURANT') {
-        const restaurant = place as GglNearbySearchRes & {
-          geometry: Gglgeometry;
-          photos: GglPhotos[];
+        const { hotel } = visitSchedule as { hotel: SearchHotelRes };
+        const options = {
+          method: 'GET' as Method,
+          url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
+          params: { locale: 'ko', hotel_id: hotel.hotel_id },
+          headers: {
+            'X-RapidAPI-Key': `${process.env.RAPID_API_KEY as string}`,
+            'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+          },
         };
+        const rawResponse = await axios.request(options);
+        const hotelPhotos = rawResponse.data as {
+          ml_tags: {
+            confidence: number;
+            tag_id: number;
+            tag_type: string;
+            tag_name: string;
+            photo_id: number;
+          }[];
+          tags: {
+            tag: string;
+            id: number;
+          }[];
+          photo_id: number;
+          url_square60: string;
+          url_max: string;
+          url_1440: string;
+        }[];
+
+        retValue = {
+          id: visitSchedule.id,
+          spotType: visitSchedule.type,
+          previewImg: hotel.main_photo_url,
+          spotName: hotel.hotel_name,
+          roomType: hotel.unit_configuration_label,
+          spotAddr: hotel.address,
+          hotelBookingUrl: hotel.url,
+          startDate: moment(visitSchedule.QueryParams.hotelCheckinDate).format(
+            'YYYY-MM-DD',
+          ),
+          endDate: moment(visitSchedule.QueryParams.hotelCheckoutDate).format(
+            'YYYY-MM-DD',
+          ),
+          // night: queryParams.metaScheduleInfo?.travelNights,
+          // days: queryParams.metaScheduleInfo?.travelDays,
+          checkin: hotel.checkin,
+          checkout: hotel.checkout,
+          price: hotel.min_total_price.toString(),
+          rating: hotel.review_score ?? undefined,
+          lat: hotel.latitude,
+          lng: hotel.longitude,
+          imageList: hotelPhotos,
+          contact: undefined,
+          weekdayOpeningHours: undefined,
+          // reviews: (
+          //   detailData as {
+          //     reviews: {
+          //       author_name: string;
+          //       author_url: string;
+          //       language: string;
+          //       original_language: string;
+          //       profile_photo_url: string;
+          //       rating: number;
+          //       relative_time_description: string;
+          //       text: string;
+          //       time: number;
+          //       translated: boolean;
+          //     }[];
+          //   }
+          // ).reviews,
+          takeout: undefined,
+          googlePlaceTypes: undefined,
+          url: undefined,
+          userRatingsTotel: undefined,
+          reviewScoreWord: hotel.review_score_word,
+          website: hotel.url,
+          language: hotel.default_language,
+          cityNameEN: hotel.city_name_en,
+          class: hotel.hotelClass,
+        };
+      } else if (visitSchedule.type === 'RESTAURANT') {
+        const { restaurant } = visitSchedule as {
+          restaurant: GglNearbySearchRes & {
+            geometry: Gglgeometry;
+            photos: GglPhotos[];
+          };
+        };
+
+        const detailData: GglPlaceDetailType = await getPlaceDetail({
+          placeId: restaurant.place_id ?? '',
+        });
 
         retValue = {
           id: visitSchedule.id,
@@ -3168,7 +3255,7 @@ export const getDetailSchedule = asyncWrapper(
               : 'none';
           })(),
           spotName: (detailData as { name: string }).name,
-          roomType: null,
+          roomType: undefined,
           spotAddr: restaurant.vicinity,
           // spotAddr: (detailData as { formatted_address: string })
           //   .formatted_address,
@@ -3234,10 +3321,16 @@ export const getDetailSchedule = asyncWrapper(
           website: (detailData as { website: string }).website,
         };
       } else if (visitSchedule.type === 'SPOT') {
-        const spot = place as GglNearbySearchRes & {
-          geometry: Gglgeometry;
-          photos: GglPhotos[];
+        const { spot } = visitSchedule as {
+          spot: GglNearbySearchRes & {
+            geometry: Gglgeometry;
+            photos: GglPhotos[];
+          };
         };
+
+        const detailData: GglPlaceDetailType = await getPlaceDetail({
+          placeId: spot.place_id ?? '',
+        });
 
         retValue = {
           id: visitSchedule.id,
@@ -3247,8 +3340,9 @@ export const getDetailSchedule = asyncWrapper(
               ? spot.photos[0].url
               : 'none';
           })(),
+
           spotName: (detailData as { name: string }).name,
-          roomType: null,
+          roomType: undefined,
           spotAddr: spot.vicinity,
           // spotAddr: (detailData as { formatted_address: string })
           //   .formatted_address,

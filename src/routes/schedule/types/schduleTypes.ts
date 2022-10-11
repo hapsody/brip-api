@@ -93,6 +93,7 @@ export interface QueryReqParams {
 
 export type SearchedData = Omit<
   SearchHotelRes,
+  | 'hotelClass'
   | 'distance'
   | 'gross_amount'
   | 'included_taxes_and_charges_amount'
@@ -100,6 +101,7 @@ export type SearchedData = Omit<
   | 'checkout'
   | 'checkin'
 > & {
+  class: number;
   distance: string;
   composite_price_breakdown: {
     product_price_breakdowns: {
@@ -747,6 +749,7 @@ export type GetDetailScheduleResponsePayload = {
   rating?: number; /// ex) 8.7
   lat?: number; /// ex) 33.47471823
   lng?: number; /// ex) 126.17273718239
+  class?: number; /// 호텔성급 ex) 3
   imageList?: {
     id: string; /// ex) 18184
     url: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
