@@ -3195,7 +3195,17 @@ export const getDetailSchedule = asyncWrapper(
                 ).lngt,
               )
             : undefined,
-          imageList: await getPlacePhoto(detailData),
+          // imageList: await getPlacePhoto(detailData),
+          imageList: (
+            detailData as {
+              photos: {
+                height: number;
+                width: number;
+                html_attributuions: string[];
+                photo_reference: string;
+              }[];
+            }
+          ).photos,
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
@@ -3265,7 +3275,17 @@ export const getDetailSchedule = asyncWrapper(
                 ).lngt,
               )
             : undefined,
-          imageList: await getPlacePhoto(detailData),
+          // imageList: await getPlacePhoto(detailData),
+          imageList: (
+            detailData as {
+              photos: {
+                height: number;
+                width: number;
+                html_attributuions: string[];
+                photo_reference: string;
+              }[];
+            }
+          ).photos,
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
