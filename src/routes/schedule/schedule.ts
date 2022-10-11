@@ -3344,6 +3344,31 @@ export const getDetailSchedule = asyncWrapper(
   },
 );
 
+/// internal dev api function
+const getHotelPhotos = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{ hotelId: string }>,
+    res: Express.IBTypedResponse<{}>,
+  ) => {
+    const { hotelId } = req.body;
+    const options = {
+      method: 'GET' as Method,
+      url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
+      params: { locale: 'ko', hotel_id: hotelId ?? '1377073' },
+      headers: {
+        'X-RapidAPI-Key': `${process.env.RAPID_API_KEY as string}`,
+        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+      },
+    };
+    const rawResponse = await axios.request(options);
+    res.json({
+      ...ibDefs.SUCCESS,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      IBparams: rawResponse.data,
+    });
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
@@ -3379,4 +3404,5 @@ scheduleRouter.post(
   accessTokenValidCheck,
   getDetailSchedule,
 );
+scheduleRouter.post('/getHotelPhotos', getHotelPhotos);
 export default scheduleRouter;
