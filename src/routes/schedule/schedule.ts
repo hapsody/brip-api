@@ -71,7 +71,9 @@ import {
   flexPortionLimit,
   ReqScheduleParams,
   ReqScheduleResponse,
-  TravelType,
+  FavoriteTravelType,
+  // FavoriteAccommodationType,
+  // FavoriteAccommodationLocation,
   GetScheduleParams,
   GetScheduleResponse,
   GetScheduleListParams,
@@ -2272,14 +2274,53 @@ export const reqSchedule = (
     } = params;
 
     const scheduleHash = uuidv4();
-    const travelType: TravelType = favoriteTravelType.reduce(
-      (acc: TravelType, cur: string) => {
-        let newAcc: TravelType = {};
-        switch (cur) {
-          case 'landActivity':
+    const travelType: FavoriteTravelType = favoriteTravelType.reduce(
+      (acc: FavoriteTravelType, cur: string) => {
+        let newAcc: FavoriteTravelType = {};
+        const formatted = cur.toUpperCase();
+        switch (formatted) {
+          case 'LANDACTIVITY':
             newAcc = { ...acc, landActivity: true };
             break;
+          case 'GOLF':
+            newAcc = { ...acc, golf: true };
+            break;
+          case 'RELAXATION':
+            newAcc = { ...acc, relaxation: true };
+            break;
+          case 'OCEANACTIVITY':
+            newAcc = { ...acc, oceanActivity: true };
+            break;
+          case 'GROUPACTIVITY':
+            newAcc = { ...acc, groupActivity: true };
+            break;
+          case 'LEARN':
+            newAcc = { ...acc, learn: true };
+            break;
+          case 'FOOD':
+            newAcc = { ...acc, food: true };
+            break;
+          case 'EXPERIENCE':
+            newAcc = { ...acc, experience: true };
+            break;
+          case 'VISITTOURSPOT':
+            newAcc = { ...acc, visitTourSpot: true };
+            break;
+          case 'PACKAGETOUR':
+            newAcc = { ...acc, packageTour: true };
+            break;
+          case 'SHOPPING':
+            newAcc = { ...acc, shopping: true };
+            break;
+          case 'WATERPARK':
+            newAcc = { ...acc, waterPark: true };
+            break;
+          case 'NOIDEA':
+            newAcc = { ...acc, noIdea: true };
+            break;
+
           default:
+            newAcc = { ...acc };
             break;
         }
         return newAcc;
@@ -2287,9 +2328,94 @@ export const reqSchedule = (
       {},
     );
 
+    // const accommodationType: FavoriteAccommodationType =
+    //   favoriteAccommodation.reduce(
+    //     (acc: FavoriteAccommodationType, cur: string) => {
+    //       let newAcc: FavoriteAccommodationType = {};
+    //       const formatted = cur.toUpperCase();
+    //       switch (formatted) {
+    //         case 'HOTEL':
+    //           newAcc = { ...acc, hotel: true };
+    //           break;
+
+    //         case 'RESORT':
+    //           newAcc = { ...acc, resort: true };
+    //           break;
+
+    //         case 'HOUSERENT':
+    //           newAcc = { ...acc, houseRent: true };
+    //           break;
+
+    //         case 'ROOMRENT':
+    //           newAcc = { ...acc, roomRent: true };
+    //           break;
+
+    //         case 'BEDRENT':
+    //           newAcc = { ...acc, bedRent: true };
+    //           break;
+    //         case 'APARTRENT':
+    //           newAcc = { ...acc, apartRent: true };
+    //           break;
+    //         case 'POOLVILLA':
+    //           newAcc = { ...acc, poolVilla: true };
+    //           break;
+    //         case 'CAMPING':
+    //           newAcc = { ...acc, camping: true };
+    //           break;
+    //         case 'MIXED':
+    //           newAcc = { ...acc, mixed: true };
+    //           break;
+    //         case 'DONTCARE':
+    //           newAcc = { ...acc, dontCare: true };
+    //           break;
+    //         default:
+    //           newAcc = { ...acc };
+    //           break;
+    //       }
+    //       return newAcc;
+    //     },
+    //     {},
+    //   );
+
+    // const accommodationLocationType: FavoriteAccommodationLocation =
+    //   favoriteAccommodation.reduce(
+    //     (acc: FavoriteAccommodationLocation, cur: string) => {
+    //       let newAcc: FavoriteAccommodationLocation = {};
+    //       const formatted = cur.toUpperCase();
+    //       switch (formatted) {
+    //         case 'NATURE':
+    //           newAcc = { ...acc, nature: true };
+    //           break;
+    //         case 'DOWNTOWN':
+    //           newAcc = { ...acc, downtown: true };
+    //           break;
+    //         case 'OCEANVIEW':
+    //           newAcc = { ...acc, oceanView: true };
+    //           break;
+    //         case 'MOUNTAINVIEW':
+    //           newAcc = { ...acc, mountainView: true };
+    //           break;
+    //         case 'CITYVIEW':
+    //           newAcc = { ...acc, cityView: true };
+    //           break;
+    //         case 'MIXED':
+    //           newAcc = { ...acc, mixed: true };
+    //           break;
+    //         case 'DONTCARE':
+    //           newAcc = { ...acc, dontCare: true };
+    //           break;
+    //         default:
+    //           newAcc = { ...acc };
+    //           break;
+    //       }
+    //       return newAcc;
+    //     },
+    //     {},
+    //   );
+
     const childrenAges = Array.from({ length: Number(child) }, () => 5).concat(
       Array.from({ length: Number(infant) }, () => 1),
-    );
+    ); /// child는 5세, infant는 1세로 일괄 처리.
 
     const getRecommendFuncParam: QueryReqParams = {
       minBudget: Number(minMoney),
