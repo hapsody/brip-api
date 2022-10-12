@@ -752,6 +752,7 @@ export type GetDetailScheduleResponsePayload = {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
+  planType: PlanType; /// 해당 장소는 비용타입중 min | mid | max중 어디에 속하는가
   spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
   previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
   spotName: string; /// ex) 'Turtle Bay Resort'

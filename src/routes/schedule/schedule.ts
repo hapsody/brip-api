@@ -3147,24 +3147,6 @@ export const getDetailSchedule = asyncWrapper(
         });
       }
 
-      // let detailData: GglPlaceDetailType = {};
-      // if (visitSchedule.type === 'SPOT') {
-      //   detailData = await getPlaceDetail({
-      //     placeId: visitSchedule.spot?.place_id ?? '',
-      //   });
-      // } else if (visitSchedule.type === 'RESTAURANT') {
-      //   detailData = await getPlaceDetail({
-      //     placeId: visitSchedule.restaurant?.place_id ?? '',
-      //   });
-      // }
-
-      // const place = (() => {
-      //   if (visitSchedule.type === 'HOTEL') return visitSchedule.hotel;
-      //   if (visitSchedule.type === 'RESTAURANT')
-      //     return visitSchedule.restaurant;
-      //   return visitSchedule.spot;
-      // })();
-
       const retValue =
         await (async (): Promise<GetDetailScheduleResponsePayload> => {
           if (visitSchedule.type === 'HOTEL') {
@@ -3201,6 +3183,7 @@ export const getDetailSchedule = asyncWrapper(
               id: visitSchedule.id.toString(),
               dayCount: visitSchedule.dayNo,
               orderCount: visitSchedule.orderNo,
+              planType: visitSchedule.from,
               spotType: visitSchedule.type,
               previewImg: hotel.main_photo_url,
               spotName: hotel.hotel_name,
@@ -3270,6 +3253,7 @@ export const getDetailSchedule = asyncWrapper(
               id: visitSchedule.id.toString(),
               dayCount: visitSchedule.dayNo,
               orderCount: visitSchedule.orderNo,
+              planType: visitSchedule.from,
               spotType: visitSchedule.type,
               previewImg: (() => {
                 return restaurant.photos.length > 0 && restaurant.photos[0].url
@@ -3366,6 +3350,7 @@ export const getDetailSchedule = asyncWrapper(
             id: visitSchedule.id.toString(),
             dayCount: visitSchedule.dayNo,
             orderCount: visitSchedule.orderNo,
+            planType: visitSchedule.from,
             spotType: visitSchedule.type,
             previewImg: (() => {
               return spot.photos.length > 0 && spot.photos[0].url
