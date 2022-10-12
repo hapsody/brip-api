@@ -6,7 +6,7 @@ async function main() {
   const alreadyOne = await prisma.cardNewsGroup.findFirst({
     where: {
       title: {
-        contains: '사라지기 전에 꼭 가봐야 할 장소 1편 - 몰디브',
+        contains: '몰디브의 비밀',
       },
     },
   });
@@ -22,7 +22,7 @@ async function main() {
   const exCardGroup = await prisma.cardNewsGroup.create({
     data: {
       no: 1,
-      title: '사라지기 전에 꼭 가봐야 할 장소 1편 - 몰디브',
+      title: '몰디브의 비밀',
       thumbnailUri:
         'https://www.ttlnews.com/upload/editor_content_images/1550201354466_editor_image.jpg',
       cardTag: {
@@ -83,7 +83,7 @@ async function main() {
   const alreadyOne2 = await prisma.cardNewsGroup.findFirst({
     where: {
       title: {
-        contains: '사라지기 전에 꼭 가봐야 할 장소 2편 - 베니스',
+        contains: '베네치아의 비밀',
       },
     },
   });
@@ -99,7 +99,7 @@ async function main() {
   const exCardGroup2 = await prisma.cardNewsGroup.create({
     data: {
       no: 2,
-      title: '사라지기 전에 꼭 가봐야 할 장소 2편 - 베니스',
+      title: '베네치아의 비밀',
       thumbnailUri:
         'https://img.freepik.com/premium-photo/historic-houses-traditional-venetian-architecture-on-grand-canal-in-venice-italy_87646-8192.jpg?w=1060',
       cardTag: {
