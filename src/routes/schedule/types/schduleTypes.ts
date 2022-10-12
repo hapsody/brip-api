@@ -93,6 +93,7 @@ export interface QueryReqParams {
 
 export type SearchedData = Omit<
   SearchHotelRes,
+  | 'hotelClass'
   | 'distance'
   | 'gross_amount'
   | 'included_taxes_and_charges_amount'
@@ -100,6 +101,7 @@ export type SearchedData = Omit<
   | 'checkout'
   | 'checkin'
 > & {
+  class: number;
   distance: string;
   composite_price_breakdown: {
     product_price_breakdowns: {
@@ -624,24 +626,31 @@ export interface GetScheduleListParams {
 }
 
 export type GetScheduleListResponsePayload = {
-  queryParamsId: string; // 일정 요청 DB ID
-  scheduleHash: string; // 일정 요청 고유번호
-  plan: {
-    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: {
-      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-      titleList: {
-        visitScheduleId: string; // ex)  171273
-        dayNo?: string; // test code에서 확인용으로
-        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
-        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-      }[];
-    }[];
-  }[];
+  // queryParamsId: string; // 일정 요청 DB ID
+  // scheduleHash: string; // 일정 요청 고유번호
+  // plan: {
+  //   planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+  //   day: {
+  //     dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+  //     titleList: {
+  //       visitScheduleId: string; // ex)  171273
+  //       dayNo?: string; // test code에서 확인용으로
+  //       orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
+  //       title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+  //     }[];
+  //   }[];
+  // }[];
+  id: string; /// ex) 112345
+  tag: string[]; ///  태그 ex) "가족여행", "한달살기"
+  title: string; /// 타이틀 ex) "하와이 가족여행"
+  createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
+  thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
+  scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
+  planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
 };
 
 export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetScheduleListResponsePayload | {};
+  IBparams: GetScheduleListResponsePayload[] | {};
 };
 
 export interface SaveScheduleParams {
@@ -680,7 +689,7 @@ export interface GetDayScheduleParams {
 
 export type GetDayScheduleResponsePayload = {
   id: string; /// ex) 1273712
-  dayCount: number; /// ex) 1, 2, 3
+  dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
   contentsCountAll: number; /// ex) 11
   spotList: {
     id: string; /// ex) 22748
@@ -713,4 +722,100 @@ export type GetDayScheduleResponsePayload = {
 
 export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetDayScheduleResponsePayload | {};
+};
+
+export interface GetDetailScheduleParams {
+  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
+}
+
+export type GooglePlaceReview = {
+  author_name: string;
+  author_url: string;
+  language: string;
+  original_language: string;
+  profile_photo_url: string;
+  rating: number;
+  relative_time_description: string;
+  text: string;
+  time: number;
+  translated: boolean;
+};
+
+export enum GooglePriceLevel {
+  'Free',
+  'Moderate',
+  'Expensive',
+  'VeryExpensive',
+}
+
+export type GetDetailScheduleResponsePayload = {
+  id: string; /// ex) 22748
+  dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
+  orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
+  spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+  previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+  spotName: string; /// ex) 'Turtle Bay Resort'
+  roomType: string | null; /// ex)
+  spotAddr: string | null; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+  // contact: string; /// ex) '+18089228111'
+  hotelBookingUrl: string | null; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+  placeId: string | null; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+  //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+  startDate: string | null; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+  endDate: string | null; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+  night: Number | null; /// 1박 ex)
+  days: Number | null; /// 2일 ex)
+  checkIn: String | null; /// ex) 15:00
+  checkOut: String | null; ///  ex)  11:00
+  price: String | null; ///  1박당? 전체?
+  priceLevel: keyof typeof GooglePriceLevel | null; ///  식당이나 장소일경우 구글에서 평가한 가격 레벨 ex) 0(Free), 1(Inexpensive), 2(Moderate), 3(Expensive), 4(Very Expensive)
+  rating: number | null; /// ex) 8.7
+  lat: number | null; /// ex) 33.47471823
+  lng: number | null; /// ex) 126.17273718239
+  hotelClass: number | null; /// 호텔성급 ex) 3
+  reviewScoreWord: string | null; /// booking.com hotel => 리뷰 점수를 한마디로 표현 ex) wonderful
+  language: string | null; /// booking.com hotel => 호텔 언어
+  cityNameEN: string | null; /// booking.com hotel => 호텔 위치 도시명
+  imageList:
+    | {
+        url?: string; /// idealbloom server에서 포맷 변경한 직접 접근 가능한 대표 url ex) http://ba6s6ddtnbkj120f-abashbdt.com
+        reference?: string; /// google photo reference
+
+        /// 이하 booking.com photos of hotel 리턴값 양식
+        ml_tags?: {
+          confidence: number;
+          tag_id: number;
+          tag_type: string;
+          tag_name: string;
+          photo_id: number;
+        }[];
+        tags?: {
+          tag: string; /// booking.com photo tag ex) Bed, Photo of the whole room, Room
+          id: number;
+        }[];
+        photo_id?: number; /// booking.com photo id ex)  54631278
+        url_square60?: string;
+        url_max?: string;
+        url_1440?: string;
+      }[]
+    | null;
+  contact: string | null; /// 연락처 Google Place Detail => formatted_phone_number ex) 02-6369-4603
+  weekdayOpeningHours: string[] | null; /// Google Place Detail => weekday_text를 이름을 바꿨음. ex) ["월요일: 오전 11:30 ~ 오후 10:00", "화요일: 오전 11:30 ~ 오후 10:00", "수요일: 오전 11:30 ~ 오후 10:00", "목요일: 오전 11:30 ~ 오후 10:00", "금요일: 오전 11:30 ~ 오후 10:00", "토요일: 오전 11:30 ~ 오후 10:00", "일요일: 오전 11:30 ~ 오후 10:00"]
+  reviews: GooglePlaceReview[] | null; /// Google Place Detail => 리뷰들 노출 5개
+  takeout: boolean | null; /// Google Place Detail => 테이크아웃 여부
+  googlePlaceTypes: string[] | null; /// Google Place Detail => 장소 타입 ex) [ "restaurant", "food", "point_of_interest", "establishment" ]
+  url: string | null; /// Google Place Detail => 구글맵 url ex) https://maps.google.com/?cid=18118321410210469991
+  userRatingsTotal: number | null; /// Google Place Detail => 유저 평점 총 투표자 수
+  website: string | null; /// Google Place Detail => 해당 장소에서 운영하는 자체 웹사이트 , hotel의 웹사이트로도 쓴다.
+};
+
+export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDetailScheduleResponsePayload | {};
+};
+
+export type GglPlaceDetailType = {
+  /// google place detail types...
+};
+export type GetPlaceDetailResponse = {
+  result: GglPlaceDetailType[];
 };
