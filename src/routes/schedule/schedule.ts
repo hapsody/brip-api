@@ -3040,7 +3040,7 @@ export const getDaySchedule = asyncWrapper(
               checkin: hotel.checkin,
               checkout: hotel.checkout,
               price: hotel.min_total_price.toString(),
-              rating: hotel.review_score ?? undefined,
+              rating: hotel.review_score ? hotel.review_score / 2.0 : undefined,
               lat: hotel.latitude,
               lng: hotel.longitude,
               imageList: [
@@ -3345,7 +3345,7 @@ export const getDetailSchedule = asyncWrapper(
               checkOut: hotel.checkout,
               price: hotel.min_total_price.toString(),
               priceLevel: null,
-              rating: hotel.review_score ?? null,
+              rating: hotel.review_score ? hotel.review_score / 2.0 : null,
               lat: hotel.latitude,
               lng: hotel.longitude,
               hotelClass: hotel.hotelClass,
@@ -3670,7 +3670,9 @@ export const getCandidateSchedule = asyncWrapper(
                 checkin: hotel.checkin,
                 checkout: hotel.checkout,
                 price: hotel.min_total_price.toString(),
-                rating: hotel.review_score ?? undefined,
+                rating: hotel.review_score
+                  ? hotel.review_score / 2.0
+                  : undefined,
                 lat: hotel.latitude,
                 lng: hotel.longitude,
                 imageList: [
@@ -4101,7 +4103,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
               checkOut: hotel.checkout,
               price: hotel.min_total_price.toString(),
               priceLevel: null,
-              rating: hotel.review_score ?? null,
+              rating: hotel.review_score ? hotel.review_score / 2.0 : null,
               lat: hotel.latitude,
               lng: hotel.longitude,
               hotelClass: hotel.hotelClass,
