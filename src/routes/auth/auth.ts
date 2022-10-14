@@ -16,9 +16,21 @@ import { User } from '@prisma/client';
 
 const authRouter: express.Application = express();
 
+export interface SaveScheduleResponsePayload {
+  token: string;
+  refreshToken: string;
+  nickName: string;
+  userId: number;
+  email: string;
+}
+
+export type SignInResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleResponsePayload | {};
+};
+
 export const signIn = (
   req: Express.IBTypedReqBody<{ email: string; password: string }>,
-  res: Express.IBTypedResponse<IBResFormat>,
+  res: Express.IBTypedResponse<SignInResponse>,
   next: NextFunction,
 ): void => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
@@ -102,6 +114,7 @@ export const signIn = (
         IBparams: {
           token: accessToken,
           refreshToken,
+          nickName: user.nickName,
           userId: user.id,
           email: user.email,
         },
