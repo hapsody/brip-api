@@ -170,7 +170,7 @@ model SearchHotelRes {
   included_taxes_and_charges_amount Float /// 세금 포함한 금액
   net_amount                        Float /// 순액
   // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  hotelClass                             Int      @default(-1) /// 호텔 성급 ex) 3
+  hotelClass                        Int      @default(-1) /// 호텔 성급 ex) 3
   countrycode                       String /// ex) en
   default_language                  String /// ex) xu
   address                           String /// ex) 92-161 Waipahe Place
@@ -291,6 +291,7 @@ model MetaScheduleInfo {
   queryParamsId            Int         @unique
 }
 
+/// reqSchedule api로 요청되어 추천일정으로 잡힌 호텔 및 장소들 일람. 여기서 유저가 저장하면 scheduleBank에도 등록된다.
 model VisitSchedule {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())

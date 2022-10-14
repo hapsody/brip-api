@@ -90,6 +90,8 @@ import {
   GetPlaceDetailResponse,
   GooglePlaceReview,
   GooglePriceLevel,
+  GetCandidateScheduleParams,
+  GetCandidateScheduleResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -3596,6 +3598,272 @@ export const getDetailSchedule = asyncWrapper(
   },
 );
 
+export const getCandidateSchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetCandidateScheduleParams>,
+    res: Express.IBTypedResponse<GetCandidateScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { scheduleHash, spotType } = req.body;
+
+      const retValue = await (async () => {
+        if (spotType.toUpperCase() === 'HOTEL') {
+          const queryParams = await prisma.queryParams.findUnique({
+            where: {
+              scheduleHash,
+            },
+            include: {
+              metaScheduleInfo: true,
+              searchHotelRes: {
+                where: { visitSchedule: { none: {} } },
+              },
+              gglNearbySearchRes: {
+                where: {
+                  AND: [
+                    { spotSchedule: { none: {} } },
+                    { restaurantSchedule: { none: {} } },
+                  ],
+                },
+              },
+            },
+          });
+
+          return {
+            id: queryParams?.id.toString() ?? '-1',
+            contentsCountAll: queryParams?.searchHotelRes.length ?? -1,
+            spotList: queryParams?.searchHotelRes.map(hotel => {
+              return {
+                id: hotel.id.toString(),
+                spotType: 'hotel',
+                previewImg: hotel.main_photo_url,
+                spotName: hotel.hotel_name,
+                roomType: hotel.unit_configuration_label,
+                spotAddr: hotel.address,
+                hotelBookingUrl: hotel.url,
+                startDate: moment(queryParams.hotelCheckinDate).format(
+                  'YYYY-MM-DD',
+                ),
+                endDate: moment(queryParams.hotelCheckoutDate).format(
+                  'YYYY-MM-DD',
+                ),
+                night: queryParams.metaScheduleInfo?.travelNights,
+                days: queryParams.metaScheduleInfo?.travelDays,
+                checkin: hotel.checkin,
+                checkout: hotel.checkout,
+                price: hotel.min_total_price.toString(),
+                rating: hotel.review_score ?? undefined,
+                lat: hotel.latitude,
+                lng: hotel.longitude,
+                imageList: [
+                  {
+                    id: '1',
+                    url: hotel.main_photo_url,
+                    text: 'text는 어디에 쓰이는지?',
+                  },
+                ],
+              };
+            }),
+          };
+        }
+        if (spotType.toUpperCase() === 'RESTAURANT') {
+          const queryParams = await prisma.queryParams.findUnique({
+            where: {
+              scheduleHash,
+            },
+            include: {
+              metaScheduleInfo: true,
+              gglNearbySearchRes: {
+                where: {
+                  types: {
+                    some: { value: { equals: 'restaurant' } },
+                  },
+                  AND: [
+                    { spotSchedule: { none: {} } },
+                    { restaurantSchedule: { none: {} } },
+                  ],
+                },
+                include: {
+                  photos: true,
+                  geometry: true,
+                },
+              },
+            },
+          });
+
+          return {
+            id: queryParams?.id.toString() ?? '-1',
+            contentsCountAll: queryParams?.gglNearbySearchRes.length ?? -1,
+            spotList: queryParams?.gglNearbySearchRes.map(restaurant => {
+              return {
+                id: restaurant.id.toString(),
+                spotType: 'restaurant',
+                previewImg:
+                  restaurant.photos.length > 0 && restaurant.photos[0].url
+                    ? restaurant.photos[0].url
+                    : 'none',
+                spotName: restaurant.name ?? 'none',
+                spotAddr: restaurant.vicinity ?? 'none',
+                // contact: 'none',
+                placeId: restaurant.place_id ?? 'none',
+                startDate: moment(queryParams.hotelCheckinDate).format(
+                  'YYYY-MM-DD',
+                ),
+                endDate: moment(queryParams.hotelCheckoutDate).format(
+                  'YYYY-MM-DD',
+                ),
+                night: queryParams.metaScheduleInfo?.travelNights,
+                days: queryParams.metaScheduleInfo?.travelDays,
+                rating: restaurant.rating ?? undefined,
+                lat: restaurant.geometry
+                  ? Number(
+                      (
+                        JSON.parse(restaurant.geometry?.location) as {
+                          lat: string;
+                        }
+                      ).lat,
+                    )
+                  : undefined,
+                lng: restaurant.geometry
+                  ? Number(
+                      (
+                        JSON.parse(restaurant.geometry?.location) as {
+                          lngt: string;
+                        }
+                      ).lngt,
+                    )
+                  : undefined,
+                imageList: restaurant.photos.map(p => {
+                  return {
+                    id: p.id.toString(),
+                    url: p.url ?? 'none',
+                    text: 'text는 어디에 쓰이는지?',
+                  };
+                }),
+              };
+            }),
+          };
+        }
+
+        const queryParams = await prisma.queryParams.findUnique({
+          where: {
+            scheduleHash,
+          },
+          include: {
+            metaScheduleInfo: true,
+            gglNearbySearchRes: {
+              where: {
+                types: {
+                  none: { value: { equals: 'restaurant' } },
+                },
+                AND: [
+                  { spotSchedule: { none: {} } },
+                  { restaurantSchedule: { none: {} } },
+                ],
+              },
+              include: {
+                photos: true,
+                geometry: true,
+              },
+            },
+          },
+        });
+        return {
+          id: queryParams?.id.toString() ?? '-1',
+          contentsCountAll: queryParams?.gglNearbySearchRes.length ?? -1,
+          spotList: queryParams?.gglNearbySearchRes.map(spot => {
+            return {
+              id: spot.id.toString(),
+              spotType: 'spot',
+              previewImg:
+                spot.photos.length > 0 && spot.photos[0].url
+                  ? spot.photos[0].url
+                  : 'none',
+              spotName: spot.name ?? 'none',
+              spotAddr: spot.vicinity ?? 'none',
+              // contact: 'none',
+              placeId: spot.place_id ?? 'none',
+              startDate: moment(queryParams.hotelCheckinDate).format(
+                'YYYY-MM-DD',
+              ),
+              endDate: moment(queryParams.hotelCheckoutDate).format(
+                'YYYY-MM-DD',
+              ),
+              night: queryParams.metaScheduleInfo?.travelNights,
+              days: queryParams.metaScheduleInfo?.travelDays,
+              rating: spot.rating ?? undefined,
+              lat: spot.geometry
+                ? Number(
+                    (
+                      JSON.parse(spot.geometry?.location) as {
+                        lat: string;
+                      }
+                    ).lat,
+                  )
+                : undefined,
+              lng: spot.geometry
+                ? Number(
+                    (
+                      JSON.parse(spot.geometry?.location) as {
+                        lngt: string;
+                      }
+                    ).lngt,
+                  )
+                : undefined,
+              imageList: spot.photos.map(p => {
+                return {
+                  id: p.id.toString(),
+                  url: p.url ?? 'none',
+                  text: 'text는 어디에 쓰이는지?',
+                };
+              }),
+            };
+          }),
+        };
+      })();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retValue,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 /// internal dev api function
 const getHotelPhotos = asyncWrapper(
   async (
@@ -3655,6 +3923,11 @@ scheduleRouter.post(
   '/getDetailSchedule',
   accessTokenValidCheck,
   getDetailSchedule,
+);
+scheduleRouter.post(
+  '/getCandidateSchedule',
+  accessTokenValidCheck,
+  getCandidateSchedule,
 );
 scheduleRouter.post('/getHotelPhotos', getHotelPhotos);
 export default scheduleRouter;

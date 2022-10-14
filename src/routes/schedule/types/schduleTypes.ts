@@ -842,3 +842,16 @@ export type GglPlaceDetailType = {
 export type GetPlaceDetailResponse = {
   result: GglPlaceDetailType[];
 };
+
+export type GetCandidateScheduleParams = {
+  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+  // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
+  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+};
+export type GetCandidateScheduleResponsePayload = {
+  result: GglPlaceDetailType[] | {};
+};
+
+export type GetCandidateScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandidateScheduleResponsePayload | {};
+};
