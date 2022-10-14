@@ -92,6 +92,8 @@ import {
   GooglePriceLevel,
   GetCandidateScheduleParams,
   GetCandidateScheduleResponse,
+  ModifyScheduleParams,
+  ModifyScheduleResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -3864,6 +3866,92 @@ export const getCandidateSchedule = asyncWrapper(
   },
 );
 
+export const modifySchedule = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyScheduleParams>,
+    res: Express.IBTypedResponse<ModifyScheduleResponse>,
+  ) => {
+    try {
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { visitScheduleId, candidateSpotType, candidateId } = req.body;
+
+      const visitSchedule = await prisma.visitSchedule.findUnique({
+        where: {
+          id: Number(visitScheduleId),
+        },
+      });
+
+      if (!visitSchedule) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 visitSchedule 입니다.',
+        });
+      }
+
+      await prisma.visitSchedule.update({
+        where: {
+          id: Number(visitScheduleId),
+        },
+        data: {
+          type: candidateSpotType.toUpperCase() as PlaceType,
+          dataId: Number(candidateId),
+          hotelId:
+            candidateSpotType.toUpperCase() === 'HOTEL'
+              ? Number(candidateId)
+              : null,
+          restaurantId:
+            candidateSpotType.toUpperCase() === 'RESTAURANT'
+              ? Number(candidateId)
+              : null,
+          spotId:
+            candidateSpotType.toUpperCase() === 'SPOT'
+              ? Number(candidateId)
+              : null,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 /// internal dev api function
 const getHotelPhotos = asyncWrapper(
   async (
@@ -3930,4 +4018,5 @@ scheduleRouter.post(
   getCandidateSchedule,
 );
 scheduleRouter.post('/getHotelPhotos', getHotelPhotos);
+scheduleRouter.post('/modifySchedule', accessTokenValidCheck, modifySchedule);
 export default scheduleRouter;
