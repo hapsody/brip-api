@@ -189,10 +189,15 @@ export const ibDefs: IBResFormats = {
 };
 
 export type MemberGrade = 'nonMember' | 'member';
-export interface UserTokenPayload {
+export interface AccessTokenPayload {
   grade: MemberGrade;
   email?: string; // grade가 member 일 경우 존재
   tokenId: string;
+}
+
+export interface RefreshTokenPayload {
+  email: string;
+  refTk: boolean;
 }
 
 export interface GuardRes {
