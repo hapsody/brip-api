@@ -5,6 +5,7 @@ import {
   Prisma,
   Gglgeometry,
   PlanType,
+  PlaceType,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -846,7 +847,7 @@ export type GetPlaceDetailResponse = {
 export type GetCandidateScheduleParams = {
   scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
-  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
 };
 export type GetCandidateScheduleResponsePayload = {
   result: GglPlaceDetailType[] | {};
@@ -858,7 +859,7 @@ export type GetCandidateScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
 
 export type ModifyScheduleParams = {
   visitScheduleId: string; /// 변경전 생성되어 있던 추천 항목 ex) "4"
-  candidateSpotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
   candidateId: string; /// 변경하고자 하는 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
 };
 export type ModifyScheduleResponsePayload = {
@@ -867,4 +868,20 @@ export type ModifyScheduleResponsePayload = {
 
 export type ModifyScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ModifyScheduleResponsePayload | {};
+};
+
+export type GetCandidateDetailScheduleParams = {
+  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
+};
+export type GetCandidateDetailScheduleResponsePayload = Omit<
+  GetDetailScheduleResponsePayload,
+  'dayCount' | 'orderCount' | 'planType'
+>;
+
+export type GetCandidateDetailScheduleResponse = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetCandidateDetailScheduleResponsePayload | {};
 };
