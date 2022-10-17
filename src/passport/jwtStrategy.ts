@@ -6,7 +6,7 @@ import {
   VerifyCallback,
 } from 'passport-jwt';
 import prisma from '@src/prisma';
-import { UserTokenPayload, GuardRes } from '@src/utils';
+import { AccessTokenPayload, GuardRes } from '@src/utils';
 
 type JwtAsyncFn = (
   jwtPayload: unknown,
@@ -33,7 +33,7 @@ export default (passport: PassportStatic): void => {
       },
       wrapper(async (jwtPayload: unknown, done: VerifiedCallback) => {
         // try {
-        const userTokenPayload = jwtPayload as UserTokenPayload;
+        const userTokenPayload = jwtPayload as AccessTokenPayload;
         if (userTokenPayload.grade === 'member') {
           const { email } = userTokenPayload;
 

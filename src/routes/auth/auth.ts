@@ -7,18 +7,31 @@ import {
   IBResFormat,
   accessTokenValidCheck,
   IBError,
-  UserTokenPayload,
+  AccessTokenPayload,
+  RefreshTokenPayload,
 } from '@src/utils';
-import _, { isEmpty } from 'lodash';
+import _, { isEmpty, isEqual } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User } from '@prisma/client';
 
 const authRouter: express.Application = express();
 
+export interface SaveScheduleResponsePayload {
+  token: string;
+  refreshToken: string;
+  nickName: string;
+  userId: number;
+  email: string;
+}
+
+export type SignInResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleResponsePayload | {};
+};
+
 export const signIn = (
   req: Express.IBTypedReqBody<{ email: string; password: string }>,
-  res: Express.IBTypedResponse<IBResFormat>,
+  res: Express.IBTypedResponse<SignInResponse>,
   next: NextFunction,
 ): void => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
@@ -65,24 +78,31 @@ export const signIn = (
         return;
       }
 
-      const randNo = Math.random().toString().substr(2, 6);
-      const userTokenPayload: UserTokenPayload = {
+      // const randNo = Math.random().toString().substr(2, 6);
+      const accessTokenPayload: AccessTokenPayload = {
         grade: 'member',
         email: user.email,
         tokenId: user.userTokenId,
       };
       const accessToken = jwt.sign(
         // { email: user.email, randNo },
-        userTokenPayload,
+        accessTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '14d',
+          // expiresIn: '1s',
         },
       );
 
+      const refreshTokenPayload: RefreshTokenPayload = {
+        email: user.email,
+        refTk: true,
+        // randNo
+      };
+
       // const expiration = 1000;
       const refreshToken = jwt.sign(
-        { email: user.email, randNo },
+        refreshTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '60d',
@@ -102,6 +122,7 @@ export const signIn = (
         IBparams: {
           token: accessToken,
           refreshToken,
+          nickName: user.nickName,
           userId: user.id,
           email: user.email,
         },
@@ -232,12 +253,12 @@ export const reqNonMembersUserToken = asyncWrapper(
         data: {},
       });
 
-      const userTokenPayload: UserTokenPayload = {
+      const accessTokenPayload: AccessTokenPayload = {
         grade: 'nonMember',
         tokenId: newOne.id.toString(),
       };
       const userToken = jwt.sign(
-        userTokenPayload,
+        accessTokenPayload,
         process.env.JWT_SECRET as string,
       );
 
@@ -252,6 +273,156 @@ export const reqNonMembersUserToken = asyncWrapper(
         if (err.type === 'INVALIDENVPARAMS') {
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type RefreshAccessTokenRequestType = {
+  userId: string;
+  refreshToken: string;
+};
+export interface RefreshAccessTokenSuccessResType {
+  token: string;
+  userId: number;
+  email: string;
+  nickName: string;
+}
+
+export type RefreshAccessTokenResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: RefreshAccessTokenSuccessResType | {};
+};
+
+/**
+ * 비회원일 경우도 DB에 저장되는 모든 데이터들의 소유자를 특정할수 있도록
+ * tokenId를 payload로 갖는 일종의 accessToken을 부여하는데
+ * reqNonMembersUserToken을 통해 유저 레벨의 api함수를 사용하기 위해
+ * 비회원이 사용할수 있는 비회원용 고유 토큰을 요청한다.
+ */
+export const refreshAccessToken = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RefreshAccessTokenRequestType>,
+    res: Express.IBTypedResponse<RefreshAccessTokenResType>,
+  ) => {
+    try {
+      if (isEmpty(process.env.JWT_SECRET)) {
+        throw new IBError({ type: 'INVALIDENVPARAMS', message: '' });
+      }
+
+      const { userId, refreshToken } = req.body;
+      if (isEmpty(userId) || isEmpty(refreshToken)) {
+        res.json({
+          ...ibDefs.INVALIDPARAMS,
+        });
+
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: 'userId와 refreshToken 파라미터가 필요합니다.',
+        });
+      }
+
+      let payload: RefreshTokenPayload | {} = {};
+      try {
+        payload = jwt.verify(refreshToken, process.env.JWT_SECRET as string);
+      } catch (e) {
+        if (isEqual((e as Error).name, 'TokenExpiredError')) {
+          throw new IBError({
+            type: 'TOKENEXPIRED',
+            message: '',
+          });
+        }
+      }
+
+      if (isEmpty(payload) || !(payload as RefreshTokenPayload).refTk) {
+        throw new IBError({
+          type: 'NOTREFRESHTOKEN',
+          message: 'refreshToken이 아닙니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          email: (payload as RefreshTokenPayload).email,
+        },
+      });
+
+      if (isEmpty(user)) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message:
+            'refreshToken payload에 실린 email은 존재하지 않는 email 이거나, refreshToken과 유저 email 정보가 일치하지 않습니다.',
+        });
+      }
+
+      const accessTokenPayload: AccessTokenPayload = {
+        grade: 'member',
+        email: user.email,
+        tokenId: user.userTokenId,
+      };
+      const accessToken = jwt.sign(
+        // { email: user.email, randNo },
+        accessTokenPayload,
+        process.env.JWT_SECRET || 'test_secret',
+        {
+          expiresIn: '14d',
+        },
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          token: accessToken,
+          userId: user.id,
+          email: user.email,
+          nickName: user.nickName,
+        },
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDENVPARAMS') {
+          res.status(500).json({
+            ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'TOKENEXPIRED') {
+          res.status(401).json({
+            ...ibDefs.TOKENEXPIRED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTREFRESHTOKEN') {
+          res.status(401).json({
+            ...ibDefs.NOTREFRESHTOKEN,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTMATCHEDDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -309,5 +480,6 @@ authRouter.post('/signIn', signIn);
 authRouter.post('/signUp', accessTokenValidCheck, signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
+authRouter.post('/refreshAccessToken', refreshAccessToken);
 
 export default authRouter;

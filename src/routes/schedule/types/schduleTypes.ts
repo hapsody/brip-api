@@ -5,6 +5,7 @@ import {
   Prisma,
   Gglgeometry,
   PlanType,
+  PlaceType,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -58,31 +59,53 @@ export interface SearchHotelReqParams {
   mock?: boolean; // default true
 }
 
-export interface TravelType {
+export interface FavoriteTravelType {
   // default { noIdea: true }
-  landActivity?: boolean; // 육상 액티비티
-  golf?: boolean;
-  relaxation?: boolean; // 휴양
-  resort?: boolean; // 리조트
+  landActivity?: boolean; /// 육상 액티비티
+  golf?: boolean; /// 골프
+  relaxation?: boolean; /// 휴양
+  oceanActivity?: boolean; /// 해양 액티비티
+  groupActivity?: boolean; /// 그룹 액티비티
+  learn?: boolean; /// 교습
+  food?: boolean; /// 음식
+  experience?: boolean; /// 체험
+  visitTourSpot?: boolean; /// 관광명소 방문
+  packageTour?: boolean; /// 패키지 투어
+  shopping?: boolean; /// 쇼핑
+  waterPark?: boolean; /// 워터파크
+  noIdea?: boolean; /// 모르겠음
+  // nativeExperience?: boolean; /// 현지 문화체험
+}
+
+export interface FavoriteAccommodationType {
   hotel?: boolean;
-  oceanActivity?: boolean; // 해양 액티비티
-  experience?: boolean; // 체험
-  groupActivity?: boolean; // 그룹 액티비티
-  learning?: boolean; // 교습
-  shopping?: boolean; // 쇼핑
-  waterPark?: boolean; // 워터파크
-  visitTourSpot?: boolean; // 관광명소 방문
-  packageTour?: boolean; // 패키지 투어
-  nativeExperience?: boolean; // 현지 문화체험
-  noIdea?: boolean; // 모르겠음
+  resort?: boolean; /// 리조트
+  houseRent?: boolean; /// 하우스 렌트
+  roomRent?: boolean; /// 룸렌트
+  bedRent?: boolean; /// 베드 렌트
+  apartRent?: boolean; /// 아파트 렌트
+  poolVilla?: boolean; /// 풀빌라
+  camping?: boolean; /// 캠핑
+  mixed?: boolean; /// 적절히 믹스
+  dontCare?: boolean; /// 상관없음
+}
+
+export interface FavoriteAccommodationLocation {
+  nature?: boolean; /// 자연과 함께
+  downtown?: boolean; /// 중심지
+  oceanView?: boolean; /// 오션뷰
+  mountainView?: boolean; /// 마운틴 뷰
+  cityView?: boolean; /// 시티뷰
+  mixed?: boolean; /// 적절히 믹스
+  dontCare?: boolean; /// 상관없음
 }
 
 export interface QueryReqParams {
   // searchLocation?: string; // ex) o'ahu ex) seoul
-  minBudget?: number; // ex) 4000000,
-  maxBudget?: number; // ex) 5000000,
-  currency: Currency; // "USD" | "KRW" default USD
-  travelType: TravelType;
+  minBudget?: number; /// ex) 4000000,
+  maxBudget?: number; /// ex) 5000000,
+  currency: Currency; /// "USD" | "KRW" default USD
+  travelType: FavoriteTravelType; ///
   travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
   travelStartDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
   travelEndDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
@@ -581,9 +604,9 @@ export interface ReqScheduleParams {
   child: string;
   infant: string;
   travelHard: string;
-  favoriteTravelType: string[];
-  favoriteAccommodation: string[];
-  favoriteAccommodationLocation: string[];
+  favoriteTravelType: (keyof FavoriteTravelType)[];
+  favoriteAccommodation: (keyof FavoriteAccommodationType)[];
+  favoriteAccommodationLocation: (keyof FavoriteAccommodationLocation)[];
   mock?: boolean;
 }
 
@@ -752,6 +775,7 @@ export type GetDetailScheduleResponsePayload = {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
+  planType: PlanType; /// 해당 장소는 비용타입중 min | mid | max중 어디에 속하는가
   spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
   previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
   spotName: string; /// ex) 'Turtle Bay Resort'
@@ -818,4 +842,46 @@ export type GglPlaceDetailType = {
 };
 export type GetPlaceDetailResponse = {
   result: GglPlaceDetailType[];
+};
+
+export type GetCandidateScheduleParams = {
+  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+  // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
+  spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+};
+export type GetCandidateScheduleResponsePayload = {
+  result: GglPlaceDetailType[] | {};
+};
+
+export type GetCandidateScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandidateScheduleResponsePayload | {};
+};
+
+export type ModifyScheduleParams = {
+  visitScheduleId: string; /// 변경전 생성되어 있던 추천 항목 ex) "4"
+  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  candidateId: string; /// 변경하고자 하는 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
+};
+export type ModifyScheduleResponsePayload = {
+  result: GglPlaceDetailType[] | {};
+};
+
+export type ModifyScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ModifyScheduleResponsePayload | {};
+};
+
+export type GetCandidateDetailScheduleParams = {
+  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
+};
+export type GetCandidateDetailScheduleResponsePayload = Omit<
+  GetDetailScheduleResponsePayload,
+  'dayCount' | 'orderCount' | 'planType'
+>;
+
+export type GetCandidateDetailScheduleResponse = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetCandidateDetailScheduleResponsePayload | {};
 };
