@@ -157,6 +157,14 @@ export type NearbySearchResponse = Omit<IBResFormat, 'IBparams'> & {
   };
 };
 
+export type TextSearchResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {
+    textSearchCount: number;
+    // textSearchResult: google.maps.places.IBPlaceResult[];
+    textSearchResult: (string | undefined)[];
+  };
+};
+
 export type SearchHotelResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {
     hotelSearchCount: number;

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>국가공간정보포털 OpenAPI</title>
+    <meta charset="utf-8" />
+    <!-- 오픈API -->
+    <script
+      type="text/javaScript"
+      src="http://www.nsdi.go.kr/lxportal/zcms/nsdi/platform/sdkGeoView.js.html?authkey=인증키"
+    ></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  </head>
+  <body>
+    <div
+      id="sampleMap"
+      style="height: 800px; width: 100%; border: solid 1px"
+    ></div>
+
+    <!--차트가 생성될 태그-->
+    <div id="sampleChart" style="height: 250px; width: 433px"></div>
+
+    <!-- 그리드가 생성될 태그 -->
+    <table id="sampleGrid" style="height: 272px; width: 433px"></table>
+
+    <script>
+      // 지도생성
+      var map = new pf.GeoView('sampleMap', 'vworld', true, true);
+
+      //데이터 요청(OpenAPI)
+      $.ajax({
+        type: 'POST',
+        data: {
+          apitype: 'data',
+          resulttype: 'geojson',
+          datasets: '12845',
+          bbox: '833650.614474257,1943286.5512082838,970380.2826180774,1961733.2057452637',
+          authkey: '인증키',
+        },
+        dataType: 'json',
+        async: false,
+        traditional: true,
+        url: 'http://www.nsdi.go.kr/lxportal/zcms/nsdi/platform/openapi.html',
+        success: function (response) {
+          data = response;
+        },
+      });
+
+      //시각화설정
+      map.addMapViLayer(
+        data,
+        'geojson',
+        'layer',
+        'legend',
+        'SGG_OID',
+        null,
+        '샘플 데이터',
+        'EPSG:5179',
+      );
+
+      //차트설정
+      map.setChart(
+        'sampleChart',
+        'line',
+        'layer',
+        'SGG_OID',
+        '차트',
+        'VALUE',
+        'EMD_NM',
+      );
+
+      //그리드설정
+      map.setGrid(
+        'sampleGrid',
+        'layer',
+        ['GID', '값'],
+        ['GID', 'SGG_OID'],
+        '데이터 테이블',
+      );
+    </script>
+  </body>
+</html>

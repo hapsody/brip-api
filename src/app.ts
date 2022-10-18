@@ -2,8 +2,10 @@ import express, { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import passport from 'passport';
+import path from 'path';
 import compression from 'compression';
 import dotenv from 'dotenv';
+// import cors from 'cors';
 import authRouter from './routes/auth';
 import scheduleRouter from './routes/schedule';
 import contentRouter from './routes/content';
@@ -34,13 +36,39 @@ app.use(passport.initialize());
 // app.use(passport.session());
 passportConfig(passport);
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept',
+  );
+  next();
+});
+
+// app.use(
+//   cors({
+//     origin: 'https://map.vworld.kr',
+//     credentials: true,
+//   }),
+// );
+
 app.use('/auth', authRouter);
 app.use('/schedule', scheduleRouter);
 app.use('/content', contentRouter);
 app.use('/setting', settingRouter);
 
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+// app.engine('html', ejs.renderFile);
+// app.set('view engine', 'html');
+
 app.get('/', (req: Request, res: Response) => {
   res.send('hello world!!!');
+});
+
+app.get('/mapTest', (req: Request, res: Response) => {
+  res.render(`mapSample`);
 });
 
 // app.get('/resJsonTest', (req: express.Request, res: express.Response) => {
