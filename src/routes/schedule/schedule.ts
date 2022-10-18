@@ -97,9 +97,12 @@ import {
   GetCandidateDetailScheduleParams,
   GetCandidateDetailScheduleResponse,
   GetCandidateDetailScheduleResponsePayload,
+  TextSearchResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
+
+const language = 'ko';
 
 const getPlacePhoto = async (data: unknown) => {
   const { photos } = data as {
@@ -132,7 +135,7 @@ const getPlacePhoto = async (data: unknown) => {
         host: string;
         path: string;
       };
-    } = await axios.get(photoUrlReqParam);
+    } = await axios.get(encodeURI(photoUrlReqParam));
     // console.log(photoUrlReqParam);
     const { protocol, host, path } = rawResult.request;
     const url = `${protocol}//${host}/${path}`;
@@ -161,11 +164,13 @@ const createQueryParamId = async (
   ifAlreadyQueryId?: number,
 ) => {
   const { nearbySearchReqParams, searchHotelReqParams } = params;
-  const {
-    keyword,
-    radius,
-    location: { latitude: nearbySearchLat, longitude: nearbySearchLngt },
-  } = nearbySearchReqParams ?? defaultNearbySearchReqParams;
+  const { keyword, radius, location } =
+    nearbySearchReqParams ?? defaultNearbySearchReqParams;
+  const { latitude: nearbySearchLat, longitude: nearbySearchLngt } =
+    location ?? {
+      latitude: undefined,
+      longitude: undefined,
+    };
 
   const {
     orderBy,
@@ -189,8 +194,8 @@ const createQueryParamId = async (
     data: {
       keyword: isEmpty(keyword) ? null : keyword,
       radius: radius > 0 ? radius : null,
-      latitude: parseFloat(nearbySearchLat ?? paramLat),
-      longitude: parseFloat(nearbySearchLngt ?? paramLngt),
+      latitude: parseFloat(nearbySearchLat ?? paramLat ?? 9999),
+      longitude: parseFloat(nearbySearchLngt ?? paramLngt ?? 9999),
       hotelOrderBy: orderBy,
       hotelAdultsNumber: adultsNumber,
       hotelRoomNumber: roomNumber,
@@ -515,14 +520,51 @@ const nearbySearchInnerAsyncFn = async (
 
   const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${
     keyword ?? ''
-  }&location=${location?.latitude}%2C${
+  }&language=${language}&location=${location?.latitude},${
     location?.longitude
   }&radius=${radius}&key=${process.env.GCP_MAPS_APIKEY as string}${
     pageToken ? `&pagetoken=${pageToken}` : ''
   }`;
   console.log(queryUrl);
 
-  const response = await axios.get(queryUrl);
+  const response = await axios.get(encodeURI(queryUrl));
+
+  const { results, queryParamId } = await storeDataRelatedWithQueryParams(
+    queryReqParams,
+    response,
+    ifAlreadyQueryId,
+  );
+
+  return {
+    nearbySearchResult: results,
+    queryParamId,
+    pageToken: (response.data as Partial<{ next_page_token: string }>)
+      .next_page_token,
+  };
+};
+
+type TextSearchInnerAsyncFnRes = NearbySearchInnerAsyncFnRes;
+const textSearchInnerAsyncFn = async (
+  queryReqParams: QueryReqParams,
+  ifAlreadyQueryId?: number,
+): Promise<TextSearchInnerAsyncFnRes> => {
+  const {
+    nearbySearchReqParams: {
+      // location,
+      // radius,
+      pageToken,
+      keyword,
+    },
+  } = queryReqParams;
+
+  const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
+    keyword ?? ''
+  }&language=ko&key=${process.env.GCP_MAPS_APIKEY as string}${
+    pageToken ? `&pagetoken=${pageToken}` : ''
+  }`;
+  console.log(queryUrl);
+
+  const response = await axios.get(encodeURI(queryUrl));
 
   const { results, queryParamId } = await storeDataRelatedWithQueryParams(
     queryReqParams,
@@ -557,7 +599,7 @@ const getAllNearbySearchPages = async (
   loopLoadAll = false,
 ): Promise<google.maps.places.IBPlaceResult[]> => {
   let retry = 1;
-  const retryLimit = 5;
+  const retryLimit = 10;
 
   // do while loop version
   // do {
@@ -592,6 +634,75 @@ const getAllNearbySearchPages = async (
     };
     // eslint-disable-next-line no-await-in-loop
     const loopTemp = await nearbySearchInnerAsyncFn(
+      loopQueryParams,
+      ifAlreadyQueryId,
+    );
+
+    const nextPageToken = loopTemp.pageToken ?? '';
+    const stopLoop = !loopLoadAll;
+    retry += 1;
+
+    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+      return [...loopTemp.nearbySearchResult];
+
+    // const subResults: google.maps.places.IBPlaceResult[];
+    const subResults = await new Promise(resolve => {
+      setTimeout(() => {
+        loopFunc(nextPageToken)
+          .then(promiseRes => {
+            resolve(promiseRes);
+          })
+          .catch(err => {
+            console.error(err);
+            resolve([] as google.maps.places.IBPlaceResult[]);
+          });
+      }, 2000);
+    });
+
+    let loopResult: google.maps.places.IBPlaceResult[] = [];
+    loopResult = [
+      ...(subResults as google.maps.places.IBPlaceResult[]),
+      ...loopTemp.nearbySearchResult,
+    ];
+
+    return loopResult;
+  };
+  const loopFuncRes = await loopFunc(
+    queryReqParams.nearbySearchReqParams.pageToken ?? '',
+  );
+
+  return loopFuncRes;
+};
+
+/**
+ * 구글 getAllNearbySearchPages 를 내부 개발 테스트용으로 개조한 함수
+ * @param queryReqParams
+ * @param ifAlreadyQueryId DB에는 QueryParams에 GglNearbySearchRes, SearchHotelRes가 한번에 관계되어 있다.
+ * DB에 GglNearbySearchRes 를 create할때 QueryParams id를 알려주어야 관계를 맺을수 있기 때문에 해당 파라미터로 받아 외래키로 관계를 형성한다.
+ * @param loopLoadAll 끝 페이지까지 읽는 로직을 실행할것인지 결정한다. false라면 첫번째 페이지 값만 리턴한다.
+ * @returns
+ */
+
+const getAllTextSearchPages = async (
+  queryReqParams: QueryReqParams,
+  ifAlreadyQueryId?: number,
+  loopLoadAll = false,
+): Promise<google.maps.places.IBPlaceResult[]> => {
+  let retry = 1;
+  const retryLimit = 10;
+
+  // recursion version
+  const loopFunc = async (curPageToken: string) => {
+    const loopQueryParams: QueryReqParams = {
+      ...defaultQueryParams,
+      nearbySearchReqParams: {
+        ...queryReqParams.nearbySearchReqParams,
+        pageToken: curPageToken ?? '',
+      },
+      searchHotelReqParams: queryReqParams.searchHotelReqParams,
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const loopTemp = await textSearchInnerAsyncFn(
       loopQueryParams,
       ifAlreadyQueryId,
     );
@@ -939,7 +1050,9 @@ export const compositeSearch = asyncWrapper(
       radiusExtendRetry <= radiusExtendRetryLimit
     ) {
       if (radiusExtendRetry > 1)
-        console.log(`radiusExtendRetry:${radiusExtendRetry}`);
+        console.log(
+          `allpage nearbySearchResult: ${nearbySearchResult.length} radiusExtendRetry:${radiusExtendRetry}`,
+        );
       const radiusModifiedQueryParams = {
         ...defaultQueryParams,
         searchHotelReqParams: queryReqParams.searchHotelReqParams,
@@ -1492,7 +1605,9 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     radiusExtendRetry <= radiusExtendRetryLimit
   ) {
     if (radiusExtendRetry > 1)
-      console.log(`restaurant radiusExtendRetry:${radiusExtendRetry}`);
+      console.log(
+        `restaurant radiusExtendRetry:${radiusExtendRetry}, searched results: ${nearbySearchResult.length}`,
+      );
     const radiusModifiedQueryParams = {
       ...defaultQueryParams,
       sameDatedSearchHotelReqParams,
@@ -1519,7 +1634,9 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     radiusExtendRetry <= radiusExtendRetryLimit
   ) {
     if (radiusExtendRetry > 1)
-      console.log(`touring spot radiusExtendRetry:${radiusExtendRetry}`);
+      console.log(
+        `touring spot radiusExtendRetry:${radiusExtendRetry}, , searched results: ${nearbySearchResult.length}`,
+      );
     const radiusModifiedQueryParams = {
       ...defaultQueryParams,
       sameDatedSearchHotelReqParams,
@@ -3199,7 +3316,7 @@ const getPlaceDetail = async (params: { placeId: string }) => {
     const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
       process.env.GCP_MAPS_APIKEY as string
     }`;
-    const rawResponse = await axios.get(queryUrl);
+    const rawResponse = await axios.get(encodeURI(queryUrl));
     const fetchedData = rawResponse.data as GetPlaceDetailResponse;
     return fetchedData.result;
   } catch (err) {
@@ -4384,7 +4501,43 @@ const getHotelPhotos = asyncWrapper(
   },
 );
 
+/**
+ * internal 테스트용 구글 textSearch를 수행 요청하는 api endpoint 함수
+ */
+export const textSearch = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<QueryReqParams>,
+    res: Express.IBTypedResponse<TextSearchResponse>,
+  ) => {
+    // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
+    const queryReqParams = req.body;
+
+    let queryParamId: number | undefined;
+    if (queryReqParams.nearbySearchReqParams.loadAll) {
+      queryParamId = await createQueryParamId(
+        prisma,
+        queryReqParams,
+        undefined,
+      );
+    }
+    const textSearchResult = await getAllTextSearchPages(
+      queryReqParams,
+      queryParamId,
+      queryReqParams.nearbySearchReqParams.loadAll,
+    );
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: {
+        textSearchCount: textSearchResult.length,
+        textSearchResult: textSearchResult.map(v => v.name),
+      },
+    });
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
+scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
