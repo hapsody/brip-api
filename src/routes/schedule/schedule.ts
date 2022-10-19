@@ -105,52 +105,52 @@ const scheduleRouter: express.Application = express();
 
 const language = 'ko';
 
-const getPlacePhoto = async (data: unknown) => {
-  const { photos } = data as {
-    photos: {
-      height: number;
-      html_attributions: string[];
-      photo_reference: string;
-      width: number;
-    }[];
-  };
-  if (!photos) return undefined;
-  const retArr: {
-    height: number;
-    width: number;
-    html_attributuions: string;
-    photo_reference: string;
-    url?: string;
-  }[] = [];
-  // eslint-disable-next-line no-restricted-syntax
-  for await (const photo of photos) {
-    const photo_reference =
-      (photo as Partial<{ photo_reference: string }>).photo_reference ?? '';
-    const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
-      process.env.GCP_MAPS_APIKEY as string
-    }`;
+// const getPlacePhoto = async (data: unknown) => {
+//   const { photos } = data as {
+//     photos: {
+//       height: number;
+//       html_attributions: string[];
+//       photo_reference: string;
+//       width: number;
+//     }[];
+//   };
+//   if (!photos) return undefined;
+//   const retArr: {
+//     height: number;
+//     width: number;
+//     html_attributuions: string;
+//     photo_reference: string;
+//     url?: string;
+//   }[] = [];
+//   // eslint-disable-next-line no-restricted-syntax
+//   for await (const photo of photos) {
+//     const photo_reference =
+//       (photo as Partial<{ photo_reference: string }>).photo_reference ?? '';
+//     const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
+//       process.env.GCP_MAPS_APIKEY as string
+//     }`;
 
-    const rawResult: {
-      request: {
-        protocol: string;
-        host: string;
-        path: string;
-      };
-    } = await axios.get(encodeURI(photoUrlReqParam));
-    // console.log(photoUrlReqParam);
-    const { protocol, host, path } = rawResult.request;
-    const url = `${protocol}//${host}/${path}`;
+//     const rawResult: {
+//       request: {
+//         protocol: string;
+//         host: string;
+//         path: string;
+//       };
+//     } = await axios.get(encodeURI(photoUrlReqParam));
+//     // console.log(photoUrlReqParam);
+//     const { protocol, host, path } = rawResult.request;
+//     const url = `${protocol}//${host}/${path}`;
 
-    retArr.push({
-      height: photo.height,
-      width: photo.width,
-      html_attributuions: JSON.stringify(photo.html_attributions),
-      photo_reference,
-      url,
-    });
-  }
-  return retArr;
-};
+//     retArr.push({
+//       height: photo.height,
+//       width: photo.width,
+//       html_attributuions: JSON.stringify(photo.html_attributions),
+//       photo_reference,
+//       url,
+//     });
+//   }
+//   return retArr;
+// };
 
 const createQueryParamId = async (
   prismaX: Omit<
@@ -395,7 +395,17 @@ const storeDataRelatedWithQueryParams = async (
             },
           },
           photos: {
-            create: await getPlacePhoto(item),
+            // create: await getPlacePhoto(item),
+            create: item.photos?.map(photo => {
+              return {
+                height: photo.height,
+                width: photo.width,
+                html_attributuions: JSON.stringify(photo.html_attributions),
+                photo_reference:
+                  (photo as Partial<{ photo_reference: string }>)
+                    .photo_reference ?? '',
+              };
+            }),
           },
         },
       });
