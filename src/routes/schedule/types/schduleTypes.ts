@@ -114,6 +114,7 @@ export interface QueryReqParams {
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
+  textSearchReqParams?: TextSearchReqParams;
 }
 
 export type SearchedData = Omit<

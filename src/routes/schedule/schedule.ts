@@ -224,11 +224,13 @@ export const getTravelNights = (
   return Math.floor(moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays());
 };
 
-const storeDataRelatedWithQueryParams = async (
-  queryReqParams: QueryReqParams | null,
-  response: AxiosResponse,
-  ifAlreadyQueryId?: number,
-) => {
+const storeDataRelatedWithQueryParams = async (params: {
+  queryReqParams?: QueryReqParams;
+  response: AxiosResponse;
+  batchJobId?: number;
+  ifAlreadyQueryId?: number;
+}) => {
+  const { queryReqParams, response, batchJobId, ifAlreadyQueryId } = params;
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
@@ -407,6 +409,46 @@ const storeDataRelatedWithQueryParams = async (
               };
             }),
           },
+          BatchQueryParams: {
+            connectOrCreate: {
+              where: {
+                id: batchJobId,
+              },
+              create: {
+                // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                latitude: queryReqParams?.textSearchReqParams?.location
+                  ? Number(queryReqParams.textSearchReqParams.location.latitude)
+                  : undefined,
+                longitude: queryReqParams?.textSearchReqParams?.location
+                  ? Number(
+                      queryReqParams.textSearchReqParams.location.longitude,
+                    )
+                  : undefined,
+                radius: queryReqParams?.textSearchReqParams?.radius,
+                searchkeyword: {
+                  connectOrCreate: {
+                    where: {
+                      keyword: queryReqParams?.textSearchReqParams?.keyword,
+                    },
+                    create: {
+                      keyword:
+                        queryReqParams?.textSearchReqParams?.keyword ?? '',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          BatchSearchKeyword: {
+            connectOrCreate: {
+              where: {
+                keyword: queryReqParams?.textSearchReqParams?.keyword,
+              },
+              create: {
+                keyword: queryReqParams?.textSearchReqParams?.keyword ?? '',
+              },
+            },
+          },
         },
       });
     }
@@ -545,11 +587,11 @@ const nearbySearchInnerAsyncFn = async (
 
   const response = await axios.get(encodeURI(queryUrl));
 
-  const { results, queryParamId } = await storeDataRelatedWithQueryParams(
+  const { results, queryParamId } = await storeDataRelatedWithQueryParams({
     queryReqParams,
     response,
     ifAlreadyQueryId,
-  );
+  });
 
   return {
     nearbySearchResult: results,
@@ -566,10 +608,12 @@ type TextSearchInnerAsyncFnRes = Omit<
   textSearchResult: google.maps.places.IBPlaceResult[];
 };
 
-const textSearchInnerAsyncFn = async (
-  textSearchReqParams: TextSearchReqParams,
-  ifAlreadyQueryId?: number,
-): Promise<TextSearchInnerAsyncFnRes> => {
+const textSearchInnerAsyncFn = async (params: {
+  textSearchReqParams: TextSearchReqParams;
+  batchJobId?: number;
+  ifAlreadyQueryId?: number;
+}): Promise<TextSearchInnerAsyncFnRes> => {
+  const { textSearchReqParams, batchJobId, ifAlreadyQueryId } = params;
   const {
     // location,
     // radius,
@@ -586,11 +630,12 @@ const textSearchInnerAsyncFn = async (
 
   const response = await axios.get(encodeURI(queryUrl));
 
-  const { results, queryParamId } = await storeDataRelatedWithQueryParams(
-    null,
+  const { results, queryParamId } = await storeDataRelatedWithQueryParams({
+    queryReqParams: { textSearchReqParams } as QueryReqParams,
     response,
+    batchJobId,
     ifAlreadyQueryId,
-  );
+  });
 
   return {
     textSearchResult: results,
@@ -703,11 +748,18 @@ const getAllNearbySearchPages = async (
  * @returns
  */
 
-export const getAllTextSearchPages = async (
-  textSearchReqParams: TextSearchReqParams,
-  ifAlreadyQueryId?: number,
-  loopLoadAll = false,
-): Promise<google.maps.places.IBPlaceResult[]> => {
+export const getAllTextSearchPages = async (params: {
+  textSearchReqParams: TextSearchReqParams;
+  ifAlreadyQueryId?: number;
+  batchJobId?: number;
+  loopLoadAll?: boolean;
+}): Promise<google.maps.places.IBPlaceResult[]> => {
+  const {
+    textSearchReqParams,
+    ifAlreadyQueryId,
+    batchJobId,
+    loopLoadAll = false,
+  } = params;
   let retry = 1;
   const retryLimit = 10;
 
@@ -718,10 +770,11 @@ export const getAllTextSearchPages = async (
       pageToken: curPageToken ?? '',
     };
     // eslint-disable-next-line no-await-in-loop
-    const loopTemp = await textSearchInnerAsyncFn(
-      nextReqParams,
+    const loopTemp = await textSearchInnerAsyncFn({
+      textSearchReqParams: nextReqParams,
+      batchJobId,
       ifAlreadyQueryId,
-    );
+    });
 
     const nextPageToken = loopTemp.pageToken ?? '';
     const stopLoop = !loopLoadAll;
@@ -4526,11 +4579,10 @@ export const textSearch = asyncWrapper(
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
     const textSearchReqParams = req.body;
 
-    const textSearchResult = await getAllTextSearchPages(
+    const textSearchResult = await getAllTextSearchPages({
       textSearchReqParams,
-      undefined,
-      textSearchReqParams.loadAll,
-    );
+      loopLoadAll: textSearchReqParams.loadAll,
+    });
 
     res.json({
       ...ibDefs.SUCCESS,
