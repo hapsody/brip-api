@@ -98,6 +98,7 @@ import {
   GetCandidateDetailScheduleResponse,
   GetCandidateDetailScheduleResponsePayload,
   TextSearchResponse,
+  TextSearchReqParams,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -224,18 +225,20 @@ export const getTravelNights = (
 };
 
 const storeDataRelatedWithQueryParams = async (
-  queryReqParams: QueryReqParams,
+  queryReqParams: QueryReqParams | null,
   response: AxiosResponse,
   ifAlreadyQueryId?: number,
 ) => {
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
-    queryParamId = await createQueryParamId(
-      prisma,
-      queryReqParams,
-      ifAlreadyQueryId,
-    );
+    if (queryReqParams) {
+      queryParamId = await createQueryParamId(
+        prisma,
+        queryReqParams,
+        ifAlreadyQueryId,
+      );
+    }
 
     results =
       (
@@ -328,11 +331,13 @@ const storeDataRelatedWithQueryParams = async (
     for await (const item of results) {
       await prisma.gglNearbySearchRes.create({
         data: {
-          QueryParams: {
-            connect: {
-              id: queryParamId,
+          ...(queryParamId > 0 && {
+            QueryParams: {
+              connect: {
+                id: queryParamId,
+              },
             },
-          },
+          }),
           geometry: {
             create: {
               location: JSON.stringify({
@@ -382,6 +387,7 @@ const storeDataRelatedWithQueryParams = async (
           })(),
           user_ratings_total: item.user_ratings_total,
           vicinity: item.vicinity,
+          formatted_address: item.formatted_address,
           plus_code: {
             create: {
               compund_code: item.plus_code?.compound_code ?? '',
@@ -543,19 +549,23 @@ const nearbySearchInnerAsyncFn = async (
   };
 };
 
-type TextSearchInnerAsyncFnRes = NearbySearchInnerAsyncFnRes;
+type TextSearchInnerAsyncFnRes = Omit<
+  NearbySearchInnerAsyncFnRes,
+  'nearbySearchResult'
+> & {
+  textSearchResult: google.maps.places.IBPlaceResult[];
+};
+
 const textSearchInnerAsyncFn = async (
-  queryReqParams: QueryReqParams,
+  textSearchReqParams: TextSearchReqParams,
   ifAlreadyQueryId?: number,
 ): Promise<TextSearchInnerAsyncFnRes> => {
   const {
-    nearbySearchReqParams: {
-      // location,
-      // radius,
-      pageToken,
-      keyword,
-    },
-  } = queryReqParams;
+    // location,
+    // radius,
+    pageToken,
+    keyword,
+  } = textSearchReqParams;
 
   const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
     keyword ?? ''
@@ -567,13 +577,13 @@ const textSearchInnerAsyncFn = async (
   const response = await axios.get(encodeURI(queryUrl));
 
   const { results, queryParamId } = await storeDataRelatedWithQueryParams(
-    queryReqParams,
+    null,
     response,
     ifAlreadyQueryId,
   );
 
   return {
-    nearbySearchResult: results,
+    textSearchResult: results,
     queryParamId,
     pageToken: (response.data as Partial<{ next_page_token: string }>)
       .next_page_token,
@@ -683,8 +693,8 @@ const getAllNearbySearchPages = async (
  * @returns
  */
 
-const getAllTextSearchPages = async (
-  queryReqParams: QueryReqParams,
+export const getAllTextSearchPages = async (
+  textSearchReqParams: TextSearchReqParams,
   ifAlreadyQueryId?: number,
   loopLoadAll = false,
 ): Promise<google.maps.places.IBPlaceResult[]> => {
@@ -693,17 +703,13 @@ const getAllTextSearchPages = async (
 
   // recursion version
   const loopFunc = async (curPageToken: string) => {
-    const loopQueryParams: QueryReqParams = {
-      ...defaultQueryParams,
-      nearbySearchReqParams: {
-        ...queryReqParams.nearbySearchReqParams,
-        pageToken: curPageToken ?? '',
-      },
-      searchHotelReqParams: queryReqParams.searchHotelReqParams,
+    const nextReqParams: TextSearchReqParams = {
+      ...textSearchReqParams,
+      pageToken: curPageToken ?? '',
     };
     // eslint-disable-next-line no-await-in-loop
     const loopTemp = await textSearchInnerAsyncFn(
-      loopQueryParams,
+      nextReqParams,
       ifAlreadyQueryId,
     );
 
@@ -712,7 +718,7 @@ const getAllTextSearchPages = async (
     retry += 1;
 
     if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
-      return [...loopTemp.nearbySearchResult];
+      return [...loopTemp.textSearchResult];
 
     // const subResults: google.maps.places.IBPlaceResult[];
     const subResults = await new Promise(resolve => {
@@ -731,14 +737,12 @@ const getAllTextSearchPages = async (
     let loopResult: google.maps.places.IBPlaceResult[] = [];
     loopResult = [
       ...(subResults as google.maps.places.IBPlaceResult[]),
-      ...loopTemp.nearbySearchResult,
+      ...loopTemp.textSearchResult,
     ];
 
     return loopResult;
   };
-  const loopFuncRes = await loopFunc(
-    queryReqParams.nearbySearchReqParams.pageToken ?? '',
-  );
+  const loopFuncRes = await loopFunc(textSearchReqParams.pageToken ?? '');
 
   return loopFuncRes;
 };
@@ -4506,24 +4510,16 @@ const getHotelPhotos = asyncWrapper(
  */
 export const textSearch = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<QueryReqParams>,
+    req: Express.IBTypedReqBody<TextSearchReqParams>,
     res: Express.IBTypedResponse<TextSearchResponse>,
   ) => {
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
-    const queryReqParams = req.body;
+    const textSearchReqParams = req.body;
 
-    let queryParamId: number | undefined;
-    if (queryReqParams.nearbySearchReqParams.loadAll) {
-      queryParamId = await createQueryParamId(
-        prisma,
-        queryReqParams,
-        undefined,
-      );
-    }
     const textSearchResult = await getAllTextSearchPages(
-      queryReqParams,
-      queryParamId,
-      queryReqParams.nearbySearchReqParams.loadAll,
+      textSearchReqParams,
+      undefined,
+      textSearchReqParams.loadAll,
     );
 
     res.json({

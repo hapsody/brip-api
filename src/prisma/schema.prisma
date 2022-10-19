@@ -100,7 +100,8 @@ model GglNearbySearchRes {
   rating                Float? /// 별점, 0-5 
   types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
   user_ratings_total    Int? /// 별점을 준 유저수
-  vicinity              String? /// 주소
+  vicinity              String? /// nearbySearch 검색시에 주소
+  formatted_address     String? /// textSearch 검색시에 주소
   plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id]) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
   plus_codeId           Int?
   photos                GglPhotos[] /// 장소 사진 url
