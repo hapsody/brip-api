@@ -9,6 +9,7 @@ import {
   IBError,
   getToday,
   getTomorrow,
+  getNDaysLater,
   accessTokenValidCheck,
 } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
@@ -409,46 +410,51 @@ const storeDataRelatedWithQueryParams = async (params: {
               };
             }),
           },
-          BatchQueryParams: {
-            connectOrCreate: {
-              where: {
-                id: batchJobId,
-              },
-              create: {
-                // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                latitude: queryReqParams?.textSearchReqParams?.location
-                  ? Number(queryReqParams.textSearchReqParams.location.latitude)
-                  : undefined,
-                longitude: queryReqParams?.textSearchReqParams?.location
-                  ? Number(
-                      queryReqParams.textSearchReqParams.location.longitude,
-                    )
-                  : undefined,
-                radius: queryReqParams?.textSearchReqParams?.radius,
-                searchkeyword: {
-                  connectOrCreate: {
-                    where: {
-                      keyword: queryReqParams?.textSearchReqParams?.keyword,
-                    },
-                    create: {
-                      keyword:
-                        queryReqParams?.textSearchReqParams?.keyword ?? '',
+          ...(batchJobId &&
+            batchJobId > 0 && {
+              BatchQueryParams: {
+                connectOrCreate: {
+                  where: {
+                    id: batchJobId,
+                  },
+                  create: {
+                    // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                    latitude: queryReqParams?.textSearchReqParams?.location
+                      ? Number(
+                          queryReqParams.textSearchReqParams.location.latitude,
+                        )
+                      : undefined,
+                    longitude: queryReqParams?.textSearchReqParams?.location
+                      ? Number(
+                          queryReqParams.textSearchReqParams.location.longitude,
+                        )
+                      : undefined,
+                    radius: queryReqParams?.textSearchReqParams?.radius,
+                    searchkeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: queryReqParams?.textSearchReqParams?.keyword,
+                        },
+                        create: {
+                          keyword:
+                            queryReqParams?.textSearchReqParams?.keyword ?? '',
+                        },
+                      },
                     },
                   },
                 },
               },
-            },
-          },
-          BatchSearchKeyword: {
-            connectOrCreate: {
-              where: {
-                keyword: queryReqParams?.textSearchReqParams?.keyword,
+              BatchSearchKeyword: {
+                connectOrCreate: {
+                  where: {
+                    keyword: queryReqParams?.textSearchReqParams?.keyword,
+                  },
+                  create: {
+                    keyword: queryReqParams?.textSearchReqParams?.keyword ?? '',
+                  },
+                },
               },
-              create: {
-                keyword: queryReqParams?.textSearchReqParams?.keyword ?? '',
-              },
-            },
-          },
+            }),
         },
       });
     }
@@ -2283,8 +2289,10 @@ export const addMockHotelResource = asyncWrapper(
       orderBy = 'popularity',
       adultsNumber = 2,
       roomNumber = 1,
-      checkinDate = getToday(),
-      checkoutDate = getTomorrow(),
+      // checkinDate = getToday(),
+      // checkoutDate = getTomorrow(),
+      checkinDate = getNDaysLater(10),
+      checkoutDate = getNDaysLater(11),
       filterByCurrency = 'USD',
       latitude: paramLat,
       longitude: paramLngt,
