@@ -10,7 +10,7 @@ const locationTitle = 'jeju';
 const textSearchReqParams: TextSearchReqParams[] = [
   {
     /// 육지 액티비티 > 테마파크
-    keyword: `recreation forest in ${locationTitle}`,
+    keyword: `theme park in ${locationTitle}`,
     loadAll: true,
   },
   {
@@ -175,7 +175,7 @@ async function batchJob() {
     });
     results.push(result);
   }
-  console.log(JSON.stringify(results, null, 2));
+  console.log(results);
 
   // const promises = textSearchReqParams.map(v => {
   //   return getAllTextSearchPages({
