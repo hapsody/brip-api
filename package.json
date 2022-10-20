@@ -18,7 +18,9 @@
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "seed": "ts-node ./src/prisma/seeds",
-    "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage"
+    "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage",
+    "batch": "yarn batch:dataresource",
+    "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts"
   },
   "husky": {
     "hooks": {

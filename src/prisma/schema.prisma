@@ -100,14 +100,41 @@ model GglNearbySearchRes {
   rating                Float? /// 별점, 0-5 
   types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
   user_ratings_total    Int? /// 별점을 준 유저수
-  vicinity              String? /// 주소
+  vicinity              String? /// nearbySearch 검색시에 주소
+  formatted_address     String? /// textSearch 검색시에 주소
   plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id]) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
   plus_codeId           Int?
   photos                GglPhotos[] /// 장소 사진 url
-  QueryParams           QueryParams?             @relation(fields: [queryParamsId], references: [id])
-  queryParamsId         Int?
-  spotSchedule          VisitSchedule[]          @relation("Spot")
-  restaurantSchedule    VisitSchedule[]          @relation("Restaurant")
+
+  QueryParams          QueryParams?        @relation(fields: [queryParamsId], references: [id])
+  queryParamsId        Int?
+  spotSchedule         VisitSchedule[]     @relation("Spot")
+  restaurantSchedule   VisitSchedule[]     @relation("Restaurant")
+  BatchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id])
+  batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
+  BatchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id])
+  batchSearchKeywordId Int?
+}
+
+model BatchQueryParams {
+  id                Int                  @id @default(autoincrement())
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @default(now())
+  latitude          Float?
+  longitude         Float?
+  radius            Float?
+  // keyword           String?
+  searchkeyword     BatchSearchKeyword[]
+  gglPlaceSearchRes GglNearbySearchRes[]
+}
+
+model BatchSearchKeyword {
+  id                Int                  @id @default(autoincrement())
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @default(now())
+  keyword           String               @unique
+  BatchQueryParams  BatchQueryParams[]
+  gglPlaceSearchRes GglNearbySearchRes[]
 }
 
 /// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.

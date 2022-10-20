@@ -1,7 +1,11 @@
+import { getNDaysLater } from '@src/utils';
+
 export const minBudget = 1000000;
 export const maxBudget = 3000000;
-export const travelStartDate = '2022-11-30T00:00:00';
-export const travelEndDate = '2022-12-02T00:00:00';
+// export const travelStartDate = '2022-11-30T00:00:00';
+// export const travelEndDate = '2022-12-02T00:00:00';
+export const travelStartDate = getNDaysLater(30);
+export const travelEndDate = getNDaysLater(33);
 export const hotelTransition = 1;
 export const childrenNumber = 2;
 export const childrenAges = [1, 3];

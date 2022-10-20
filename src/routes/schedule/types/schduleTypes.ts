@@ -29,6 +29,8 @@ export interface NearBySearchReqParams {
   pageToken?: string;
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
+
+export type TextSearchReqParams = Partial<NearBySearchReqParams>;
 export type Currency = 'USD' | 'KRW';
 
 export type BookingComOrderBy =
@@ -112,6 +114,7 @@ export interface QueryReqParams {
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   searchHotelReqParams: SearchHotelReqParams;
   nearbySearchReqParams: NearBySearchReqParams;
+  textSearchReqParams?: TextSearchReqParams;
 }
 
 export type SearchedData = Omit<
