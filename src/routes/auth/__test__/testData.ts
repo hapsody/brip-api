@@ -34,6 +34,13 @@ export const params = {
         password: 'qqqq',
       },
     },
+
+    refreshAccessToken: {
+      // correctParam: {
+      //   refreshToken: '', // 런타임 테스트중 생성되어야함.
+      //   userId: '', // 런타임 테스트중 생성되어야함.
+      // },
+    },
   },
 };
 export const temp = {};

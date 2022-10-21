@@ -43,7 +43,7 @@ beforeAll(async () => {
 
   signUpRawResult = response.body as SignUpResponseType;
   user = signUpRawResult.IBparams as User;
-  expect(user.id).not.toBeUndefined(); // User DB 생성 실패
+  expect(user.id).not.toBeUndefined();
 });
 
 describe('Correct case test', () => {
