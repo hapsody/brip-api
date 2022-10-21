@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '@src/app';
+import server from '@src/server';
 import prisma from '@src/prisma';
 import { User } from '@prisma/client';
 import { params } from '../../testData';
@@ -26,14 +26,14 @@ beforeAll(async () => {
       },
     });
   }
-  const userTokenRawRes = await request(app)
+  const userTokenRawRes = await request(server)
     .post('/auth/reqNonMembersUserToken')
     .send();
   const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
   const userToken =
     userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
 
-  const response = await request(app)
+  const response = await request(server)
     .post('/auth/signUp')
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(signUp.correctParam);
@@ -43,10 +43,17 @@ beforeAll(async () => {
   expect(user.id).not.toBeUndefined();
 });
 
+afterAll(done => {
+  server.close(err => {
+    if (err) console.error(err);
+    done();
+  });
+});
+
 describe('InvalidParams test', () => {
   describe('null or undefined params', () => {
     it('undefined request body', async () => {
-      const undefinedBodyRawRes = await request(app)
+      const undefinedBodyRawRes = await request(server)
         .post('/auth/signIn')
         .send(signIn.invalidParam.undefinedBody);
 
@@ -57,7 +64,7 @@ describe('InvalidParams test', () => {
       expect(undefinedBodyRawRes.statusCode).toBe(400);
     });
     it('incorrect email', async () => {
-      const response = await request(app)
+      const response = await request(server)
         .post('/auth/signIn')
         .send(signIn.invalidParam.incorrectEmail);
       const signInRawRes = response.body as SignInResponse;
@@ -67,7 +74,7 @@ describe('InvalidParams test', () => {
       expect(response.statusCode).toBe(404);
     });
     it('incorrect password', async () => {
-      const response = await request(app)
+      const response = await request(server)
         .post('/auth/signIn')
         .send(signIn.invalidParam.incorrectPassword);
       const signInRawRes = response.body as SignInResponse;

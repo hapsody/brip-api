@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '@src/app';
+import server from '@src/server';
 import prisma from '@src/prisma';
 import { compare } from 'bcrypt';
 import { User } from '@prisma/client';
@@ -37,14 +37,14 @@ beforeAll(async () => {
   }
 
   // signUp
-  const userTokenRawRes = await request(app)
+  const userTokenRawRes = await request(server)
     .post('/auth/reqNonMembersUserToken')
     .send();
   const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
   const userToken =
     userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
 
-  let response = await request(app)
+  let response = await request(server)
     .post('/auth/signUp')
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(signUp.correctParam);
@@ -54,7 +54,9 @@ beforeAll(async () => {
   expect(user.id).not.toBeUndefined();
 
   // signIn
-  response = await request(app).post('/auth/signIn').send(signIn.correctParam);
+  response = await request(server)
+    .post('/auth/signIn')
+    .send(signIn.correctParam);
   const signInRawRes = response.body as SignInResponse;
   signInRes = signInRawRes.IBparams as SaveScheduleResponsePayload;
   const tokenPayload = (() => {
@@ -97,12 +99,21 @@ beforeAll(async () => {
   userId = dbUser ? dbUser.id.toString() : '';
 });
 
+afterAll(done => {
+  server.close(err => {
+    if (err) console.error(err);
+    done();
+  });
+});
+
 describe('POST /refreshAccessToken api 테스트', () => {
   it('정상 요청 예시', async () => {
-    const response = await request(app).post('/auth/refreshAccessToken').send({
-      refreshToken,
-      userId,
-    });
+    const response = await request(server)
+      .post('/auth/refreshAccessToken')
+      .send({
+        refreshToken,
+        userId,
+      });
     const refreshAccessTokenRawRes = response.body as RefreshAccessTokenResType;
     const refreshAccessTokenRes =
       refreshAccessTokenRawRes.IBparams as RefreshAccessTokenSuccessResType;
@@ -113,7 +124,7 @@ describe('POST /refreshAccessToken api 테스트', () => {
     expect(refreshAccessTokenRes.userId).toBe(signInRes.userId);
     const newAccessToken = refreshAccessTokenRes.token;
 
-    const checkResponse = await request(app)
+    const checkResponse = await request(server)
       .post('/auth/authGuardTest')
       .set('Authorization', `Bearer ${newAccessToken}`);
 

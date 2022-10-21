@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '@src/app';
+import server from '@src/server';
 import prisma from '@src/prisma';
 import { compare } from 'bcrypt';
 import { User } from '@prisma/client';
@@ -26,14 +26,14 @@ beforeAll(async () => {
       },
     });
   }
-  const userTokenRawRes = await request(app)
+  const userTokenRawRes = await request(server)
     .post('/auth/reqNonMembersUserToken')
     .send();
   const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
   const userToken =
     userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
 
-  const response = await request(app)
+  const response = await request(server)
     .post('/auth/signUp')
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(signUp.correctParam);
@@ -41,6 +41,13 @@ beforeAll(async () => {
   signUpRawResult = response.body as SignUpResponseType;
   user = signUpRawResult.IBparams as User;
   expect(user.id).not.toBeUndefined();
+});
+
+afterAll(done => {
+  server.close(err => {
+    if (err) console.error(err);
+    done();
+  });
 });
 
 describe('Correct case test', () => {

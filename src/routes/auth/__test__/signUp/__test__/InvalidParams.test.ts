@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '@src/app';
+import server from '@src/server';
 import { params } from '../../testData';
 import {
   SignUpResponseType,
@@ -11,7 +11,7 @@ const { signUp } = params;
 
 let userToken: string;
 beforeAll(async () => {
-  const userTokenRawRes = await request(app)
+  const userTokenRawRes = await request(server)
     .post('/auth/reqNonMembersUserToken')
     .send();
   const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
@@ -19,10 +19,17 @@ beforeAll(async () => {
     .userToken;
 });
 
+afterAll(done => {
+  server.close(err => {
+    if (err) console.error(err);
+    done();
+  });
+});
+
 describe('InvalidParams test', () => {
   describe('null or undefined params', () => {
     it('undefined request body', async () => {
-      const undefinedBodyRawRes = await request(app)
+      const undefinedBodyRawRes = await request(server)
         .post('/auth/signUp')
         .set('Authorization', `Bearer ${userToken}`)
         .send(signUp.invalidParam.undefinedBody);
@@ -35,7 +42,7 @@ describe('InvalidParams test', () => {
     });
     describe('required 파라미터 부분적 누락', () => {
       it('id, nickName 제외 undefined', async () => {
-        const undefinedBodyRawRes = await request(app)
+        const undefinedBodyRawRes = await request(server)
           .post('/auth/signUp')
           .set('Authorization', `Bearer ${userToken}`)
           .send(signUp.invalidParam.partNullOrUndefined);
