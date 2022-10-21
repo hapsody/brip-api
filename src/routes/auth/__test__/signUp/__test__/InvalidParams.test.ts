@@ -1,13 +1,13 @@
 import request from 'supertest';
 import app from '@src/app';
-import { params } from './testData';
+import { params } from '../../testData';
 import {
   SignUpResponseType,
   ReqNonMembersUserTokenResType,
   ReqNonMembersUserTokenSuccessResType,
 } from '../../../auth';
 
-const { invalidParam } = params;
+const { signUp } = params;
 
 let userToken: string;
 beforeAll(async () => {
@@ -25,7 +25,7 @@ describe('InvalidParams test', () => {
       const undefinedBodyRawRes = await request(app)
         .post('/auth/signUp')
         .set('Authorization', `Bearer ${userToken}`)
-        .send(invalidParam.undefinedBody);
+        .send(signUp.invalidParam.undefinedBody);
 
       const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponseType;
 
@@ -38,7 +38,7 @@ describe('InvalidParams test', () => {
         const undefinedBodyRawRes = await request(app)
           .post('/auth/signUp')
           .set('Authorization', `Bearer ${userToken}`)
-          .send(invalidParam.partNullOrUndefined);
+          .send(signUp.invalidParam.partNullOrUndefined);
 
         const undefinedBodyRes = undefinedBodyRawRes.body as SignUpResponseType;
 
