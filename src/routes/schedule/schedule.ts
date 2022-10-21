@@ -100,6 +100,9 @@ import {
   GetCandidateDetailScheduleResponsePayload,
   TextSearchResponse,
   TextSearchReqParams,
+  SyncVisitJejuDataReqParams,
+  SyncVisitJejuDataResponsePayload,
+  SyncVisitJejuDataResponse,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -4602,6 +4605,46 @@ export const textSearch = asyncWrapper(
   },
 );
 
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ */
+const getVisitJejuDataInnerAsyncFn = async (
+  params: SyncVisitJejuDataReqParams,
+): Promise<SyncVisitJejuDataResponsePayload> => {
+  const { locale, page, cid } = params;
+
+  const jejuRawRes = await axios.get(
+    `http://api.visitjeju.net/vsjApi/contents/searchlist?apiKey=${
+      process.env.VISITJEJU_API_KEY as string
+    }${`&locale=${locale ?? ''}`}${`&page=${page ?? ''}`}${`&cid=${
+      cid ?? ''
+    }`}`,
+  );
+
+  const jejuRes = jejuRawRes.data as SyncVisitJejuDataResponsePayload;
+  return jejuRes;
+};
+
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ */
+export const getVisitJejuData = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SyncVisitJejuDataReqParams>,
+    res: Express.IBTypedResponse<SyncVisitJejuDataResponse>,
+  ) => {
+    const syncVisitJejuDataReqParams = req.body;
+    const jejuRes = await getVisitJejuDataInnerAsyncFn(
+      syncVisitJejuDataReqParams,
+    );
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: jejuRes,
+    });
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
@@ -4650,4 +4693,6 @@ scheduleRouter.post(
   accessTokenValidCheck,
   getCandidateDetailSchedule,
 );
+scheduleRouter.post('/getVisitJejuData', getVisitJejuData);
+
 export default scheduleRouter;
