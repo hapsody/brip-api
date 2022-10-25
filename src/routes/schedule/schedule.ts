@@ -265,7 +265,7 @@ const storeDataRelatedWithQueryParams = async (params: {
           tourPlace: {
             create: {
               ...(queryParamId > 0 && {
-                QueryParams: {
+                queryParams: {
                   connect: {
                     id: queryParamId,
                   },
@@ -958,7 +958,7 @@ const searchHotelInnerAsyncFn = async (
         tourPlace: {
           create: {
             tourPlaceType: 'HOTEL',
-            QueryParams: {
+            queryParams: {
               connect: {
                 id: queryParamId,
               },
@@ -1686,11 +1686,11 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
     getQueryParamsForTourSpot(queryParamId),
   );
-  const { TourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
-  const { TourPlace: tourPlaceRestaurant } = restaurantQueryParamsDataFromDB[0];
-  const { TourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
+  const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
+  const { tourPlace: tourPlaceRestaurant } = restaurantQueryParamsDataFromDB[0];
+  const { tourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
 
-  const searchHotelRes = tourPlaceHotel.map(v => v.SearchHotelRes);
+  const searchHotelRes = tourPlaceHotel.map(v => v.searchHotelRes);
   const restaurantGglNearbySearchRes = tourPlaceRestaurant.map(
     v => v.gglNearbySearchRes,
   );
@@ -2054,7 +2054,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   }, visitSchedules);
 
   const recommendList = {
-    ...omit(restaurantQueryParamsDataFromDB[0], 'TourPlace'),
+    ...omit(restaurantQueryParamsDataFromDB[0], 'tourPlace'),
     // totalNearbySearchCount: gglNearbySearchRes.length,
     metaInfo: {
       totalHotelSearchCount: searchHotelRes.length,
@@ -2729,7 +2729,7 @@ export const reqSchedule = (
                   id: item.tourPlaceData?.id,
                 },
               },
-              QueryParams: {
+              queryParams: {
                 connect: {
                   id: queryParamId,
                 },
@@ -2828,7 +2828,7 @@ export const getSchedule = asyncWrapper(
               tourPlace: {
                 include: {
                   gglNearbySearchRes: true,
-                  SearchHotelRes: true,
+                  searchHotelRes: true,
                 },
               },
               // spot: true,
@@ -2884,7 +2884,7 @@ export const getSchedule = asyncWrapper(
                   // dayNo: tourPlace.dayNo.toString(),
                   title: (() => {
                     if (tourPlace?.tourPlaceType === 'HOTEL')
-                      return tourPlace?.SearchHotelRes?.hotel_name ?? 'error';
+                      return tourPlace?.searchHotelRes?.hotel_name ?? 'error';
                     if (tourPlace?.tourPlaceType === 'RESTAURANT') {
                       return tourPlace?.gglNearbySearchRes?.name ?? 'error';
                     }
@@ -3177,7 +3177,7 @@ export const getDaySchedule = asyncWrapper(
                       geometry: true,
                     },
                   },
-                  SearchHotelRes: true,
+                  searchHotelRes: true,
                 },
               },
               // spot: {
@@ -3210,7 +3210,7 @@ export const getDaySchedule = asyncWrapper(
         spotList: queryParams.visitSchedule.map(v => {
           const vType: PlaceType = v.tourPlace?.tourPlaceType ?? 'SPOT';
           const place = (() => {
-            if (vType === 'HOTEL') return v.tourPlace?.SearchHotelRes;
+            if (vType === 'HOTEL') return v.tourPlace?.searchHotelRes;
             if (vType === 'RESTAURANT' || vType === 'SPOT')
               return v.tourPlace?.gglNearbySearchRes;
             return undefined;
@@ -3449,10 +3449,10 @@ export const getDetailSchedule = asyncWrapper(
                   photos: true,
                 },
               },
-              SearchHotelRes: true,
+              searchHotelRes: true,
             },
           },
-          QueryParams: {
+          queryParams: {
             include: {
               metaScheduleInfo: true,
             },
@@ -3468,7 +3468,7 @@ export const getDetailSchedule = asyncWrapper(
         });
       }
 
-      if (visitSchedule.QueryParams?.userTokenId !== userTokenId) {
+      if (visitSchedule.queryParams?.userTokenId !== userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '다른 유저의 visitSchedule 데이터입니다.',
@@ -3480,10 +3480,10 @@ export const getDetailSchedule = asyncWrapper(
           const tourPlaceType = visitSchedule.tourPlace?.tourPlaceType;
           if (tourPlaceType === 'HOTEL') {
             const {
-              tourPlace: { SearchHotelRes: hotel },
+              tourPlace: { searchHotelRes: hotel },
             } = visitSchedule as {
               tourPlace: {
-                SearchHotelRes: SearchHotelRes;
+                searchHotelRes: SearchHotelRes;
               };
             };
 
@@ -3528,22 +3528,22 @@ export const getDetailSchedule = asyncWrapper(
               hotelBookingUrl: hotel.url,
               placeId: null,
               startDate:
-                visitSchedule && visitSchedule.QueryParams
-                  ? moment(visitSchedule.QueryParams.hotelCheckinDate).format(
+                visitSchedule && visitSchedule.queryParams
+                  ? moment(visitSchedule.queryParams.hotelCheckinDate).format(
                       'YYYY-MM-DD',
                     )
                   : null,
               endDate:
-                visitSchedule && visitSchedule.QueryParams
-                  ? moment(visitSchedule.QueryParams.hotelCheckoutDate).format(
+                visitSchedule && visitSchedule.queryParams
+                  ? moment(visitSchedule.queryParams.hotelCheckoutDate).format(
                       'YYYY-MM-DD',
                     )
                   : null,
               night:
-                visitSchedule.QueryParams?.metaScheduleInfo?.travelNights ??
+                visitSchedule.queryParams?.metaScheduleInfo?.travelNights ??
                 null,
               days:
-                visitSchedule.QueryParams?.metaScheduleInfo?.travelDays ?? null,
+                visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
               checkIn: hotel.checkin,
               checkOut: hotel.checkout,
               price: hotel.min_total_price.toString(),
@@ -3610,10 +3610,10 @@ export const getDetailSchedule = asyncWrapper(
               startDate: null,
               endDate: null,
               night:
-                visitSchedule.QueryParams?.metaScheduleInfo?.travelNights ??
+                visitSchedule.queryParams?.metaScheduleInfo?.travelNights ??
                 null,
               days:
-                visitSchedule.QueryParams?.metaScheduleInfo?.travelDays ?? null,
+                visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
               checkIn: null,
               checkOut: null,
               price: null,
@@ -3711,9 +3711,9 @@ export const getDetailSchedule = asyncWrapper(
             startDate: null,
             endDate: null,
             night:
-              visitSchedule.QueryParams?.metaScheduleInfo?.travelNights ?? null,
+              visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? null,
             days:
-              visitSchedule.QueryParams?.metaScheduleInfo?.travelDays ?? null,
+              visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
             checkIn: null,
             checkOut: null,
             price: null,
@@ -3844,25 +3844,24 @@ export const getCandidateSchedule = asyncWrapper(
             },
             include: {
               metaScheduleInfo: true,
-              TourPlace: {
+              tourPlace: {
                 where: {
                   visitSchedule: { none: {} },
                   tourPlaceType: 'HOTEL',
                 },
                 include: {
-                  SearchHotelRes: true,
+                  searchHotelRes: true,
                 },
               },
             },
           });
-
           return {
             id: queryParams?.id.toString() ?? '-1',
-            contentsCountAll: queryParams?.TourPlace.length ?? -1,
-            spotList: queryParams?.TourPlace.map(v => {
-              const hotel = v.SearchHotelRes as SearchHotelRes;
+            contentsCountAll: queryParams?.tourPlace.length ?? -1,
+            spotList: queryParams?.tourPlace.map(v => {
+              const hotel = v.searchHotelRes as SearchHotelRes;
               return {
-                id: hotel.id.toString(),
+                id: hotel.tourPlaceId.toString(),
                 spotType: 'hotel',
                 previewImg: hotel.main_photo_url,
                 spotName: hotel.hotel_name,
@@ -3903,7 +3902,7 @@ export const getCandidateSchedule = asyncWrapper(
             },
             include: {
               metaScheduleInfo: true,
-              TourPlace: {
+              tourPlace: {
                 where: {
                   AND: [
                     {
@@ -3948,15 +3947,15 @@ export const getCandidateSchedule = asyncWrapper(
 
           return {
             id: queryParams?.id.toString() ?? '-1',
-            contentsCountAll: queryParams?.TourPlace.length ?? -1,
-            spotList: queryParams?.TourPlace.map(v => {
+            contentsCountAll: queryParams?.tourPlace.length ?? -1,
+            spotList: queryParams?.tourPlace.map(v => {
               const restaurant = v.gglNearbySearchRes as GglNearbySearchRes & {
                 geometry: Gglgeometry | null;
                 photos: GglPhotos[];
               };
 
               return {
-                id: restaurant.id.toString(),
+                id: restaurant.tourPlaceId.toString(),
                 spotType: 'restaurant',
                 previewImg:
                   restaurant.photos.length > 0 && restaurant.photos[0].url
@@ -4011,7 +4010,7 @@ export const getCandidateSchedule = asyncWrapper(
           },
           include: {
             metaScheduleInfo: true,
-            TourPlace: {
+            tourPlace: {
               where: {
                 AND: [
                   {
@@ -4041,15 +4040,15 @@ export const getCandidateSchedule = asyncWrapper(
 
         return {
           id: queryParams?.id.toString() ?? '-1',
-          contentsCountAll: queryParams?.TourPlace.length ?? -1,
-          spotList: queryParams?.TourPlace.map(v => {
+          contentsCountAll: queryParams?.tourPlace.length ?? -1,
+          spotList: queryParams?.tourPlace.map(v => {
             const spot = v.gglNearbySearchRes as GglNearbySearchRes & {
               geometry: Gglgeometry | null;
               photos: GglPhotos[];
             };
 
             return {
-              id: spot.id.toString(),
+              id: spot.tourPlaceId.toString(),
               spotType: 'spot',
               previewImg:
                 spot.photos.length > 0 && spot.photos[0].url
@@ -4240,8 +4239,8 @@ export const getCandidateDetailSchedule = asyncWrapper(
               id: Number(candidateId),
             },
             include: {
-              SearchHotelRes: true,
-              QueryParams: {
+              searchHotelRes: true,
+              queryParams: {
                 include: {
                   metaScheduleInfo: true,
                 },
@@ -4263,7 +4262,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
                 photos: true,
               },
             },
-            QueryParams: {
+            queryParams: {
               include: {
                 metaScheduleInfo: true,
               },
@@ -4282,14 +4281,14 @@ export const getCandidateDetailSchedule = asyncWrapper(
 
       const retValue =
         await (async (): Promise<GetCandidateDetailScheduleResponsePayload> => {
-          if (candidateSpotType === 'HOTEL') {
+          if (candidateSpotType.toUpperCase() === 'HOTEL') {
             const hotelTourPlace = candidateSchedule as TourPlace & {
-              SearchHotelRes: SearchHotelRes;
-              QueryParams: QueryParams & {
+              searchHotelRes: SearchHotelRes;
+              queryParams: QueryParams & {
                 metaScheduleInfo: MetaScheduleInfo;
               };
             };
-            const { SearchHotelRes: hotel } = hotelTourPlace;
+            const { searchHotelRes: hotel } = hotelTourPlace;
             const options = {
               method: 'GET' as Method,
               url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
@@ -4334,22 +4333,22 @@ export const getCandidateDetailSchedule = asyncWrapper(
               hotelBookingUrl: hotel.url,
               placeId: null,
               startDate:
-                hotelTourPlace && hotelTourPlace.QueryParams
-                  ? moment(hotelTourPlace.QueryParams.hotelCheckinDate).format(
+                hotelTourPlace && hotelTourPlace.queryParams
+                  ? moment(hotelTourPlace.queryParams.hotelCheckinDate).format(
                       'YYYY-MM-DD',
                     )
                   : null,
               endDate:
-                hotelTourPlace && hotelTourPlace.QueryParams
-                  ? moment(hotelTourPlace.QueryParams.hotelCheckoutDate).format(
+                hotelTourPlace && hotelTourPlace.queryParams
+                  ? moment(hotelTourPlace.queryParams.hotelCheckoutDate).format(
                       'YYYY-MM-DD',
                     )
                   : null,
               night:
-                hotelTourPlace.QueryParams?.metaScheduleInfo?.travelNights ??
+                hotelTourPlace.queryParams?.metaScheduleInfo?.travelNights ??
                 null,
               days:
-                hotelTourPlace.QueryParams?.metaScheduleInfo?.travelDays ??
+                hotelTourPlace.queryParams?.metaScheduleInfo?.travelDays ??
                 null,
               checkIn: hotel.checkin,
               checkOut: hotel.checkout,
@@ -4386,7 +4385,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
                 geometry: Gglgeometry;
                 photos: GglPhotos[];
               };
-              QueryParams: QueryParams & {
+              queryParams: QueryParams & {
                 metaScheduleInfo: MetaScheduleInfo;
               };
             };
@@ -4418,10 +4417,10 @@ export const getCandidateDetailSchedule = asyncWrapper(
               startDate: null,
               endDate: null,
               night:
-                restaurantTourPlace.QueryParams?.metaScheduleInfo
+                restaurantTourPlace.queryParams?.metaScheduleInfo
                   ?.travelNights ?? null,
               days:
-                restaurantTourPlace.QueryParams?.metaScheduleInfo?.travelDays ??
+                restaurantTourPlace.queryParams?.metaScheduleInfo?.travelDays ??
                 null,
               checkIn: null,
               checkOut: null,
@@ -4489,7 +4488,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
               geometry: Gglgeometry;
               photos: GglPhotos[];
             };
-            QueryParams: QueryParams & {
+            queryParams: QueryParams & {
               metaScheduleInfo: MetaScheduleInfo;
             };
           };
@@ -4500,7 +4499,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
           });
 
           return {
-            id: candidateSchedule.id.toString(),
+            id: spotTourPlace.id.toString(),
             // dayCount: candidateSchedule.dayNo,
             // orderCount: candidateSchedule.orderNo,
             // planType: candidateSchedule.from,
@@ -4520,10 +4519,10 @@ export const getCandidateDetailSchedule = asyncWrapper(
             startDate: null,
             endDate: null,
             night:
-              candidateSchedule.QueryParams?.metaScheduleInfo?.travelNights ??
+              candidateSchedule.queryParams?.metaScheduleInfo?.travelNights ??
               null,
             days:
-              candidateSchedule.QueryParams?.metaScheduleInfo?.travelDays ??
+              candidateSchedule.queryParams?.metaScheduleInfo?.travelDays ??
               null,
             checkIn: null,
             checkOut: null,

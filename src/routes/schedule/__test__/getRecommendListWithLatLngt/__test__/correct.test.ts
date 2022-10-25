@@ -131,14 +131,14 @@ describe('Correct case test', () => {
             id: recommendRes.id,
           },
           include: {
-            TourPlace: {
+            tourPlace: {
               include: {
                 gglNearbySearchRes: {
                   include: {
                     tourPlace: true,
                   },
                 },
-                SearchHotelRes: {
+                searchHotelRes: {
                   include: {
                     tourPlace: true,
                   },
@@ -147,10 +147,9 @@ describe('Correct case test', () => {
             },
           },
         });
-      const { TourPlace: tourPlace } = (
-        checkResponse.body as GetListQueryParamsResponse
-      ).IBparams[0];
-      const checkHotelRes = tourPlace.map(v => v.SearchHotelRes);
+      const { tourPlace } = (checkResponse.body as GetListQueryParamsResponse)
+        .IBparams[0];
+      const checkHotelRes = tourPlace.map(v => v.searchHotelRes);
       const {
         visitSchedules,
         metaInfo: {
@@ -208,13 +207,13 @@ describe('Correct case test', () => {
         }
 
         totalMinHotelCharge += minBudgetHotel
-          ? minBudgetHotel.min_total_price
+          ? minBudgetHotel.gross_amount_per_night
           : 0;
         totalMidHotelCharge += midBudgetHotel
-          ? midBudgetHotel.min_total_price
+          ? midBudgetHotel.gross_amount_per_night
           : 0;
         totalMaxHotelCharge += maxBudgetHotel
-          ? maxBudgetHotel.min_total_price
+          ? maxBudgetHotel.gross_amount_per_night
           : 0;
       }
 
@@ -383,17 +382,17 @@ describe('Correct case test', () => {
       // const {
       //   TourPlace: { gglNearbySearchRes: touringSpotGglNearbySearchRes },
       // } = spotQueryParamsDataFromDB[0];
-      const { TourPlace: tourPlaceRestaurant } =
+      const { tourPlace: tourPlaceRestaurant } =
         restaurantQueryParamsDataFromDB[0];
       const restaurantGglNearbySearchRes = tourPlaceRestaurant.map(
         v => v.gglNearbySearchRes,
       );
-      const { TourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
+      const { tourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
       const touringSpotGglNearbySearchRes = tourPlaceSpot.map(
         v => v.gglNearbySearchRes,
       );
-      const { TourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
-      const searchHotelRes = tourPlaceHotel.map(v => v.SearchHotelRes);
+      const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
+      const searchHotelRes = tourPlaceHotel.map(v => v.searchHotelRes);
 
       const travelNights = getTravelNights(
         params.searchCond.travelStartDate,

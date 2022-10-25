@@ -333,9 +333,9 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 };
 
 export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
-  TourPlace: (TourPlace & {
+  tourPlace: (TourPlace & {
     gglNearbySearchRes: GglNearbySearchResIncludedGeometryNTourPlace;
-    SearchHotelRes: SearchHotelResIncludedTourPlace;
+    searchHotelRes: SearchHotelResIncludedTourPlace;
   })[];
 })[];
 
@@ -484,7 +484,7 @@ export const getQueryParamsForRestaurant = (
   return {
     where: { id: queryParamId },
     include: {
-      TourPlace: {
+      tourPlace: {
         where: {
           gglNearbySearchRes: {
             types: {
@@ -547,7 +547,7 @@ export const getQueryParamsForTourSpot = (
   return {
     where: { id: queryParamId },
     include: {
-      TourPlace: {
+      tourPlace: {
         where: {
           gglNearbySearchRes: {
             types: {
@@ -601,18 +601,18 @@ export const getQueryParamsForHotel = (
   return {
     where: { id: queryParamId },
     include: {
-      TourPlace: {
+      tourPlace: {
         where: {
           tourPlaceType: 'HOTEL',
         },
         include: {
-          SearchHotelRes: {
+          searchHotelRes: {
             include: { tourPlace: true },
           },
         },
         orderBy: [
-          { SearchHotelRes: { review_score: 'desc' } },
-          { SearchHotelRes: { distance: 'asc' } },
+          { searchHotelRes: { review_score: 'desc' } },
+          { searchHotelRes: { distance: 'asc' } },
         ],
       },
 
