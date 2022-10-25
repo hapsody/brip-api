@@ -19,6 +19,7 @@ import {
   VisitOrder,
   VisitPlaceType,
   flexPortionLimit,
+  getQueryParamsForHotel,
 } from '../../../types/schduleTypes';
 import {
   getTravelNights,
@@ -129,14 +130,26 @@ describe('Correct case test', () => {
             id: recommendRes.id,
           },
           include: {
-            gglNearbySearchRes: true,
-            searchHotelRes: true,
+            TourPlace: {
+              include: {
+                gglNearbySearchRes: {
+                  include: {
+                    tourPlace: true,
+                  },
+                },
+                SearchHotelRes: {
+                  include: {
+                    tourPlace: true,
+                  },
+                },
+              },
+            },
           },
         });
-      const { searchHotelRes: checkHotelRes } = (
+      const { TourPlace: tourPlace } = (
         checkResponse.body as GetListQueryParamsResponse
       ).IBparams[0];
-
+      const checkHotelRes = tourPlace.map(v => v.SearchHotelRes);
       const {
         visitSchedules,
         metaInfo: {
@@ -172,23 +185,23 @@ describe('Correct case test', () => {
         );
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot.spotsFromMinHotel) {
-          expect(aSpot.queryParamsId).toBe(recommendRes.id);
+          expect(aSpot.tourPlace.queryParamsId).toBe(recommendRes.id);
         }
 
         if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
-          expect(minBudgetHotel.queryParamsId).toBe(recommendRes.id);
+          expect(minBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
           prevMinBudgetHotel = minBudgetHotel;
           minBudgetHotelCount += 1;
         }
 
         if (midBudgetHotel && prevMidBudgetHotel?.id !== midBudgetHotel.id) {
-          expect(midBudgetHotel.queryParamsId).toBe(recommendRes.id);
+          expect(midBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
           prevMidBudgetHotel = midBudgetHotel;
           midBudgetHotelCount += 1;
         }
 
         if (maxBudgetHotel && prevMaxBudgetHotel?.id !== maxBudgetHotel.id) {
-          expect(maxBudgetHotel.queryParamsId).toBe(recommendRes.id);
+          expect(maxBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
           prevMaxBudgetHotel = maxBudgetHotel;
           maxBudgetHotelCount += 1;
         }
@@ -350,6 +363,9 @@ describe('Correct case test', () => {
         }
       };
       // 추천된 전체 장소 불러오기
+      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+        getQueryParamsForHotel(queryParamId),
+      );
       const restaurantQueryParamsDataFromDB =
         await getListQueryParamsInnerAsyncFn(
           getQueryParamsForRestaurant(queryParamId),
@@ -357,12 +373,26 @@ describe('Correct case test', () => {
       const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
         getQueryParamsForTourSpot(queryParamId),
       );
-      const {
-        searchHotelRes,
-        gglNearbySearchRes: restaurantGglNearbySearchRes,
-      } = restaurantQueryParamsDataFromDB[0];
-      const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
-        spotQueryParamsDataFromDB[0];
+      // const {
+      //   TourPlace: {
+      //     SearchHotelRes: searchHotelRes,
+      //     gglNearbySearchRes: restaurantGglNearbySearchRes,
+      //   },
+      // } = restaurantQueryParamsDataFromDB[0];
+      // const {
+      //   TourPlace: { gglNearbySearchRes: touringSpotGglNearbySearchRes },
+      // } = spotQueryParamsDataFromDB[0];
+      const { TourPlace: tourPlaceRestaurant } =
+        restaurantQueryParamsDataFromDB[0];
+      const restaurantGglNearbySearchRes = tourPlaceRestaurant.map(
+        v => v.gglNearbySearchRes,
+      );
+      const { TourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
+      const touringSpotGglNearbySearchRes = tourPlaceSpot.map(
+        v => v.gglNearbySearchRes,
+      );
+      const { TourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
+      const searchHotelRes = tourPlaceHotel.map(v => v.SearchHotelRes);
 
       const travelNights = getTravelNights(
         params.searchCond.travelStartDate,
@@ -419,7 +449,9 @@ describe('Correct case test', () => {
                   prisma.searchHotelRes
                     .findMany({
                       where: {
-                        queryParamsId: queryParamId,
+                        tourPlace: {
+                          queryParamsId: queryParamId,
+                        },
                       },
                       orderBy: [
                         {

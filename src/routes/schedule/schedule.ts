@@ -24,6 +24,9 @@ import {
   GglNearbySearchRes,
   GglPhotos,
   Gglgeometry,
+  TourPlace,
+  QueryParams,
+  MetaScheduleInfo,
 } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
@@ -53,6 +56,7 @@ import {
   FiltersForSearchFromBookingComResponse,
   FiltersForSearchFromBookingComInnerAsyncFnResponse,
   FiltersForSearchFromBookingRawResponse,
+  getQueryParamsForHotel,
   getQueryParamsForRestaurant,
   getQueryParamsForTourSpot,
   LatLngt,
@@ -253,97 +257,27 @@ const storeDataRelatedWithQueryParams = async (params: {
         }>
       ).results ?? [];
 
-    // const promises = results.map((item: google.maps.places.IBPlaceResult) => {
-    //   return prisma.gglNearbySearchRes.create({
-    //     data: {
-    //       QueryParams: {
-    //         connect: {
-    //           id: queryParamId,
-    //         },
-    //       },
-    //       geometry: {
-    //         create: {
-    //           location: JSON.stringify({
-    //             lat: item.geometry?.location?.lat,
-    //             lngt: item.geometry?.location?.lng,
-    //           }),
-    //           viewport: JSON.stringify({
-    //             northeast: {
-    //               lat: item.geometry?.viewport?.northeast?.lat,
-    //               lngt: item.geometry?.viewport?.northeast?.lng,
-    //             },
-    //             southwest: {
-    //               lat: item.geometry?.viewport?.southwest?.lat,
-    //               lngt: item.geometry?.viewport?.southwest?.lng,
-    //             },
-    //           }),
-    //         },
-    //       },
-    //       icon: item.icon,
-    //       icon_background_color: item.icon_background_color,
-    //       icon_mask_base_uri: item.icon_mask_base_uri,
-    //       name: item.name,
-    //       opening_hours:
-    //         (
-    //           item.opening_hours as Partial<{
-    //             open_now: boolean;
-    //           }>
-    //         )?.open_now ?? false,
-    //       place_id: item.place_id,
-    //       price_level: item.price_level,
-    //       rating: item.rating,
-    //       types: (() => {
-    //         return item.types
-    //           ? {
-    //               connectOrCreate: item.types?.map(type => {
-    //                 return {
-    //                   create: { value: type },
-    //                   where: { value: type },
-    //                 };
-    //               }),
-    //             }
-    //           : {
-    //               create: {
-    //                 value: 'Not Applicaple',
-    //               },
-    //             };
-    //       })(),
-    //       user_ratings_total: item.user_ratings_total,
-    //       vicinity: item.vicinity,
-    //       plus_code: {
-    //         create: {
-    //           compund_code: item.plus_code?.compound_code ?? '',
-    //           global_code: item.plus_code?.global_code ?? '',
-    //         },
-    //       },
-    // photos: {
-    //   create: item.photos?.map(photo => {
-    //     return {
-    //       height: photo.height,
-    //       width: photo.width,
-    //       html_attributuions: JSON.stringify(photo.html_attributions),
-    //       photo_reference:
-    //         (photo as Partial<{ photo_reference: string }>)
-    //           .photo_reference ?? '',
-    //     };
-    //   }),
-    // },
-    //     },
-    //   });
-    // });
-    // const createdNearbyRes = await prisma.$transaction(promises);
-
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of results) {
       await prisma.gglNearbySearchRes.create({
         data: {
-          ...(queryParamId > 0 && {
-            QueryParams: {
-              connect: {
-                id: queryParamId,
-              },
+          tourPlace: {
+            create: {
+              ...(queryParamId > 0 && {
+                QueryParams: {
+                  connect: {
+                    id: queryParamId,
+                  },
+                },
+              }),
+              tourPlaceType:
+                item.types?.findIndex(
+                  type => type.toUpperCase() === 'RESTAURANT',
+                ) === -1
+                  ? 'SPOT'
+                  : 'RESTAURANT',
             },
-          }),
+          },
           geometry: {
             create: {
               location: JSON.stringify({
@@ -1015,9 +949,19 @@ const searchHotelInnerAsyncFn = async (
 
     return prisma.searchHotelRes.create({
       data: {
-        QueryParams: {
-          connect: {
-            id: queryParamId,
+        // QueryParams: {
+        //   connect: {
+        //     id: queryParamId,
+        //   },
+        // },
+        tourPlace: {
+          create: {
+            tourPlaceType: 'HOTEL',
+            QueryParams: {
+              connect: {
+                id: queryParamId,
+              },
+            },
           },
         },
         unit_configuration_label,
@@ -1731,16 +1675,37 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     radiusExtendRetry += 1;
   }
 
+  const hotelQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+    getQueryParamsForHotel(queryParamId),
+  );
   const restaurantQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
     getQueryParamsForRestaurant(queryParamId),
   );
   const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
     getQueryParamsForTourSpot(queryParamId),
   );
-  const { searchHotelRes, gglNearbySearchRes: restaurantGglNearbySearchRes } =
-    restaurantQueryParamsDataFromDB[0];
-  const { gglNearbySearchRes: touringSpotGglNearbySearchRes } =
-    spotQueryParamsDataFromDB[0];
+  const { TourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
+  const { TourPlace: tourPlaceRestaurant } = restaurantQueryParamsDataFromDB[0];
+  const { TourPlace: tourPlaceSpot } = spotQueryParamsDataFromDB[0];
+
+  const searchHotelRes = tourPlaceHotel.map(v => v.SearchHotelRes);
+  const restaurantGglNearbySearchRes = tourPlaceRestaurant.map(
+    v => v.gglNearbySearchRes,
+  );
+
+  const touringSpotGglNearbySearchRes = tourPlaceSpot.map(
+    v => v.gglNearbySearchRes,
+  );
+
+  // const {
+  //   TourPlace: {
+  //     SearchHotelRes: searchHotelRes,
+  //     gglNearbySearchRes: restaurantGglNearbySearchRes,
+  //   },
+  // } = restaurantQueryParamsDataFromDB[0];
+  // const {
+  //   TourPlace: { gglNearbySearchRes: touringSpotGglNearbySearchRes },
+  // } = spotQueryParamsDataFromDB[0];
 
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
   const filterHotelWithBudget = () => {
@@ -1784,12 +1749,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let recommendedMinHotelCount = 0;
   let recommendedMidHotelCount = 0;
   let recommendedMaxHotelCount = 0;
-  let prevMinHotel: SearchHotelRes | undefined;
-  let prevMidHotel: SearchHotelRes | undefined;
-  let prevMaxHotel: SearchHotelRes | undefined;
-  let minHotel: SearchHotelRes | undefined;
-  let midHotel: SearchHotelRes | undefined;
-  let maxHotel: SearchHotelRes | undefined;
+  let prevMinHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let prevMidHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let prevMaxHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let minHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let midHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let maxHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
   let minNodeLists: ScheduleNodeList = {
     hotel: searchHotelRes,
     restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
@@ -1832,8 +1797,9 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
     if (minBudgetHotel) {
       let destination: GglNearbySearchResIncludedGeometry;
-      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
-        minBudgetHotel;
+      let prevDest:
+        | (SearchHotelRes & { tourPlace: TourPlace })
+        | GglNearbySearchResIncludedGeometry = minBudgetHotel;
       thatDayVisitOrderFromMinHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -2081,10 +2047,7 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   }, visitSchedules);
 
   const recommendList = {
-    ...omit(restaurantQueryParamsDataFromDB[0], [
-      'gglNearbySearchRes',
-      'searchHotelRes',
-    ]),
+    ...omit(restaurantQueryParamsDataFromDB[0], 'TourPlace'),
     // totalNearbySearchCount: gglNearbySearchRes.length,
     metaInfo: {
       totalHotelSearchCount: searchHotelRes.length,
@@ -2747,10 +2710,20 @@ export const reqSchedule = (
               dayNo: item.dayNo,
               orderNo: item.orderNo,
               from: item.from,
-              type: item.type,
+              // type: item.type,
               dataId: item.dataId,
               ...d,
-              queryParamsId: queryParamId,
+              tourPlace: {
+                create: {
+                  QueryParams: {
+                    connect: {
+                      id: queryParamId,
+                    },
+                  },
+                  tourPlaceType: item.type,
+                },
+              },
+              // queryParamsId: queryParamId,
             },
           });
         });
@@ -2842,9 +2815,15 @@ export const getSchedule = asyncWrapper(
         include: {
           visitSchedule: {
             include: {
-              spot: true,
-              restaurant: true,
-              hotel: true,
+              tourPlace: {
+                include: {
+                  gglNearbySearchRes: true,
+                  SearchHotelRes: true,
+                },
+              },
+              // spot: true,
+              // restaurant: true,
+              // hotel: true,
             },
           },
           metaScheduleInfo: true,
@@ -2860,7 +2839,6 @@ export const getSchedule = asyncWrapper(
         });
         return;
       }
-
       const minVisitSchedules = queryParams.visitSchedule.filter(
         e => e.from === 'MIN',
       );
@@ -2889,17 +2867,18 @@ export const getSchedule = asyncWrapper(
             return {
               dayNo: `${i + 1}`,
               titleList: scheduleByDays.map(v => {
+                const { tourPlace } = v;
                 return {
                   visitScheduleId: v.id.toString(),
                   orderNo: v.orderNo.toString(),
-                  // dayNo: v.dayNo.toString(),
+                  // dayNo: tourPlace.dayNo.toString(),
                   title: (() => {
-                    if (v.type === 'HOTEL')
-                      return v.hotel?.hotel_name ?? 'error';
-                    if (v.type === 'RESTAURANT') {
-                      return v.restaurant?.name ?? 'error';
+                    if (tourPlace?.tourPlaceType === 'HOTEL')
+                      return tourPlace?.SearchHotelRes?.hotel_name ?? 'error';
+                    if (tourPlace?.tourPlaceType === 'RESTAURANT') {
+                      return tourPlace?.gglNearbySearchRes?.name ?? 'error';
                     }
-                    return v.spot?.name ?? 'error';
+                    return tourPlace?.gglNearbySearchRes?.name ?? 'error';
                   })(),
                 };
               }),
@@ -3180,19 +3159,30 @@ export const getDaySchedule = asyncWrapper(
               from: { equals: planType.toUpperCase() as PlanType },
             },
             include: {
-              spot: {
+              tourPlace: {
                 include: {
-                  photos: true,
-                  geometry: true,
+                  gglNearbySearchRes: {
+                    include: {
+                      photos: true,
+                      geometry: true,
+                    },
+                  },
+                  SearchHotelRes: true,
                 },
               },
-              restaurant: {
-                include: {
-                  photos: true,
-                  geometry: true,
-                },
-              },
-              hotel: true,
+              // spot: {
+              //   include: {
+              //     photos: true,
+              //     geometry: true,
+              //   },
+              // },
+              // restaurant: {
+              //   include: {
+              //     photos: true,
+              //     geometry: true,
+              //   },
+              // },
+              // hotel: true,
             },
           },
           metaScheduleInfo: true,
@@ -3208,17 +3198,19 @@ export const getDaySchedule = asyncWrapper(
 
       const spotList: Pick<GetDayScheduleResponsePayload, 'spotList'> = {
         spotList: queryParams.visitSchedule.map(v => {
+          const vType: PlaceType = v.tourPlace?.tourPlaceType ?? 'SPOT';
           const place = (() => {
-            if (v.type === 'HOTEL') return v.hotel;
-            if (v.type === 'RESTAURANT') return v.restaurant;
-            return v.spot;
+            if (vType === 'HOTEL') return v.tourPlace?.SearchHotelRes;
+            if (vType === 'RESTAURANT' || vType === 'SPOT')
+              return v.tourPlace?.gglNearbySearchRes;
+            return undefined;
           })();
 
-          if (v.type === 'HOTEL') {
+          if (vType === 'HOTEL') {
             const hotel = place as SearchHotelRes;
             return {
               id: v.id.toString(),
-              spotType: v.type as string,
+              spotType: vType as string,
               previewImg: hotel.main_photo_url,
               spotName: hotel.hotel_name,
               roomType: hotel.unit_configuration_label,
@@ -3247,14 +3239,14 @@ export const getDaySchedule = asyncWrapper(
               ],
             };
           }
-          if (v.type === 'RESTAURANT') {
+          if (vType === 'RESTAURANT') {
             const restaurant = place as GglNearbySearchRes & {
               photos: GglPhotos[];
               geometry?: Gglgeometry;
             };
             return {
               id: v.id.toString(),
-              spotType: v.type as string,
+              spotType: vType as string,
               previewImg:
                 restaurant.photos.length > 0 && restaurant.photos[0].url
                   ? restaurant.photos[0].url
@@ -3306,7 +3298,7 @@ export const getDaySchedule = asyncWrapper(
           };
           return {
             id: v.id.toString(),
-            spotType: v.type as string,
+            spotType: vType as string,
             previewImg:
               spot.photos.length > 0 && spot.photos[0].url
                 ? spot.photos[0].url
@@ -3439,19 +3431,17 @@ export const getDetailSchedule = asyncWrapper(
           id: Number(visitScheduleId),
         },
         include: {
-          spot: {
+          tourPlace: {
             include: {
-              geometry: true,
-              photos: true,
+              gglNearbySearchRes: {
+                include: {
+                  geometry: true,
+                  photos: true,
+                },
+              },
+              SearchHotelRes: true,
             },
           },
-          restaurant: {
-            include: {
-              geometry: true,
-              photos: true,
-            },
-          },
-          hotel: true,
           QueryParams: {
             include: {
               metaScheduleInfo: true,
@@ -3477,8 +3467,16 @@ export const getDetailSchedule = asyncWrapper(
 
       const retValue =
         await (async (): Promise<GetDetailScheduleResponsePayload> => {
-          if (visitSchedule.type === 'HOTEL') {
-            const { hotel } = visitSchedule as { hotel: SearchHotelRes };
+          const tourPlaceType = visitSchedule.tourPlace?.tourPlaceType;
+          if (tourPlaceType === 'HOTEL') {
+            const {
+              tourPlace: { SearchHotelRes: hotel },
+            } = visitSchedule as {
+              tourPlace: {
+                SearchHotelRes: SearchHotelRes;
+              };
+            };
+
             const options = {
               method: 'GET' as Method,
               url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
@@ -3512,7 +3510,7 @@ export const getDetailSchedule = asyncWrapper(
               dayCount: visitSchedule.dayNo,
               orderCount: visitSchedule.orderNo,
               planType: visitSchedule.from,
-              spotType: visitSchedule.type,
+              spotType: tourPlaceType,
               previewImg: hotel.main_photo_url,
               spotName: hotel.hotel_name,
               roomType: hotel.unit_configuration_label,
@@ -3565,11 +3563,15 @@ export const getDetailSchedule = asyncWrapper(
               reviewScoreWord: hotel.review_score_word,
             };
           }
-          if (visitSchedule.type === 'RESTAURANT') {
-            const { restaurant } = visitSchedule as {
-              restaurant: GglNearbySearchRes & {
-                geometry: Gglgeometry;
-                photos: GglPhotos[];
+          if (tourPlaceType === 'RESTAURANT') {
+            const {
+              tourPlace: { gglNearbySearchRes: restaurant },
+            } = visitSchedule as {
+              tourPlace: {
+                gglNearbySearchRes: GglNearbySearchRes & {
+                  geometry: Gglgeometry;
+                  photos: GglPhotos[];
+                };
               };
             };
 
@@ -3582,7 +3584,7 @@ export const getDetailSchedule = asyncWrapper(
               dayCount: visitSchedule.dayNo,
               orderCount: visitSchedule.orderNo,
               planType: visitSchedule.from,
-              spotType: visitSchedule.type,
+              spotType: tourPlaceType,
               previewImg: (() => {
                 return restaurant.photos.length > 0 && restaurant.photos[0].url
                   ? restaurant.photos[0].url
@@ -3663,10 +3665,14 @@ export const getDetailSchedule = asyncWrapper(
           }
 
           /// case 'SPOT'
-          const { spot } = visitSchedule as {
-            spot: GglNearbySearchRes & {
-              geometry: Gglgeometry;
-              photos: GglPhotos[];
+          const {
+            tourPlace: { gglNearbySearchRes: spot },
+          } = visitSchedule as {
+            tourPlace: {
+              gglNearbySearchRes: GglNearbySearchRes & {
+                geometry: Gglgeometry;
+                photos: GglPhotos[];
+              };
             };
           };
 
@@ -3679,7 +3685,7 @@ export const getDetailSchedule = asyncWrapper(
             dayCount: visitSchedule.dayNo,
             orderCount: visitSchedule.orderNo,
             planType: visitSchedule.from,
-            spotType: visitSchedule.type,
+            spotType: tourPlaceType ?? 'SPOT',
             previewImg: (() => {
               return spot.photos.length > 0 && spot.photos[0].url
                 ? spot.photos[0].url
@@ -3828,15 +3834,12 @@ export const getCandidateSchedule = asyncWrapper(
             },
             include: {
               metaScheduleInfo: true,
-              searchHotelRes: {
-                where: { visitSchedule: { none: {} } },
-              },
-              gglNearbySearchRes: {
+              TourPlace: {
                 where: {
-                  AND: [
-                    { spotSchedule: { none: {} } },
-                    { restaurantSchedule: { none: {} } },
-                  ],
+                  visitSchedule: { none: {} },
+                },
+                include: {
+                  SearchHotelRes: true,
                 },
               },
             },
@@ -3844,8 +3847,9 @@ export const getCandidateSchedule = asyncWrapper(
 
           return {
             id: queryParams?.id.toString() ?? '-1',
-            contentsCountAll: queryParams?.searchHotelRes.length ?? -1,
-            spotList: queryParams?.searchHotelRes.map(hotel => {
+            contentsCountAll: queryParams?.TourPlace.length ?? -1,
+            spotList: queryParams?.TourPlace.map(v => {
+              const hotel = v.SearchHotelRes as SearchHotelRes;
               return {
                 id: hotel.id.toString(),
                 spotType: 'hotel',
@@ -3888,28 +3892,57 @@ export const getCandidateSchedule = asyncWrapper(
             },
             include: {
               metaScheduleInfo: true,
-              gglNearbySearchRes: {
+              TourPlace: {
                 where: {
-                  types: {
-                    some: { value: { equals: 'restaurant' } },
-                  },
                   AND: [
-                    { spotSchedule: { none: {} } },
-                    { restaurantSchedule: { none: {} } },
+                    {
+                      gglNearbySearchRes: {
+                        types: {
+                          some: { value: { equals: 'restaurant' } },
+                        },
+                      },
+                    },
+                    {
+                      visitSchedule: { none: {} },
+                    },
                   ],
                 },
                 include: {
-                  photos: true,
-                  geometry: true,
+                  gglNearbySearchRes: {
+                    include: {
+                      photos: true,
+                      geometry: true,
+                    },
+                  },
                 },
               },
+              // gglNearbySearchRes: {
+              //   where: {
+              //     types: {
+              //       some: { value: { equals: 'restaurant' } },
+              //     },
+              //     AND: [
+              //       { spotSchedule: { none: {} } },
+              //       { restaurantSchedule: { none: {} } },
+              //     ],
+              //   },
+              //   include: {
+              //     photos: true,
+              //     geometry: true,
+              //   },
+              // },
             },
           });
 
           return {
             id: queryParams?.id.toString() ?? '-1',
-            contentsCountAll: queryParams?.gglNearbySearchRes.length ?? -1,
-            spotList: queryParams?.gglNearbySearchRes.map(restaurant => {
+            contentsCountAll: queryParams?.TourPlace.length ?? -1,
+            spotList: queryParams?.TourPlace.map(v => {
+              const restaurant = v.gglNearbySearchRes as GglNearbySearchRes & {
+                geometry: Gglgeometry | null;
+                photos: GglPhotos[];
+              };
+
               return {
                 id: restaurant.id.toString(),
                 spotType: 'restaurant',
@@ -3966,27 +3999,42 @@ export const getCandidateSchedule = asyncWrapper(
           },
           include: {
             metaScheduleInfo: true,
-            gglNearbySearchRes: {
+            TourPlace: {
               where: {
-                types: {
-                  none: { value: { equals: 'restaurant' } },
-                },
                 AND: [
-                  { spotSchedule: { none: {} } },
-                  { restaurantSchedule: { none: {} } },
+                  {
+                    gglNearbySearchRes: {
+                      types: {
+                        none: { value: { equals: 'restaurant' } },
+                      },
+                    },
+                  },
+                  {
+                    visitSchedule: { none: {} },
+                  },
                 ],
               },
               include: {
-                photos: true,
-                geometry: true,
+                gglNearbySearchRes: {
+                  include: {
+                    photos: true,
+                    geometry: true,
+                  },
+                },
               },
             },
           },
         });
+
         return {
           id: queryParams?.id.toString() ?? '-1',
-          contentsCountAll: queryParams?.gglNearbySearchRes.length ?? -1,
-          spotList: queryParams?.gglNearbySearchRes.map(spot => {
+          contentsCountAll: queryParams?.TourPlace.length ?? -1,
+          spotList: queryParams?.TourPlace.map(v => {
+            const spot = v.gglNearbySearchRes as GglNearbySearchRes & {
+              geometry: Gglgeometry | null;
+              photos: GglPhotos[];
+            };
+
             return {
               id: spot.id.toString(),
               spotType: 'spot',
@@ -4106,20 +4154,18 @@ export const modifySchedule = asyncWrapper(
           id: Number(visitScheduleId),
         },
         data: {
-          type: candidateSpotType.toUpperCase() as PlaceType,
-          dataId: Number(candidateId),
-          hotelId:
-            candidateSpotType.toUpperCase() === 'HOTEL'
-              ? Number(candidateId)
-              : null,
-          restaurantId:
-            candidateSpotType.toUpperCase() === 'RESTAURANT'
-              ? Number(candidateId)
-              : null,
-          spotId:
-            candidateSpotType.toUpperCase() === 'SPOT'
-              ? Number(candidateId)
-              : null,
+          // type: candidateSpotType.toUpperCase() as PlaceType,
+          tourPlace: {
+            connect: {
+              id: Number(candidateId),
+            },
+            update: {
+              tourPlaceType: candidateSpotType.toUpperCase() as PlaceType,
+            },
+          },
+        },
+        include: {
+          tourPlace: true,
         },
       });
 
@@ -4176,11 +4222,12 @@ export const getCandidateDetailSchedule = asyncWrapper(
 
       const candidateSchedule = await (async () => {
         if (candidateSpotType.toUpperCase() === 'HOTEL') {
-          const hotel = await prisma.searchHotelRes.findUnique({
+          const hotel = await prisma.tourPlace.findUnique({
             where: {
               id: Number(candidateId),
             },
             include: {
+              SearchHotelRes: true,
               QueryParams: {
                 include: {
                   metaScheduleInfo: true,
@@ -4191,30 +4238,18 @@ export const getCandidateDetailSchedule = asyncWrapper(
           return hotel;
         }
 
-        if (candidateSpotType.toUpperCase() === 'RESTAURANT') {
-          const restaurant = await prisma.gglNearbySearchRes.findUnique({
-            where: {
-              id: Number(candidateId),
-            },
-            include: {
-              geometry: true,
-              photos: true,
-              QueryParams: {
-                include: {
-                  metaScheduleInfo: true,
-                },
-              },
-            },
-          });
-          return restaurant;
-        }
-        const spot = await prisma.gglNearbySearchRes.findUnique({
+        /// Google Restaurant, Google Spot
+        const gglPlace = await prisma.tourPlace.findUnique({
           where: {
             id: Number(candidateId),
           },
           include: {
-            geometry: true,
-            photos: true,
+            gglNearbySearchRes: {
+              include: {
+                geometry: true,
+                photos: true,
+              },
+            },
             QueryParams: {
               include: {
                 metaScheduleInfo: true,
@@ -4222,7 +4257,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
             },
           },
         });
-        return spot;
+        return gglPlace;
       })();
 
       if (!candidateSchedule) {
@@ -4235,11 +4270,20 @@ export const getCandidateDetailSchedule = asyncWrapper(
       const retValue =
         await (async (): Promise<GetCandidateDetailScheduleResponsePayload> => {
           if (candidateSpotType === 'HOTEL') {
-            const hotel = candidateSchedule as SearchHotelRes;
+            const hotelTourPlace = candidateSchedule as TourPlace & {
+              SearchHotelRes: SearchHotelRes;
+              QueryParams: QueryParams & {
+                metaScheduleInfo: MetaScheduleInfo;
+              };
+            };
+            const { SearchHotelRes: hotel } = hotelTourPlace;
             const options = {
               method: 'GET' as Method,
               url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
-              params: { locale: 'ko', hotel_id: hotel.hotel_id },
+              params: {
+                locale: 'ko',
+                hotel_id: hotel.hotel_id,
+              },
               headers: {
                 'X-RapidAPI-Key': `${process.env.RAPID_API_KEY as string}`,
                 'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
@@ -4265,7 +4309,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
             }[];
 
             return {
-              id: candidateSchedule.id.toString(),
+              id: hotelTourPlace.id.toString(),
               // dayCount: candidateSchedule.dayNo,
               // orderCount: candidateSchedule.orderNo,
               // planType: candidateSchedule.from,
@@ -4277,22 +4321,22 @@ export const getCandidateDetailSchedule = asyncWrapper(
               hotelBookingUrl: hotel.url,
               placeId: null,
               startDate:
-                candidateSchedule && candidateSchedule.QueryParams
-                  ? moment(
-                      candidateSchedule.QueryParams.hotelCheckinDate,
-                    ).format('YYYY-MM-DD')
+                hotelTourPlace && hotelTourPlace.QueryParams
+                  ? moment(hotelTourPlace.QueryParams.hotelCheckinDate).format(
+                      'YYYY-MM-DD',
+                    )
                   : null,
               endDate:
-                candidateSchedule && candidateSchedule.QueryParams
-                  ? moment(
-                      candidateSchedule.QueryParams.hotelCheckoutDate,
-                    ).format('YYYY-MM-DD')
+                hotelTourPlace && hotelTourPlace.QueryParams
+                  ? moment(hotelTourPlace.QueryParams.hotelCheckoutDate).format(
+                      'YYYY-MM-DD',
+                    )
                   : null,
               night:
-                candidateSchedule.QueryParams?.metaScheduleInfo?.travelNights ??
+                hotelTourPlace.QueryParams?.metaScheduleInfo?.travelNights ??
                 null,
               days:
-                candidateSchedule.QueryParams?.metaScheduleInfo?.travelDays ??
+                hotelTourPlace.QueryParams?.metaScheduleInfo?.travelDays ??
                 null,
               checkIn: hotel.checkin,
               checkOut: hotel.checkout,
@@ -4324,20 +4368,27 @@ export const getCandidateDetailSchedule = asyncWrapper(
             };
           }
           if (candidateSpotType.toUpperCase() === 'RESTAURANT') {
-            const restaurant = candidateSchedule as GglNearbySearchRes & {
-              geometry: Gglgeometry;
-              photos: GglPhotos[];
+            const restaurantTourPlace = candidateSchedule as TourPlace & {
+              gglNearbySearchRes: GglNearbySearchRes & {
+                geometry: Gglgeometry;
+                photos: GglPhotos[];
+              };
+              QueryParams: QueryParams & {
+                metaScheduleInfo: MetaScheduleInfo;
+              };
             };
+
+            const { gglNearbySearchRes: restaurant } = restaurantTourPlace;
 
             const detailData: GglPlaceDetailType = await getPlaceDetail({
               placeId: restaurant.place_id ?? '',
             });
 
             return {
-              id: candidateSchedule.id.toString(),
-              // dayCount: candidateSchedule.dayNo,
-              // orderCount: candidateSchedule.orderNo,
-              // planType: candidateSchedule.from,
+              id: restaurantTourPlace.id.toString(),
+              // dayCount: restaurantTourPlace.dayNo,
+              // orderCount: restaurantTourPlace.orderNo,
+              // planType: restaurantTourPlace.from,
               spotType: (candidateSpotType as string).toLowerCase(),
               previewImg: (() => {
                 return restaurant.photos.length > 0 && restaurant.photos[0].url
@@ -4354,10 +4405,10 @@ export const getCandidateDetailSchedule = asyncWrapper(
               startDate: null,
               endDate: null,
               night:
-                candidateSchedule.QueryParams?.metaScheduleInfo?.travelNights ??
-                null,
+                restaurantTourPlace.QueryParams?.metaScheduleInfo
+                  ?.travelNights ?? null,
               days:
-                candidateSchedule.QueryParams?.metaScheduleInfo?.travelDays ??
+                restaurantTourPlace.QueryParams?.metaScheduleInfo?.travelDays ??
                 null,
               checkIn: null,
               checkOut: null,
@@ -4420,10 +4471,17 @@ export const getCandidateDetailSchedule = asyncWrapper(
           }
 
           /// case 'SPOT'
-          const spot = candidateSchedule as GglNearbySearchRes & {
-            geometry: Gglgeometry;
-            photos: GglPhotos[];
+          const spotTourPlace = candidateSchedule as TourPlace & {
+            gglNearbySearchRes: GglNearbySearchRes & {
+              geometry: Gglgeometry;
+              photos: GglPhotos[];
+            };
+            QueryParams: QueryParams & {
+              metaScheduleInfo: MetaScheduleInfo;
+            };
           };
+
+          const { gglNearbySearchRes: spot } = spotTourPlace;
           const detailData: GglPlaceDetailType = await getPlaceDetail({
             placeId: spot.place_id ?? '',
           });

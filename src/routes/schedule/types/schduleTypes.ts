@@ -6,6 +6,7 @@ import {
   Gglgeometry,
   PlanType,
   PlaceType,
+  TourPlace,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
@@ -268,9 +269,9 @@ export type VisitSchedules = {
     restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometry[];
   };
   hotel: {
-    minBudgetHotel: SearchHotelRes | undefined;
-    midBudgetHotel: SearchHotelRes | undefined;
-    maxBudgetHotel: SearchHotelRes | undefined;
+    minBudgetHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+    midBudgetHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+    maxBudgetHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
   };
 }[];
 
@@ -326,8 +327,10 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 };
 
 export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
-  gglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-  searchHotelRes: SearchHotelRes[];
+  TourPlace: (TourPlace & {
+    gglNearbySearchRes: GglNearbySearchResIncludedGeometry;
+    SearchHotelRes: SearchHotelRes & { tourPlace: TourPlace };
+  })[];
 })[];
 
 export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
@@ -475,31 +478,59 @@ export const getQueryParamsForRestaurant = (
   return {
     where: { id: queryParamId },
     include: {
-      gglNearbySearchRes: {
+      TourPlace: {
         where: {
-          types: {
-            some: {
-              value: {
-                equals: 'restaurant',
+          gglNearbySearchRes: {
+            types: {
+              some: {
+                value: {
+                  equals: 'restaurant',
+                },
               },
             },
           },
         },
         include: {
-          geometry: true,
+          gglNearbySearchRes: {
+            include: { tourPlace: true, geometry: true },
+          },
+          // SearchHotelRes: {
+          //   include: { tourPlace: true },
+          // },
         },
-        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
-      },
-      searchHotelRes: {
         orderBy: [
-          {
-            review_score: 'desc',
-          },
-          {
-            distance: 'asc',
-          },
+          { gglNearbySearchRes: { user_ratings_total: 'desc' } },
+          { gglNearbySearchRes: { rating: 'desc' } },
+          // { SearchHotelRes: { review_score: 'desc' } },
+          // { SearchHotelRes: { distance: 'asc' } },
         ],
       },
+
+      // gglNearbySearchRes: {
+      //   where: {
+      //     types: {
+      //       some: {
+      //         value: {
+      //           equals: 'restaurant',
+      //         },
+      //       },
+      //     },
+      //   },
+      //   include: {
+      //     geometry: true,
+      //   },
+      //   orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+      // },
+      // searchHotelRes: {
+      //   orderBy: [
+      //     {
+      //       review_score: 'desc',
+      //     },
+      //     {
+      //       distance: 'asc',
+      //     },
+      //   ],
+      // },
     },
   };
 };
@@ -510,21 +541,100 @@ export const getQueryParamsForTourSpot = (
   return {
     where: { id: queryParamId },
     include: {
-      gglNearbySearchRes: {
+      TourPlace: {
         where: {
-          types: {
-            none: {
-              value: {
-                equals: 'restaurant',
+          gglNearbySearchRes: {
+            types: {
+              none: {
+                value: {
+                  equals: 'restaurant',
+                },
               },
             },
           },
         },
         include: {
-          geometry: true,
+          gglNearbySearchRes: {
+            include: {
+              tourPlace: true,
+              geometry: true,
+            },
+          },
         },
-        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+        orderBy: [
+          {
+            gglNearbySearchRes: { user_ratings_total: 'desc' },
+          },
+          {
+            gglNearbySearchRes: { rating: 'desc' },
+          },
+        ],
       },
+      // gglNearbySearchRes: {
+      //   where: {
+      //     types: {
+      //       none: {
+      //         value: {
+      //           equals: 'restaurant',
+      //         },
+      //       },
+      //     },
+      //   },
+      //   include: {
+      //     geometry: true,
+      //   },
+      //   orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+      // },
+    },
+  };
+};
+
+export const getQueryParamsForHotel = (
+  queryParamId: number,
+): GetListQueryParamsReqParams => {
+  return {
+    where: { id: queryParamId },
+    include: {
+      TourPlace: {
+        where: {
+          tourPlaceType: 'HOTEL',
+        },
+        include: {
+          SearchHotelRes: {
+            include: { tourPlace: true },
+          },
+        },
+        orderBy: [
+          { SearchHotelRes: { review_score: 'desc' } },
+          { SearchHotelRes: { distance: 'asc' } },
+        ],
+      },
+
+      // gglNearbySearchRes: {
+      //   where: {
+      //     types: {
+      //       some: {
+      //         value: {
+      //           equals: 'restaurant',
+      //         },
+      //       },
+      //     },
+      //   },
+      //   include: {
+      //     geometry: true,
+      //   },
+      //   orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
+      // },
+      // searchHotelRes: {
+      //   orderBy: [
+      //     {
+      //       review_score: 'desc',
+      //     },
+      //     {
+      //       distance: 'asc',
+      //     },
+      //   ],
+      // },
     },
   };
 };
@@ -580,6 +690,7 @@ export type DistanceMap = {
 
 export type GglNearbySearchResIncludedGeometry = GglNearbySearchRes & {
   geometry: Gglgeometry;
+  tourPlace: TourPlace;
 };
 
 export type ScheduleNodeList = {
