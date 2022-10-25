@@ -15,11 +15,12 @@ import {
   maxHotelBudgetPortion,
   mealPerDay,
   spotPerDay,
-  GglNearbySearchResIncludedGeometry,
+  GglNearbySearchResIncludedGeometryNTourPlace,
   VisitOrder,
   VisitPlaceType,
   flexPortionLimit,
   getQueryParamsForHotel,
+  SearchHotelResIncludedTourPlace,
 } from '../../../types/schduleTypes';
 import {
   getTravelNights,
@@ -345,19 +346,19 @@ describe('Correct case test', () => {
           case 'hotel': {
             return {
               type: 'hotel',
-              data: thisOrder.data as SearchHotelRes,
+              data: thisOrder.data as SearchHotelResIncludedTourPlace,
             };
           }
           case 'spot':
             return {
               type: 'spot',
-              data: thisOrder.data as GglNearbySearchResIncludedGeometry,
+              data: thisOrder.data as GglNearbySearchResIncludedGeometryNTourPlace,
             };
           case 'restaurant':
           default: {
             return {
               type: 'restaurant',
-              data: thisOrder.data as GglNearbySearchResIncludedGeometry,
+              data: thisOrder.data as GglNearbySearchResIncludedGeometryNTourPlace,
             };
           }
         }

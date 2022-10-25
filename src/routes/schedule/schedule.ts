@@ -64,7 +64,7 @@ import {
   DistanceMap,
   // EvalSeperatedPlacesReqParams,
   SearchHotelReqParams,
-  GglNearbySearchResIncludedGeometry,
+  GglNearbySearchResIncludedGeometryNTourPlace,
   ScheduleNodeList,
   MealOrder,
   mealPerDay,
@@ -107,6 +107,7 @@ import {
   SyncVisitJejuDataReqParams,
   SyncVisitJejuDataResponsePayload,
   SyncVisitJejuDataResponse,
+  SearchHotelResIncludedTourPlace,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -1209,7 +1210,7 @@ export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
 }: {
-  baseNode: SearchHotelRes | GglNearbySearchResIncludedGeometry;
+  baseNode: SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace;
   scheduleNodeLists: ScheduleNodeList;
 }): DistanceMap => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
@@ -1229,7 +1230,8 @@ export const orderByDistanceFromNode = ({
         longitude: (baseNode as SearchHotelRes).longitude,
       };
     const location = JSON.parse(
-      (baseNode as GglNearbySearchResIncludedGeometry).geometry.location,
+      (baseNode as GglNearbySearchResIncludedGeometryNTourPlace).geometry
+        .location,
     ) as LatLngt;
     return {
       latitude: location.lat,
@@ -1300,7 +1302,7 @@ export const orderByDistanceFromNode = ({
 };
 
 // const orderByDistanceFromNode = <
-//   MyType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+//   MyType extends SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace,
 // >({
 //   baseNode,
 //   scheduleNodeLists,
@@ -1327,7 +1329,7 @@ export const orderByDistanceFromNode = ({
 //         longitude: (baseNode as SearchHotelRes).longitude,
 //       };
 //     const location = JSON.parse(
-//       (baseNode as GglNearbySearchResIncludedGeometry).geometry.location,
+//       (baseNode as GglNearbySearchResIncludedGeometryNTourPlace).geometry.location,
 //     ) as LatLngt;
 //     return {
 //       latitude: location.lat,
@@ -1398,7 +1400,7 @@ export const orderByDistanceFromNode = ({
 // };
 
 // const evalSperatedPlaces = <
-//   BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
+//   BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace,
 // >({
 //   searchHotelRes,
 //   touringSpotGglNearbySearchRes,
@@ -1426,10 +1428,10 @@ export const orderByDistanceFromNode = ({
 //       lat = (outerItem as SearchHotelRes).latitude;
 //       lngt = (outerItem as SearchHotelRes).longitude;
 //     } else if (
-//       (outerItem as GglNearbySearchResIncludedGeometry) !== undefined
+//       (outerItem as GglNearbySearchResIncludedGeometryNTourPlace) !== undefined
 //     ) {
 //       const location = JSON.parse(
-//         (outerItem as GglNearbySearchResIncludedGeometry).geometry.location,
+//         (outerItem as GglNearbySearchResIncludedGeometryNTourPlace).geometry.location,
 //       ) as LatLngt;
 //       lat = location.lat;
 //       lngt = location.lngt;
@@ -1749,12 +1751,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let recommendedMinHotelCount = 0;
   let recommendedMidHotelCount = 0;
   let recommendedMaxHotelCount = 0;
-  let prevMinHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
-  let prevMidHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
-  let prevMaxHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
-  let minHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
-  let midHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
-  let maxHotel: (SearchHotelRes & { tourPlace: TourPlace }) | undefined;
+  let prevMinHotel: SearchHotelResIncludedTourPlace | undefined;
+  let prevMidHotel: SearchHotelResIncludedTourPlace | undefined;
+  let prevMaxHotel: SearchHotelResIncludedTourPlace | undefined;
+  let minHotel: SearchHotelResIncludedTourPlace | undefined;
+  let midHotel: SearchHotelResIncludedTourPlace | undefined;
+  let maxHotel: SearchHotelResIncludedTourPlace | undefined;
   let minNodeLists: ScheduleNodeList = {
     hotel: searchHotelRes,
     restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
@@ -1791,15 +1793,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
     // minHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMinHotel: GglNearbySearchResIncludedGeometry[] = [];
-    const thatDayRestaurantFromMinHotel: GglNearbySearchResIncludedGeometry[] =
+    const thatDaySpotFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+      [];
+    const thatDayRestaurantFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
       [];
     const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
     if (minBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometry;
+      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
       let prevDest:
-        | (SearchHotelRes & { tourPlace: TourPlace })
-        | GglNearbySearchResIncludedGeometry = minBudgetHotel;
+        | SearchHotelResIncludedTourPlace
+        | GglNearbySearchResIncludedGeometryNTourPlace = minBudgetHotel;
       thatDayVisitOrderFromMinHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1854,15 +1857,17 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     // midHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMidHotel: GglNearbySearchResIncludedGeometry[] = [];
-    const thatDayRestaurantFromMidHotel: GglNearbySearchResIncludedGeometry[] =
+    const thatDaySpotFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+      [];
+    const thatDayRestaurantFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
       [];
     const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
     if (midBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometry;
+      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
 
-      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
-        midBudgetHotel;
+      let prevDest:
+        | SearchHotelResIncludedTourPlace
+        | GglNearbySearchResIncludedGeometryNTourPlace = midBudgetHotel;
       thatDayVisitOrderFromMidHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1917,14 +1922,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     // maxHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMaxHotel: GglNearbySearchResIncludedGeometry[] = [];
-    const thatDayRestaurantFromMaxHotel: GglNearbySearchResIncludedGeometry[] =
+    const thatDaySpotFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+      [];
+    const thatDayRestaurantFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
       [];
     const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
     if (maxBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometry;
-      let prevDest: SearchHotelRes | GglNearbySearchResIncludedGeometry =
-        maxBudgetHotel;
+      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
+      let prevDest:
+        | SearchHotelResIncludedTourPlace
+        | GglNearbySearchResIncludedGeometryNTourPlace = maxBudgetHotel;
       thatDayVisitOrderFromMaxHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -2648,6 +2655,7 @@ export const reqSchedule = (
           from: PlanType;
           type: PlaceType;
           dataId: number;
+          tourPlaceData?: TourPlace;
         };
         const visitScheduleStoreData = visitSchedules.reduce(
           (acc: VisitScheduleDataType[], cur, dayIdx) => {
@@ -2659,6 +2667,7 @@ export const reqSchedule = (
                   from: 'MIN',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
+                  tourPlaceData: item.data.tourPlace,
                 };
               });
 
@@ -2670,6 +2679,7 @@ export const reqSchedule = (
                   from: 'MID',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
+                  tourPlaceData: item.data.tourPlace,
                 };
               });
 
@@ -2681,6 +2691,7 @@ export const reqSchedule = (
                   from: 'MAX',
                   type: item.type.toUpperCase() as PlaceType,
                   dataId: item.data.id,
+                  tourPlaceData: item.data.tourPlace,
                 };
               });
             const newAcc = [
@@ -2695,15 +2706,15 @@ export const reqSchedule = (
         );
 
         const promise2 = visitScheduleStoreData.map(item => {
-          const d: {
-            hotelId?: number;
-            spotId?: number;
-            restaurantId?: number;
-          } = {
-            ...(item.type === 'HOTEL' && { hotelId: item.dataId }),
-            ...(item.type === 'RESTAURANT' && { restaurantId: item.dataId }),
-            ...(item.type === 'SPOT' && { spotId: item.dataId }),
-          };
+          // const d: {
+          //   hotelId?: number;
+          //   spotId?: number;
+          //   restaurantId?: number;
+          // } = {
+          //   ...(item.type === 'HOTEL' && { hotelId: item.dataId }),
+          //   ...(item.type === 'RESTAURANT' && { restaurantId: item.dataId }),
+          //   ...(item.type === 'SPOT' && { spotId: item.dataId }),
+          // };
 
           return prisma.visitSchedule.create({
             data: {
@@ -2712,18 +2723,17 @@ export const reqSchedule = (
               from: item.from,
               // type: item.type,
               dataId: item.dataId,
-              ...d,
+              // ...d,
               tourPlace: {
-                create: {
-                  QueryParams: {
-                    connect: {
-                      id: queryParamId,
-                    },
-                  },
-                  tourPlaceType: item.type,
+                connect: {
+                  id: item.tourPlaceData?.id,
                 },
               },
-              // queryParamsId: queryParamId,
+              QueryParams: {
+                connect: {
+                  id: queryParamId,
+                },
+              },
             },
           });
         });
