@@ -3847,6 +3847,7 @@ export const getCandidateSchedule = asyncWrapper(
               TourPlace: {
                 where: {
                   visitSchedule: { none: {} },
+                  tourPlaceType: 'HOTEL',
                 },
                 include: {
                   SearchHotelRes: true,
@@ -3906,11 +3907,12 @@ export const getCandidateSchedule = asyncWrapper(
                 where: {
                   AND: [
                     {
-                      gglNearbySearchRes: {
-                        types: {
-                          some: { value: { equals: 'restaurant' } },
-                        },
-                      },
+                      // gglNearbySearchRes: {
+                      //   types: {
+                      //     some: { value: { equals: 'restaurant' } },
+                      //   },
+                      // },
+                      tourPlaceType: 'RESTAURANT',
                     },
                     {
                       visitSchedule: { none: {} },
@@ -4013,11 +4015,12 @@ export const getCandidateSchedule = asyncWrapper(
               where: {
                 AND: [
                   {
-                    gglNearbySearchRes: {
-                      types: {
-                        none: { value: { equals: 'restaurant' } },
-                      },
-                    },
+                    // gglNearbySearchRes: {
+                    //   types: {
+                    //     none: { value: { equals: 'restaurant' } },
+                    //   },
+                    // },
+                    tourPlaceType: 'SPOT',
                   },
                   {
                     visitSchedule: { none: {} },
