@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 // import { getAllTextSearchPages } from '@src/routes/schedule/schedule';
 // import { TextSearchReqParams } from '@src/routes/schedule/types/schduleTypes';
-import { getAllTextSearchPages } from '../routes/schedule/schedule';
+import { getAllTextSearchPages } from '../routes/schedule/internalFunc';
 import { TextSearchReqParams } from '../routes/schedule/types/schduleTypes';
 
 const prisma = new PrismaClient();

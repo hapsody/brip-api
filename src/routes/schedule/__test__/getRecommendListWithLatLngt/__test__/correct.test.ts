@@ -26,7 +26,7 @@ import {
   getTravelNights,
   getListQueryParamsInnerAsyncFn,
   orderByDistanceFromNode,
-} from '../../../schedule';
+} from '../../../internalFunc';
 
 import {
   minBudget,

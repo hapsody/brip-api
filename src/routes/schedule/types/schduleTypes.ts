@@ -345,6 +345,13 @@ export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetListQueryParamsInnerAsyncFnResponse;
 };
 
+export type TextSearchInnerAsyncFnRes = Omit<
+  NearbySearchInnerAsyncFnRes,
+  'nearbySearchResult'
+> & {
+  textSearchResult: google.maps.places.IBPlaceResult[];
+};
+
 /* 
 GetListQueryParamsResponse ex) 
     "latitude": 21.33301,
