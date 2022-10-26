@@ -6,7 +6,11 @@ import {
   TourPlace,
   VisitSchedule,
   ScheduleBank,
+  MetaScheduleInfo,
+  GglNearbySearchRes,
+  SearchHotelRes,
 } from '@prisma/client';
+import { getTravelNights } from '@src/routes/schedule/internalFunc';
 import { ibDefs, IBResFormat } from '@src/utils';
 import {
   ReqNonMembersUserTokenResType,
@@ -15,14 +19,21 @@ import {
 import {
   ReqScheduleResponse,
   ReqScheduleResponsePayload,
+  spotPerDay,
+  mealPerDay,
+  gHotelTransition,
 } from '../../../types/schduleTypes';
 
-import { params } from './testData';
+import { hotelTransition, params } from './testData';
 
 let reqScheduleRawResult: ReqScheduleResponse;
 let reqScheduleRes: ReqScheduleResponsePayload;
 let queryParams: QueryParams & {
-  tourPlace: TourPlace[];
+  metaScheduleInfo: MetaScheduleInfo | null;
+  tourPlace: (TourPlace & {
+    gglNearbySearchRes: GglNearbySearchRes | null;
+    searchHotelRes: SearchHotelRes | null;
+  })[];
   visitSchedule: VisitSchedule[];
   savedSchedule: ScheduleBank | null;
 };
@@ -85,6 +96,38 @@ afterAll(done => {
 
 jest.setTimeout(120000);
 
+/// 생성된 queryParams 필드 검증 > tourPlace > 장소 중복 저장 검사
+const isDuplicated = (arr: SearchHotelRes[] | GglNearbySearchRes[]) => {
+  /// 중복이면 true 리턴
+  const bufferArr: string[] = [];
+  const dupCheckRes = arr
+    .map((v: SearchHotelRes | GglNearbySearchRes) => {
+      if ((v as SearchHotelRes).hotel_id !== undefined) {
+        const value = v as SearchHotelRes;
+        const findIndex = bufferArr.findIndex(
+          e => e === value.hotel_id.toString(),
+        );
+        if (findIndex === -1) {
+          bufferArr.push(value.hotel_id.toString());
+          return false;
+        }
+        return true;
+      }
+
+      const value = v as GglNearbySearchRes;
+      const findIndex = bufferArr.findIndex(e => e === value.place_id);
+      if (findIndex === -1) {
+        bufferArr.push(value.place_id as string);
+        return false;
+      }
+      return true;
+    })
+    .findIndex(e => e);
+
+  if (dupCheckRes === -1) return false;
+  return true;
+};
+
 describe('Correct case test', () => {
   describe('정상 요청 예시 검증', () => {
     it('일정 해시 생성 확인', () => {
@@ -98,6 +141,7 @@ describe('Correct case test', () => {
     });
 
     it('생성완료 후 결과값 유효성 확인', async () => {
+      /// 생성이 완료될때까지 polling
       const result = await new Promise(resolve => {
         let count = 0;
         intervalId = setInterval(() => {
@@ -112,7 +156,13 @@ describe('Correct case test', () => {
                 },
               },
               include: {
-                tourPlace: true,
+                tourPlace: {
+                  include: {
+                    gglNearbySearchRes: true,
+                    searchHotelRes: true,
+                  },
+                },
+                metaScheduleInfo: true,
                 visitSchedule: true,
                 savedSchedule: true,
               },
@@ -123,7 +173,6 @@ describe('Correct case test', () => {
                 resolve(false);
               }
               if (qp.length === 1) {
-                expect(qp[0].savedSchedule).toBeNull();
                 [queryParams] = qp;
 
                 clearInterval(intervalId);
@@ -136,13 +185,78 @@ describe('Correct case test', () => {
             });
         }, 5000);
       });
-
       expect(result).toBe(true);
       expect(queryParams).not.toBeUndefined();
       expect(queryParams).not.toBeNull();
       if (queryParams) {
         expect(queryParams.id).toBeGreaterThan(0);
       }
+
+      /// 생성된 queryParams 필드 검증
+      expect(queryParams.savedSchedule).toBeNull(); /// 아직 saveSchedule 호출하지 않은 상태
+      /// 생성된 queryParams 필드 검증 > metaScheduleInfo
+      expect(queryParams.metaScheduleInfo).not.toBeNull();
+      expect(queryParams.metaScheduleInfo?.spotPerDay).toBe(spotPerDay);
+      expect(queryParams.metaScheduleInfo?.mealPerDay).toBe(mealPerDay);
+      expect(queryParams.metaScheduleInfo?.hotelTransition).toBe(
+        gHotelTransition,
+      );
+      const travelNights = getTravelNights(
+        params.mainParam.startDate,
+        params.mainParam.endDate,
+      );
+      expect(queryParams.metaScheduleInfo?.travelNights).toBe(travelNights);
+      expect(queryParams.metaScheduleInfo?.travelDays).toBe(travelNights + 1);
+      expect(
+        queryParams.metaScheduleInfo?.recommendedMinHotelCount,
+      ).toBeGreaterThanOrEqual(hotelTransition);
+
+      /// 생성된 queryParams 필드 검증 > tourPlace
+      const hotelTP = queryParams.tourPlace
+        .map(v => {
+          if (v.tourPlaceType === 'HOTEL') {
+            if (v.gglNearbySearchRes !== null)
+              expect(v.gglNearbySearchRes).toBeNull(); /// tourPlaceType이 HOTEL일때 tourPlace가 구글 장소관련 정보를 갖진 않는지
+            return v.searchHotelRes;
+          }
+          return null;
+        })
+        .filter(v => v) as SearchHotelRes[];
+
+      if (queryParams.metaScheduleInfo) {
+        expect(hotelTP.length).toBeGreaterThanOrEqual(
+          queryParams.metaScheduleInfo.recommendedMinHotelCount,
+        );
+      }
+      expect(isDuplicated(hotelTP)).toBe(false);
+
+      const restaurantTP = queryParams.tourPlace
+        .map(v => {
+          if (v.tourPlaceType === 'RESTAURANT') {
+            if (v.searchHotelRes !== null) expect(v.searchHotelRes).toBeNull(); /// tourPlaceType이 RESTAURANT일때 tourPlace가 hotel쪽 결과를 가지지 않는지
+            return v.gglNearbySearchRes;
+          }
+          return null;
+        })
+        .filter(v => v) as GglNearbySearchRes[];
+      expect(isDuplicated(restaurantTP)).toBe(false);
+      expect(restaurantTP.length).toBeGreaterThanOrEqual(
+        mealPerDay * travelNights + 1,
+      );
+
+      const spotTP = queryParams.tourPlace
+        .map(v => {
+          if (v.tourPlaceType === 'SPOT') {
+            if (v.searchHotelRes !== null) expect(v.searchHotelRes).toBeNull(); /// tourPlaceType이 SPOT일때 tourPlace가 hotel쪽 결과를 가지지 않는지
+            return v.gglNearbySearchRes;
+          }
+          return null;
+        })
+        .filter(v => v) as GglNearbySearchRes[];
+      expect(isDuplicated(spotTP)).toBe(false);
+      expect(spotTP.length).toBeGreaterThanOrEqual(
+        spotPerDay * travelNights + 1,
+      );
     });
   });
 });

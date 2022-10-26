@@ -48,6 +48,8 @@ import {
   SearchHotelResWithTourPlace,
   TextSearchInnerAsyncFnRes,
   GglPlaceDetailType,
+  gHotelTransition,
+  gRadius,
 } from './types/schduleTypes';
 
 const language = 'ko';
@@ -1325,12 +1327,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
     // travelIntensity,
     travelStartDate, // 여행 시작일
     travelEndDate, // 여행 종료일
-    hotelTransition = 0, // 호텔 바꾸는 횟수
+    hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     nearbySearchReqParams,
     searchHotelReqParams,
   } = searchCond;
 
-  const { radius = 4000, location } = nearbySearchReqParams;
+  const { radius = gRadius, location } = nearbySearchReqParams;
   const { latitude: hotelLat, longitude: hotelLngt } = searchHotelReqParams;
 
   if (minBudget === 0 || maxBudget === 0) {

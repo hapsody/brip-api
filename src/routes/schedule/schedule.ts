@@ -45,6 +45,8 @@ import {
   FiltersForSearchFromBookingComResponse,
   SearchHotelReqParams,
   spotPerDay,
+  gHotelTransition,
+  gRadius,
   ReqScheduleParams,
   ReqScheduleResponse,
   FavoriteTravelType,
@@ -752,7 +754,7 @@ export const reqSchedule = (
       currency: 'KRW',
       travelType,
       travelIntensity: Number(travelHard),
-      hotelTransition: 0,
+      hotelTransition: gHotelTransition,
       searchHotelReqParams: {
         orderBy: 'review_score',
         adultsNumber: Number(adult),
@@ -773,7 +775,7 @@ export const reqSchedule = (
           latitude: '33.501298', // 제주
           longitude: '126.525482', // 제주
         },
-        radius: 4000,
+        radius: gRadius,
         loadAll: true,
       },
     };

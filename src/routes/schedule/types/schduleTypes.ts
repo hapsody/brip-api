@@ -14,6 +14,8 @@ import { isUndefined } from 'lodash';
 
 export const mealPerDay = 2;
 export const spotPerDay = 2;
+export const gHotelTransition = 0;
+export const gRadius = 4000;
 export const minHotelBudgetPortion = 0.5;
 export const midHotelBudgetPortion = 0.6;
 export const maxHotelBudgetPortion = 0.7;
