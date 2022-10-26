@@ -244,40 +244,42 @@ export interface FiltersForSearchFromBookingComReqParams {
   pageNumber?: number;
   childrenAges?: number[];
 }
-export type SearchHotelResIncludedTourPlace = SearchHotelRes & {
+export type SearchHotelResWithTourPlace = SearchHotelRes & {
   tourPlace: TourPlace;
 };
 export type VisitOrderDataType =
-  | SearchHotelResIncludedTourPlace
-  | GglNearbySearchResIncludedGeometryNTourPlace;
+  | SearchHotelResWithTourPlace
+  | GglNearbySearchResWithGeoNTourPlace;
 
 export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
 export type VisitOrder = {
   type: VisitPlaceType;
   data: VisitOrderDataType;
 };
+/// 일별 추천 일정 타입
 export type VisitSchedules = {
   // spot: GglNearbySearchRes[];
   // restaurant: GglNearbySearchRes[];
+  /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
   visitOrder: {
     ordersFromMinHotel: VisitOrder[];
     ordersFromMidHotel: VisitOrder[];
     ordersFromMaxHotel: VisitOrder[];
   };
   spot: {
-    spotsFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
-    spotsFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
-    spotsFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
+    spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+    spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+    spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
   };
   restaurant: {
-    restaurantsFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
-    restaurantsFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
-    restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[];
+    restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+    restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+    restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
   };
   hotel: {
-    minBudgetHotel: SearchHotelResIncludedTourPlace | undefined;
-    midBudgetHotel: SearchHotelResIncludedTourPlace | undefined;
-    maxBudgetHotel: SearchHotelResIncludedTourPlace | undefined;
+    minBudgetHotel: SearchHotelResWithTourPlace | undefined;
+    midBudgetHotel: SearchHotelResWithTourPlace | undefined;
+    maxBudgetHotel: SearchHotelResWithTourPlace | undefined;
   };
 }[];
 
@@ -334,8 +336,8 @@ export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
 
 export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
   tourPlace: (TourPlace & {
-    gglNearbySearchRes: GglNearbySearchResIncludedGeometryNTourPlace;
-    searchHotelRes: SearchHotelResIncludedTourPlace;
+    gglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace;
+    searchHotelRes: SearchHotelResWithTourPlace;
   })[];
 })[];
 
@@ -654,7 +656,7 @@ export type LatLngt = { lat: number; lngt: number };
 //   seperatedIdxs: number[];
 // };
 // export type DistanceMap<
-//   Type extends SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace,
+//   Type extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
 // > = {
 //   me: Type;
 //   withHotel: {
@@ -662,48 +664,47 @@ export type LatLngt = { lat: number; lngt: number };
 //     metaDataForDistance: MetaDataForSpike;
 //   };
 //   withRestaurant: {
-//     data: GglNearbySearchResIncludedGeometryNTourPlace[];
+//     data: GglNearbySearchResWithGeoNTourPlace[];
 //     metaDataForDistance: MetaDataForSpike;
 //   };
 //   withSpot: {
-//     data: GglNearbySearchResIncludedGeometryNTourPlace[];
+//     data: GglNearbySearchResWithGeoNTourPlace[];
 //     metaDataForDistance: MetaDataForSpike;
 //   };
 // }[];
 
 // export interface EvalSeperatedPlacesReqParams {
 //   searchHotelRes: SearchHotelRes[];
-//   touringSpotGglNearbySearchRes: GglNearbySearchResIncludedGeometryNTourPlace[];
-//   restaurantGglNearbySearchRes: GglNearbySearchResIncludedGeometryNTourPlace[];
+//   touringSpotGglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace[];
+//   restaurantGglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace[];
 //   baseType?: 'hotel' | 'spot' | 'restaurant';
 // }
 
 export type DistanceMap = {
-  data: SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace;
+  data: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
   withHotels: {
     data: SearchHotelRes;
     distance: number;
   }[];
   withRestaurants: {
-    data: GglNearbySearchResIncludedGeometryNTourPlace;
+    data: GglNearbySearchResWithGeoNTourPlace;
     distance: number;
   }[];
   withSpots: {
-    data: GglNearbySearchResIncludedGeometryNTourPlace;
+    data: GglNearbySearchResWithGeoNTourPlace;
     distance: number;
   }[];
 };
 
-export type GglNearbySearchResIncludedGeometryNTourPlace =
-  GglNearbySearchRes & {
-    geometry: Gglgeometry;
-    tourPlace: TourPlace;
-  };
+export type GglNearbySearchResWithGeoNTourPlace = GglNearbySearchRes & {
+  geometry: Gglgeometry;
+  tourPlace: TourPlace;
+};
 
 export type ScheduleNodeList = {
   hotel: SearchHotelRes[];
-  restaurant: GglNearbySearchResIncludedGeometryNTourPlace[];
-  spot: GglNearbySearchResIncludedGeometryNTourPlace[];
+  restaurant: GglNearbySearchResWithGeoNTourPlace[];
+  spot: GglNearbySearchResWithGeoNTourPlace[];
 };
 
 export class MealOrder {

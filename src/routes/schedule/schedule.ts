@@ -64,7 +64,7 @@ import {
   DistanceMap,
   // EvalSeperatedPlacesReqParams,
   SearchHotelReqParams,
-  GglNearbySearchResIncludedGeometryNTourPlace,
+  GglNearbySearchResWithGeoNTourPlace,
   ScheduleNodeList,
   MealOrder,
   mealPerDay,
@@ -107,7 +107,7 @@ import {
   SyncVisitJejuDataReqParams,
   SyncVisitJejuDataResponsePayload,
   SyncVisitJejuDataResponse,
-  SearchHotelResIncludedTourPlace,
+  SearchHotelResWithTourPlace,
 } from './types/schduleTypes';
 
 const scheduleRouter: express.Application = express();
@@ -1210,7 +1210,7 @@ export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
 }: {
-  baseNode: SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace;
+  baseNode: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
   scheduleNodeLists: ScheduleNodeList;
 }): DistanceMap => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
@@ -1230,8 +1230,7 @@ export const orderByDistanceFromNode = ({
         longitude: (baseNode as SearchHotelRes).longitude,
       };
     const location = JSON.parse(
-      (baseNode as GglNearbySearchResIncludedGeometryNTourPlace).geometry
-        .location,
+      (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
     ) as LatLngt;
     return {
       latitude: location.lat,
@@ -1302,7 +1301,7 @@ export const orderByDistanceFromNode = ({
 };
 
 // const orderByDistanceFromNode = <
-//   MyType extends SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace,
+//   MyType extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
 // >({
 //   baseNode,
 //   scheduleNodeLists,
@@ -1329,7 +1328,7 @@ export const orderByDistanceFromNode = ({
 //         longitude: (baseNode as SearchHotelRes).longitude,
 //       };
 //     const location = JSON.parse(
-//       (baseNode as GglNearbySearchResIncludedGeometryNTourPlace).geometry.location,
+//       (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
 //     ) as LatLngt;
 //     return {
 //       latitude: location.lat,
@@ -1400,7 +1399,7 @@ export const orderByDistanceFromNode = ({
 // };
 
 // const evalSperatedPlaces = <
-//   BaseListType extends SearchHotelRes | GglNearbySearchResIncludedGeometryNTourPlace,
+//   BaseListType extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
 // >({
 //   searchHotelRes,
 //   touringSpotGglNearbySearchRes,
@@ -1428,10 +1427,10 @@ export const orderByDistanceFromNode = ({
 //       lat = (outerItem as SearchHotelRes).latitude;
 //       lngt = (outerItem as SearchHotelRes).longitude;
 //     } else if (
-//       (outerItem as GglNearbySearchResIncludedGeometryNTourPlace) !== undefined
+//       (outerItem as GglNearbySearchResWithGeoNTourPlace) !== undefined
 //     ) {
 //       const location = JSON.parse(
-//         (outerItem as GglNearbySearchResIncludedGeometryNTourPlace).geometry.location,
+//         (outerItem as GglNearbySearchResWithGeoNTourPlace).geometry.location,
 //       ) as LatLngt;
 //       lat = location.lat;
 //       lngt = location.lngt;
@@ -1751,12 +1750,12 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
   let recommendedMinHotelCount = 0;
   let recommendedMidHotelCount = 0;
   let recommendedMaxHotelCount = 0;
-  let prevMinHotel: SearchHotelResIncludedTourPlace | undefined;
-  let prevMidHotel: SearchHotelResIncludedTourPlace | undefined;
-  let prevMaxHotel: SearchHotelResIncludedTourPlace | undefined;
-  let minHotel: SearchHotelResIncludedTourPlace | undefined;
-  let midHotel: SearchHotelResIncludedTourPlace | undefined;
-  let maxHotel: SearchHotelResIncludedTourPlace | undefined;
+  let prevMinHotel: SearchHotelResWithTourPlace | undefined;
+  let prevMidHotel: SearchHotelResWithTourPlace | undefined;
+  let prevMaxHotel: SearchHotelResWithTourPlace | undefined;
+  let minHotel: SearchHotelResWithTourPlace | undefined;
+  let midHotel: SearchHotelResWithTourPlace | undefined;
+  let maxHotel: SearchHotelResWithTourPlace | undefined;
   let minNodeLists: ScheduleNodeList = {
     hotel: searchHotelRes,
     restaurant: restaurantGglNearbySearchRes.slice(0, mealPerDay * travelDays),
@@ -1793,16 +1792,15 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
     // minHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
-      [];
-    const thatDayRestaurantFromMinHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+    const thatDaySpotFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] = [];
+    const thatDayRestaurantFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
     if (minBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
+      let destination: GglNearbySearchResWithGeoNTourPlace;
       let prevDest:
-        | SearchHotelResIncludedTourPlace
-        | GglNearbySearchResIncludedGeometryNTourPlace = minBudgetHotel;
+        | SearchHotelResWithTourPlace
+        | GglNearbySearchResWithGeoNTourPlace = minBudgetHotel;
       thatDayVisitOrderFromMinHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1857,17 +1855,16 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     // midHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
-      [];
-    const thatDayRestaurantFromMidHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+    const thatDaySpotFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] = [];
+    const thatDayRestaurantFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
     if (midBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
+      let destination: GglNearbySearchResWithGeoNTourPlace;
 
       let prevDest:
-        | SearchHotelResIncludedTourPlace
-        | GglNearbySearchResIncludedGeometryNTourPlace = midBudgetHotel;
+        | SearchHotelResWithTourPlace
+        | GglNearbySearchResWithGeoNTourPlace = midBudgetHotel;
       thatDayVisitOrderFromMidHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1922,16 +1919,15 @@ const getRecommendListWithLatLngtInnerAsyncFn = async (
     }
 
     // maxHotel의 idx 해당일 spot들 구하기
-    const thatDaySpotFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
-      [];
-    const thatDayRestaurantFromMaxHotel: GglNearbySearchResIncludedGeometryNTourPlace[] =
+    const thatDaySpotFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] = [];
+    const thatDayRestaurantFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
     if (maxBudgetHotel) {
-      let destination: GglNearbySearchResIncludedGeometryNTourPlace;
+      let destination: GglNearbySearchResWithGeoNTourPlace;
       let prevDest:
-        | SearchHotelResIncludedTourPlace
-        | GglNearbySearchResIncludedGeometryNTourPlace = maxBudgetHotel;
+        | SearchHotelResWithTourPlace
+        | GglNearbySearchResWithGeoNTourPlace = maxBudgetHotel;
       thatDayVisitOrderFromMaxHotel.push({
         type: 'hotel',
         data: prevDest,
