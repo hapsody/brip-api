@@ -86,7 +86,7 @@ model GglNearbySearchRes {
   id                    Int                      @id @default(autoincrement())
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @default(now())
-  geometry              Gglgeometry?             @relation(fields: [gglgeometryId], references: [id])
+  geometry              Gglgeometry?             @relation(fields: [gglgeometryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   gglgeometryId         Int?
   icon                  String?
   icon_background_color String?
@@ -102,10 +102,10 @@ model GglNearbySearchRes {
   user_ratings_total    Int? /// 별점을 준 유저수
   vicinity              String? /// nearbySearch 검색시에 주소
   formatted_address     String? /// textSearch 검색시에 주소
-  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id]) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
+  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
   plus_codeId           Int?
   photos                GglPhotos[] /// 장소 사진 url
-  tourPlace             TourPlace                @relation(fields: [tourPlaceId], references: [id])
+  tourPlace             TourPlace                @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tourPlaceId           Int                      @unique
 }
 
@@ -116,11 +116,11 @@ model TourPlace {
   updatedAt            DateTime            @default(now())
   tourPlaceType        PlaceType
   visitSchedule        VisitSchedule[]
-  queryParams          QueryParams?        @relation(fields: [queryParamsId], references: [id])
+  queryParams          QueryParams?        @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId        Int?
-  BatchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id])
+  BatchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
-  batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id])
+  batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchSearchKeywordId Int?
   searchHotelRes       SearchHotelRes?
   gglNearbySearchRes   GglNearbySearchRes?
@@ -192,7 +192,7 @@ model ScheduleBank {
   hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
   scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
-  queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id])
+  queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId Int           @unique
 }
 
@@ -235,7 +235,7 @@ model SearchHotelRes {
   hotel_facilities                  String   @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
 
-  tourPlace   TourPlace @relation(fields: [tourPlaceId], references: [id])
+  tourPlace   TourPlace @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tourPlaceId Int       @unique
 }
 
@@ -323,7 +323,7 @@ model MetaScheduleInfo {
   recommendedMidHotelCount Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
   recommendedMaxHotelCount Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
   visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
-  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id])
+  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId            Int         @unique
 }
 
@@ -338,9 +338,9 @@ model VisitSchedule {
   // type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
   dataId    Int /// 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
 
-  tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id])
+  tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tourPlaceId   Int?
-  queryParams   QueryParams? @relation(fields: [queryParamsId], references: [id])
+  queryParams   QueryParams? @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId Int?
 }
 

@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn test signUp",
-      "name": "test signUp",
+      "command": "yarn test reqSchedule",
+      "name": "test reqScheduld",
       "request": "launch",
       "type": "node-terminal"
     }

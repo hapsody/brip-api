@@ -746,13 +746,11 @@ export interface ReqScheduleParams {
   favoriteAccommodationLocation: (keyof FavoriteAccommodationLocation)[];
   mock?: boolean;
 }
-
+export type ReqScheduleResponsePayload = {
+  scheduleHash: string;
+};
 export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams:
-    | {
-        scheduleHash: string;
-      }
-    | {};
+  IBparams: ReqScheduleResponsePayload | {};
 };
 
 export interface GetScheduleParams {
