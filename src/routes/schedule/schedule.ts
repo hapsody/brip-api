@@ -75,6 +75,9 @@ import {
   TextSearchReqParams,
   SyncVisitJejuDataReqParams,
   SyncVisitJejuDataResponse,
+  GetVisitJejuDataReqParams,
+  // GetVisitJejuDataResponsePayload,
+  GetVisitJejuDataResponse,
 } from './types/schduleTypes';
 import {
   createQueryParamId,
@@ -2770,18 +2773,41 @@ export const textSearch = asyncWrapper(
  */
 export const getVisitJejuData = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<SyncVisitJejuDataReqParams>,
-    res: Express.IBTypedResponse<SyncVisitJejuDataResponse>,
+    req: Express.IBTypedReqBody<GetVisitJejuDataReqParams>,
+    res: Express.IBTypedResponse<GetVisitJejuDataResponse>,
   ) => {
-    const syncVisitJejuDataReqParams = req.body;
-    const jejuRes = await getVisitJejuDataInnerAsyncFn(
-      syncVisitJejuDataReqParams,
-    );
+    try {
+      const syncVisitJejuDataReqParams = req.body;
+      const jejuRes = await getVisitJejuDataInnerAsyncFn(
+        syncVisitJejuDataReqParams,
+      );
 
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: jejuRes,
-    });
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: jejuRes,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
   },
 );
 
@@ -2793,59 +2819,94 @@ export const syncVisitJejuData = asyncWrapper(
     req: Express.IBTypedReqBody<SyncVisitJejuDataReqParams>,
     res: Express.IBTypedResponse<SyncVisitJejuDataResponse>,
   ) => {
-    const syncVisitJejuDataReqParams = req.body;
-    const jejuRes = await getVisitJejuDataInnerAsyncFn(
-      syncVisitJejuDataReqParams,
-    );
+    try {
+      const syncVisitJejuDataReqParams = req.body;
+      const jejuRes = await getVisitJejuDataInnerAsyncFn(
+        syncVisitJejuDataReqParams,
+      );
 
-    const { items } = jejuRes;
-    const createPromises = items.map(item => {
-      const promise = prisma.visitJejuData.create({
-        data: {
-          contentsid: item.contentsid,
-          contentscdLabel: item.contentscd.label,
-          contentscdValue: item.contentscd.value,
-          contentscdRefId: item.contentscd.refId,
-          title: item.title,
-          region1cdLabel: item.region1cd.label,
-          region1cdValue: item.region1cd.value,
-          region1cdRefId: item.region1cd.refId,
-          region2cdLabel: item.region2cd.label,
-          region2cdValue: item.region2cd.value,
-          region2cdRefId: item.region2cd.refId,
-          address: item.address,
-          roadaddress: item.roadaddress,
-          tag: {
-            connectOrCreate: {
-              where: {
-                value: item.tag,
+      const { items } = jejuRes;
+      const createPromises =
+        items &&
+        items.map(item => {
+          const promise = prisma.visitJejuData.create({
+            data: {
+              contentsid: item.contentsid,
+              contentscdLabel: item.contentscd?.label,
+              contentscdValue: item.contentscd?.value,
+              contentscdRefId: item.contentscd?.refId,
+              title: item.title,
+              region1cdLabel: item.region1cd?.label,
+              region1cdValue: item.region1cd?.value,
+              region1cdRefId: item.region1cd?.refId,
+              region2cdLabel: item.region2cd?.label,
+              region2cdValue: item.region2cd?.value,
+              region2cdRefId: item.region2cd?.refId,
+              address: item.address,
+              roadaddress: item.roadaddress,
+              tag: {
+                ...(item.tag && {
+                  connectOrCreate: item.tag.split(',').map(v => {
+                    return {
+                      where: {
+                        value: v,
+                      },
+                      create: {
+                        value: v,
+                      },
+                    };
+                  }),
+                }),
               },
-              create: {
-                value: item.tag,
+              introduction: item.introduction,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              postcode: item.postcode,
+              phoneno: item.phoneno,
+              tourPlace: {
+                create: {
+                  tourPlaceType: 'VISITJEJU_SPOT',
+                },
               },
             },
-          },
-          introduction: item.introduction,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          postcode: item.postcode,
-          phoneno: item.phoneno,
-          tourPlace: {
-            create: {
-              tourPlaceType: 'VISITJEJU_SPOT',
-            },
-          },
-        },
+          });
+          return promise;
+        });
+
+      const createdList =
+        createPromises && (await prisma.$transaction(createPromises));
+
+      if (!createdList)
+        throw new IBError({
+          type: 'EXTERNALAPI',
+          message: '반환된 visitJeju searchList 결과값이 없습니다.',
+        });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: createdList ?? {},
       });
-      return promise;
-    });
-
-    const createdList = await prisma.$transaction(createPromises);
-
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: createdList,
-    });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
   },
 );
 

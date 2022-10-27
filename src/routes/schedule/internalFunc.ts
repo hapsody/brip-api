@@ -1911,14 +1911,14 @@ export const getVisitJejuDataInnerAsyncFn = async (
 ): Promise<SyncVisitJejuDataResponsePayload> => {
   const { locale, page, cid } = params;
 
-  const jejuRawRes = await axios.get(
-    `http://api.visitjeju.net/vsjApi/contents/searchlist?apiKey=${
-      process.env.VISITJEJU_API_KEY as string
-    }${`&locale=${locale ?? ''}`}${`&page=${page ?? ''}`}${`&cid=${
-      cid ?? ''
-    }`}`,
-  );
-
+  const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
+    process.env.VISITJEJU_API_KEY as string
+  }${`&locale=${locale ?? 'kr'}`}${page ? `&page=${page}` : '1'}${
+    cid ? `&cid=${cid ?? ''}` : ''
+  }`;
+  const jejuRawRes = await axios.get(option);
+  console.log(option);
   const jejuRes = jejuRawRes.data as SyncVisitJejuDataResponsePayload;
+
   return jejuRes;
 };

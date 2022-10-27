@@ -440,28 +440,28 @@ model VisitJejuData {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @default(now())
   // alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
-  contentsid      String /// 콘텐츠 ID ex) CONT_000000000500349
+  contentsid      String? /// 콘텐츠 ID ex) CONT_000000000500349
   // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
-  contentscdValue String /// 콘텐츠 코드 값, ex) c1
-  contentscdLabel String /// 콘텐츠 코드 라벨 ex) 관광지
-  contentscdRefId String /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
-  title           String /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+  contentscdValue String? /// 콘텐츠 코드 값, ex) c1
+  contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지
+  contentscdRefId String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
+  title           String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
   // region1cd   VisitJejuClassCode /// 1차 지역코드
-  region1cdValue  String /// 1차 지역코드 값, ex) region2
-  region1cdLabel  String /// 1차 지역코드 라벨, ex) 서귀포시
-  region1cdRefId  String /// 1차 지역코드 레퍼런스 ID, ex) region>region2
+  region1cdValue  String? /// 1차 지역코드 값, ex) region2
+  region1cdLabel  String? /// 1차 지역코드 라벨, ex) 서귀포시
+  region1cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
   // region2cd   VisitJejuClassCode /// 2차 지역코드
-  region2cdValue  String /// 1차 지역코드 값, ex) 17
-  region2cdLabel  String /// 1차 지역코드 라벨, ex) 성산
-  region2cdRefId  String /// 1차 지역코드 레퍼런스 ID, ex) region2>17
-  address         String /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
-  roadaddress     String /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+  region2cdValue  String? /// 1차 지역코드 값, ex) 17
+  region2cdLabel  String? /// 1차 지역코드 라벨, ex) 성산
+  region2cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
+  address         String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+  roadaddress     String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
   tag             VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
-  introduction    String /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
-  latitude        Float /// 위도 ex) 33.462147
-  longitude       Float /// 경도 ex) 126.936424
-  postcode        String /// 우편번호 ex) 63643
-  phoneno         String /// 전화번호 ex) 064-783-0959
+  introduction    String?        @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+  latitude        Float? /// 위도 ex) 33.462147
+  longitude       Float? /// 경도 ex) 126.936424
+  postcode        String? /// 우편번호 ex) 63643
+  phoneno         String? /// 전화번호 ex) 064-783-0959
 
   tourPlace   TourPlace @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tourPlaceId Int       @unique
