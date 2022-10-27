@@ -2785,6 +2785,70 @@ export const getVisitJejuData = asyncWrapper(
   },
 );
 
+/**
+ * 제주 관광공사 jeju visit 관광 데이터를 요청하여 brip DB에 저장한다.
+ */
+export const syncVisitJejuData = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SyncVisitJejuDataReqParams>,
+    res: Express.IBTypedResponse<SyncVisitJejuDataResponse>,
+  ) => {
+    const syncVisitJejuDataReqParams = req.body;
+    const jejuRes = await getVisitJejuDataInnerAsyncFn(
+      syncVisitJejuDataReqParams,
+    );
+
+    const { items } = jejuRes;
+    const createPromises = items.map(item => {
+      const promise = prisma.visitJejuData.create({
+        data: {
+          contentsid: item.contentsid,
+          contentscdLabel: item.contentscd.label,
+          contentscdValue: item.contentscd.value,
+          contentscdRefId: item.contentscd.refId,
+          title: item.title,
+          region1cdLabel: item.region1cd.label,
+          region1cdValue: item.region1cd.value,
+          region1cdRefId: item.region1cd.refId,
+          region2cdLabel: item.region2cd.label,
+          region2cdValue: item.region2cd.value,
+          region2cdRefId: item.region2cd.refId,
+          address: item.address,
+          roadaddress: item.roadaddress,
+          tag: {
+            connectOrCreate: {
+              where: {
+                value: item.tag,
+              },
+              create: {
+                value: item.tag,
+              },
+            },
+          },
+          introduction: item.introduction,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          postcode: item.postcode,
+          phoneno: item.phoneno,
+          tourPlace: {
+            create: {
+              tourPlaceType: 'VISITJEJU_SPOT',
+            },
+          },
+        },
+      });
+      return promise;
+    });
+
+    const createdList = await prisma.$transaction(createPromises);
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: createdList,
+    });
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
@@ -2833,6 +2897,15 @@ scheduleRouter.post(
   accessTokenValidCheck,
   getCandidateDetailSchedule,
 );
-scheduleRouter.post('/getVisitJejuData', getVisitJejuData);
+scheduleRouter.post(
+  '/getVisitJejuData',
+  accessTokenValidCheck,
+  getVisitJejuData,
+);
+scheduleRouter.post(
+  '/syncVisitJejuData',
+  accessTokenValidCheck,
+  syncVisitJejuData,
+);
 
 export default scheduleRouter;
