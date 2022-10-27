@@ -182,7 +182,8 @@ export const storeDataRelatedWithQueryParams = async (params: {
   results: google.maps.places.IBPlaceResult[];
   queryParamId: number;
 }> => {
-  const { queryReqParams, response, batchJobId, ifAlreadyQueryId } = params;
+  const { queryReqParams, response, ifAlreadyQueryId } = params;
+  const { batchJobId } = params;
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
@@ -220,6 +221,56 @@ export const storeDataRelatedWithQueryParams = async (params: {
                 ) === -1
                   ? 'SPOT'
                   : 'RESTAURANT',
+              ...(batchJobId &&
+                batchJobId > 0 && {
+                  batchQueryParams: {
+                    connectOrCreate: {
+                      where: {
+                        id: batchJobId,
+                      },
+                      create: {
+                        // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                        latitude: queryReqParams?.textSearchReqParams?.location
+                          ? Number(
+                              queryReqParams.textSearchReqParams.location
+                                .latitude,
+                            )
+                          : undefined,
+                        longitude: queryReqParams?.textSearchReqParams?.location
+                          ? Number(
+                              queryReqParams.textSearchReqParams.location
+                                .longitude,
+                            )
+                          : undefined,
+                        radius: queryReqParams?.textSearchReqParams?.radius,
+                        searchkeyword: {
+                          connectOrCreate: {
+                            where: {
+                              keyword:
+                                queryReqParams?.textSearchReqParams?.keyword,
+                            },
+                            create: {
+                              keyword:
+                                queryReqParams?.textSearchReqParams?.keyword ??
+                                '',
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  batchSearchKeyword: {
+                    connectOrCreate: {
+                      where: {
+                        keyword: queryReqParams?.textSearchReqParams?.keyword,
+                      },
+                      create: {
+                        keyword:
+                          queryReqParams?.textSearchReqParams?.keyword ?? '',
+                      },
+                    },
+                  },
+                }),
             },
           },
           geometry: {
@@ -291,51 +342,6 @@ export const storeDataRelatedWithQueryParams = async (params: {
               };
             }),
           },
-          ...(batchJobId &&
-            batchJobId > 0 && {
-              BatchQueryParams: {
-                connectOrCreate: {
-                  where: {
-                    id: batchJobId,
-                  },
-                  create: {
-                    // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                    latitude: queryReqParams?.textSearchReqParams?.location
-                      ? Number(
-                          queryReqParams.textSearchReqParams.location.latitude,
-                        )
-                      : undefined,
-                    longitude: queryReqParams?.textSearchReqParams?.location
-                      ? Number(
-                          queryReqParams.textSearchReqParams.location.longitude,
-                        )
-                      : undefined,
-                    radius: queryReqParams?.textSearchReqParams?.radius,
-                    searchkeyword: {
-                      connectOrCreate: {
-                        where: {
-                          keyword: queryReqParams?.textSearchReqParams?.keyword,
-                        },
-                        create: {
-                          keyword:
-                            queryReqParams?.textSearchReqParams?.keyword ?? '',
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-              BatchSearchKeyword: {
-                connectOrCreate: {
-                  where: {
-                    keyword: queryReqParams?.textSearchReqParams?.keyword,
-                  },
-                  create: {
-                    keyword: queryReqParams?.textSearchReqParams?.keyword ?? '',
-                  },
-                },
-              },
-            }),
         },
       });
     }
