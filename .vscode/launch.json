@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn test reqSchedule",
-      "name": "test reqScheduld",
+      "command": "yarn test getRecommendListFromDB",
+      "name": "test getRecommendListFromDB",
       "request": "launch",
       "type": "node-terminal"
     }

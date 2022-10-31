@@ -25,9 +25,11 @@ import {
   MetaScheduleInfo,
 } from '@prisma/client';
 import moment from 'moment';
-import { isEmpty, isNumber, isNil } from 'lodash';
+import { isEmpty, isNumber, isNil, omit } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  MealOrder,
+  VisitOrder,
   QueryReqParams,
   defaultSearchHotelReqParams,
   GetListQueryParamsReqParams,
@@ -43,7 +45,9 @@ import {
   SearchLocationsFromBookingComRawResponse,
   FiltersForSearchFromBookingComReqParams,
   FiltersForSearchFromBookingComResponse,
+  GglNearbySearchResWithGeoNTourPlace,
   SearchHotelReqParams,
+  mealPerDay,
   spotPerDay,
   gHotelTransition,
   gRadius,
@@ -78,6 +82,16 @@ import {
   GetVisitJejuDataReqParams,
   // GetVisitJejuDataResponsePayload,
   GetVisitJejuDataResponse,
+  GetRecommendListFromDBReqParams,
+  GetRecommendListFromDBResponse,
+  // GetRecommendListFromDBResponsePayload,
+  gCurrency,
+  // FavoriteAccommodationLocation,
+  getQueryParamsForHotel,
+  SearchHotelResWithTourPlace,
+  ScheduleNodeList,
+  VisitSchedules,
+  VisitPlaceType,
 } from './types/schduleTypes';
 import {
   createQueryParamId,
@@ -92,6 +106,13 @@ import {
   getAllTextSearchPages,
   getVisitJejuDataInnerAsyncFn,
   searchLocationsFromBookingComInnerAsyncFn,
+  arrTravelTypeToObj,
+  // arrAccommodationTypeToObj,
+  // arrAccommodationLocationToObj,
+  getTourPlaceFromDB,
+  filterHotelWithBudget,
+  orderByDistanceFromNode,
+  childInfantToChildrenAges,
 } from './internalFunc';
 
 const scheduleRouter: express.Application = express();
@@ -606,148 +627,20 @@ export const reqSchedule = (
     } = params;
 
     const scheduleHash = uuidv4();
-    const travelType: FavoriteTravelType = favoriteTravelType.reduce(
-      (acc: FavoriteTravelType, cur: string) => {
-        let newAcc: FavoriteTravelType = {};
-        const formatted = cur.toUpperCase();
-        switch (formatted) {
-          case 'LANDACTIVITY':
-            newAcc = { ...acc, landActivity: true };
-            break;
-          case 'GOLF':
-            newAcc = { ...acc, golf: true };
-            break;
-          case 'RELAXATION':
-            newAcc = { ...acc, relaxation: true };
-            break;
-          case 'OCEANACTIVITY':
-            newAcc = { ...acc, oceanActivity: true };
-            break;
-          case 'GROUPACTIVITY':
-            newAcc = { ...acc, groupActivity: true };
-            break;
-          case 'LEARN':
-            newAcc = { ...acc, learn: true };
-            break;
-          case 'FOOD':
-            newAcc = { ...acc, food: true };
-            break;
-          case 'EXPERIENCE':
-            newAcc = { ...acc, experience: true };
-            break;
-          case 'VISITTOURSPOT':
-            newAcc = { ...acc, visitTourSpot: true };
-            break;
-          case 'PACKAGETOUR':
-            newAcc = { ...acc, packageTour: true };
-            break;
-          case 'SHOPPING':
-            newAcc = { ...acc, shopping: true };
-            break;
-          case 'WATERPARK':
-            newAcc = { ...acc, waterPark: true };
-            break;
-          case 'NOIDEA':
-            newAcc = { ...acc, noIdea: true };
-            break;
 
-          default:
-            newAcc = { ...acc };
-            break;
-        }
-        return newAcc;
-      },
-      {},
-    );
+    const travelType: FavoriteTravelType =
+      arrTravelTypeToObj(favoriteTravelType);
 
-    // const accommodationType: FavoriteAccommodationType =
-    //   favoriteAccommodation.reduce(
-    //     (acc: FavoriteAccommodationType, cur: string) => {
-    //       let newAcc: FavoriteAccommodationType = {};
-    //       const formatted = cur.toUpperCase();
-    //       switch (formatted) {
-    //         case 'HOTEL':
-    //           newAcc = { ...acc, hotel: true };
-    //           break;
-
-    //         case 'RESORT':
-    //           newAcc = { ...acc, resort: true };
-    //           break;
-
-    //         case 'HOUSERENT':
-    //           newAcc = { ...acc, houseRent: true };
-    //           break;
-
-    //         case 'ROOMRENT':
-    //           newAcc = { ...acc, roomRent: true };
-    //           break;
-
-    //         case 'BEDRENT':
-    //           newAcc = { ...acc, bedRent: true };
-    //           break;
-    //         case 'APARTRENT':
-    //           newAcc = { ...acc, apartRent: true };
-    //           break;
-    //         case 'POOLVILLA':
-    //           newAcc = { ...acc, poolVilla: true };
-    //           break;
-    //         case 'CAMPING':
-    //           newAcc = { ...acc, camping: true };
-    //           break;
-    //         case 'MIXED':
-    //           newAcc = { ...acc, mixed: true };
-    //           break;
-    //         case 'DONTCARE':
-    //           newAcc = { ...acc, dontCare: true };
-    //           break;
-    //         default:
-    //           newAcc = { ...acc };
-    //           break;
-    //       }
-    //       return newAcc;
-    //     },
-    //     {},
-    //   );
+    // const accommodationType: FavoriteAccommodationLocation =
+    //   arrAccommodationTypeToObj(favoriteAccommodation);
 
     // const accommodationLocationType: FavoriteAccommodationLocation =
-    //   favoriteAccommodation.reduce(
-    //     (acc: FavoriteAccommodationLocation, cur: string) => {
-    //       let newAcc: FavoriteAccommodationLocation = {};
-    //       const formatted = cur.toUpperCase();
-    //       switch (formatted) {
-    //         case 'NATURE':
-    //           newAcc = { ...acc, nature: true };
-    //           break;
-    //         case 'DOWNTOWN':
-    //           newAcc = { ...acc, downtown: true };
-    //           break;
-    //         case 'OCEANVIEW':
-    //           newAcc = { ...acc, oceanView: true };
-    //           break;
-    //         case 'MOUNTAINVIEW':
-    //           newAcc = { ...acc, mountainView: true };
-    //           break;
-    //         case 'CITYVIEW':
-    //           newAcc = { ...acc, cityView: true };
-    //           break;
-    //         case 'MIXED':
-    //           newAcc = { ...acc, mixed: true };
-    //           break;
-    //         case 'DONTCARE':
-    //           newAcc = { ...acc, dontCare: true };
-    //           break;
-    //         default:
-    //           newAcc = { ...acc };
-    //           break;
-    //       }
-    //       return newAcc;
-    //     },
-    //     {},
-    //   );
+    //   arrAccommodationLocationToObj(favoriteAccommodationLocation);
 
-    const childrenAges = Array.from({ length: Number(child) }, () => 5).concat(
-      Array.from({ length: Number(infant) }, () => 1),
-    ); /// child는 5세, infant는 1세로 일괄 처리.
+    const childrenAges = childInfantToChildrenAges({
+      child: Number(child),
+      infant: Number(infant),
+    });
 
     const getRecommendFuncParam: QueryReqParams = {
       minBudget: Number(minMoney),
@@ -817,43 +710,69 @@ export const reqSchedule = (
           dataId: number;
           tourPlaceData?: TourPlace;
         };
+
+        /// visitSchedules 형태 리턴타입으로 번경
         const visitScheduleStoreData = visitSchedules.reduce(
           (acc: VisitScheduleDataType[], cur, dayIdx) => {
             const minVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMinHotel.map((item, orderIdx) => {
-                return {
-                  dayNo: dayIdx + 1,
-                  orderNo: orderIdx,
-                  from: 'MIN',
-                  type: item.type.toUpperCase() as PlaceType,
-                  dataId: item.data.id,
-                  tourPlaceData: item.data.tourPlace,
-                };
-              });
+              cur.visitOrder.ordersFromMinHotel.map(
+                (
+                  item: {
+                    type: VisitPlaceType;
+                    data: GglNearbySearchResWithGeoNTourPlace;
+                  },
+                  orderIdx,
+                ) => {
+                  return {
+                    dayNo: dayIdx + 1,
+                    orderNo: orderIdx,
+                    from: 'MIN',
+                    type: item.type.toUpperCase() as PlaceType,
+                    dataId: item.data.id,
+                    tourPlaceData: item.data.tourPlace,
+                  };
+                },
+              );
 
             const midVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMidHotel.map((item, orderIdx) => {
-                return {
-                  dayNo: dayIdx + 1,
-                  orderNo: orderIdx,
-                  from: 'MID',
-                  type: item.type.toUpperCase() as PlaceType,
-                  dataId: item.data.id,
-                  tourPlaceData: item.data.tourPlace,
-                };
-              });
+              cur.visitOrder.ordersFromMidHotel.map(
+                (
+                  item: {
+                    type: VisitPlaceType;
+                    data: GglNearbySearchResWithGeoNTourPlace;
+                  },
+                  orderIdx,
+                ) => {
+                  return {
+                    dayNo: dayIdx + 1,
+                    orderNo: orderIdx,
+                    from: 'MID',
+                    type: item.type.toUpperCase() as PlaceType,
+                    dataId: item.data.id,
+                    tourPlaceData: item.data.tourPlace,
+                  };
+                },
+              );
 
             const maxVisitOrder: VisitScheduleDataType[] =
-              cur.visitOrder.ordersFromMaxHotel.map((item, orderIdx) => {
-                return {
-                  dayNo: dayIdx + 1,
-                  orderNo: orderIdx,
-                  from: 'MAX',
-                  type: item.type.toUpperCase() as PlaceType,
-                  dataId: item.data.id,
-                  tourPlaceData: item.data.tourPlace,
-                };
-              });
+              cur.visitOrder.ordersFromMaxHotel.map(
+                (
+                  item: {
+                    type: VisitPlaceType;
+                    data: GglNearbySearchResWithGeoNTourPlace;
+                  },
+                  orderIdx,
+                ) => {
+                  return {
+                    dayNo: dayIdx + 1,
+                    orderNo: orderIdx,
+                    from: 'MAX',
+                    type: item.type.toUpperCase() as PlaceType,
+                    dataId: item.data.id,
+                    tourPlaceData: item.data.tourPlace,
+                  };
+                },
+              );
             const newAcc = [
               ...acc,
               ...minVisitOrder,
@@ -1760,7 +1679,7 @@ export const getDetailSchedule = asyncWrapper(
                   photos: {
                     height: number;
                     width: number;
-                    html_attributuions: string[];
+                    html_attributions: string[];
                     photo_reference: string;
                   }[];
                 }
@@ -1860,7 +1779,7 @@ export const getDetailSchedule = asyncWrapper(
                 photos: {
                   height: number;
                   width: number;
-                  html_attributuions: string[];
+                  html_attributions: string[];
                   photo_reference: string;
                 }[];
               }
@@ -1974,7 +1893,7 @@ export const getCandidateSchedule = asyncWrapper(
             spotList: queryParams?.tourPlace.map(v => {
               const hotel = v.searchHotelRes as SearchHotelRes;
               return {
-                id: hotel.tourPlaceId.toString(),
+                id: hotel.tourPlaceId?.toString() ?? '',
                 spotType: 'hotel',
                 previewImg: hotel.main_photo_url,
                 spotName: hotel.hotel_name,
@@ -2048,7 +1967,7 @@ export const getCandidateSchedule = asyncWrapper(
               };
 
               return {
-                id: restaurant.tourPlaceId.toString(),
+                id: restaurant.tourPlaceId?.toString() ?? '',
                 spotType: 'restaurant',
                 previewImg:
                   restaurant.photos.length > 0 && restaurant.photos[0].url
@@ -2141,7 +2060,7 @@ export const getCandidateSchedule = asyncWrapper(
             };
 
             return {
-              id: spot.tourPlaceId.toString(),
+              id: spot.tourPlaceId?.toString() ?? '',
               spotType: 'spot',
               previewImg:
                 spot.photos.length > 0 && spot.photos[0].url
@@ -2573,7 +2492,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
                   photos: {
                     height: number;
                     width: number;
-                    html_attributuions: string[];
+                    html_attributions: string[];
                     photo_reference: string;
                   }[];
                 }
@@ -2675,7 +2594,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
                 photos: {
                   height: number;
                   width: number;
-                  html_attributuions: string[];
+                  html_attributions: string[];
                   photo_reference: string;
                 }[];
               }
@@ -2910,6 +2829,568 @@ export const syncVisitJejuData = asyncWrapper(
   },
 );
 
+/**
+ * 아이디얼블룸 자체 DB로부터 추천 일정을 구성한다.
+ */
+export const getRecommendListFromDB = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetRecommendListFromDBReqParams>,
+    res: Express.IBTypedResponse<GetRecommendListFromDBResponse>,
+  ) => {
+    try {
+      const {
+        minMoney,
+        maxMoney,
+        startDate: travelStartDate,
+        endDate: travelEndDate,
+        adult,
+        child,
+        infant,
+        travelHard,
+        favoriteTravelType,
+        // favoriteAccommodation,
+        // favoriteAccommodationLocation,
+
+        mock,
+      } = req.body;
+
+      const minBudget = Number(minMoney);
+      const maxBudget = Number(maxMoney);
+      const latitude = '33.501298'; /// 제주도 예시
+      const longitude = '126.525482';
+      const radius = gRadius;
+      const currency = gCurrency;
+      const hotelTransition = 0;
+
+      /// 파라미터 유효성 검사
+      if (Number(minBudget) === 0 || Number(maxBudget) === 0) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+        });
+      }
+
+      // if (
+      //   isEmpty(location) ||
+      //   isEmpty(location.latitude) ||
+      //   isEmpty(location.longitude)
+      // ) {
+      //   throw new IBError({
+      //     type: 'INVALIDPARAMS',
+      //     message:
+      //       '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+      //   });
+      // }
+
+      // if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
+      //   throw new IBError({
+      //     type: 'INVALIDPARAMS',
+      //     message:
+      //       '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
+      //   });
+      // }
+
+      if (
+        isEmpty(travelStartDate) ||
+        isEmpty(travelEndDate) ||
+        !(new Date(travelStartDate) instanceof Date) ||
+        !(new Date(travelEndDate) instanceof Date)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+        });
+      }
+
+      const travelNights = getTravelNights(
+        // searchCond.searchHotelReqParams.checkinDate,
+        // searchCond.searchHotelReqParams.checkoutDate,
+        travelStartDate,
+        travelEndDate,
+      );
+      const travelDays = travelNights + 1;
+      if (travelNights < 1) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '여행 시작일과 종료일의 차이가 1미만입니다.',
+        });
+      }
+
+      if (travelNights < hotelTransition)
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+        });
+      const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
+
+      /// 호텔 검색
+      const childrenAges = childInfantToChildrenAges({
+        child: Number(child),
+        infant: Number(infant),
+      });
+
+      const sameDatedSearchHotelReqParams: SearchHotelReqParams = {
+        orderBy: 'review_score',
+        adultsNumber: Number(adult),
+        checkinDate: moment(travelStartDate).format('YYYY-MM-DD'),
+
+        checkoutDate: moment(travelEndDate).format('YYYY-MM-DD'),
+        latitude,
+        longitude,
+        childrenNumber: Number(child) + Number(infant),
+        childrenAges,
+        categoriesFilterIds: ['property_type::204'],
+        mock,
+      };
+
+      const sameDatedSearchCond: QueryReqParams = {
+        minBudget: Number(minBudget),
+        maxBudget: Number(maxBudget),
+        currency,
+        travelType: arrTravelTypeToObj(favoriteTravelType),
+        travelIntensity: Number(travelHard),
+        travelStartDate,
+        travelEndDate,
+        hotelTransition: 0,
+        searchHotelReqParams: sameDatedSearchHotelReqParams,
+        nearbySearchReqParams: {
+          location: {
+            latitude,
+            longitude,
+          },
+          radius,
+          keyword: '',
+        },
+      };
+      const { queryParamId } = await searchHotelInnerAsyncFn(
+        sameDatedSearchCond,
+      );
+
+      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+        getQueryParamsForHotel(queryParamId),
+      );
+      const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
+      const searchHotelRes = tourPlaceHotel.map(v => v.searchHotelRes);
+
+      // 식당 검색
+      const restaurantResult = await getTourPlaceFromDB('RESTAURANT');
+
+      // 식당 검색
+      const spotResult = await getTourPlaceFromDB('SPOT');
+
+      const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
+        filterHotelWithBudget({
+          hotels: searchHotelRes,
+          minBudget,
+          maxBudget,
+          travelNights,
+        });
+
+      const visitSchedules: VisitSchedules = [];
+      const arr = Array.from(Array(travelDays));
+      // let recommendedSpotCount = 0;
+      // let recommendedRestaurantCount = 0;
+
+      let recommendedMinHotelCount = 0;
+      let recommendedMidHotelCount = 0;
+      let recommendedMaxHotelCount = 0;
+      let prevMinHotel: SearchHotelResWithTourPlace | undefined;
+      let prevMidHotel: SearchHotelResWithTourPlace | undefined;
+      let prevMaxHotel: SearchHotelResWithTourPlace | undefined;
+      let minHotel: SearchHotelResWithTourPlace | undefined;
+      let midHotel: SearchHotelResWithTourPlace | undefined;
+      let maxHotel: SearchHotelResWithTourPlace | undefined;
+      let minNodeLists: ScheduleNodeList = {
+        hotel: searchHotelRes,
+        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
+        spot: spotResult.slice(0, spotPerDay * travelDays),
+      };
+
+      let midNodeLists = {
+        hotel: searchHotelRes,
+        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
+        spot: spotResult.slice(0, spotPerDay * travelDays),
+      };
+
+      let maxNodeLists = {
+        hotel: searchHotelRes,
+        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
+        spot: spotResult.slice(0, spotPerDay * travelDays),
+      };
+
+      arr.reduce((acc: VisitSchedules, cur, idx) => {
+        if (idx % transitionTerm === 0 && idx < arr.length - 1) {
+          minHotel = minFilteredHotels.pop();
+          midHotel = midFilteredHotels.pop();
+          maxHotel = maxFilteredHotels.pop();
+          prevMinHotel = minHotel;
+          prevMidHotel = midHotel;
+          prevMaxHotel = maxHotel;
+
+          if (minHotel) recommendedMinHotelCount += 1;
+          if (midHotel) recommendedMidHotelCount += 1;
+          if (maxHotel) recommendedMaxHotelCount += 1;
+        }
+        const minBudgetHotel =
+          idx % transitionTerm === 0 ? minHotel : prevMinHotel;
+        const midBudgetHotel =
+          idx % transitionTerm === 0 ? midHotel : prevMidHotel;
+        const maxBudgetHotel =
+          idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
+
+        // minHotel의 idx 해당일 spot들 구하기
+        const thatDaySpotFromMinHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayRestaurantFromMinHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
+        if (minBudgetHotel) {
+          let destination: Partial<google.maps.places.IBPlaceResult>;
+          let prevDest:
+            | SearchHotelResWithTourPlace
+            | Partial<google.maps.places.IBPlaceResult> = minBudgetHotel;
+          thatDayVisitOrderFromMinHotel.push({
+            type: 'hotel',
+            data: prevDest,
+          });
+          const mealOrder = new MealOrder();
+          let nextMealOrder = mealOrder.getNextMealOrder();
+          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+            if (nextMealOrder === i) {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: minNodeLists,
+              });
+              destination = distanceMapsFromBase.withRestaurants[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDayRestaurantFromMinHotel.push(destination);
+              thatDayVisitOrderFromMinHotel.push({
+                type: 'restaurant',
+                data: destination,
+              });
+              prevDest = destination;
+              minNodeLists = {
+                ...minNodeLists,
+                restaurant: (
+                  distanceMapsFromBase.withRestaurants as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMinHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+              nextMealOrder = mealOrder.getNextMealOrder();
+            } else {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: minNodeLists,
+              });
+              destination = distanceMapsFromBase.withSpots[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDaySpotFromMinHotel.push(destination);
+              thatDayVisitOrderFromMinHotel.push({
+                type: 'spot',
+                data: destination,
+              });
+              prevDest = destination;
+
+              minNodeLists = {
+                ...minNodeLists,
+                spot: (
+                  distanceMapsFromBase.withSpots as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMinHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+            }
+          }
+        }
+
+        // midHotel의 idx 해당일 spot들 구하기
+        const thatDaySpotFromMidHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayRestaurantFromMidHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
+        if (midBudgetHotel) {
+          let destination: Partial<google.maps.places.IBPlaceResult>;
+
+          let prevDest:
+            | SearchHotelResWithTourPlace
+            | Partial<google.maps.places.IBPlaceResult> = midBudgetHotel;
+          thatDayVisitOrderFromMidHotel.push({
+            type: 'hotel',
+            data: prevDest,
+          });
+          const mealOrder = new MealOrder();
+          let nextMealOrder = mealOrder.getNextMealOrder();
+          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+            if (nextMealOrder === i) {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: midNodeLists,
+              });
+              destination = distanceMapsFromBase.withRestaurants[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDayRestaurantFromMidHotel.push(destination);
+              thatDayVisitOrderFromMidHotel.push({
+                type: 'restaurant',
+                data: destination,
+              });
+              prevDest = destination;
+
+              midNodeLists = {
+                ...midNodeLists,
+                restaurant: (
+                  distanceMapsFromBase.withRestaurants as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMidHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+              nextMealOrder = mealOrder.getNextMealOrder();
+            } else {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: midNodeLists,
+              });
+              destination = distanceMapsFromBase.withSpots[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDaySpotFromMidHotel.push(destination);
+              thatDayVisitOrderFromMidHotel.push({
+                type: 'spot',
+                data: destination,
+              });
+              prevDest = destination;
+              midNodeLists = {
+                ...midNodeLists,
+                spot: (
+                  distanceMapsFromBase.withSpots as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMidHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+            }
+          }
+        }
+
+        // maxHotel의 idx 해당일 spot들 구하기
+        const thatDaySpotFromMaxHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayRestaurantFromMaxHotel: Partial<google.maps.places.IBPlaceResult>[] =
+          [];
+        const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
+        if (maxBudgetHotel) {
+          let destination: Partial<google.maps.places.IBPlaceResult>;
+          let prevDest:
+            | SearchHotelResWithTourPlace
+            | Partial<google.maps.places.IBPlaceResult> = maxBudgetHotel;
+          thatDayVisitOrderFromMaxHotel.push({
+            type: 'hotel',
+            data: prevDest,
+          });
+          const mealOrder = new MealOrder();
+          let nextMealOrder = mealOrder.getNextMealOrder();
+          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
+            if (nextMealOrder === i) {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: maxNodeLists,
+              });
+              destination = distanceMapsFromBase.withRestaurants[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDayRestaurantFromMaxHotel.push(destination);
+              thatDayVisitOrderFromMaxHotel.push({
+                type: 'restaurant',
+                data: destination,
+              });
+              prevDest = destination;
+              maxNodeLists = {
+                ...maxNodeLists,
+                restaurant: (
+                  distanceMapsFromBase.withRestaurants as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMaxHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+              nextMealOrder = mealOrder.getNextMealOrder();
+            } else {
+              const distanceMapsFromBase = orderByDistanceFromNode({
+                baseNode: prevDest,
+                scheduleNodeLists: maxNodeLists,
+              });
+              destination = distanceMapsFromBase.withSpots[0]
+                .data as Partial<google.maps.places.IBPlaceResult>;
+              thatDaySpotFromMaxHotel.push(destination);
+              thatDayVisitOrderFromMaxHotel.push({
+                type: 'spot',
+                data: destination,
+              });
+              prevDest = destination;
+              maxNodeLists = {
+                ...maxNodeLists,
+                spot: (
+                  distanceMapsFromBase.withSpots as {
+                    data: Partial<google.maps.places.IBPlaceResult>;
+                    distance: number;
+                  }[]
+                )
+                  .map(s => {
+                    return s.data;
+                  })
+                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMaxHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+              };
+            }
+          }
+        }
+
+        acc.push({
+          visitOrder: {
+            ordersFromMinHotel: thatDayVisitOrderFromMinHotel,
+            ordersFromMidHotel: thatDayVisitOrderFromMidHotel,
+            ordersFromMaxHotel: thatDayVisitOrderFromMaxHotel,
+          },
+          spot: {
+            spotsFromMinHotel: thatDaySpotFromMinHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+            spotsFromMidHotel: thatDaySpotFromMidHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+            spotsFromMaxHotel: thatDaySpotFromMaxHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+          },
+          restaurant: {
+            restaurantsFromMinHotel: thatDayRestaurantFromMinHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+            restaurantsFromMidHotel: thatDayRestaurantFromMidHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+            restaurantsFromMaxHotel: thatDayRestaurantFromMaxHotel.map(e => {
+              return {
+                ...e,
+                spotUrl: `https://www.google.com/maps/place/?q=place_id:${
+                  e.place_id as string
+                }`,
+              };
+            }),
+          },
+          hotel: {
+            // 여행 마지막날은 숙박하지 않는다.
+            minBudgetHotel: idx === arr.length - 1 ? undefined : minBudgetHotel,
+            midBudgetHotel: idx === arr.length - 1 ? undefined : midBudgetHotel,
+            maxBudgetHotel: idx === arr.length - 1 ? undefined : maxBudgetHotel,
+          },
+        });
+
+        return acc;
+      }, visitSchedules);
+      const recommendList = {
+        id: queryParamId,
+        ...omit(hotelQueryParamsDataFromDB[0], 'id', 'tourPlace'),
+        // totalNearbySearchCount: gglNearbySearchRes.length,
+        metaInfo: {
+          totalHotelSearchCount: searchHotelRes.length,
+          totalRestaurantSearchCount: restaurantResult.length,
+          totalSpotSearchCount: spotResult.length,
+          spotPerDay,
+          mealPerDay,
+          mealSchedule: new MealOrder().mealOrder,
+          travelNights,
+          travelDays,
+          hotelTransition,
+          transitionTerm,
+          // recommendedSpotCount,
+          // recommendedRestaurantCount,
+          recommendedMinHotelCount,
+          recommendedMidHotelCount,
+          recommendedMaxHotelCount,
+        },
+        visitSchedulesCount: visitSchedules.length,
+        visitSchedules,
+        queryParamId,
+      };
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: recommendList,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
@@ -2967,6 +3448,12 @@ scheduleRouter.post(
   '/syncVisitJejuData',
   accessTokenValidCheck,
   syncVisitJejuData,
+);
+
+scheduleRouter.post(
+  '/getRecommendListFromDB',
+  accessTokenValidCheck,
+  getRecommendListFromDB,
 );
 
 export default scheduleRouter;

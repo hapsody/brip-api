@@ -4,7 +4,12 @@
 import { IBError, getToday, getTomorrow } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import { PrismaClient, SearchHotelRes, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  SearchHotelRes,
+  Prisma,
+  PlaceType,
+} from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -50,9 +55,23 @@ import {
   GglPlaceDetailType,
   gHotelTransition,
   gRadius,
+  FavoriteTravelType,
+  FavoriteAccommodationType,
+  FavoriteAccommodationLocation,
+  gCurrency,
 } from './types/schduleTypes';
 
 const language = 'ko';
+
+export const childInfantToChildrenAges = (params: {
+  child: number;
+  infant: number;
+}): number[] => {
+  const { child, infant } = params;
+  return Array.from({ length: child }, () => 5).concat(
+    Array.from({ length: infant }, () => 1),
+  ); /// child는 5세, infant는 1세로 일괄 처리.
+};
 
 // const getPlacePhoto = async (data: unknown) => {
 //   const { photos } = data as {
@@ -67,7 +86,7 @@ const language = 'ko';
 //   const retArr: {
 //     height: number;
 //     width: number;
-//     html_attributuions: string;
+//     html_attributions: string;
 //     photo_reference: string;
 //     url?: string;
 //   }[] = [];
@@ -93,7 +112,7 @@ const language = 'ko';
 //     retArr.push({
 //       height: photo.height,
 //       width: photo.width,
-//       html_attributuions: JSON.stringify(photo.html_attributions),
+//       html_attributions: JSON.stringify(photo.html_attributions),
 //       photo_reference,
 //       url,
 //     });
@@ -125,16 +144,16 @@ export const createQueryParamId = async (
   const {
     orderBy,
     adultsNumber,
-    roomNumber,
+    roomNumber = 1,
     checkinDate,
     checkoutDate,
     filterByCurrency,
     latitude: paramLat,
     longitude: paramLngt,
     childrenAges,
-    childrenNumber,
+    childrenNumber = 0,
     categoriesFilterIds,
-    includeAdjacency,
+    includeAdjacency = false,
     // mock
   } = searchHotelReqParams ?? defaultSearchHotelReqParams;
 
@@ -152,12 +171,12 @@ export const createQueryParamId = async (
       hotelCheckinDate: new Date(checkinDate),
       hotelCheckoutDate: new Date(checkoutDate),
       hotelFilterByCurrency: isEmpty(filterByCurrency)
-        ? null
+        ? gCurrency
         : filterByCurrency,
       hotelChildrenAges: childrenAges?.toString(),
       hotelChildrenNumber: childrenNumber,
       hotelCategoriesFilterIds: categoriesFilterIds?.toString(),
-      hotelIncludeAdjacency: includeAdjacency,
+      hotelIncludeAdjacency: includeAdjacency ?? false,
     },
   });
   return queryParamResult.id;
@@ -187,7 +206,7 @@ export const storeDataRelatedWithQueryParams = async (params: {
   let queryParamId: number = -1;
   let results: google.maps.places.IBPlaceResult[] = [];
   if (response?.statusText === 'OK') {
-    if (queryReqParams) {
+    if (queryReqParams && !batchJobId) {
       queryParamId = await createQueryParamId(
         prisma,
         queryReqParams,
@@ -208,13 +227,14 @@ export const storeDataRelatedWithQueryParams = async (params: {
         data: {
           tourPlace: {
             create: {
-              ...(queryParamId > 0 && {
-                queryParams: {
-                  connect: {
-                    id: queryParamId,
+              ...(queryParamId > 0 &&
+                !batchJobId && {
+                  queryParams: {
+                    connect: {
+                      id: queryParamId,
+                    },
                   },
-                },
-              }),
+                }),
               tourPlaceType:
                 item.types?.findIndex(
                   type => type.toUpperCase() === 'RESTAURANT',
@@ -335,7 +355,7 @@ export const storeDataRelatedWithQueryParams = async (params: {
               return {
                 height: photo.height,
                 width: photo.width,
-                html_attributuions: JSON.stringify(photo.html_attributions),
+                html_attributions: JSON.stringify(photo.html_attributions),
                 photo_reference:
                   (photo as Partial<{ photo_reference: string }>)
                     .photo_reference ?? '',
@@ -709,7 +729,7 @@ export const searchHotelInnerAsyncFn = async (
   queryReqParams: QueryReqParams,
   ifAlreadyQueryId?: number,
 ): Promise<{ hotelSearchResult: SearchedData[]; queryParamId: number }> => {
-  const { searchHotelReqParams } = queryReqParams;
+  const { currency, searchHotelReqParams } = queryReqParams;
 
   const {
     orderBy = 'popularity',
@@ -717,7 +737,9 @@ export const searchHotelInnerAsyncFn = async (
     roomNumber = 1,
     checkinDate = getToday(),
     checkoutDate = getTomorrow(),
-    filterByCurrency = 'USD',
+    filterByCurrency = currency ??
+      searchHotelReqParams.filterByCurrency ??
+      gCurrency,
     latitude: paramLat,
     longitude: paramLngt,
     pageNumber = 0,
@@ -944,8 +966,7 @@ export const getDistance = ({
   endPoint: LatLngt;
 }): number => {
   return (
-    (endPoint.lat - startPoint.lat) ** 2 +
-    (endPoint.lngt - startPoint.lngt) ** 2
+    (endPoint.lat - startPoint.lat) ** 2 + (endPoint.lng - startPoint.lng) ** 2
   );
 };
 
@@ -1008,7 +1029,10 @@ export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
 }: {
-  baseNode: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
+  baseNode:
+    | SearchHotelResWithTourPlace
+    | GglNearbySearchResWithGeoNTourPlace
+    | Partial<google.maps.places.IBPlaceResult>;
   scheduleNodeLists: ScheduleNodeList;
 }): DistanceMap => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
@@ -1027,12 +1051,28 @@ export const orderByDistanceFromNode = ({
         latitude: (baseNode as SearchHotelRes).latitude,
         longitude: (baseNode as SearchHotelRes).longitude,
       };
-    const location = JSON.parse(
-      (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
-    ) as LatLngt;
+    if (
+      (baseNode as GglNearbySearchResWithGeoNTourPlace).tourPlace !== undefined
+    ) {
+      const location = JSON.parse(
+        (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
+      ) as LatLngt;
+      return {
+        latitude: location.lat,
+        longitude: location.lng,
+      };
+    }
+    const { geometry } = baseNode as Partial<google.maps.places.IBPlaceResult>;
+    const { location } = geometry ?? {
+      location: {
+        lat: 0,
+        lng: 0,
+      },
+    };
+
     return {
       latitude: location.lat,
-      longitude: location.lngt,
+      longitude: location.lng,
     };
   })();
   const withHotels = scheduleNodeLists.hotel.map(hotel => {
@@ -1040,12 +1080,12 @@ export const orderByDistanceFromNode = ({
       data: hotel,
       distance: getDistance({
         startPoint: {
-          lat: baseLocation.latitude,
-          lngt: baseLocation.longitude,
+          lat: Number(baseLocation.latitude),
+          lng: baseLocation.longitude,
         },
         endPoint: {
           lat: hotel.latitude,
-          lngt: hotel.longitude,
+          lng: hotel.longitude,
         },
       }),
     };
@@ -1053,18 +1093,31 @@ export const orderByDistanceFromNode = ({
   withHotels.sort(sortByDistance);
 
   const withSpots = scheduleNodeLists.spot.map(spot => {
-    const spotLocation = JSON.parse(spot.geometry.location) as LatLngt;
+    const spotLocation = (() => {
+      if (
+        (spot as GglNearbySearchResWithGeoNTourPlace).tourPlace !== undefined
+      ) {
+        const vSpot = spot as GglNearbySearchResWithGeoNTourPlace;
+        const location = JSON.parse(vSpot.geometry.location) as LatLngt;
+        return location;
+      }
+      const vSpot = spot as Partial<google.maps.places.IBPlaceResult>;
+      const location = vSpot.geometry?.location as LatLngt;
+      return location;
+    })();
 
     return {
-      data: spot,
+      data: spot as
+        | GglNearbySearchResWithGeoNTourPlace
+        | Partial<google.maps.places.IBPlaceResult>,
       distance: getDistance({
         startPoint: {
           lat: baseLocation.latitude,
-          lngt: baseLocation.longitude,
+          lng: baseLocation.longitude,
         },
         endPoint: {
           lat: spotLocation.lat,
-          lngt: spotLocation.lngt,
+          lng: spotLocation.lng,
         },
       }),
     };
@@ -1072,18 +1125,33 @@ export const orderByDistanceFromNode = ({
   withSpots.sort(sortByDistance);
 
   const withRestaurants = scheduleNodeLists.restaurant.map(restaurant => {
-    const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
-
+    // const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
+    const restaurantLocation = (() => {
+      if (
+        (restaurant as GglNearbySearchResWithGeoNTourPlace).tourPlace !==
+        undefined
+      ) {
+        const vRestaurant = restaurant as GglNearbySearchResWithGeoNTourPlace;
+        const location = JSON.parse(vRestaurant.geometry.location) as LatLngt;
+        return location;
+      }
+      const vRestaurant =
+        restaurant as Partial<google.maps.places.IBPlaceResult>;
+      const location = vRestaurant.geometry?.location as LatLngt;
+      return location;
+    })();
     return {
-      data: restaurant,
+      data: restaurant as
+        | GglNearbySearchResWithGeoNTourPlace
+        | Partial<google.maps.places.IBPlaceResult>,
       distance: getDistance({
         startPoint: {
           lat: baseLocation.latitude,
-          lngt: baseLocation.longitude,
+          lng: baseLocation.longitude,
         },
         endPoint: {
-          lat: spotLocation.lat,
-          lngt: spotLocation.lngt,
+          lat: restaurantLocation.lat,
+          lng: restaurantLocation.lng,
         },
       }),
     };
@@ -1091,7 +1159,7 @@ export const orderByDistanceFromNode = ({
   withRestaurants.sort(sortByDistance);
 
   return {
-    data: baseNode,
+    me: baseNode,
     withHotels,
     withSpots,
     withRestaurants,
@@ -1314,6 +1382,46 @@ export const orderByDistanceFromNode = ({
 //   return distanceMaps;
 // };
 
+export const filterHotelWithBudget = (params: {
+  hotels: SearchHotelResWithTourPlace[];
+  minBudget: number;
+  maxBudget: number;
+  travelNights: number;
+}): {
+  minFilteredHotels: SearchHotelResWithTourPlace[];
+  midFilteredHotels: SearchHotelResWithTourPlace[];
+  maxFilteredHotels: SearchHotelResWithTourPlace[];
+} => {
+  const { hotels, minBudget, maxBudget, travelNights } = params;
+  const copiedHotelRes = Array.from(hotels).reverse();
+
+  const minHotelBudget = minBudget * minHotelBudgetPortion;
+  const dailyMinBudget = minHotelBudget / travelNights;
+  const midBudget = (minBudget + maxBudget) / 2;
+  // const flexPortionLimit = 1.3;
+
+  const midHotelBudget = midBudget * midHotelBudgetPortion;
+  const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;
+
+  const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
+  const dailyMaxBudget = maxHotelBudget / travelNights;
+
+  const minFilteredHotels = copiedHotelRes.filter(
+    hotel => hotel.min_total_price / travelNights < dailyMinBudget,
+  );
+  const midFilteredHotels = copiedHotelRes.filter(
+    hotel => hotel.min_total_price / travelNights < dailyMidBudget,
+  );
+  const maxFilteredHotels = copiedHotelRes.filter(
+    hotel => hotel.min_total_price / travelNights < dailyMaxBudget,
+  );
+  return {
+    minFilteredHotels,
+    midFilteredHotels,
+    maxFilteredHotels,
+  };
+};
+
 export const getRecommendListWithLatLngtInnerAsyncFn = async (
   params: GetRecommendListWithLatLngtReqParams,
 ): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
@@ -1507,37 +1615,14 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
   // } = spotQueryParamsDataFromDB[0];
 
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-  const filterHotelWithBudget = () => {
-    const copiedHotelRes = Array.from(searchHotelRes).reverse();
 
-    const minHotelBudget = minBudget * minHotelBudgetPortion;
-    const dailyMinBudget = minHotelBudget / travelNights;
-    const midBudget = (minBudget + maxBudget) / 2;
-    // const flexPortionLimit = 1.3;
-
-    const midHotelBudget = midBudget * midHotelBudgetPortion;
-    const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;
-
-    const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
-    const dailyMaxBudget = maxHotelBudget / travelNights;
-
-    const minFilteredHotels = copiedHotelRes.filter(
-      hotel => hotel.min_total_price / travelNights < dailyMinBudget,
-    );
-    const midFilteredHotels = copiedHotelRes.filter(
-      hotel => hotel.min_total_price / travelNights < dailyMidBudget,
-    );
-    const maxFilteredHotels = copiedHotelRes.filter(
-      hotel => hotel.min_total_price / travelNights < dailyMaxBudget,
-    );
-    return {
-      minFilteredHotels,
-      midFilteredHotels,
-      maxFilteredHotels,
-    };
-  };
   const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
-    filterHotelWithBudget();
+    filterHotelWithBudget({
+      hotels: searchHotelRes,
+      minBudget,
+      maxBudget,
+      travelNights,
+    });
 
   const visitSchedules: VisitSchedules = [];
 
@@ -1611,7 +1696,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: minNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0].data;
+          destination = distanceMapsFromBase.withRestaurants[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDayRestaurantFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'restaurant',
@@ -1620,7 +1706,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
           prevDest = destination;
           minNodeLists = {
             ...minNodeLists,
-            restaurant: distanceMapsFromBase.withRestaurants
+            restaurant: (
+              distanceMapsFromBase.withRestaurants as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1632,7 +1723,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: minNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0].data;
+          destination = distanceMapsFromBase.withSpots[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDaySpotFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'spot',
@@ -1642,7 +1734,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
 
           minNodeLists = {
             ...minNodeLists,
-            spot: distanceMapsFromBase.withSpots
+            spot: (
+              distanceMapsFromBase.withSpots as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1675,7 +1772,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: midNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0].data;
+          destination = distanceMapsFromBase.withRestaurants[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDayRestaurantFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'restaurant',
@@ -1685,7 +1783,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
 
           midNodeLists = {
             ...midNodeLists,
-            restaurant: distanceMapsFromBase.withRestaurants
+            restaurant: (
+              distanceMapsFromBase.withRestaurants as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1697,7 +1800,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: midNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0].data;
+          destination = distanceMapsFromBase.withSpots[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDaySpotFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'spot',
@@ -1706,7 +1810,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
           prevDest = destination;
           midNodeLists = {
             ...midNodeLists,
-            spot: distanceMapsFromBase.withSpots
+            spot: (
+              distanceMapsFromBase.withSpots as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1738,7 +1847,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: maxNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0].data;
+          destination = distanceMapsFromBase.withRestaurants[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDayRestaurantFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'restaurant',
@@ -1747,7 +1857,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
           prevDest = destination;
           maxNodeLists = {
             ...maxNodeLists,
-            restaurant: distanceMapsFromBase.withRestaurants
+            restaurant: (
+              distanceMapsFromBase.withRestaurants as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1759,7 +1874,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: maxNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0].data;
+          destination = distanceMapsFromBase.withSpots[0]
+            .data as GglNearbySearchResWithGeoNTourPlace;
           thatDaySpotFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'spot',
@@ -1768,7 +1884,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
           prevDest = destination;
           maxNodeLists = {
             ...maxNodeLists,
-            spot: distanceMapsFromBase.withSpots
+            spot: (
+              distanceMapsFromBase.withSpots as {
+                data: GglNearbySearchResWithGeoNTourPlace;
+                distance: number;
+              }[]
+            )
               .map(s => {
                 return s.data;
               })
@@ -1921,4 +2042,288 @@ export const getVisitJejuDataInnerAsyncFn = async (
   const jejuRes = jejuRawRes.data as SyncVisitJejuDataResponsePayload;
 
   return jejuRes;
+};
+
+export const arrTravelTypeToObj = (
+  favoriteTravelType: (keyof FavoriteTravelType)[],
+): FavoriteTravelType => {
+  const travelType: FavoriteTravelType = favoriteTravelType.reduce(
+    (acc: FavoriteTravelType, cur: string) => {
+      let newAcc: FavoriteTravelType = {};
+      const formatted = cur.toUpperCase();
+      switch (formatted) {
+        case 'LANDACTIVITY':
+          newAcc = { ...acc, landActivity: true };
+          break;
+        case 'GOLF':
+          newAcc = { ...acc, golf: true };
+          break;
+        case 'RELAXATION':
+          newAcc = { ...acc, relaxation: true };
+          break;
+        case 'OCEANACTIVITY':
+          newAcc = { ...acc, oceanActivity: true };
+          break;
+        case 'GROUPACTIVITY':
+          newAcc = { ...acc, groupActivity: true };
+          break;
+        case 'LEARN':
+          newAcc = { ...acc, learn: true };
+          break;
+        case 'FOOD':
+          newAcc = { ...acc, food: true };
+          break;
+        case 'EXPERIENCE':
+          newAcc = { ...acc, experience: true };
+          break;
+        case 'VISITTOURSPOT':
+          newAcc = { ...acc, visitTourSpot: true };
+          break;
+        case 'PACKAGETOUR':
+          newAcc = { ...acc, packageTour: true };
+          break;
+        case 'SHOPPING':
+          newAcc = { ...acc, shopping: true };
+          break;
+        case 'WATERPARK':
+          newAcc = { ...acc, waterPark: true };
+          break;
+        case 'NOIDEA':
+          newAcc = { ...acc, noIdea: true };
+          break;
+
+        default:
+          newAcc = { ...acc };
+          break;
+      }
+      return newAcc;
+    },
+    {},
+  );
+  return travelType;
+};
+
+export const arrAccommodationTypeToObj = (
+  favoriteAccommodation: (keyof FavoriteAccommodationType)[],
+): FavoriteAccommodationType => {
+  const accommodationType: FavoriteAccommodationType =
+    favoriteAccommodation.reduce(
+      (acc: FavoriteAccommodationType, cur: string) => {
+        let newAcc: FavoriteAccommodationType = {};
+        const formatted = cur.toUpperCase();
+        switch (formatted) {
+          case 'HOTEL':
+            newAcc = { ...acc, hotel: true };
+            break;
+
+          case 'RESORT':
+            newAcc = { ...acc, resort: true };
+            break;
+
+          case 'HOUSERENT':
+            newAcc = { ...acc, houseRent: true };
+            break;
+
+          case 'ROOMRENT':
+            newAcc = { ...acc, roomRent: true };
+            break;
+
+          case 'BEDRENT':
+            newAcc = { ...acc, bedRent: true };
+            break;
+          case 'APARTRENT':
+            newAcc = { ...acc, apartRent: true };
+            break;
+          case 'POOLVILLA':
+            newAcc = { ...acc, poolVilla: true };
+            break;
+          case 'CAMPING':
+            newAcc = { ...acc, camping: true };
+            break;
+          case 'MIXED':
+            newAcc = { ...acc, mixed: true };
+            break;
+          case 'DONTCARE':
+            newAcc = { ...acc, dontCare: true };
+            break;
+          default:
+            newAcc = { ...acc };
+            break;
+        }
+        return newAcc;
+      },
+      {},
+    );
+  return accommodationType;
+};
+
+export const arrAccommodationLocationToObj = (
+  favoriteAccommodation: (keyof FavoriteAccommodationLocation)[],
+): FavoriteAccommodationLocation => {
+  const accommodationType: FavoriteAccommodationLocation =
+    favoriteAccommodation.reduce(
+      (acc: FavoriteAccommodationLocation, cur: string) => {
+        let newAcc: FavoriteAccommodationLocation = {};
+        const formatted = cur.toUpperCase();
+        switch (formatted) {
+          case 'NATURE':
+            newAcc = { ...acc, nature: true };
+            break;
+
+          case 'DOWNTOWN':
+            newAcc = { ...acc, downtown: true };
+            break;
+
+          case 'MOUNTAINVIEW':
+            newAcc = { ...acc, mountainView: true };
+            break;
+
+          case 'CITYVIEW':
+            newAcc = { ...acc, cityView: true };
+            break;
+
+          case 'MIXED':
+            newAcc = { ...acc, mixed: true };
+            break;
+          case 'DONTCARE':
+            newAcc = { ...acc, dontCare: true };
+            break;
+          default:
+            newAcc = { ...acc };
+            break;
+        }
+        return newAcc;
+      },
+      {},
+    );
+  return accommodationType;
+};
+
+export const getTourPlaceFromDB = async (
+  placeType: 'RESTAURANT' | 'SPOT',
+): Promise<Partial<google.maps.places.IBPlaceResult>[]> => {
+  type Result = {
+    tourPlaceId?: number;
+    tourPlaceType?: PlaceType;
+    queryParamsId?: number;
+    gglNearbySearchResId?: number;
+    location: string;
+    viewport?: string;
+    icon?: string;
+    icon_background_color?: string;
+    icon_mask_base_uri?: string;
+    name?: string;
+    html_attributions?: string;
+    photo_reference?: string;
+    height?: number;
+    width?: number;
+    place_id?: string;
+    price_level?: number;
+    rating?: number;
+    user_ratings_total?: number;
+    formatted_address?: string;
+    vicinity?: string;
+    reliable_score?: number;
+  };
+  const queryResult: Result[] = await (async () => {
+    if (placeType === 'RESTAURANT') {
+      const res: Result[] = await prisma.$queryRaw`
+      select 
+        tp.id as tourPlaceId,
+        tp.tourPlaceType,
+        tp.queryParamsId,
+        gnsr.id as gglNearbySearchResId ,
+        g.location,
+        g.viewport,
+        gnsr.icon,
+        gnsr.icon_background_color,
+        gnsr.icon_mask_base_uri,
+        gnsr.name,
+        gp.html_attributions,
+        gp.photo_reference,
+        gp.width,
+        gp.height,
+        gnsr.place_id,
+        gnsr.price_level ,
+        gnsr.rating,
+        gnsr.user_ratings_total,
+        gnsr.formatted_address, 
+        gnsr.vicinity,
+        gnsr.rating * gnsr.user_ratings_total as reliable_score
+      from TourPlace tp
+      left join GglNearbySearchRes gnsr on gnsr.tourPlaceId = tp.id
+      left join _GglNearbySearchResToGglPhotos gnsrtgp on gnsrtgp.A = gnsr.id
+      left join GglPhotos gp on gp.id = gnsrtgp.B
+      left join Gglgeometry g on g.id = gnsr.gglgeometryId
+      where tp.tourPlaceType in ('RESTAURANT')
+      order by reliable_score desc;
+      `;
+      return res;
+    }
+    const res: Result[] = await prisma.$queryRaw`
+    select 
+      tp.id as tourPlaceId,
+      tp.tourPlaceType,
+      tp.queryParamsId,
+      gnsr.id as gglNearbySearchResId ,
+      g.location,
+      g.viewport,
+      gnsr.icon,
+      gnsr.icon_background_color,
+      gnsr.icon_mask_base_uri,
+      gnsr.name,
+      gp.html_attributions,
+      gp.photo_reference,
+      gp.width,
+      gp.height,
+      gnsr.place_id,
+      gnsr.price_level ,
+      gnsr.rating,
+      gnsr.user_ratings_total,
+      gnsr.formatted_address, 
+      gnsr.vicinity,
+      gnsr.rating * gnsr.user_ratings_total as reliable_score
+    from TourPlace tp
+    left join GglNearbySearchRes gnsr on gnsr.tourPlaceId = tp.id
+    left join _GglNearbySearchResToGglPhotos gnsrtgp on gnsrtgp.A = gnsr.id
+    left join GglPhotos gp on gp.id = gnsrtgp.B
+    left join Gglgeometry g on g.id = gnsr.gglgeometryId
+    where tp.tourPlaceType in ('SPOT')
+    order by reliable_score desc;
+    `;
+    return res;
+  })();
+
+  const result: Partial<google.maps.places.IBPlaceResult>[] = queryResult.map(
+    v => {
+      const location = JSON.parse(v.location) as unknown as {
+        lat: string;
+        lngt: string;
+      };
+      return {
+        tourPlaceId: v.tourPlaceId,
+        queryParamsId: v.queryParamsId,
+        geometry: {
+          location: {
+            lat: Number(location.lat),
+            lng: Number(location.lngt),
+          },
+          name: v.name,
+          photos: [
+            {
+              height: v.height,
+              html_attributions: [v.html_attributions],
+              photo_reference: v.photo_reference,
+              width: v.width,
+            },
+          ],
+          place_id: v.place_id,
+          rating: v.rating,
+          user_ratings_total: v.user_ratings_total,
+          vicinity: v.formatted_address ?? v.vicinity,
+        },
+      };
+    },
+  );
+  return result;
 };

@@ -16,6 +16,7 @@ export const mealPerDay = 2;
 export const spotPerDay = 2;
 export const gHotelTransition = 0;
 export const gRadius = 4000;
+export const gCurrency = 'KRW';
 export const minHotelBudgetPortion = 0.5;
 export const midHotelBudgetPortion = 0.6;
 export const maxHotelBudgetPortion = 0.7;
@@ -251,7 +252,8 @@ export type SearchHotelResWithTourPlace = SearchHotelRes & {
 };
 export type VisitOrderDataType =
   | SearchHotelResWithTourPlace
-  | GglNearbySearchResWithGeoNTourPlace;
+  | GglNearbySearchResWithGeoNTourPlace
+  | Partial<google.maps.places.IBPlaceResult>;
 
 export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
 export type VisitOrder = {
@@ -269,14 +271,32 @@ export type VisitSchedules = {
     ordersFromMaxHotel: VisitOrder[];
   };
   spot: {
-    spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-    spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-    spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+    spotsFromMinHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
+    spotsFromMidHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
+    spotsFromMaxHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
   };
   restaurant: {
-    restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-    restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-    restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+    restaurantsFromMinHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
+    restaurantsFromMidHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
+    restaurantsFromMaxHotel: (
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>
+    )[];
   };
   hotel: {
     minBudgetHotel: SearchHotelResWithTourPlace | undefined;
@@ -655,8 +675,9 @@ export const getQueryParamsForHotel = (
     },
   };
 };
+// export type LatLngt = { lat: number; lng: number };
+export type LatLngt = google.maps.IBLatLng;
 
-export type LatLngt = { lat: number; lngt: number };
 // export type MetaDataForSpike = {
 //   distances: number[];
 //   delta: number[];
@@ -690,17 +711,24 @@ export type LatLngt = { lat: number; lngt: number };
 // }
 
 export type DistanceMap = {
-  data: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
+  me:
+    | SearchHotelRes
+    | GglNearbySearchResWithGeoNTourPlace
+    | Partial<google.maps.places.IBPlaceResult>;
   withHotels: {
     data: SearchHotelRes;
     distance: number;
   }[];
   withRestaurants: {
-    data: GglNearbySearchResWithGeoNTourPlace;
+    data:
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>;
     distance: number;
   }[];
   withSpots: {
-    data: GglNearbySearchResWithGeoNTourPlace;
+    data:
+      | GglNearbySearchResWithGeoNTourPlace
+      | Partial<google.maps.places.IBPlaceResult>;
     distance: number;
   }[];
 };
@@ -712,8 +740,12 @@ export type GglNearbySearchResWithGeoNTourPlace = GglNearbySearchRes & {
 
 export type ScheduleNodeList = {
   hotel: SearchHotelRes[];
-  restaurant: GglNearbySearchResWithGeoNTourPlace[];
-  spot: GglNearbySearchResWithGeoNTourPlace[];
+  restaurant:
+    | GglNearbySearchResWithGeoNTourPlace[]
+    | Partial<google.maps.places.IBPlaceResult>[];
+  spot:
+    | GglNearbySearchResWithGeoNTourPlace[]
+    | Partial<google.maps.places.IBPlaceResult>[];
 };
 
 export class MealOrder {
@@ -1085,3 +1117,54 @@ export type GetVisitJejuDataResponsePayload = SyncVisitJejuDataResponsePayload;
 export type GetVisitJejuDataResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetVisitJejuDataResponsePayload | {};
 };
+
+export interface GetRecommendListFromDBReqParams extends ReqScheduleParams {}
+export type GetRecommendListFromDBResponsePayload =
+  GetRecommendListWithLatLngtInnerAsyncFnResponse;
+export type GetRecommendListFromDBResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRecommendListFromDBResponsePayload | {};
+};
+
+// export const makeRQFilteredByPlaceType = (params: {
+//   placeTypeArr: (keyof typeof PlaceType)[];
+//   // skip?: number;
+//   // take?: number;
+// }): string => {
+//   const { placeTypeArr } = params;
+//   // # tourPlacePlace에 따른 gglNearbySearchRes 정보 (realiable_score 내림차순 정렬)
+//   const str = `select
+//     tp.id as tourPlaceId,
+//     tp.tourPlaceType,
+//     tp.queryParamsId,
+//     gnsr.id as gglNearbySearchResId ,
+//     g.location,
+//     g.viewport,
+//     gnsr.icon,
+//     gnsr.icon_background_color,
+//     gnsr.icon_mask_base_uri,
+//     gnsr.name,
+//     gp.html_attributions,
+//     gp.photo_reference,
+//     gp.width,
+//     gnsr.place_id,
+//     gnsr.price_level ,
+//     gnsr.rating,
+//     gnsr.user_ratings_total,
+//     gnsr.formatted_address,
+//     gnsr.vicinity,
+//     gnsr.rating * gnsr.user_ratings_total as reliable_score
+//   from TourPlace tp
+//   left join GglNearbySearchRes gnsr on gnsr.tourPlaceId = tp.id
+//   left join _GglNearbySearchResToGglPhotos gnsrtgp on gnsrtgp.A = gnsr.id
+//   left join GglPhotos gp on gp.id = gnsrtgp.B
+//   left join Gglgeometry g on g.id = gnsr.gglgeometryId
+//   ${
+//     isEmpty(placeTypeArr)
+//       ? ''
+//       : `where
+//       tp.tourPlaceType in (${placeTypeArr.map(v => `'${v}'`).toString()})`
+//   }
+//   order by reliable_score desc;`;
+
+//   return `${str}`;
+// };
