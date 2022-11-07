@@ -12,15 +12,16 @@ import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 import moment from 'moment';
 import { isUndefined } from 'lodash';
 
-export const mealPerDay = 2;
-export const spotPerDay = 2;
+export const gMealPerDay = 2;
+export const gSpotPerDay = 2;
 export const gHotelTransition = 0;
 export const gRadius = 4000;
 export const gCurrency = 'KRW';
-export const minHotelMoneyPortion = 0.5;
-export const midHotelMoneyPortion = 0.6;
-export const maxHotelMoneyPortion = 0.7;
-export const flexPortionLimit = 1.3;
+export const gMinHotelMoneyPortion = 0.5;
+export const gMidHotelMoneyPortion = 0.6;
+export const gMaxHotelMoneyPortion = 0.7;
+export const gFlexPortionLimit = 1.3;
+export const gLanguage = 'ko';
 // const hotelPerDay = 1;
 
 export interface NearbySearchReqParams {
@@ -179,7 +180,7 @@ export type SearchHotelRetParams = Omit<IBResFormat, 'IBparams'> & {
   };
 };
 
-export interface NearbySearchInnerAsyncFnRes {
+export interface NearbySearchInnerFnRes {
   nearbySearchResult: google.maps.places.IBPlaceResult[];
   queryParamId: number;
   pageToken: string | undefined;
@@ -268,7 +269,7 @@ export interface VisitSchedule {
 }
 export type VisitSchedules = VisitSchedule[];
 
-export type GetRecommendListWithLatLngtInnerAsyncFnRetParams = QueryParams & {
+export type GetRecommendListWithLatLngtInnerFnRetParams = QueryParams & {
   metaInfo: {
     // totalNearbySearchCount: number;
     totalHotelSearchCount: number;
@@ -294,8 +295,8 @@ export type GetRecommendListWithLatLngtInnerAsyncFnRetParams = QueryParams & {
   queryParamId: number;
 };
 
-export type GetRecommendListInnerAsyncFnResponse =
-  | (GetRecommendListWithLatLngtInnerAsyncFnRetParams & {
+export type GetRecommendListInnerFnResponse =
+  | (GetRecommendListWithLatLngtInnerFnRetParams & {
       searchLocation: string;
     })
   | void;
@@ -304,10 +305,10 @@ export type GetRecommendListWithLatLngtRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: GetRecommendListWithLatLngtInnerAsyncFnRetParams | {};
+  IBparams: GetRecommendListWithLatLngtInnerFnRetParams | {};
 };
 
-export type GetListQueryParamsInnerAsyncFnRetParams = (QueryParams & {
+export type GetListQueryParamsInnerFnRetParams = (QueryParams & {
   tourPlace: (TourPlace & {
     gglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace;
     searchHotelRes: SearchHotelResWithTourPlace;
@@ -315,11 +316,11 @@ export type GetListQueryParamsInnerAsyncFnRetParams = (QueryParams & {
 })[];
 
 export type GetListQueryParamsRetParams = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetListQueryParamsInnerAsyncFnRetParams;
+  IBparams: GetListQueryParamsInnerFnRetParams;
 };
 
-export type TextSearchInnerAsyncFnRetParams = Omit<
-  NearbySearchInnerAsyncFnRes,
+export type TextSearchInnerFnRetParams = Omit<
+  NearbySearchInnerFnRes,
   'nearbySearchResult'
 > & {
   textSearchResult: google.maps.places.IBPlaceResult[];
@@ -377,9 +378,9 @@ export type FiltersForSearchFromBookingComRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: FiltersForSearchFromBookingComInnerAsyncFnRetParams;
+  IBparams: FiltersForSearchFromBookingComInnerFnRetParams;
 };
-export type SearchLocationsFromBookingComInnerAsyncFnRetParams =
+export type SearchLocationsFromBookingComInnerFnRetParams =
   SearchLocationsFromBookingComRawResponse;
 
 export type FiltersForSearchFromBookingComRawFilterOfResponse = {
@@ -406,7 +407,7 @@ export type FiltersForSearchFromBookingRawResponse = {
   extended_count: string;
   unfiltered_primary_count: string;
 };
-export type FiltersForSearchFromBookingComInnerAsyncFnRetParams =
+export type FiltersForSearchFromBookingComInnerFnRetParams =
   | FiltersForSearchFromBookingComRawFilterOfResponse[];
 
 export const defaultNearbySearchReqParams: NearbySearchReqParams = {
@@ -603,21 +604,21 @@ export const getQueryParamsForHotel = (
 // export type LatLngt = { lat: number; lng: number };
 export type LatLngt = google.maps.IBLatLng;
 
-export type DistanceMap = {
-  me: SearchHotelResWithTourPlace | GglNearbySearchResWithGeoNTourPlace;
-  withHotels: {
-    data: SearchHotelResWithTourPlace;
-    distance: number;
-  }[];
-  withRestaurants: {
-    data: GglNearbySearchResWithGeoNTourPlace;
-    distance: number;
-  }[];
-  withSpots: {
-    data: GglNearbySearchResWithGeoNTourPlace;
-    distance: number;
-  }[];
-};
+export interface DistanceMapEndNode<
+  T extends SearchHotelResWithTourPlace | GglNearbySearchResWithGeoNTourPlace,
+> {
+  nodeData: T;
+  distanceFromStart: number;
+}
+
+export interface DistanceMap<
+  T extends SearchHotelResWithTourPlace | GglNearbySearchResWithGeoNTourPlace,
+> {
+  startNode: T;
+  sortedHotels: DistanceMapEndNode<SearchHotelResWithTourPlace>[];
+  sortedRestaurants: DistanceMapEndNode<GglNearbySearchResWithGeoNTourPlace>[];
+  sortedSpots: DistanceMapEndNode<GglNearbySearchResWithGeoNTourPlace>[];
+}
 
 export type GglNearbySearchResWithGeoNTourPlace = GglNearbySearchRes & {
   geometry: Gglgeometry;
@@ -1002,7 +1003,7 @@ export type GetVisitJejuDataRetParams = Omit<IBResFormat, 'IBparams'> & {
 
 export interface GetRecommendListFromDBReqParams extends ReqScheduleParams {}
 export type GetRecommendListFromDBResponsePayload =
-  GetRecommendListWithLatLngtInnerAsyncFnRetParams;
+  GetRecommendListWithLatLngtInnerFnRetParams;
 export type GetRecommendListFromDBRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetRecommendListFromDBResponsePayload | {};
 };

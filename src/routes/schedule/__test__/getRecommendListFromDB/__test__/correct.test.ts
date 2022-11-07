@@ -10,15 +10,15 @@ import {
 } from '../../../../auth';
 import {
   GetListQueryParamsRetParams,
-  minHotelMoneyPortion,
-  midHotelMoneyPortion,
-  maxHotelMoneyPortion,
-  mealPerDay,
-  spotPerDay,
+  gMinHotelMoneyPortion,
+  gMidHotelMoneyPortion,
+  gMaxHotelMoneyPortion,
+  gMealPerDay,
+  gSpotPerDay,
   GglNearbySearchResWithGeoNTourPlace,
   VisitOrder,
   VisitPlaceType,
-  flexPortionLimit,
+  gFlexPortionLimit,
   getQueryParamsForHotel,
   SearchHotelResWithTourPlace,
   GetRecommendListFromDBRetParams,
@@ -28,7 +28,7 @@ import {
 } from '../../../types/schduleTypes';
 import {
   getTravelNights,
-  getListQueryParamsInnerAsyncFn,
+  getListQueryParamsInnerFn,
   orderByDistanceFromNode,
   getTourPlaceFromDB,
 } from '../../../internalFunc';
@@ -233,7 +233,7 @@ describe('Correct case test', () => {
 
       expect(recommendedMinHotelCount).toBe(minMoneyHotelCount);
       if (recommendedMinHotelCount === 0) {
-        const minHotelMoney = minMoney * minHotelMoneyPortion;
+        const minHotelMoney = minMoney * gMinHotelMoneyPortion;
         const dailyMinMoney = minHotelMoney / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
@@ -248,9 +248,9 @@ describe('Correct case test', () => {
       expect(recommendedMidHotelCount).toBe(midMoneyHotelCount);
       const midMoney = (minMoney + maxMoney) / 2;
       if (recommendedMidHotelCount === 0) {
-        const midHotelMoney = midMoney * midHotelMoneyPortion;
+        const midHotelMoney = midMoney * gMidHotelMoneyPortion;
         const dailyMidMoney =
-          (midHotelMoney * flexPortionLimit) / transitionTerm;
+          (midHotelMoney * gFlexPortionLimit) / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
           item => item.min_total_price < dailyMidMoney,
@@ -263,7 +263,7 @@ describe('Correct case test', () => {
 
       expect(recommendedMaxHotelCount).toBe(maxMoneyHotelCount);
       if (recommendedMidHotelCount === 0) {
-        const maxHotelMoney = maxMoney * maxHotelMoneyPortion;
+        const maxHotelMoney = maxMoney * gMaxHotelMoneyPortion;
         const dailyMaxMoney = maxHotelMoney / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
@@ -368,14 +368,14 @@ describe('Correct case test', () => {
         }
       };
       // 추천된 전체 장소 불러오기
-      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerFn(
         getQueryParamsForHotel(queryParamId),
       );
       // const restaurantQueryParamsDataFromDB =
-      //   await getListQueryParamsInnerAsyncFn(
+      //   await getListQueryParamsInnerFn(
       //     getQueryParamsForRestaurant(queryParamId),
       //   );
-      // const spotQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+      // const spotQueryParamsDataFromDB = await getListQueryParamsInnerFn(
       //   getQueryParamsForTourSpot(queryParamId),
       // );
 
@@ -404,7 +404,7 @@ describe('Correct case test', () => {
       );
       const travelDays = travelNights + 1;
 
-      const minHotelMoney = minMoney * minHotelMoneyPortion;
+      const minHotelMoney = minMoney * gMinHotelMoneyPortion;
       const dailyMinMoney = minHotelMoney / travelNights;
       const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1));
       // api 호출 결과와 함께 분석
@@ -422,8 +422,8 @@ describe('Correct case test', () => {
 
       let nodeLists = {
         hotel: searchHotelRes,
-        restaurant: restaurantResult.slice(0, travelDays * mealPerDay),
-        spot: spotResult.slice(0, travelDays * spotPerDay),
+        restaurant: restaurantResult.slice(0, travelDays * gMealPerDay),
+        spot: spotResult.slice(0, travelDays * gSpotPerDay),
       };
 
       let dayIdx = 0;
@@ -431,7 +431,7 @@ describe('Correct case test', () => {
       for await (const schedule of schedules) {
         const { ordersFromMinHotel } = schedule;
         let prevMinOrder: VisitOrder = assertOrderType(ordersFromMinHotel[0]);
-        // for (let i = 0; i < mealPerDay + spotPerDay + 1; i += 1) {
+        // for (let i = 0; i < gMealPerDay + gSpotPerDay + 1; i += 1) {
         let i = 0;
         // eslint-disable-next-line no-restricted-syntax
         for await (const todayMinOrders of ordersFromMinHotel) {
@@ -513,28 +513,26 @@ describe('Correct case test', () => {
 
                 case 'spot': {
                   const distanceMap = orderByDistanceFromNode({
-                    baseNode: prevOrder.data,
-                    scheduleNodeLists: nodeLists,
+                    startNode: prevOrder.data,
+                    nodePool: nodeLists,
                   });
                   nodeLists = {
                     ...nodeLists,
-                    spot: distanceMap.withSpots
-                      .map(e => e.data)
-                      .slice(1, distanceMap.withSpots.length),
+                    spot: distanceMap.sortedSpots
+                      .map(e => e.nodeData)
+                      .slice(1, distanceMap.sortedSpots.length),
                   };
                   if (
-                    (
-                      curOrder.data as Partial<google.maps.places.IBPlaceResult> & {
-                        tourPlaceId: number;
-                      }
-                    ).tourPlaceId === distanceMap.withSpots[0].data.tourPlaceId
+                    (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
+                      .tourPlaceId ===
+                    distanceMap.sortedSpots[0].nodeData.tourPlaceId
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'spot',
-                      data: distanceMap.withSpots[0].data,
+                      data: distanceMap.sortedSpots[0].nodeData,
                     });
                     break;
                   }
@@ -544,36 +542,33 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'spot',
-                    data: distanceMap.withSpots[0].data,
+                    data: distanceMap.sortedSpots[0].nodeData,
                   });
                   break;
                 }
                 case 'restaurant':
                 default: {
                   const distanceMap = orderByDistanceFromNode({
-                    baseNode: prevOrder.data,
-                    scheduleNodeLists: nodeLists,
+                    startNode: prevOrder.data,
+                    nodePool: nodeLists,
                   });
                   nodeLists = {
                     ...nodeLists,
-                    restaurant: distanceMap.withRestaurants
-                      .map(e => e.data)
-                      .slice(1, distanceMap.withRestaurants.length),
+                    restaurant: distanceMap.sortedRestaurants
+                      .map(e => e.nodeData)
+                      .slice(1, distanceMap.sortedRestaurants.length),
                   };
                   if (
-                    (
-                      curOrder.data as Partial<google.maps.places.IBPlaceResult> & {
-                        tourPlaceId: number;
-                      }
-                    ).tourPlaceId ===
-                    distanceMap.withRestaurants[0].data.tourPlaceId
+                    (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
+                      .tourPlaceId ===
+                    distanceMap.sortedRestaurants[0].nodeData.tourPlaceId
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'restaurant',
-                      data: distanceMap.withRestaurants[0].data,
+                      data: distanceMap.sortedRestaurants[0].nodeData,
                     });
                     break;
                   }
@@ -583,7 +578,7 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'restaurant',
-                    data: distanceMap.withRestaurants[0].data,
+                    data: distanceMap.sortedRestaurants[0].nodeData,
                   });
                   break;
                 }
@@ -600,15 +595,10 @@ describe('Correct case test', () => {
           prevMinOrder = curMinOrder;
           i += 1;
         }
-
-        // }
-        // return allDayBestMatchPromises;
         dayIdx += 1;
       }
 
       const finalMatchResult = allDayBestMatch.findIndex(e => !e);
-      // const result = await Promise.all(allDayBestMatchPromises);
-      // const finalMatchResult = result.findIndex(e => !e);
       expect(finalMatchResult).toBe(-1);
     });
   });

@@ -45,8 +45,8 @@ import {
   FiltersForSearchFromBookingComRetParams,
   GglNearbySearchResWithGeoNTourPlace,
   SearchHotelReqParams,
-  mealPerDay,
-  spotPerDay,
+  gMealPerDay,
+  gSpotPerDay,
   gHotelTransition,
   gRadius,
   ReqScheduleParams,
@@ -94,16 +94,16 @@ import {
 import {
   createQueryParamId,
   getAllNearbySearchPages,
-  getListQueryParamsInnerAsyncFn,
-  searchHotelInnerAsyncFn,
+  getListQueryParamsInnerFn,
+  searchHotelInnerFn,
   getTravelNights,
-  getRecommendListWithLatLngtInnerAsyncFn,
-  filterForSearchFromBookingComInnerAsyncFn,
+  getRecommendListWithLatLngtInnerFn,
+  filterForSearchFromBookingComInnerFn,
   transPriceLevel,
   getPlaceDetail,
   getAllTextSearchPages,
-  getVisitJejuDataInnerAsyncFn,
-  searchLocationsFromBookingComInnerAsyncFn,
+  getVisitJejuDataInnerFn,
+  searchLocationsFromBookingComInnerFn,
   arrTravelTypeToObj,
   // arrAccommodationTypeToObj,
   // arrAccommodationLocationToObj,
@@ -123,7 +123,7 @@ export const nearbySearch = asyncWrapper(
     req: Express.IBTypedReqBody<QueryReqParams>,
     res: Express.IBTypedResponse<NearbySearchRetParams>,
   ) => {
-    // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
+    // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
     const queryReqParams = req.body;
 
     let queryParamId: number | undefined;
@@ -160,7 +160,7 @@ export const searchHotel = asyncWrapper(
     res: Express.IBTypedResponse<SearchHotelRetParams>,
   ) => {
     const queryReqParams = req.body;
-    const { hotelSearchResult } = await searchHotelInnerAsyncFn(queryReqParams);
+    const { hotelSearchResult } = await searchHotelInnerFn(queryReqParams);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -176,7 +176,7 @@ export const searchHotel = asyncWrapper(
  * internal(함수 내부 개발중 데이터 확인용 함수)
  * DB로부터 QueryParams 모델 데이터를 불러 응신한다.
  * 구글 nearbySearch, rapid api booking.com hotelSearch를 한번의 쿼리로 복합 검색시(compositeSearch / getRecommendListWithLatLngt 등 ...)
- * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수인 getListQueryParamsInnerAsyncFn를 호출할 wrapper endpoint api 함수이다.
+ * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수인 getListQueryParamsInnerFn를 호출할 wrapper endpoint api 함수이다.
  */
 const getListQueryParams = asyncWrapper(
   async (
@@ -184,7 +184,7 @@ const getListQueryParams = asyncWrapper(
     res: Express.IBTypedResponse<GetListQueryParamsRetParams>,
   ) => {
     const params = req.body;
-    const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
+    const queryParamsDataFromDB = await getListQueryParamsInnerFn(params);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -200,7 +200,7 @@ const getRecommendListWithLatLngt = asyncWrapper(
   ) => {
     try {
       const params = req.body;
-      const recommendListFromDB = await getRecommendListWithLatLngtInnerAsyncFn(
+      const recommendListFromDB = await getRecommendListWithLatLngtInnerFn(
         params,
       );
       res.json({
@@ -229,7 +229,7 @@ const filtersForSearchFromBookingCom = asyncWrapper(
     res: Express.IBTypedResponse<FiltersForSearchFromBookingComRetParams>,
   ) => {
     const params = req.body;
-    const data = await filterForSearchFromBookingComInnerAsyncFn(params);
+    const data = await filterForSearchFromBookingComInnerFn(params);
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: data,
@@ -244,7 +244,7 @@ const searchLocationsFromBookingCom = asyncWrapper(
   ) => {
     const params = req.body;
 
-    const data = await searchLocationsFromBookingComInnerAsyncFn(params);
+    const data = await searchLocationsFromBookingComInnerFn(params);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -485,7 +485,6 @@ export const reqSchedule = (
         checkoutDate: endDate,
         childrenNumber: Number(child) + Number(infant),
         childrenAges,
-        filterByCurrency: 'USD',
         latitude: '33.501298', // 제주
         longitude: '126.525482', // 제주
         categoriesFilterIds: ['property_type::204'], // filter: hotel
@@ -502,7 +501,7 @@ export const reqSchedule = (
       },
     };
 
-    getRecommendListWithLatLngtInnerAsyncFn({
+    getRecommendListWithLatLngtInnerFn({
       searchCond: getRecommendFuncParam,
     })
       .then(recommendListFromDB => {
@@ -2495,7 +2494,7 @@ export const textSearch = asyncWrapper(
     req: Express.IBTypedReqBody<TextSearchReqParams>,
     res: Express.IBTypedResponse<TextSearchRetParams>,
   ) => {
-    // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
+    // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
     const textSearchReqParams = req.body;
 
     const textSearchResult = await getAllTextSearchPages({
@@ -2523,9 +2522,7 @@ export const getVisitJejuData = asyncWrapper(
   ) => {
     try {
       const syncVisitJejuDataReqParams = req.body;
-      const jejuRes = await getVisitJejuDataInnerAsyncFn(
-        syncVisitJejuDataReqParams,
-      );
+      const jejuRes = await getVisitJejuDataInnerFn(syncVisitJejuDataReqParams);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -2566,9 +2563,7 @@ export const syncVisitJejuData = asyncWrapper(
   ) => {
     try {
       const syncVisitJejuDataReqParams = req.body;
-      const jejuRes = await getVisitJejuDataInnerAsyncFn(
-        syncVisitJejuDataReqParams,
-      );
+      const jejuRes = await getVisitJejuDataInnerFn(syncVisitJejuDataReqParams);
 
       const { items } = jejuRes;
       const createPromises =
@@ -2679,8 +2674,8 @@ export const getRecommendListFromDB = asyncWrapper(
         mock,
       } = req.body;
 
-      const minMoney = Number(req.body.minMoney);
-      const maxMoney = Number(req.body.maxMoney);
+      const minMoney = Number(req.body?.minMoney ?? 0);
+      const maxMoney = Number(req.body?.maxMoney ?? 0);
       const latitude = '33.501298'; /// 제주도 예시
       const longitude = '126.525482';
       const radius = gRadius;
@@ -2789,15 +2784,13 @@ export const getRecommendListFromDB = asyncWrapper(
           keyword: '',
         },
       };
-      const { queryParamId } = await searchHotelInnerAsyncFn(
-        sameDatedSearchCond,
-      );
+      const { queryParamId } = await searchHotelInnerFn(sameDatedSearchCond);
 
-      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(
+      const hotelQueryParamsDataFromDB = await getListQueryParamsInnerFn(
         getQueryParamsForHotel(queryParamId),
       );
       const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
-      const searchHotelRes = tourPlaceHotel.map(v => v.searchHotelRes);
+      const searchHotelResWithTP = tourPlaceHotel.map(v => v.searchHotelRes);
 
       // 식당 검색
       const restaurantResult = await getTourPlaceFromDB('RESTAURANT');
@@ -2807,7 +2800,7 @@ export const getRecommendListFromDB = asyncWrapper(
 
       const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
         filterHotelWithMoney({
-          hotels: searchHotelRes,
+          hotels: searchHotelResWithTP,
           minMoney,
           maxMoney,
           travelNights,
@@ -2828,21 +2821,21 @@ export const getRecommendListFromDB = asyncWrapper(
       let midHotel: SearchHotelResWithTourPlace | undefined;
       let maxHotel: SearchHotelResWithTourPlace | undefined;
       let minNodeLists: ScheduleNodeList = {
-        hotel: searchHotelRes,
-        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
-        spot: spotResult.slice(0, spotPerDay * travelDays),
+        hotel: searchHotelResWithTP,
+        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
+        spot: spotResult.slice(0, gSpotPerDay * travelDays),
       };
 
       let midNodeLists = {
-        hotel: searchHotelRes,
-        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
-        spot: spotResult.slice(0, spotPerDay * travelDays),
+        hotel: searchHotelResWithTP,
+        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
+        spot: spotResult.slice(0, gSpotPerDay * travelDays),
       };
 
       let maxNodeLists = {
-        hotel: searchHotelRes,
-        restaurant: restaurantResult.slice(0, mealPerDay * travelDays),
-        spot: spotResult.slice(0, spotPerDay * travelDays),
+        hotel: searchHotelResWithTP,
+        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
+        spot: spotResult.slice(0, gSpotPerDay * travelDays),
       };
 
       arr.reduce((acc: VisitSchedules, cur, idx) => {
@@ -2882,13 +2875,14 @@ export const getRecommendListFromDB = asyncWrapper(
           });
           const mealOrder = new MealOrder();
           let nextMealOrder = mealOrder.getNextMealOrder();
-          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
-            if (nextMealOrder === i) {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: minNodeLists,
+          for (let order = 0; order < gSpotPerDay + gMealPerDay; order += 1) {
+            if (nextMealOrder === order) {
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: minNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0].data;
+              destination =
+                distanceMapsFromStartNode.sortedRestaurants[0].nodeData;
               thatDayRestaurantFromMinHotel.push(destination);
               thatDayVisitOrderFromMinHotel.push({
                 type: 'restaurant',
@@ -2897,24 +2891,19 @@ export const getRecommendListFromDB = asyncWrapper(
               prevDest = destination;
               minNodeLists = {
                 ...minNodeLists,
-                restaurant: (
-                  distanceMapsFromBase.withRestaurants as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                restaurant: distanceMapsFromStartNode.sortedRestaurants
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMinHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedRestaurants.length), // 방금 thatDayRestaurantFromMinHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
               nextMealOrder = mealOrder.getNextMealOrder();
             } else {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: minNodeLists,
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: minNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0].data;
+              destination = distanceMapsFromStartNode.sortedSpots[0].nodeData;
               thatDaySpotFromMinHotel.push(destination);
               thatDayVisitOrderFromMinHotel.push({
                 type: 'spot',
@@ -2924,16 +2913,11 @@ export const getRecommendListFromDB = asyncWrapper(
 
               minNodeLists = {
                 ...minNodeLists,
-                spot: (
-                  distanceMapsFromBase.withSpots as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                spot: distanceMapsFromStartNode.sortedSpots
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMinHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedSpots.length), // 방금 thatDaySpotFromMinHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
             }
           }
@@ -2947,7 +2931,6 @@ export const getRecommendListFromDB = asyncWrapper(
         const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
         if (midMoneyHotel) {
           let destination: GglNearbySearchResWithGeoNTourPlace;
-
           let prevDest:
             | SearchHotelResWithTourPlace
             | GglNearbySearchResWithGeoNTourPlace = midMoneyHotel;
@@ -2957,13 +2940,15 @@ export const getRecommendListFromDB = asyncWrapper(
           });
           const mealOrder = new MealOrder();
           let nextMealOrder = mealOrder.getNextMealOrder();
-          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
-            if (nextMealOrder === i) {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: midNodeLists,
+
+          for (let order = 0; order < gSpotPerDay + gMealPerDay; order += 1) {
+            if (nextMealOrder === order) {
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: midNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0].data;
+              destination =
+                distanceMapsFromStartNode.sortedRestaurants[0].nodeData;
               thatDayRestaurantFromMidHotel.push(destination);
               thatDayVisitOrderFromMidHotel.push({
                 type: 'restaurant',
@@ -2973,24 +2958,19 @@ export const getRecommendListFromDB = asyncWrapper(
 
               midNodeLists = {
                 ...midNodeLists,
-                restaurant: (
-                  distanceMapsFromBase.withRestaurants as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                restaurant: distanceMapsFromStartNode.sortedRestaurants
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMidHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedRestaurants.length), // 방금 thatDayRestaurantFromMidHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
               nextMealOrder = mealOrder.getNextMealOrder();
             } else {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: midNodeLists,
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: midNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0].data;
+              destination = distanceMapsFromStartNode.sortedSpots[0].nodeData;
               thatDaySpotFromMidHotel.push(destination);
               thatDayVisitOrderFromMidHotel.push({
                 type: 'spot',
@@ -2999,16 +2979,11 @@ export const getRecommendListFromDB = asyncWrapper(
               prevDest = destination;
               midNodeLists = {
                 ...midNodeLists,
-                spot: (
-                  distanceMapsFromBase.withSpots as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                spot: distanceMapsFromStartNode.sortedSpots
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMidHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedSpots.length), // 방금 thatDaySpotFromMidHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
             }
           }
@@ -3031,13 +3006,14 @@ export const getRecommendListFromDB = asyncWrapper(
           });
           const mealOrder = new MealOrder();
           let nextMealOrder = mealOrder.getNextMealOrder();
-          for (let i = 0; i < spotPerDay + mealPerDay; i += 1) {
-            if (nextMealOrder === i) {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: maxNodeLists,
+          for (let order = 0; order < gSpotPerDay + gMealPerDay; order += 1) {
+            if (nextMealOrder === order) {
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: maxNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0].data;
+              destination =
+                distanceMapsFromStartNode.sortedRestaurants[0].nodeData;
               thatDayRestaurantFromMaxHotel.push(destination);
               thatDayVisitOrderFromMaxHotel.push({
                 type: 'restaurant',
@@ -3046,24 +3022,19 @@ export const getRecommendListFromDB = asyncWrapper(
               prevDest = destination;
               maxNodeLists = {
                 ...maxNodeLists,
-                restaurant: (
-                  distanceMapsFromBase.withRestaurants as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                restaurant: distanceMapsFromStartNode.sortedRestaurants
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withRestaurants.length), // 방금 thatDayRestaurantFromMaxHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedRestaurants.length), // 방금 thatDayRestaurantFromMaxHotel push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
               nextMealOrder = mealOrder.getNextMealOrder();
             } else {
-              const distanceMapsFromBase = orderByDistanceFromNode({
-                baseNode: prevDest,
-                scheduleNodeLists: maxNodeLists,
+              const distanceMapsFromStartNode = orderByDistanceFromNode({
+                startNode: prevDest,
+                nodePool: maxNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0].data;
+              destination = distanceMapsFromStartNode.sortedSpots[0].nodeData;
               thatDaySpotFromMaxHotel.push(destination);
               thatDayVisitOrderFromMaxHotel.push({
                 type: 'spot',
@@ -3072,16 +3043,11 @@ export const getRecommendListFromDB = asyncWrapper(
               prevDest = destination;
               maxNodeLists = {
                 ...maxNodeLists,
-                spot: (
-                  distanceMapsFromBase.withSpots as {
-                    data: GglNearbySearchResWithGeoNTourPlace;
-                    distance: number;
-                  }[]
-                )
+                spot: distanceMapsFromStartNode.sortedSpots
                   .map(s => {
-                    return s.data;
+                    return s.nodeData;
                   })
-                  .slice(1, distanceMapsFromBase.withSpots.length), // 방금 thatDaySpotFromMaxHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
+                  .slice(1, distanceMapsFromStartNode.sortedSpots.length), // 방금 thatDaySpotFromMaxHotel에 push 등록한 장소는(맨앞 0번째 항목) 제외한다.
               };
             }
           }
@@ -3161,11 +3127,11 @@ export const getRecommendListFromDB = asyncWrapper(
         ...omit(hotelQueryParamsDataFromDB[0], 'id', 'tourPlace'),
         // totalNearbySearchCount: gglNearbySearchRes.length,
         metaInfo: {
-          totalHotelSearchCount: searchHotelRes.length,
+          totalHotelSearchCount: searchHotelResWithTP.length,
           totalRestaurantSearchCount: restaurantResult.length,
           totalSpotSearchCount: spotResult.length,
-          spotPerDay,
-          mealPerDay,
+          spotPerDay: gSpotPerDay,
+          mealPerDay: gMealPerDay,
           mealSchedule: new MealOrder().mealOrder,
           travelNights,
           travelDays,

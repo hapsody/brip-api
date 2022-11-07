@@ -5,10 +5,10 @@ import { IBResFormat } from '@src/utils';
 // import { User } from '@prisma/client';
 import {
   GetRecommendListWithLatLngtRetParams,
-  // GetRecommendListWithLatLngtInnerAsyncFnRetParams,
+  // GetRecommendListWithLatLngtInnerFnRetParams,
 } from '../../../types/schduleTypes';
 import // getTravelNights,
-// getListQueryParamsInnerAsyncFn,
+// getListQueryParamsInnerFn,
 // orderByDistanceFromNode,
 '../../../schedule';
 

@@ -19,8 +19,8 @@ import {
 import {
   ReqScheduleRetParams,
   ReqScheduleResponsePayload,
-  spotPerDay,
-  mealPerDay,
+  gSpotPerDay,
+  gMealPerDay,
   gHotelTransition,
 } from '../../../types/schduleTypes';
 
@@ -196,8 +196,8 @@ describe('Correct case test', () => {
       expect(queryParams.savedSchedule).toBeNull(); /// 아직 saveSchedule 호출하지 않은 상태
       /// 생성된 queryParams 필드 검증 > metaScheduleInfo
       expect(queryParams.metaScheduleInfo).not.toBeNull();
-      expect(queryParams.metaScheduleInfo?.spotPerDay).toBe(spotPerDay);
-      expect(queryParams.metaScheduleInfo?.mealPerDay).toBe(mealPerDay);
+      expect(queryParams.metaScheduleInfo?.spotPerDay).toBe(gSpotPerDay);
+      expect(queryParams.metaScheduleInfo?.mealPerDay).toBe(gMealPerDay);
       expect(queryParams.metaScheduleInfo?.hotelTransition).toBe(
         gHotelTransition,
       );
@@ -241,7 +241,7 @@ describe('Correct case test', () => {
         .filter(v => v) as GglNearbySearchRes[];
       expect(isDuplicated(restaurantTP)).toBe(false);
       expect(restaurantTP.length).toBeGreaterThanOrEqual(
-        mealPerDay * travelNights + 1,
+        gMealPerDay * travelNights + 1,
       );
 
       const spotTP = queryParams.tourPlace
@@ -255,7 +255,7 @@ describe('Correct case test', () => {
         .filter(v => v) as GglNearbySearchRes[];
       expect(isDuplicated(spotTP)).toBe(false);
       expect(spotTP.length).toBeGreaterThanOrEqual(
-        spotPerDay * travelNights + 1,
+        gSpotPerDay * travelNights + 1,
       );
     });
   });
