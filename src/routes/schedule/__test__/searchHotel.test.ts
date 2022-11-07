@@ -4,7 +4,7 @@ import prisma from '@src/prisma';
 // import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
 import { ibDefs, IBResFormat } from '@src/utils';
-import { SearchHotelResponse } from '../types/schduleTypes';
+import { SearchHotelRetParams } from '../types/schduleTypes';
 import { params } from './getRecommendListWithLatLngt/__test__/testData';
 
 jest.setTimeout(120000);
@@ -40,7 +40,7 @@ describe('Schedule Express Router E2E Test', () => {
           },
         });
 
-      const result = response.body as SearchHotelResponse;
+      const result = response.body as SearchHotelRetParams;
       expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
       expect(result.IBparams.hotelSearchCount).toBeGreaterThan(0);
       expect(result.IBparams.hotelSearchResult).not.toBeFalsy();

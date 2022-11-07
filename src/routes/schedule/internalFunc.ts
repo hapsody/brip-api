@@ -15,15 +15,15 @@ import {
   SearchedData,
   GetListQueryParamsReqParams,
   GetRecommendListWithLatLngtReqParams,
-  GetRecommendListWithLatLngtInnerAsyncFnResponse,
+  GetRecommendListWithLatLngtInnerAsyncFnRetParams,
   VisitSchedules,
   defaultQueryParams,
-  GetListQueryParamsInnerAsyncFnResponse,
+  GetListQueryParamsInnerAsyncFnRetParams,
   SearchLocationsFromBookingComReqParams,
   SearchLocationsFromBookingComRawResponse,
-  SearchLocationsFromBookingComInnerAsyncFnResponse,
+  SearchLocationsFromBookingComInnerAsyncFnRetParams,
   FiltersForSearchFromBookingComReqParams,
-  FiltersForSearchFromBookingComInnerAsyncFnResponse,
+  FiltersForSearchFromBookingComInnerAsyncFnRetParams,
   FiltersForSearchFromBookingRawResponse,
   getQueryParamsForHotel,
   getQueryParamsForRestaurant,
@@ -40,13 +40,13 @@ import {
   maxHotelBudgetPortion,
   VisitOrder,
   flexPortionLimit,
-  GetPlaceDetailResponse,
+  GetPlaceDetailRawResponse,
   GooglePriceLevel,
   TextSearchReqParams,
   SyncVisitJejuDataReqParams,
-  SyncVisitJejuDataResponsePayload,
+  SyncVisitJejuDataRetParamsPayload,
   SearchHotelResWithTourPlace,
-  TextSearchInnerAsyncFnRes,
+  TextSearchInnerAsyncFnRetParams,
   GglPlaceDetailType,
   gHotelTransition,
   gRadius,
@@ -54,6 +54,8 @@ import {
   FavoriteAccommodationType,
   FavoriteAccommodationLocation,
   gCurrency,
+  FilterHotelWithBudgetReqParams,
+  FilterHotelWithBudgetRetParams,
 } from './types/schduleTypes';
 
 const language = 'ko';
@@ -367,7 +369,7 @@ export const storeDataRelatedWithQueryParams = async (params: {
 
 export const searchLocationsFromBookingComInnerAsyncFn = async (
   params: SearchLocationsFromBookingComReqParams,
-): Promise<SearchLocationsFromBookingComInnerAsyncFnResponse[]> => {
+): Promise<SearchLocationsFromBookingComInnerAsyncFnRetParams[]> => {
   const { name, mock = true } = params;
 
   if (mock) {
@@ -408,7 +410,7 @@ export const searchLocationsFromBookingComInnerAsyncFn = async (
 
 export const filterForSearchFromBookingComInnerAsyncFn = async (
   params: FiltersForSearchFromBookingComReqParams,
-): Promise<FiltersForSearchFromBookingComInnerAsyncFnResponse> => {
+): Promise<FiltersForSearchFromBookingComInnerAsyncFnRetParams> => {
   const {
     adultsNumber,
     destType,
@@ -514,7 +516,7 @@ export const textSearchInnerAsyncFn = async (params: {
   textSearchReqParams: TextSearchReqParams;
   batchJobId?: number;
   ifAlreadyQueryId?: number;
-}): Promise<TextSearchInnerAsyncFnRes> => {
+}): Promise<TextSearchInnerAsyncFnRetParams> => {
   const { textSearchReqParams, batchJobId, ifAlreadyQueryId } = params;
   const {
     // location,
@@ -947,10 +949,10 @@ export const searchHotelInnerAsyncFn = async (
  */
 export const getListQueryParamsInnerAsyncFn = async (
   params: GetListQueryParamsReqParams,
-): Promise<GetListQueryParamsInnerAsyncFnResponse> => {
+): Promise<GetListQueryParamsInnerAsyncFnRetParams> => {
   const queryParamsDataFromDB = await prisma.queryParams.findMany(params);
 
-  return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnResponse;
+  return queryParamsDataFromDB as GetListQueryParamsInnerAsyncFnRetParams;
 };
 
 export const getDistance = ({
@@ -1063,16 +1065,9 @@ export const orderByDistanceFromNode = ({
   };
 };
 
-export const filterHotelWithBudget = (params: {
-  hotels: SearchHotelResWithTourPlace[];
-  minBudget: number;
-  maxBudget: number;
-  travelNights: number;
-}): {
-  minFilteredHotels: SearchHotelResWithTourPlace[];
-  midFilteredHotels: SearchHotelResWithTourPlace[];
-  maxFilteredHotels: SearchHotelResWithTourPlace[];
-} => {
+export const filterHotelWithBudget = (
+  params: FilterHotelWithBudgetReqParams,
+): FilterHotelWithBudgetRetParams => {
   const { hotels, minBudget, maxBudget, travelNights } = params;
   const copiedHotelRes = Array.from(hotels).reverse();
 
@@ -1105,7 +1100,7 @@ export const filterHotelWithBudget = (params: {
 
 export const getRecommendListWithLatLngtInnerAsyncFn = async (
   params: GetRecommendListWithLatLngtReqParams,
-): Promise<GetRecommendListWithLatLngtInnerAsyncFnResponse> => {
+): Promise<GetRecommendListWithLatLngtInnerAsyncFnRetParams> => {
   if (isEmpty(params)) {
     throw new IBError({
       type: 'INVALIDPARAMS',
@@ -1680,7 +1675,7 @@ export const getPlaceDetail = async (params: {
       process.env.GCP_MAPS_APIKEY as string
     }`;
     const rawResponse = await axios.get(encodeURI(queryUrl));
-    const fetchedData = rawResponse.data as GetPlaceDetailResponse;
+    const fetchedData = rawResponse.data as GetPlaceDetailRawResponse;
     return fetchedData.result;
   } catch (err) {
     throw new IBError({
@@ -1704,7 +1699,7 @@ export const transPriceLevel = (
  */
 export const getVisitJejuDataInnerAsyncFn = async (
   params: SyncVisitJejuDataReqParams,
-): Promise<SyncVisitJejuDataResponsePayload> => {
+): Promise<SyncVisitJejuDataRetParamsPayload> => {
   const { locale, page, cid } = params;
 
   const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
@@ -1714,7 +1709,7 @@ export const getVisitJejuDataInnerAsyncFn = async (
   }`;
   const jejuRawRes = await axios.get(option);
   console.log(option);
-  const jejuRes = jejuRawRes.data as SyncVisitJejuDataResponsePayload;
+  const jejuRes = jejuRawRes.data as SyncVisitJejuDataRetParamsPayload;
 
   return jejuRes;
 };

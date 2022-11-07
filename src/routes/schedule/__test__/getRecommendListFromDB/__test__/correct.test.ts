@@ -9,7 +9,7 @@ import {
   ReqNonMembersUserTokenSuccessResType,
 } from '../../../../auth';
 import {
-  GetListQueryParamsResponse,
+  GetListQueryParamsRetParams,
   minHotelBudgetPortion,
   midHotelBudgetPortion,
   maxHotelBudgetPortion,
@@ -21,7 +21,7 @@ import {
   flexPortionLimit,
   getQueryParamsForHotel,
   SearchHotelResWithTourPlace,
-  GetRecommendListFromDBResponse,
+  GetRecommendListFromDBRetParams,
   GetRecommendListFromDBResponsePayload,
   gRadius,
   gCurrency,
@@ -45,7 +45,7 @@ import {
 } from './testData';
 
 let queryParamId = -1;
-let recommendRawResult: GetRecommendListFromDBResponse;
+let recommendRawResult: GetRecommendListFromDBRetParams;
 let recommendRes: GetRecommendListFromDBResponsePayload;
 beforeAll(async () => {
   const mockData = await prisma.mockBookingDotComHotelResource.findMany();
@@ -72,7 +72,7 @@ beforeAll(async () => {
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(params.mainResource);
 
-  recommendRawResult = response.body as GetRecommendListFromDBResponse;
+  recommendRawResult = response.body as GetRecommendListFromDBRetParams;
   recommendRes =
     recommendRawResult.IBparams as GetRecommendListFromDBResponsePayload;
   queryParamId = recommendRes.id;
@@ -151,7 +151,7 @@ describe('Correct case test', () => {
             },
           },
         });
-      const { tourPlace } = (checkResponse.body as GetListQueryParamsResponse)
+      const { tourPlace } = (checkResponse.body as GetListQueryParamsRetParams)
         .IBparams[0];
       const checkHotelRes = tourPlace.map(v => v.searchHotelRes);
       const {

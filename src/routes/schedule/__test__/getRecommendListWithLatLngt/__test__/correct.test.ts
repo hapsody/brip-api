@@ -5,9 +5,9 @@ import prisma from '@src/prisma';
 import { ibDefs, IBResFormat } from '@src/utils';
 import { GglNearbySearchRes, SearchHotelRes } from '@prisma/client';
 import {
-  GetRecommendListWithLatLngtResponse,
-  GetListQueryParamsResponse,
-  GetRecommendListWithLatLngtInnerAsyncFnResponse,
+  GetRecommendListWithLatLngtRetParams,
+  GetListQueryParamsRetParams,
+  GetRecommendListWithLatLngtInnerAsyncFnRetParams,
   getQueryParamsForRestaurant,
   getQueryParamsForTourSpot,
   minHotelBudgetPortion,
@@ -40,8 +40,8 @@ import {
 } from './testData';
 
 let queryParamId = -1;
-let recommendRawResult: GetRecommendListWithLatLngtResponse;
-let recommendRes: GetRecommendListWithLatLngtInnerAsyncFnResponse;
+let recommendRawResult: GetRecommendListWithLatLngtRetParams;
+let recommendRes: GetRecommendListWithLatLngtInnerAsyncFnRetParams;
 beforeAll(async () => {
   const mockData = await prisma.mockBookingDotComHotelResource.findMany();
   if (mockData.length === 0) {
@@ -56,9 +56,9 @@ beforeAll(async () => {
     .post('/schedule/getRecommendListWithLatLngt')
     .send(params);
 
-  recommendRawResult = response.body as GetRecommendListWithLatLngtResponse;
+  recommendRawResult = response.body as GetRecommendListWithLatLngtRetParams;
   recommendRes =
-    recommendRawResult.IBparams as GetRecommendListWithLatLngtInnerAsyncFnResponse;
+    recommendRawResult.IBparams as GetRecommendListWithLatLngtInnerAsyncFnRetParams;
   queryParamId = recommendRes.id;
 });
 
@@ -147,7 +147,7 @@ describe('Correct case test', () => {
             },
           },
         });
-      const { tourPlace } = (checkResponse.body as GetListQueryParamsResponse)
+      const { tourPlace } = (checkResponse.body as GetListQueryParamsRetParams)
         .IBparams[0];
       const checkHotelRes = tourPlace.map(v => v.searchHotelRes);
       const {

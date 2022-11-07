@@ -3,7 +3,7 @@ import app from '@src/app';
 // import prisma from '@src/prisma';
 // import { User } from '@prisma/client';
 import { ibDefs } from '@src/utils';
-import { NearbySearchResponse } from '../types/schduleTypes';
+import { NearbySearchRetParams } from '../types/schduleTypes';
 
 jest.setTimeout(120000);
 
@@ -24,7 +24,7 @@ describe('Schedule Express Router E2E Test', () => {
           },
         });
 
-      const result = response.body as NearbySearchResponse;
+      const result = response.body as NearbySearchRetParams;
       expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
       expect(result.IBparams.nearbySearchCount).not.toBeFalsy();
       expect(result.IBparams.nearbySearchCount).toBeGreaterThan(0);

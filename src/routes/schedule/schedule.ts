@@ -34,17 +34,15 @@ import {
   defaultSearchHotelReqParams,
   GetListQueryParamsReqParams,
   GetRecommendListWithLatLngtReqParams,
-  GetRecommendListWithLatLngtResponse,
-  defaultQueryParams,
-  NearbySearchResponse,
-  SearchHotelResponse,
-  CompositeSearchResponse,
-  GetListQueryParamsResponse,
+  GetRecommendListWithLatLngtRetParams,
+  NearbySearchRetParams,
+  SearchHotelRetParams,
+  GetListQueryParamsRetParams,
   SearchLocationsFromBookingComReqParams,
-  SearchLocationsFromBookingComResponse,
+  SearchLocationsFromBookingComRetParams,
   SearchLocationsFromBookingComRawResponse,
   FiltersForSearchFromBookingComReqParams,
-  FiltersForSearchFromBookingComResponse,
+  FiltersForSearchFromBookingComRetParams,
   GglNearbySearchResWithGeoNTourPlace,
   SearchHotelReqParams,
   mealPerDay,
@@ -52,38 +50,38 @@ import {
   gHotelTransition,
   gRadius,
   ReqScheduleParams,
-  ReqScheduleResponse,
+  ReqScheduleRetParams,
   FavoriteTravelType,
   GetScheduleParams,
-  GetScheduleResponse,
-  GetScheduleListParams,
-  GetScheduleListResponse,
-  SaveScheduleParams,
-  SaveScheduleResponse,
-  GetDayScheduleParams,
-  GetDayScheduleResponse,
-  GetDayScheduleResponsePayload,
-  GetDetailScheduleParams,
-  GetDetailScheduleResponse,
-  GetDetailScheduleResponsePayload,
+  GetScheduleRetParams,
+  GetScheduleListReqParams,
+  GetScheduleListRetParams,
+  SaveScheduleReqParams,
+  SaveScheduleRetParams,
+  GetDayScheduleReqParams,
+  GetDayScheduleRetParams,
+  GetDayScheduleRetParamsPayload,
+  GetDetailScheduleReqParams,
+  GetDetailScheduleRetParams,
+  GetDetailScheduleRetParamsPayload,
   GglPlaceDetailType,
   GooglePlaceReview,
-  GetCandidateScheduleParams,
-  GetCandidateScheduleResponse,
-  ModifyScheduleParams,
-  ModifyScheduleResponse,
-  GetCandidateDetailScheduleParams,
-  GetCandidateDetailScheduleResponse,
-  GetCandidateDetailScheduleResponsePayload,
-  TextSearchResponse,
+  GetCandidateScheduleReqParams,
+  GetCandidateScheduleRetParams,
+  ModifyScheduleReqParams,
+  ModifyScheduleRetParams,
+  GetCandidateDetailScheduleReqParams,
+  GetCandidateDetailScheduleRetParams,
+  GetCandidateDetailScheduleRetParamsPayload,
   TextSearchReqParams,
+  TextSearchRetParams,
   SyncVisitJejuDataReqParams,
-  SyncVisitJejuDataResponse,
+  SyncVisitJejuDataRetParams,
   GetVisitJejuDataReqParams,
   // GetVisitJejuDataResponsePayload,
-  GetVisitJejuDataResponse,
+  GetVisitJejuDataRetParams,
   GetRecommendListFromDBReqParams,
-  GetRecommendListFromDBResponse,
+  GetRecommendListFromDBRetParams,
   // GetRecommendListFromDBResponsePayload,
   gCurrency,
   // FavoriteAccommodationLocation,
@@ -123,7 +121,7 @@ const scheduleRouter: express.Application = express();
 export const nearbySearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryReqParams>,
-    res: Express.IBTypedResponse<NearbySearchResponse>,
+    res: Express.IBTypedResponse<NearbySearchRetParams>,
   ) => {
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
     const queryReqParams = req.body;
@@ -159,7 +157,7 @@ export const nearbySearch = asyncWrapper(
 export const searchHotel = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<QueryReqParams>,
-    res: Express.IBTypedResponse<SearchHotelResponse>,
+    res: Express.IBTypedResponse<SearchHotelRetParams>,
   ) => {
     const queryReqParams = req.body;
     const { hotelSearchResult } = await searchHotelInnerAsyncFn(queryReqParams);
@@ -176,73 +174,6 @@ export const searchHotel = asyncWrapper(
 
 /**
  * internal(함수 내부 개발중 데이터 확인용 함수)
- * nearbySearch 와 hotelSearch를 복합 검색하도록 nearbySearchInnerAsyncFn과 hotelSearchInnerAsyncFn를 함께 호출하는 api endpoint 함수
- * 여행일수에 해당하는 관광지 수를 충분히 확보할수 있도록 수가 부족할 경우 범위를 늘려(radiusExtending) 재검색하는 기능을 포함한다.
- * 범위를 늘려 재검색하면 DB에는
- */
-export const compositeSearch = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<QueryReqParams>,
-    res: Express.IBTypedResponse<CompositeSearchResponse>,
-  ) => {
-    const queryReqParams = req.body;
-    // const { searchHotelReqParams, nearbySearchReqParams } = queryReqParams;
-
-    const { hotelSearchResult, queryParamId } = await searchHotelInnerAsyncFn(
-      queryReqParams,
-    );
-
-    let nearbySearchResult: google.maps.places.IBPlaceResult[] = [];
-
-    const travelNights = getTravelNights(
-      queryReqParams.searchHotelReqParams.checkinDate,
-      queryReqParams.searchHotelReqParams.checkoutDate,
-    );
-    const travelDays = travelNights + 1;
-
-    const radiusExtendRetryLimit = 5;
-    let radiusExtendRetry = 1;
-    /* radius extend repeat */
-    while (
-      nearbySearchResult.length < travelDays * spotPerDay &&
-      radiusExtendRetry <= radiusExtendRetryLimit
-    ) {
-      if (radiusExtendRetry > 1)
-        console.log(
-          `allpage nearbySearchResult: ${nearbySearchResult.length} radiusExtendRetry:${radiusExtendRetry}`,
-        );
-      const radiusModifiedQueryParams = {
-        ...defaultQueryParams,
-        searchHotelReqParams: queryReqParams.searchHotelReqParams,
-        nearbySearchReqParams: {
-          ...queryReqParams.nearbySearchReqParams,
-          radius:
-            queryReqParams.nearbySearchReqParams.radius * radiusExtendRetry,
-        },
-      };
-      // eslint-disable-next-line no-await-in-loop
-      nearbySearchResult = await getAllNearbySearchPages(
-        radiusModifiedQueryParams,
-        queryParamId,
-        queryReqParams.nearbySearchReqParams.loadAll,
-      );
-      radiusExtendRetry += 1;
-    }
-
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: {
-        hotelSearchCount: hotelSearchResult.length,
-        nearbySearchCount: nearbySearchResult.length,
-        hotelSearchResult,
-        nearbySearchResult,
-      },
-    });
-  },
-);
-
-/**
- * internal(함수 내부 개발중 데이터 확인용 함수)
  * DB로부터 QueryParams 모델 데이터를 불러 응신한다.
  * 구글 nearbySearch, rapid api booking.com hotelSearch를 한번의 쿼리로 복합 검색시(compositeSearch / getRecommendListWithLatLngt 등 ...)
  * 하나의 QueryParams 와 관계된 모든 데이터를 요청하는 /getListQueryParams api의 주요 내부 동작 함수인 getListQueryParamsInnerAsyncFn를 호출할 wrapper endpoint api 함수이다.
@@ -250,7 +181,7 @@ export const compositeSearch = asyncWrapper(
 const getListQueryParams = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetListQueryParamsReqParams>,
-    res: Express.IBTypedResponse<GetListQueryParamsResponse>,
+    res: Express.IBTypedResponse<GetListQueryParamsRetParams>,
   ) => {
     const params = req.body;
     const queryParamsDataFromDB = await getListQueryParamsInnerAsyncFn(params);
@@ -265,7 +196,7 @@ const getListQueryParams = asyncWrapper(
 const getRecommendListWithLatLngt = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetRecommendListWithLatLngtReqParams>,
-    res: Express.IBTypedResponse<GetRecommendListWithLatLngtResponse>,
+    res: Express.IBTypedResponse<GetRecommendListWithLatLngtRetParams>,
   ) => {
     try {
       const params = req.body;
@@ -295,7 +226,7 @@ const getRecommendListWithLatLngt = asyncWrapper(
 const filtersForSearchFromBookingCom = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<FiltersForSearchFromBookingComReqParams>,
-    res: Express.IBTypedResponse<FiltersForSearchFromBookingComResponse>,
+    res: Express.IBTypedResponse<FiltersForSearchFromBookingComRetParams>,
   ) => {
     const params = req.body;
     const data = await filterForSearchFromBookingComInnerAsyncFn(params);
@@ -309,7 +240,7 @@ const filtersForSearchFromBookingCom = asyncWrapper(
 const searchLocationsFromBookingCom = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<SearchLocationsFromBookingComReqParams>,
-    res: Express.IBTypedResponse<SearchLocationsFromBookingComResponse>,
+    res: Express.IBTypedResponse<SearchLocationsFromBookingComRetParams>,
   ) => {
     const params = req.body;
 
@@ -593,7 +524,7 @@ export const addMockSearchLocationsResource = asyncWrapper(
 
 export const reqSchedule = (
   req: Express.IBTypedReqBody<ReqScheduleParams>,
-  res: Express.IBTypedResponse<ReqScheduleResponse>,
+  res: Express.IBTypedResponse<ReqScheduleRetParams>,
 ): void => {
   try {
     const watchStart = moment();
@@ -867,7 +798,7 @@ export const reqSchedule = (
 export const getSchedule = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetScheduleParams>,
-    res: Express.IBTypedResponse<GetScheduleResponse>,
+    res: Express.IBTypedResponse<GetScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -1002,8 +933,8 @@ export const getSchedule = asyncWrapper(
 
 export const getScheduleList = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetScheduleListParams>,
-    res: Express.IBTypedResponse<GetScheduleListResponse>,
+    req: Express.IBTypedReqBody<GetScheduleListReqParams>,
+    res: Express.IBTypedResponse<GetScheduleListRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -1089,8 +1020,8 @@ export const getScheduleList = asyncWrapper(
 
 export const saveSchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<SaveScheduleParams>,
-    res: Express.IBTypedResponse<SaveScheduleResponse>,
+    req: Express.IBTypedReqBody<SaveScheduleReqParams>,
+    res: Express.IBTypedResponse<SaveScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -1207,8 +1138,8 @@ export const saveSchedule = asyncWrapper(
 
 export const getDaySchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetDayScheduleParams>,
-    res: Express.IBTypedResponse<GetDayScheduleResponse>,
+    req: Express.IBTypedReqBody<GetDayScheduleReqParams>,
+    res: Express.IBTypedResponse<GetDayScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -1262,7 +1193,7 @@ export const getDaySchedule = asyncWrapper(
         });
       }
 
-      const spotList: Pick<GetDayScheduleResponsePayload, 'spotList'> = {
+      const spotList: Pick<GetDayScheduleRetParamsPayload, 'spotList'> = {
         spotList: queryParams.visitSchedule.map(v => {
           const vType: PlaceType = v.tourPlace?.tourPlaceType ?? 'SPOT';
           const place = (() => {
@@ -1410,7 +1341,7 @@ export const getDaySchedule = asyncWrapper(
         }),
       };
 
-      const retValue: GetDayScheduleResponsePayload = {
+      const retValue: GetDayScheduleRetParamsPayload = {
         id: queryParams.id.toString(),
         dayCount: Number(day),
         contentsCountAll: spotList.spotList.length,
@@ -1448,8 +1379,8 @@ export const getDaySchedule = asyncWrapper(
 
 export const getDetailSchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetDetailScheduleParams>,
-    res: Express.IBTypedResponse<GetDetailScheduleResponse>,
+    req: Express.IBTypedReqBody<GetDetailScheduleReqParams>,
+    res: Express.IBTypedResponse<GetDetailScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -1508,7 +1439,7 @@ export const getDetailSchedule = asyncWrapper(
       }
 
       const retValue =
-        await (async (): Promise<GetDetailScheduleResponsePayload> => {
+        await (async (): Promise<GetDetailScheduleRetParamsPayload> => {
           const tourPlaceType = visitSchedule.tourPlace?.tourPlaceType;
           if (tourPlaceType === 'HOTEL') {
             const {
@@ -1848,8 +1779,8 @@ export const getDetailSchedule = asyncWrapper(
 
 export const getCandidateSchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetCandidateScheduleParams>,
-    res: Express.IBTypedResponse<GetCandidateScheduleResponse>,
+    req: Express.IBTypedReqBody<GetCandidateScheduleReqParams>,
+    res: Express.IBTypedResponse<GetCandidateScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -2165,8 +2096,8 @@ export const getHotelPhotos = asyncWrapper(
 
 export const modifySchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<ModifyScheduleParams>,
-    res: Express.IBTypedResponse<ModifyScheduleResponse>,
+    req: Express.IBTypedReqBody<ModifyScheduleReqParams>,
+    res: Express.IBTypedResponse<ModifyScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -2249,8 +2180,8 @@ export const modifySchedule = asyncWrapper(
 
 export const getCandidateDetailSchedule = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetCandidateDetailScheduleParams>,
-    res: Express.IBTypedResponse<GetCandidateDetailScheduleResponse>,
+    req: Express.IBTypedReqBody<GetCandidateDetailScheduleReqParams>,
+    res: Express.IBTypedResponse<GetCandidateDetailScheduleRetParams>,
   ) => {
     try {
       const { locals } = req;
@@ -2317,7 +2248,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
       }
 
       const retValue =
-        await (async (): Promise<GetCandidateDetailScheduleResponsePayload> => {
+        await (async (): Promise<GetCandidateDetailScheduleRetParamsPayload> => {
           if (candidateSpotType.toUpperCase() === 'HOTEL') {
             const hotelTourPlace = candidateSchedule as TourPlace & {
               searchHotelRes: SearchHotelRes;
@@ -2667,7 +2598,7 @@ export const getCandidateDetailSchedule = asyncWrapper(
 export const textSearch = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<TextSearchReqParams>,
-    res: Express.IBTypedResponse<TextSearchResponse>,
+    res: Express.IBTypedResponse<TextSearchRetParams>,
   ) => {
     // const { nearbySearchResult } = await nearbySearchInnerAsyncFn(req.body);
     const textSearchReqParams = req.body;
@@ -2693,7 +2624,7 @@ export const textSearch = asyncWrapper(
 export const getVisitJejuData = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetVisitJejuDataReqParams>,
-    res: Express.IBTypedResponse<GetVisitJejuDataResponse>,
+    res: Express.IBTypedResponse<GetVisitJejuDataRetParams>,
   ) => {
     try {
       const syncVisitJejuDataReqParams = req.body;
@@ -2736,7 +2667,7 @@ export const getVisitJejuData = asyncWrapper(
 export const syncVisitJejuData = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<SyncVisitJejuDataReqParams>,
-    res: Express.IBTypedResponse<SyncVisitJejuDataResponse>,
+    res: Express.IBTypedResponse<SyncVisitJejuDataRetParams>,
   ) => {
     try {
       const syncVisitJejuDataReqParams = req.body;
@@ -2835,7 +2766,7 @@ export const syncVisitJejuData = asyncWrapper(
 export const getRecommendListFromDB = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetRecommendListFromDBReqParams>,
-    res: Express.IBTypedResponse<GetRecommendListFromDBResponse>,
+    res: Express.IBTypedResponse<GetRecommendListFromDBRetParams>,
   ) => {
     try {
       const {
@@ -3331,6 +3262,7 @@ export const getRecommendListFromDB = asyncWrapper(
 
         return acc;
       }, visitSchedules);
+
       const recommendList = {
         id: queryParamId,
         ...omit(hotelQueryParamsDataFromDB[0], 'id', 'tourPlace'),
@@ -3388,7 +3320,6 @@ export const getRecommendListFromDB = asyncWrapper(
 scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
-scheduleRouter.post('/compositeSearch', compositeSearch);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
 // scheduleRouter.post('/getRecommendList', getRecommendList);
 scheduleRouter.post(

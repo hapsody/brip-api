@@ -26,7 +26,7 @@ describe('Invalid parameter case tests', () => {
       //   .send()
       //   .expect(400);
       // const recommendRawResult =
-      //   response.body as GetRecommendListWithLatLngtResponse;
+      //   response.body as GetRecommendListWithLatLngtRetParams;
       // expect(recommendRawResult.IBcode).toBe('3001');
     });
   });

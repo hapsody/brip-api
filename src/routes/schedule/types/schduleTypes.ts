@@ -157,14 +157,14 @@ export type SearchedData = Omit<
   };
 };
 
-export type NearbySearchResponse = Omit<IBResFormat, 'IBparams'> & {
+export type NearbySearchRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {
     nearbySearchCount: number;
     nearbySearchResult: google.maps.places.IBPlaceResult[];
   };
 };
 
-export type TextSearchResponse = Omit<IBResFormat, 'IBparams'> & {
+export type TextSearchRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {
     textSearchCount: number;
     // textSearchResult: google.maps.places.IBPlaceResult[];
@@ -172,7 +172,7 @@ export type TextSearchResponse = Omit<IBResFormat, 'IBparams'> & {
   };
 };
 
-export type SearchHotelResponse = Omit<IBResFormat, 'IBparams'> & {
+export type SearchHotelRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {
     hotelSearchCount: number;
     hotelSearchResult: SearchedData[];
@@ -185,26 +185,6 @@ export interface NearbySearchInnerAsyncFnRes {
   pageToken: string | undefined;
 }
 
-// export type OrderSortType = 'desc' | 'asc';
-// export interface GetListQueryParamsReqParams {
-//   id?: number;
-//   hotelSearch?: {
-//     orderBy?: {
-//       column: keyof SearchHotelRes;
-//       sort?: OrderSortType;
-//     }[];
-//     // select?: [keyof SearchHotelRes];
-//     select?: Record<keyof SearchHotelRes, boolean>;
-//   };
-//   nearbySearch?: {
-//     orderBy?: {
-//       column: keyof GglNearbySearchRes;
-//       sort?: OrderSortType;
-//     }[];
-//     // select?: [keyof NearBySearchReqParams];
-//     select?: Record<keyof GglNearbySearchRes, boolean>;
-//   };
-// }
 export type GetListQueryParamsReqParams = Prisma.QueryParamsFindManyArgs;
 
 export interface GetRecommendListReqParams {
@@ -259,8 +239,9 @@ export type VisitOrder = {
   type: VisitPlaceType;
   data: VisitOrderDataType;
 };
+
 /// 일별 추천 일정 타입
-export type VisitSchedules = {
+export interface VisitSchedule {
   // spot: GglNearbySearchRes[];
   // restaurant: GglNearbySearchRes[];
   /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
@@ -284,9 +265,10 @@ export type VisitSchedules = {
     midBudgetHotel: SearchHotelResWithTourPlace | undefined;
     maxBudgetHotel: SearchHotelResWithTourPlace | undefined;
   };
-}[];
+}
+export type VisitSchedules = VisitSchedule[];
 
-export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
+export type GetRecommendListWithLatLngtInnerAsyncFnRetParams = QueryParams & {
   metaInfo: {
     // totalNearbySearchCount: number;
     totalHotelSearchCount: number;
@@ -311,44 +293,32 @@ export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
   visitSchedules: VisitSchedules;
   queryParamId: number;
 };
+
 export type GetRecommendListInnerAsyncFnResponse =
-  | (GetRecommendListWithLatLngtInnerAsyncFnResponse & {
+  | (GetRecommendListWithLatLngtInnerAsyncFnRetParams & {
       searchLocation: string;
     })
   | void;
 
-export type GetRecommendListWithLatLngtResponse = Omit<
+export type GetRecommendListWithLatLngtRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: GetRecommendListWithLatLngtInnerAsyncFnResponse | {};
+  IBparams: GetRecommendListWithLatLngtInnerAsyncFnRetParams | {};
 };
 
-export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetRecommendListInnerAsyncFnResponse | {};
-};
-
-export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {
-    hotelSearchCount: number;
-    nearbySearchCount: number;
-    hotelSearchResult: SearchedData[];
-    nearbySearchResult: google.maps.places.IBPlaceResult[];
-  };
-};
-
-export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
+export type GetListQueryParamsInnerAsyncFnRetParams = (QueryParams & {
   tourPlace: (TourPlace & {
     gglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace;
     searchHotelRes: SearchHotelResWithTourPlace;
   })[];
 })[];
 
-export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetListQueryParamsInnerAsyncFnResponse;
+export type GetListQueryParamsRetParams = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetListQueryParamsInnerAsyncFnRetParams;
 };
 
-export type TextSearchInnerAsyncFnRes = Omit<
+export type TextSearchInnerAsyncFnRetParams = Omit<
   NearbySearchInnerAsyncFnRes,
   'nearbySearchResult'
 > & {
@@ -356,7 +326,7 @@ export type TextSearchInnerAsyncFnRes = Omit<
 };
 
 /* 
-GetListQueryParamsResponse ex) 
+GetListQueryParamsRetParams ex) 
     "latitude": 21.33301,
     "country": "United States",
     "rtl": 0,
@@ -396,20 +366,20 @@ export type SearchLocationsFromBookingComRawResponse = Partial<{
   lc: string;
   cc1: string;
 }>;
-export type SearchLocationsFromBookingComResponse = Omit<
+export type SearchLocationsFromBookingComRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
   IBparams: SearchLocationsFromBookingComRawResponse[];
 };
 
-export type FiltersForSearchFromBookingComResponse = Omit<
+export type FiltersForSearchFromBookingComRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: FiltersForSearchFromBookingComInnerAsyncFnResponse;
+  IBparams: FiltersForSearchFromBookingComInnerAsyncFnRetParams;
 };
-export type SearchLocationsFromBookingComInnerAsyncFnResponse =
+export type SearchLocationsFromBookingComInnerAsyncFnRetParams =
   SearchLocationsFromBookingComRawResponse;
 
 export type FiltersForSearchFromBookingComRawFilterOfResponse = {
@@ -436,7 +406,7 @@ export type FiltersForSearchFromBookingRawResponse = {
   extended_count: string;
   unfiltered_primary_count: string;
 };
-export type FiltersForSearchFromBookingComInnerAsyncFnResponse =
+export type FiltersForSearchFromBookingComInnerAsyncFnRetParams =
   | FiltersForSearchFromBookingComRawFilterOfResponse[];
 
 export const defaultNearbySearchReqParams = {
@@ -695,7 +665,7 @@ export interface ReqScheduleParams {
 export type ReqScheduleResponsePayload = {
   scheduleHash: string;
 };
-export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+export type ReqScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqScheduleResponsePayload | {};
 };
 
@@ -720,11 +690,11 @@ export type GetScheduleResponsePayload = {
   }[];
 };
 
-export type GetScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+export type GetScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleResponsePayload | {};
 };
 
-export interface GetScheduleListParams {
+export interface GetScheduleListReqParams {
   skip: number;
   take: number;
 }
@@ -753,11 +723,11 @@ export type GetScheduleListResponsePayload = {
   planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
 };
 
-export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
+export type GetScheduleListRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleListResponsePayload[] | {};
 };
 
-export interface SaveScheduleParams {
+export interface SaveScheduleReqParams {
   title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
   planType: PlanType;
@@ -781,17 +751,17 @@ export type SaveScheduleResponsePayload = {
   }[];
 };
 
-export type SaveScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+export type SaveScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: SaveScheduleResponsePayload | {};
 };
 
-export interface GetDayScheduleParams {
+export interface GetDayScheduleReqParams {
   scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
   planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
 
-export type GetDayScheduleResponsePayload = {
+export type GetDayScheduleRetParamsPayload = {
   id: string; /// ex) 1273712
   dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
   contentsCountAll: number; /// ex) 11
@@ -824,11 +794,11 @@ export type GetDayScheduleResponsePayload = {
   }[];
 };
 
-export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDayScheduleResponsePayload | {};
+export type GetDayScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleRetParamsPayload | {};
 };
 
-export interface GetDetailScheduleParams {
+export interface GetDetailScheduleReqParams {
   visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
 }
 
@@ -852,7 +822,7 @@ export enum GooglePriceLevel {
   'VeryExpensive',
 }
 
-export type GetDetailScheduleResponsePayload = {
+export type GetDetailScheduleRetParamsPayload = {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
@@ -914,18 +884,18 @@ export type GetDetailScheduleResponsePayload = {
   website: string | null; /// Google Place Detail => 해당 장소에서 운영하는 자체 웹사이트 , hotel의 웹사이트로도 쓴다.
 };
 
-export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDetailScheduleResponsePayload | {};
+export type GetDetailScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDetailScheduleRetParamsPayload | {};
 };
 
 export type GglPlaceDetailType = {
   /// google place detail types...
 };
-export type GetPlaceDetailResponse = {
+export type GetPlaceDetailRawResponse = {
   result: GglPlaceDetailType[];
 };
 
-export type GetCandidateScheduleParams = {
+export type GetCandidateScheduleReqParams = {
   scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
   spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
@@ -934,11 +904,11 @@ export type GetCandidateScheduleResponsePayload = {
   result: GglPlaceDetailType[] | {};
 };
 
-export type GetCandidateScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+export type GetCandidateScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetCandidateScheduleResponsePayload | {};
 };
 
-export type ModifyScheduleParams = {
+export type ModifyScheduleReqParams = {
   visitScheduleId: string; /// 변경전 생성되어 있던 추천 항목 ex) "4"
   candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
   candidateId: string; /// 변경하고자 하는 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
@@ -947,24 +917,24 @@ export type ModifyScheduleResponsePayload = {
   result: GglPlaceDetailType[] | {};
 };
 
-export type ModifyScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
+export type ModifyScheduleRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ModifyScheduleResponsePayload | {};
 };
 
-export type GetCandidateDetailScheduleParams = {
+export type GetCandidateDetailScheduleReqParams = {
   candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
   candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
 };
-export type GetCandidateDetailScheduleResponsePayload = Omit<
-  GetDetailScheduleResponsePayload,
+export type GetCandidateDetailScheduleRetParamsPayload = Omit<
+  GetDetailScheduleRetParamsPayload,
   'dayCount' | 'orderCount' | 'planType'
 >;
 
-export type GetCandidateDetailScheduleResponse = Omit<
+export type GetCandidateDetailScheduleRetParams = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: GetCandidateDetailScheduleResponsePayload | {};
+  IBparams: GetCandidateDetailScheduleRetParamsPayload | {};
 };
 
 export type SyncVisitJejuDataReqParams = {
@@ -987,7 +957,7 @@ export interface VisitJejuClassCode {
   /// 2. 1차 지역코드 레퍼런스 ID 일 경우, ex) region>region2
   /// 3. 2차 지역코드 레퍼런스 ID 일 경우, ex) region2>17
 }
-export interface SyncVisitJejuDataResponsePayload {
+export interface SyncVisitJejuDataRetParamsPayload {
   result?: string; /// 결과코드 ex) 00
   resultMessage?: string; /// 결과메시지 ex) success
   totalCount?: number; /// 전체 결과 개수 ex) 1152
@@ -1020,20 +990,20 @@ export interface SyncVisitJejuDataResponsePayload {
   }[];
 }
 
-export type SyncVisitJejuDataResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: SyncVisitJejuDataResponsePayload | {};
+export type SyncVisitJejuDataRetParams = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SyncVisitJejuDataRetParamsPayload | {};
 };
 
 export type GetVisitJejuDataReqParams = SyncVisitJejuDataReqParams;
-export type GetVisitJejuDataResponsePayload = SyncVisitJejuDataResponsePayload;
-export type GetVisitJejuDataResponse = Omit<IBResFormat, 'IBparams'> & {
+export type GetVisitJejuDataResponsePayload = SyncVisitJejuDataRetParamsPayload;
+export type GetVisitJejuDataRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetVisitJejuDataResponsePayload | {};
 };
 
 export interface GetRecommendListFromDBReqParams extends ReqScheduleParams {}
 export type GetRecommendListFromDBResponsePayload =
-  GetRecommendListWithLatLngtInnerAsyncFnResponse;
-export type GetRecommendListFromDBResponse = Omit<IBResFormat, 'IBparams'> & {
+  GetRecommendListWithLatLngtInnerAsyncFnRetParams;
+export type GetRecommendListFromDBRetParams = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetRecommendListFromDBResponsePayload | {};
 };
 
@@ -1080,3 +1050,16 @@ export type GetRecommendListFromDBResponse = Omit<IBResFormat, 'IBparams'> & {
 
 //   return `${str}`;
 // };
+
+export interface FilterHotelWithBudgetReqParams {
+  hotels: SearchHotelResWithTourPlace[];
+  minBudget: number;
+  maxBudget: number;
+  travelNights: number;
+}
+
+export interface FilterHotelWithBudgetRetParams {
+  minFilteredHotels: SearchHotelResWithTourPlace[];
+  midFilteredHotels: SearchHotelResWithTourPlace[];
+  maxFilteredHotels: SearchHotelResWithTourPlace[];
+}

@@ -17,7 +17,7 @@ import {
   ReqNonMembersUserTokenSuccessResType,
 } from '@src/routes/auth';
 import {
-  ReqScheduleResponse,
+  ReqScheduleRetParams,
   ReqScheduleResponsePayload,
   spotPerDay,
   mealPerDay,
@@ -26,7 +26,7 @@ import {
 
 import { hotelTransition, params } from './testData';
 
-let reqScheduleRawResult: ReqScheduleResponse;
+let reqScheduleRawResult: ReqScheduleRetParams;
 let reqScheduleRes: ReqScheduleResponsePayload;
 let queryParams: QueryParams & {
   metaScheduleInfo: MetaScheduleInfo | null;
@@ -64,7 +64,7 @@ beforeAll(async () => {
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(params.mainParam);
 
-  reqScheduleRawResult = response.body as ReqScheduleResponse;
+  reqScheduleRawResult = response.body as ReqScheduleRetParams;
   reqScheduleRes = reqScheduleRawResult.IBparams as ReqScheduleResponsePayload;
 
   // const dbResult = await prisma.queryParams.findUnique({

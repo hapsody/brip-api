@@ -4,8 +4,8 @@ import prisma from '@src/prisma';
 import { IBResFormat } from '@src/utils';
 // import { User } from '@prisma/client';
 import {
-  GetRecommendListWithLatLngtResponse,
-  // GetRecommendListWithLatLngtInnerAsyncFnResponse,
+  GetRecommendListWithLatLngtRetParams,
+  // GetRecommendListWithLatLngtInnerAsyncFnRetParams,
 } from '../../../types/schduleTypes';
 import // getTravelNights,
 // getListQueryParamsInnerAsyncFn,
@@ -36,7 +36,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const recommendRawResult =
-        response.body as GetRecommendListWithLatLngtResponse;
+        response.body as GetRecommendListWithLatLngtRetParams;
 
       expect(recommendRawResult.IBcode).toBe('3001');
     });
@@ -57,7 +57,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyMinBudgetResult =
-        emptyMinBudgetResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyMinBudgetResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyMinBudgetResult.IBcode).toBe('3001');
       expect(emptyMinBudgetResult.IBdetail).toBe(
@@ -76,7 +76,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyMaxBudgetResult =
-        emptyMaxBudgetResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyMaxBudgetResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyMaxBudgetResult.IBcode).toBe('3001');
       expect(emptyMaxBudgetResult.IBdetail).toBe(
@@ -98,7 +98,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyDateResult =
-        emptyDateResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyDateResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyDateResult.IBcode).toBe('3001');
       expect(emptyDateResult.IBdetail).toBe(
@@ -120,7 +120,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const InvalidDateTypeResult =
-        InvalidDateTypeResponse.body as GetRecommendListWithLatLngtResponse;
+        InvalidDateTypeResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(InvalidDateTypeResult.IBcode).toBe('3001');
       expect(InvalidDateTypeResult.IBdetail).toBe(
@@ -148,7 +148,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyLatLngtResult =
-        emptyLatLngtResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyLatLngtResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyLatLngtResult.IBcode).toBe('3001');
       expect(emptyLatLngtResult.IBdetail).toBe(
@@ -175,7 +175,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const nullLatLngtResult =
-        nullLatLngtResponse.body as GetRecommendListWithLatLngtResponse;
+        nullLatLngtResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(nullLatLngtResult.IBcode).toBe('3001');
       expect(nullLatLngtResult.IBdetail).toBe(
@@ -199,7 +199,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyLocationResult =
-        emptyLocationResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyLocationResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyLocationResult.IBcode).toBe('3001');
       expect(emptyLocationResult.IBdetail).toBe(
@@ -224,7 +224,7 @@ describe('Invalid parameter case tests', () => {
         .expect(400);
 
       const emptyHotelLocationResult =
-        emptyHotelLocationResponse.body as GetRecommendListWithLatLngtResponse;
+        emptyHotelLocationResponse.body as GetRecommendListWithLatLngtRetParams;
 
       expect(emptyHotelLocationResult.IBcode).toBe('3001');
       expect(emptyHotelLocationResult.IBdetail).toBe(
