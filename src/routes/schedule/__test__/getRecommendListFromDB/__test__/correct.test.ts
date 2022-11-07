@@ -188,7 +188,7 @@ describe('Correct case test', () => {
           recommendRes.metaInfo.spotPerDay,
         );
         // eslint-disable-next-line no-restricted-syntax
-        for await (const aSpot of spot.spotsFromMinHotel as Partial<google.maps.places.IBPlaceResult>[]) {
+        for await (const aSpot of spot.spotsFromMinHotel) {
           const tp = await prisma.tourPlace.findUnique({
             where: { id: aSpot.tourPlaceId },
             select: {
@@ -416,7 +416,7 @@ describe('Correct case test', () => {
         day: number;
         order: number;
         type: VisitPlaceType;
-        data?: SearchHotelRes | Partial<google.maps.places.IBPlaceResult>;
+        data?: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
       };
       const allDayBestMatch: CrossCheckResultType[] = [];
 
@@ -519,12 +519,7 @@ describe('Correct case test', () => {
                   });
                   nodeLists = {
                     ...nodeLists,
-                    spot: (
-                      distanceMap.withSpots as {
-                        data: Partial<google.maps.places.IBPlaceResult>;
-                        distance: number;
-                      }[]
-                    )
+                    spot: distanceMap.withSpots
                       .map(e => e.data)
                       .slice(1, distanceMap.withSpots.length),
                   };
@@ -533,21 +528,14 @@ describe('Correct case test', () => {
                       curOrder.data as Partial<google.maps.places.IBPlaceResult> & {
                         tourPlaceId: number;
                       }
-                    ).tourPlaceId ===
-                    (
-                      distanceMap.withSpots[0]
-                        .data as Partial<google.maps.places.IBPlaceResult> & {
-                        tourPlaceId: number;
-                      }
-                    ).tourPlaceId
+                    ).tourPlaceId === distanceMap.withSpots[0].data.tourPlaceId
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'spot',
-                      data: distanceMap.withSpots[0]
-                        .data as Partial<google.maps.places.IBPlaceResult>,
+                      data: distanceMap.withSpots[0].data,
                     });
                     break;
                   }
@@ -557,8 +545,7 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'spot',
-                    data: distanceMap.withSpots[0]
-                      .data as Partial<google.maps.places.IBPlaceResult>,
+                    data: distanceMap.withSpots[0].data,
                   });
                   break;
                 }
@@ -570,12 +557,7 @@ describe('Correct case test', () => {
                   });
                   nodeLists = {
                     ...nodeLists,
-                    restaurant: (
-                      distanceMap.withRestaurants as {
-                        data: Partial<google.maps.places.IBPlaceResult>;
-                        distance: number;
-                      }[]
-                    )
+                    restaurant: distanceMap.withRestaurants
                       .map(e => e.data)
                       .slice(1, distanceMap.withRestaurants.length),
                   };
@@ -585,20 +567,14 @@ describe('Correct case test', () => {
                         tourPlaceId: number;
                       }
                     ).tourPlaceId ===
-                    (
-                      distanceMap.withRestaurants[0]
-                        .data as Partial<google.maps.places.IBPlaceResult> & {
-                        tourPlaceId: number;
-                      }
-                    ).tourPlaceId
+                    distanceMap.withRestaurants[0].data.tourPlaceId
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'restaurant',
-                      data: distanceMap.withRestaurants[0]
-                        .data as Partial<google.maps.places.IBPlaceResult>,
+                      data: distanceMap.withRestaurants[0].data,
                     });
                     break;
                   }
@@ -608,8 +584,7 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'restaurant',
-                    data: distanceMap.withRestaurants[0]
-                      .data as Partial<google.maps.places.IBPlaceResult>,
+                    data: distanceMap.withRestaurants[0].data,
                   });
                   break;
                 }

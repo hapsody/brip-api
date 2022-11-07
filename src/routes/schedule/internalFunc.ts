@@ -1029,10 +1029,7 @@ export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
 }: {
-  baseNode:
-    | SearchHotelResWithTourPlace
-    | GglNearbySearchResWithGeoNTourPlace
-    | Partial<google.maps.places.IBPlaceResult>;
+  baseNode: SearchHotelResWithTourPlace | GglNearbySearchResWithGeoNTourPlace;
   scheduleNodeLists: ScheduleNodeList;
 }): DistanceMap => {
   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
@@ -1051,29 +1048,27 @@ export const orderByDistanceFromNode = ({
         latitude: (baseNode as SearchHotelRes).latitude,
         longitude: (baseNode as SearchHotelRes).longitude,
       };
-    if (
-      (baseNode as GglNearbySearchResWithGeoNTourPlace).tourPlace !== undefined
-    ) {
-      const location = JSON.parse(
-        (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
-      ) as LatLngt;
-      return {
-        latitude: location.lat,
-        longitude: location.lng,
-      };
-    }
-    const { geometry } = baseNode as Partial<google.maps.places.IBPlaceResult>;
-    const { location } = geometry ?? {
-      location: {
-        lat: 0,
-        lng: 0,
-      },
-    };
 
+    const location = JSON.parse(
+      (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
+    ) as LatLngt;
     return {
       latitude: location.lat,
       longitude: location.lng,
     };
+
+    // const { geometry } = baseNode as Partial<google.maps.places.IBPlaceResult>;
+    // const { location } = geometry ?? {
+    //   location: {
+    //     lat: 0,
+    //     lng: 0,
+    //   },
+    // };
+
+    // return {
+    //   latitude: location.lat,
+    //   longitude: location.lng,
+    // };
   })();
   const withHotels = scheduleNodeLists.hotel.map(hotel => {
     return {
@@ -1093,23 +1088,10 @@ export const orderByDistanceFromNode = ({
   withHotels.sort(sortByDistance);
 
   const withSpots = scheduleNodeLists.spot.map(spot => {
-    const spotLocation = (() => {
-      if (
-        (spot as GglNearbySearchResWithGeoNTourPlace).tourPlace !== undefined
-      ) {
-        const vSpot = spot as GglNearbySearchResWithGeoNTourPlace;
-        const location = JSON.parse(vSpot.geometry.location) as LatLngt;
-        return location;
-      }
-      const vSpot = spot as Partial<google.maps.places.IBPlaceResult>;
-      const location = vSpot.geometry?.location as LatLngt;
-      return location;
-    })();
+    const spotLocation = JSON.parse(spot.geometry.location) as LatLngt;
 
     return {
-      data: spot as
-        | GglNearbySearchResWithGeoNTourPlace
-        | Partial<google.maps.places.IBPlaceResult>,
+      data: spot,
       distance: getDistance({
         startPoint: {
           lat: baseLocation.latitude,
@@ -1126,24 +1108,12 @@ export const orderByDistanceFromNode = ({
 
   const withRestaurants = scheduleNodeLists.restaurant.map(restaurant => {
     // const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
-    const restaurantLocation = (() => {
-      if (
-        (restaurant as GglNearbySearchResWithGeoNTourPlace).tourPlace !==
-        undefined
-      ) {
-        const vRestaurant = restaurant as GglNearbySearchResWithGeoNTourPlace;
-        const location = JSON.parse(vRestaurant.geometry.location) as LatLngt;
-        return location;
-      }
-      const vRestaurant =
-        restaurant as Partial<google.maps.places.IBPlaceResult>;
-      const location = vRestaurant.geometry?.location as LatLngt;
-      return location;
-    })();
+    const restaurantLocation = JSON.parse(
+      restaurant.geometry.location,
+    ) as LatLngt;
+
     return {
-      data: restaurant as
-        | GglNearbySearchResWithGeoNTourPlace
-        | Partial<google.maps.places.IBPlaceResult>,
+      data: restaurant,
       distance: getDistance({
         startPoint: {
           lat: baseLocation.latitude,
@@ -1696,8 +1666,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: minNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'restaurant',
@@ -1723,8 +1692,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: minNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMinHotel.push(destination);
           thatDayVisitOrderFromMinHotel.push({
             type: 'spot',
@@ -1772,8 +1740,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: midNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'restaurant',
@@ -1800,8 +1767,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: midNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMidHotel.push(destination);
           thatDayVisitOrderFromMidHotel.push({
             type: 'spot',
@@ -1847,8 +1813,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: maxNodeLists,
           });
-          destination = distanceMapsFromBase.withRestaurants[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withRestaurants[0].data;
           thatDayRestaurantFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'restaurant',
@@ -1874,8 +1839,7 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
             baseNode: prevDest,
             scheduleNodeLists: maxNodeLists,
           });
-          destination = distanceMapsFromBase.withSpots[0]
-            .data as GglNearbySearchResWithGeoNTourPlace;
+          destination = distanceMapsFromBase.withSpots[0].data;
           thatDaySpotFromMaxHotel.push(destination);
           thatDayVisitOrderFromMaxHotel.push({
             type: 'spot',
@@ -2201,24 +2165,36 @@ export const arrAccommodationLocationToObj = (
 
 export const getTourPlaceFromDB = async (
   placeType: 'RESTAURANT' | 'SPOT',
-): Promise<Partial<google.maps.places.IBPlaceResult>[]> => {
+): Promise<GglNearbySearchResWithGeoNTourPlace[]> => {
   type Result = {
-    tourPlaceId?: number;
+    tourPlaceId: number;
+    tpCreatedAt: Date;
+    tpUpdatedAt: Date;
     tourPlaceType?: PlaceType;
     queryParamsId?: number;
-    gglNearbySearchResId?: number;
+    gglNearbySearchResId: number;
+    gglNCreatedAt: Date;
+    gglNUpdatedAt: Date;
+    geometryId: number;
+    geometryCreatedAt: Date;
+    geometryUpdatedAt: Date;
     location: string;
-    viewport?: string;
+    viewport: string;
     icon?: string;
     icon_background_color?: string;
     icon_mask_base_uri?: string;
     name?: string;
+    opening_hours?: boolean;
+    gpId: number;
+    gpCreatedAt: Date;
+    gpUpdatedAt: Date;
     html_attributions?: string;
     photo_reference?: string;
     height?: number;
     width?: number;
     place_id?: string;
     price_level?: number;
+    plus_codeId?: number;
     rating?: number;
     user_ratings_total?: number;
     formatted_address?: string;
@@ -2230,19 +2206,29 @@ export const getTourPlaceFromDB = async (
       const res: Result[] = await prisma.$queryRaw`
       select 
         tp.id as tourPlaceId,
+        tp.createdAt as tpCreatedAt,
+        tp.updatedAt as tpUpdatedAt,
         tp.tourPlaceType,
         tp.queryParamsId,
         gnsr.id as gglNearbySearchResId ,
+        gnsr.createdAt as gglNCreatedAt,
+        gnsr.updatedAt as gglNUpdatedAt,
+        g.id as geometryId,
+        g.createdAt as geometryCreatedAt,
+        g.updatedAt as geometryUpdatedAt,
         g.location,
         g.viewport,
         gnsr.icon,
         gnsr.icon_background_color,
         gnsr.icon_mask_base_uri,
+        gnsr.plus_codeId,
         gnsr.name,
+        gp.id as gpId,
+        gp.createdAt as gpCreatedAt,
+        gp.updatedAt as gpUpdatedAt,
         gp.html_attributions,
         gp.photo_reference,
         gp.width,
-        gp.height,
         gnsr.place_id,
         gnsr.price_level ,
         gnsr.rating,
@@ -2263,19 +2249,29 @@ export const getTourPlaceFromDB = async (
     const res: Result[] = await prisma.$queryRaw`
     select 
       tp.id as tourPlaceId,
+      tp.createdAt as tpCreatedAt,
+      tp.updatedAt as tpUpdatedAt,
       tp.tourPlaceType,
       tp.queryParamsId,
       gnsr.id as gglNearbySearchResId ,
+      gnsr.createdAt as gglNCreatedAt,
+      gnsr.updatedAt as gglNUpdatedAt,
+      g.id as geometryId,
+      g.createdAt as geometryCreatedAt,
+      g.updatedAt as geometryUpdatedAt,
       g.location,
       g.viewport,
       gnsr.icon,
       gnsr.icon_background_color,
       gnsr.icon_mask_base_uri,
       gnsr.name,
+      gnsr.plus_codeId,
+      gp.id as gpId,
+      gp.createdAt as gpCreatedAt,
+      gp.updatedAt as gpUpdatedAt,
       gp.html_attributions,
       gp.photo_reference,
       gp.width,
-      gp.height,
       gnsr.place_id,
       gnsr.price_level ,
       gnsr.rating,
@@ -2294,36 +2290,69 @@ export const getTourPlaceFromDB = async (
     return res;
   })();
 
-  const result: Partial<google.maps.places.IBPlaceResult>[] = queryResult.map(
-    v => {
-      const location = JSON.parse(v.location) as unknown as {
-        lat: string;
-        lngt: string;
-      };
-      return {
-        tourPlaceId: v.tourPlaceId,
-        queryParamsId: v.queryParamsId,
-        geometry: {
-          location: {
-            lat: Number(location.lat),
-            lng: Number(location.lngt),
-          },
-          name: v.name,
-          photos: [
-            {
-              height: v.height,
-              html_attributions: [v.html_attributions],
-              photo_reference: v.photo_reference,
-              width: v.width,
-            },
-          ],
-          place_id: v.place_id,
-          rating: v.rating,
-          user_ratings_total: v.user_ratings_total,
-          vicinity: v.formatted_address ?? v.vicinity,
+  const result: GglNearbySearchResWithGeoNTourPlace[] = queryResult.map(v => {
+    // const location = JSON.parse(v.location) as unknown as {
+    //   lat: string;
+    //   lngt: string;
+    // };
+
+    // const viewport = JSON.parse(v.viewport) as unknown as {
+    //   northeast: {
+    //     lat: string;
+    //     lngt: string;
+    //   };
+    //   southwest: {
+    //     lat: string;
+    //     lngt: string;
+    //   };
+    // };
+    return {
+      id: v.gglNearbySearchResId,
+      tourPlaceId: v.tourPlaceId,
+      createdAt: v.gglNCreatedAt,
+      updatedAt: v.gglNUpdatedAt,
+      tourPlace: {
+        id: v.tourPlaceId,
+        tourPlaceType: v.tourPlaceType ?? 'SPOT',
+        queryParamsId: v.queryParamsId ?? null,
+        createdAt: v.tpCreatedAt,
+        updatedAt: v.tpUpdatedAt,
+        batchQueryParamsId: null,
+        batchSearchKeywordId: null,
+      },
+      queryParamsId: v.queryParamsId,
+      gglgeometryId: v.geometryId,
+      icon: v.icon ?? null,
+      icon_background_color: v.icon_background_color ?? null,
+      icon_mask_base_uri: v.icon_mask_base_uri ?? null,
+      geometry: {
+        id: v.geometryId,
+        createdAt: v.geometryCreatedAt,
+        updatedAt: v.geometryUpdatedAt,
+        location: v.location,
+        viewport: v.viewport,
+      },
+      name: v.name ?? null,
+      photos: [
+        {
+          id: v.gpId,
+          createdAt: v.gpCreatedAt,
+          updatedAt: v.gpUpdatedAt,
+          height: v.height,
+          html_attributions: [v.html_attributions],
+          photo_reference: v.photo_reference,
+          width: v.width,
         },
-      };
-    },
-  );
+      ],
+      opening_hours: v.opening_hours ?? false,
+      price_level: v.price_level ?? null,
+      formatted_address: v.formatted_address ?? null,
+      plus_codeId: v.plus_codeId ?? null,
+      place_id: v.place_id ?? null,
+      rating: v.rating ?? null,
+      user_ratings_total: v.user_ratings_total ?? null,
+      vicinity: v.formatted_address ?? v.vicinity ?? null,
+    };
+  });
   return result;
 };

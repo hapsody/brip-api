@@ -3042,16 +3042,16 @@ export const getRecommendListFromDB = asyncWrapper(
           idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
         // minHotel의 idx 해당일 spot들 구하기
-        const thatDaySpotFromMinHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDaySpotFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
-        const thatDayRestaurantFromMinHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDayRestaurantFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
         if (minBudgetHotel) {
-          let destination: Partial<google.maps.places.IBPlaceResult>;
+          let destination: GglNearbySearchResWithGeoNTourPlace;
           let prevDest:
             | SearchHotelResWithTourPlace
-            | Partial<google.maps.places.IBPlaceResult> = minBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = minBudgetHotel;
           thatDayVisitOrderFromMinHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3064,8 +3064,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: minNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withRestaurants[0].data;
               thatDayRestaurantFromMinHotel.push(destination);
               thatDayVisitOrderFromMinHotel.push({
                 type: 'restaurant',
@@ -3076,7 +3075,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...minNodeLists,
                 restaurant: (
                   distanceMapsFromBase.withRestaurants as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )
@@ -3091,8 +3090,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: minNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withSpots[0].data;
               thatDaySpotFromMinHotel.push(destination);
               thatDayVisitOrderFromMinHotel.push({
                 type: 'spot',
@@ -3104,7 +3102,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...minNodeLists,
                 spot: (
                   distanceMapsFromBase.withSpots as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )
@@ -3118,17 +3116,17 @@ export const getRecommendListFromDB = asyncWrapper(
         }
 
         // midHotel의 idx 해당일 spot들 구하기
-        const thatDaySpotFromMidHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDaySpotFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
-        const thatDayRestaurantFromMidHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDayRestaurantFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
         if (midBudgetHotel) {
-          let destination: Partial<google.maps.places.IBPlaceResult>;
+          let destination: GglNearbySearchResWithGeoNTourPlace;
 
           let prevDest:
             | SearchHotelResWithTourPlace
-            | Partial<google.maps.places.IBPlaceResult> = midBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = midBudgetHotel;
           thatDayVisitOrderFromMidHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3141,8 +3139,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: midNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withRestaurants[0].data;
               thatDayRestaurantFromMidHotel.push(destination);
               thatDayVisitOrderFromMidHotel.push({
                 type: 'restaurant',
@@ -3154,7 +3151,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...midNodeLists,
                 restaurant: (
                   distanceMapsFromBase.withRestaurants as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )
@@ -3169,8 +3166,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: midNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withSpots[0].data;
               thatDaySpotFromMidHotel.push(destination);
               thatDayVisitOrderFromMidHotel.push({
                 type: 'spot',
@@ -3181,7 +3177,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...midNodeLists,
                 spot: (
                   distanceMapsFromBase.withSpots as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )
@@ -3195,16 +3191,16 @@ export const getRecommendListFromDB = asyncWrapper(
         }
 
         // maxHotel의 idx 해당일 spot들 구하기
-        const thatDaySpotFromMaxHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDaySpotFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
-        const thatDayRestaurantFromMaxHotel: Partial<google.maps.places.IBPlaceResult>[] =
+        const thatDayRestaurantFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
         if (maxBudgetHotel) {
-          let destination: Partial<google.maps.places.IBPlaceResult>;
+          let destination: GglNearbySearchResWithGeoNTourPlace;
           let prevDest:
             | SearchHotelResWithTourPlace
-            | Partial<google.maps.places.IBPlaceResult> = maxBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = maxBudgetHotel;
           thatDayVisitOrderFromMaxHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3217,8 +3213,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: maxNodeLists,
               });
-              destination = distanceMapsFromBase.withRestaurants[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withRestaurants[0].data;
               thatDayRestaurantFromMaxHotel.push(destination);
               thatDayVisitOrderFromMaxHotel.push({
                 type: 'restaurant',
@@ -3229,7 +3224,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...maxNodeLists,
                 restaurant: (
                   distanceMapsFromBase.withRestaurants as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )
@@ -3244,8 +3239,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 baseNode: prevDest,
                 scheduleNodeLists: maxNodeLists,
               });
-              destination = distanceMapsFromBase.withSpots[0]
-                .data as Partial<google.maps.places.IBPlaceResult>;
+              destination = distanceMapsFromBase.withSpots[0].data;
               thatDaySpotFromMaxHotel.push(destination);
               thatDayVisitOrderFromMaxHotel.push({
                 type: 'spot',
@@ -3256,7 +3250,7 @@ export const getRecommendListFromDB = asyncWrapper(
                 ...maxNodeLists,
                 spot: (
                   distanceMapsFromBase.withSpots as {
-                    data: Partial<google.maps.places.IBPlaceResult>;
+                    data: GglNearbySearchResWithGeoNTourPlace;
                     distance: number;
                   }[]
                 )

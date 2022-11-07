@@ -252,8 +252,7 @@ export type SearchHotelResWithTourPlace = SearchHotelRes & {
 };
 export type VisitOrderDataType =
   | SearchHotelResWithTourPlace
-  | GglNearbySearchResWithGeoNTourPlace
-  | Partial<google.maps.places.IBPlaceResult>;
+  | GglNearbySearchResWithGeoNTourPlace;
 
 export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
 export type VisitOrder = {
@@ -271,32 +270,14 @@ export type VisitSchedules = {
     ordersFromMaxHotel: VisitOrder[];
   };
   spot: {
-    spotsFromMinHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
-    spotsFromMidHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
-    spotsFromMaxHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
+    spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+    spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+    spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
   };
   restaurant: {
-    restaurantsFromMinHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
-    restaurantsFromMidHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
-    restaurantsFromMaxHotel: (
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>
-    )[];
+    restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+    restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+    restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
   };
   hotel: {
     minBudgetHotel: SearchHotelResWithTourPlace | undefined;
@@ -711,24 +692,17 @@ export type LatLngt = google.maps.IBLatLng;
 // }
 
 export type DistanceMap = {
-  me:
-    | SearchHotelRes
-    | GglNearbySearchResWithGeoNTourPlace
-    | Partial<google.maps.places.IBPlaceResult>;
+  me: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
   withHotels: {
     data: SearchHotelRes;
     distance: number;
   }[];
   withRestaurants: {
-    data:
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>;
+    data: GglNearbySearchResWithGeoNTourPlace;
     distance: number;
   }[];
   withSpots: {
-    data:
-      | GglNearbySearchResWithGeoNTourPlace
-      | Partial<google.maps.places.IBPlaceResult>;
+    data: GglNearbySearchResWithGeoNTourPlace;
     distance: number;
   }[];
 };
@@ -740,12 +714,8 @@ export type GglNearbySearchResWithGeoNTourPlace = GglNearbySearchRes & {
 
 export type ScheduleNodeList = {
   hotel: SearchHotelRes[];
-  restaurant:
-    | GglNearbySearchResWithGeoNTourPlace[]
-    | Partial<google.maps.places.IBPlaceResult>[];
-  spot:
-    | GglNearbySearchResWithGeoNTourPlace[]
-    | Partial<google.maps.places.IBPlaceResult>[];
+  restaurant: GglNearbySearchResWithGeoNTourPlace[];
+  spot: GglNearbySearchResWithGeoNTourPlace[];
 };
 
 export class MealOrder {

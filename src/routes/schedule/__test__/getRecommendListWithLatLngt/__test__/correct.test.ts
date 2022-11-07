@@ -184,7 +184,7 @@ describe('Correct case test', () => {
           recommendRes.metaInfo.spotPerDay,
         );
         // eslint-disable-next-line no-restricted-syntax
-        for await (const aSpot of spot.spotsFromMinHotel as GglNearbySearchResWithGeoNTourPlace[]) {
+        for await (const aSpot of spot.spotsFromMinHotel) {
           expect(aSpot.tourPlace.queryParamsId).toBe(recommendRes.id);
         }
 
@@ -529,19 +529,14 @@ describe('Correct case test', () => {
                   };
                   if (
                     (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
-                      .id ===
-                    (
-                      distanceMap.withSpots[0]
-                        .data as GglNearbySearchResWithGeoNTourPlace
-                    ).id
+                      .id === distanceMap.withSpots[0].data.id
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'spot',
-                      data: distanceMap.withSpots[0]
-                        .data as GglNearbySearchResWithGeoNTourPlace,
+                      data: distanceMap.withSpots[0].data,
                     });
                     break;
                   }
@@ -551,8 +546,7 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'spot',
-                    data: distanceMap.withSpots[0]
-                      .data as GglNearbySearchResWithGeoNTourPlace,
+                    data: distanceMap.withSpots[0].data,
                   });
                   break;
                 }
@@ -575,19 +569,14 @@ describe('Correct case test', () => {
                   };
                   if (
                     (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
-                      .id ===
-                    (
-                      distanceMap.withRestaurants[0]
-                        .data as GglNearbySearchResWithGeoNTourPlace
-                    ).id
+                      .id === distanceMap.withRestaurants[0].data.id
                   ) {
                     resolve({
                       result: true,
                       day: dayIdx,
                       order: i,
                       type: 'restaurant',
-                      data: distanceMap.withRestaurants[0]
-                        .data as GglNearbySearchResWithGeoNTourPlace,
+                      data: distanceMap.withRestaurants[0].data,
                     });
                     break;
                   }
@@ -597,8 +586,7 @@ describe('Correct case test', () => {
                     day: dayIdx,
                     order: i,
                     type: 'restaurant',
-                    data: distanceMap.withRestaurants[0]
-                      .data as GglNearbySearchResWithGeoNTourPlace,
+                    data: distanceMap.withRestaurants[0].data,
                   });
                   break;
                 }
