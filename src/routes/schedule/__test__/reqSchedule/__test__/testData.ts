@@ -1,11 +1,11 @@
 import { getNDaysLater } from '@src/utils';
 
-export const minBudget = 1000000;
-export const maxBudget = 3000000;
-// export const travelStartDate = '2022-11-30T00:00:00';
-// export const travelEndDate = '2022-12-02T00:00:00';
-export const travelStartDate = getNDaysLater(30);
-export const travelEndDate = getNDaysLater(33);
+export const minMoney = 1000000;
+export const maxMoney = 3000000;
+// export const startDate = '2022-11-30T00:00:00';
+// export const endDate = '2022-12-02T00:00:00';
+export const startDate = getNDaysLater(30);
+export const endDate = getNDaysLater(33);
 export const hotelTransition = 1;
 export const childrenNumber = 2;
 export const childrenAges = [1, 3];
@@ -19,8 +19,8 @@ export const params = {
     childrenNumber,
     childrenAges,
     roomNumber: 1,
-    // checkinDate: travelStartDate,
-    // checkoutDate: travelEndDate,
+    // checkinDate: startDate,
+    // checkoutDate: endDate,
     latitude: '33.501298',
     longitude: '126.525482',
     pageNumber: 0,
@@ -29,10 +29,10 @@ export const params = {
     mock: true,
   },
   mainParam: {
-    minMoney: minBudget,
-    maxMoney: maxBudget,
-    startDate: travelStartDate,
-    endDate: travelEndDate,
+    minMoney,
+    maxMoney,
+    startDate,
+    endDate,
     adult: adultsNumber.toString(),
     child: childrenNumber.toString(),
     infant: '0',

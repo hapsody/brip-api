@@ -43,56 +43,56 @@ describe('Invalid parameter case tests', () => {
     // it('params 내의 모든 프로퍼티 값이 => null', async () => {}); // not need case
     // it('params 내의 모든 프로퍼티 값이 => undefined', async () => {});  //not need case
 
-    it('params 중 minBudget 또는 maxBudget 누락', async () => {
-      // # minBudget 또는 maxBudget 누락
-      const emptyMinBudgetResponse = await request(app)
+    it('params 중 minMoney 또는 maxMoney 누락', async () => {
+      // # minMoney 또는 maxMoney 누락
+      const emptyMinMoneyResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
         .send({
           ...params,
           searchCond: {
             ...params.searchCond,
-            minBudget: undefined,
+            minMoney: undefined,
           },
         })
         .expect(400);
 
-      const emptyMinBudgetResult =
-        emptyMinBudgetResponse.body as GetRecommendListWithLatLngtRetParams;
+      const emptyMinMoneyResult =
+        emptyMinMoneyResponse.body as GetRecommendListWithLatLngtRetParams;
 
-      expect(emptyMinBudgetResult.IBcode).toBe('3001');
-      expect(emptyMinBudgetResult.IBdetail).toBe(
-        'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+      expect(emptyMinMoneyResult.IBcode).toBe('3001');
+      expect(emptyMinMoneyResult.IBdetail).toBe(
+        'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
       );
 
-      const emptyMaxBudgetResponse = await request(app)
+      const emptyMaxMoneyResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
         .send({
           ...params,
           searchCond: {
             ...params.searchCond,
-            maxBudget: undefined,
+            maxMoney: undefined,
           },
         })
         .expect(400);
 
-      const emptyMaxBudgetResult =
-        emptyMaxBudgetResponse.body as GetRecommendListWithLatLngtRetParams;
+      const emptyMaxMoneyResult =
+        emptyMaxMoneyResponse.body as GetRecommendListWithLatLngtRetParams;
 
-      expect(emptyMaxBudgetResult.IBcode).toBe('3001');
-      expect(emptyMaxBudgetResult.IBdetail).toBe(
-        'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+      expect(emptyMaxMoneyResult.IBcode).toBe('3001');
+      expect(emptyMaxMoneyResult.IBdetail).toBe(
+        'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
       );
     });
 
-    it('params 중 travelStartDate 또는 travelEndDate 누락', async () => {
+    it('params 중 startDate 또는 endDate 누락', async () => {
       const emptyDateResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
         .send({
           ...params,
           searchCond: {
             ...params.searchCond,
-            travelStartDate: undefined,
-            travelEndDate: undefined,
+            startDate: undefined,
+            endDate: undefined,
           },
         })
         .expect(400);
@@ -102,19 +102,19 @@ describe('Invalid parameter case tests', () => {
 
       expect(emptyDateResult.IBcode).toBe('3001');
       expect(emptyDateResult.IBdetail).toBe(
-        'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+        'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
       );
     });
-    it('params 중 travelStartDate 또는 travelEndDate의 ISOString 타입이 아닌 travelStartDate, travelEndDate', async () => {
-      // # ISOString 타입이 아닌 travelStartDate, travelEndDate
+    it('params 중 startDate 또는 endDate의 ISOString 타입이 아닌 startDate, endDate', async () => {
+      // # ISOString 타입이 아닌 startDate, endDate
       const InvalidDateTypeResponse = await request(app)
         .post('/schedule/getRecommendListWithLatLngt')
         .send({
           ...params,
           searchCond: {
             ...params.searchCond,
-            travelStartDate: 'abcd',
-            travelEndDate: 1234,
+            startDate: 'abcd',
+            endDate: 1234,
           },
         })
         .expect(400);
@@ -124,7 +124,7 @@ describe('Invalid parameter case tests', () => {
 
       expect(InvalidDateTypeResult.IBcode).toBe('3001');
       expect(InvalidDateTypeResult.IBdetail).toBe(
-        'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+        'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
       );
     });
 

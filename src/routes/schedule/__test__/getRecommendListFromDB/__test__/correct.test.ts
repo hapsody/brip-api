@@ -10,9 +10,9 @@ import {
 } from '../../../../auth';
 import {
   GetListQueryParamsRetParams,
-  minHotelBudgetPortion,
-  midHotelBudgetPortion,
-  maxHotelBudgetPortion,
+  minHotelMoneyPortion,
+  midHotelMoneyPortion,
+  maxHotelMoneyPortion,
   mealPerDay,
   spotPerDay,
   GglNearbySearchResWithGeoNTourPlace,
@@ -34,8 +34,8 @@ import {
 } from '../../../internalFunc';
 
 import {
-  minBudget,
-  maxBudget,
+  minMoney,
+  maxMoney,
   travelStartDate,
   travelEndDate,
   hotelTransition,
@@ -163,13 +163,13 @@ describe('Correct case test', () => {
         },
       } = recommendRes;
 
-      let minBudgetHotelCount = 0;
-      let midBudgetHotelCount = 0;
-      let maxBudgetHotelCount = 0;
+      let minMoneyHotelCount = 0;
+      let midMoneyHotelCount = 0;
+      let maxMoneyHotelCount = 0;
 
-      let prevMinBudgetHotel: SearchHotelRes | undefined;
-      let prevMidBudgetHotel: SearchHotelRes | undefined;
-      let prevMaxBudgetHotel: SearchHotelRes | undefined;
+      let prevMinMoneyHotel: SearchHotelRes | undefined;
+      let prevmidMoneyHotel: SearchHotelRes | undefined;
+      let prevMaxMoneyHotel: SearchHotelRes | undefined;
 
       let totalMinHotelCharge = 0;
       let totalMidHotelCharge = 0;
@@ -177,7 +177,7 @@ describe('Correct case test', () => {
       // eslint-disable-next-line no-restricted-syntax
       for await (const visitSchedule of visitSchedules) {
         const { spot, hotel } = visitSchedule;
-        const { minBudgetHotel, midBudgetHotel, maxBudgetHotel } = hotel;
+        const { minMoneyHotel, midMoneyHotel, maxMoneyHotel } = hotel;
         expect(spot.spotsFromMinHotel.length).toBe(
           recommendRes.metaInfo.spotPerDay,
         );
@@ -198,32 +198,32 @@ describe('Correct case test', () => {
           expect(tp?.queryParamsId).toBe(queryParamId);
         }
 
-        if (minBudgetHotel && prevMinBudgetHotel?.id !== minBudgetHotel.id) {
-          expect(minBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
-          prevMinBudgetHotel = minBudgetHotel;
-          minBudgetHotelCount += 1;
+        if (minMoneyHotel && prevMinMoneyHotel?.id !== minMoneyHotel.id) {
+          expect(minMoneyHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
+          prevMinMoneyHotel = minMoneyHotel;
+          minMoneyHotelCount += 1;
         }
 
-        if (midBudgetHotel && prevMidBudgetHotel?.id !== midBudgetHotel.id) {
-          expect(midBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
-          prevMidBudgetHotel = midBudgetHotel;
-          midBudgetHotelCount += 1;
+        if (midMoneyHotel && prevmidMoneyHotel?.id !== midMoneyHotel.id) {
+          expect(midMoneyHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
+          prevmidMoneyHotel = midMoneyHotel;
+          midMoneyHotelCount += 1;
         }
 
-        if (maxBudgetHotel && prevMaxBudgetHotel?.id !== maxBudgetHotel.id) {
-          expect(maxBudgetHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
-          prevMaxBudgetHotel = maxBudgetHotel;
-          maxBudgetHotelCount += 1;
+        if (maxMoneyHotel && prevMaxMoneyHotel?.id !== maxMoneyHotel.id) {
+          expect(maxMoneyHotel.tourPlace.queryParamsId).toBe(recommendRes.id);
+          prevMaxMoneyHotel = maxMoneyHotel;
+          maxMoneyHotelCount += 1;
         }
 
-        totalMinHotelCharge += minBudgetHotel
-          ? minBudgetHotel.gross_amount_per_night
+        totalMinHotelCharge += minMoneyHotel
+          ? minMoneyHotel.gross_amount_per_night
           : 0;
-        totalMidHotelCharge += midBudgetHotel
-          ? midBudgetHotel.gross_amount_per_night
+        totalMidHotelCharge += midMoneyHotel
+          ? midMoneyHotel.gross_amount_per_night
           : 0;
-        totalMaxHotelCharge += maxBudgetHotel
-          ? maxBudgetHotel.gross_amount_per_night
+        totalMaxHotelCharge += maxMoneyHotel
+          ? maxMoneyHotel.gross_amount_per_night
           : 0;
       }
 
@@ -231,48 +231,48 @@ describe('Correct case test', () => {
       // const travelDays = travelNights + 1;
       const transitionTerm = travelNights / hotelTransition; // 호텔 이동할 주기 (단위: 일)
 
-      expect(recommendedMinHotelCount).toBe(minBudgetHotelCount);
+      expect(recommendedMinHotelCount).toBe(minMoneyHotelCount);
       if (recommendedMinHotelCount === 0) {
-        const minHotelBudget = minBudget * minHotelBudgetPortion;
-        const dailyMinBudget = minHotelBudget / transitionTerm;
+        const minHotelMoney = minMoney * minHotelMoneyPortion;
+        const dailyMinMoney = minHotelMoney / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
-          item => item.min_total_price / travelNights < dailyMinBudget,
+          item => item.min_total_price / travelNights < dailyMinMoney,
         );
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMinHotelCount).toBe(hotelTransition + 1);
-        expect(totalMinHotelCharge).toBeLessThan(minBudget);
+        expect(totalMinHotelCharge).toBeLessThan(minMoney);
       }
 
-      expect(recommendedMidHotelCount).toBe(midBudgetHotelCount);
-      const midBudget = (minBudget + maxBudget) / 2;
+      expect(recommendedMidHotelCount).toBe(midMoneyHotelCount);
+      const midMoney = (minMoney + maxMoney) / 2;
       if (recommendedMidHotelCount === 0) {
-        const midHotelBudget = midBudget * midHotelBudgetPortion;
-        const dailyMidBudget =
-          (midHotelBudget * flexPortionLimit) / transitionTerm;
+        const midHotelMoney = midMoney * midHotelMoneyPortion;
+        const dailyMidMoney =
+          (midHotelMoney * flexPortionLimit) / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
-          item => item.min_total_price < dailyMidBudget,
+          item => item.min_total_price < dailyMidMoney,
         );
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMidHotelCount).toBe(hotelTransition + 1);
-        expect(totalMidHotelCharge).toBeLessThan(midBudget);
+        expect(totalMidHotelCharge).toBeLessThan(midMoney);
       }
 
-      expect(recommendedMaxHotelCount).toBe(maxBudgetHotelCount);
+      expect(recommendedMaxHotelCount).toBe(maxMoneyHotelCount);
       if (recommendedMidHotelCount === 0) {
-        const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
-        const dailyMaxBudget = maxHotelBudget / transitionTerm;
+        const maxHotelMoney = maxMoney * maxHotelMoneyPortion;
+        const dailyMaxMoney = maxHotelMoney / transitionTerm;
         const copiedCheckHotelRes = Array.from(checkHotelRes);
         const filtered = copiedCheckHotelRes.filter(
-          item => item.min_total_price < dailyMaxBudget,
+          item => item.min_total_price < dailyMaxMoney,
         );
         expect(filtered).toHaveLength(0);
       } else {
         expect(recommendedMaxHotelCount).toBe(hotelTransition + 1);
-        expect(totalMaxHotelCharge).toBeLessThan(maxBudget);
+        expect(totalMaxHotelCharge).toBeLessThan(maxMoney);
       }
     });
   });
@@ -292,18 +292,18 @@ describe('Correct case test', () => {
         );
       if (categoryIdx > -1) {
         hotels.forEach(hotel => {
-          if (hotel.minBudgetHotel) {
-            expect(hotel.minBudgetHotel?.accommodation_type_name).toContain(
+          if (hotel.minMoneyHotel) {
+            expect(hotel.minMoneyHotel?.accommodation_type_name).toContain(
               'Hotel',
             );
           }
-          if (hotel.midBudgetHotel) {
-            expect(hotel.midBudgetHotel?.accommodation_type_name).toContain(
+          if (hotel.midMoneyHotel) {
+            expect(hotel.midMoneyHotel?.accommodation_type_name).toContain(
               'Hotel',
             );
           }
-          if (hotel.maxBudgetHotel) {
-            expect(hotel.maxBudgetHotel?.accommodation_type_name).toContain(
+          if (hotel.maxMoneyHotel) {
+            expect(hotel.maxMoneyHotel?.accommodation_type_name).toContain(
               'Hotel',
             );
           }
@@ -321,9 +321,9 @@ describe('Correct case test', () => {
         let prevIdx = -1;
         hotels.forEach((hotel, index) => {
           if (prevIdx > -1) {
-            const curMinHotelReviewScore = hotel.minBudgetHotel?.review_score;
+            const curMinHotelReviewScore = hotel.minMoneyHotel?.review_score;
             const prevMinHotelReviewScore =
-              hotels[prevIdx].minBudgetHotel?.review_score;
+              hotels[prevIdx].minMoneyHotel?.review_score;
 
             if (curMinHotelReviewScore && prevMinHotelReviewScore) {
               expect(curMinHotelReviewScore).not.toBeUndefined();
@@ -404,8 +404,8 @@ describe('Correct case test', () => {
       );
       const travelDays = travelNights + 1;
 
-      const minHotelBudget = minBudget * minHotelBudgetPortion;
-      const dailyMinBudget = minHotelBudget / travelNights;
+      const minHotelMoney = minMoney * minHotelMoneyPortion;
+      const dailyMinMoney = minHotelMoney / travelNights;
       const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1));
       // api 호출 결과와 함께 분석
       const schedules = recommendRes.visitSchedules.map(
@@ -466,8 +466,7 @@ describe('Correct case test', () => {
                     .then(hotels => {
                       if (hotels) {
                         const bestHotels = hotels.filter(
-                          hotel =>
-                            hotel.gross_amount_per_night < dailyMinBudget,
+                          hotel => hotel.gross_amount_per_night < dailyMinMoney,
                         );
 
                         let hotelIdx = (dayIdx + 1) / transitionTerm - 1; // 여행중 n일째 묵고 있을 호텔은 기준에 맞춰 정렬한 리스트중 몇번째 호텔인가를 계산

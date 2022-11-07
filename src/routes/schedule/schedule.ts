@@ -108,7 +108,7 @@ import {
   // arrAccommodationTypeToObj,
   // arrAccommodationLocationToObj,
   getTourPlaceFromDB,
-  filterHotelWithBudget,
+  filterHotelWithMoney,
   orderByDistanceFromNode,
   childInfantToChildrenAges,
 } from './internalFunc';
@@ -574,13 +574,13 @@ export const reqSchedule = (
     });
 
     const getRecommendFuncParam: QueryReqParams = {
-      minBudget: Number(minMoney),
-      maxBudget: Number(maxMoney),
-      travelStartDate: startDate,
-      travelEndDate: endDate,
+      minMoney: Number(minMoney),
+      maxMoney: Number(maxMoney),
+      startDate,
+      endDate,
       currency: 'KRW',
       travelType,
-      travelIntensity: Number(travelHard),
+      travelHard: Number(travelHard),
       hotelTransition: gHotelTransition,
       searchHotelReqParams: {
         orderBy: 'review_score',
@@ -2770,10 +2770,10 @@ export const getRecommendListFromDB = asyncWrapper(
   ) => {
     try {
       const {
-        minMoney,
-        maxMoney,
-        startDate: travelStartDate,
-        endDate: travelEndDate,
+        // minMoney,
+        // maxMoney,
+        startDate,
+        endDate,
         adult,
         child,
         infant,
@@ -2781,12 +2781,11 @@ export const getRecommendListFromDB = asyncWrapper(
         favoriteTravelType,
         // favoriteAccommodation,
         // favoriteAccommodationLocation,
-
         mock,
       } = req.body;
 
-      const minBudget = Number(minMoney);
-      const maxBudget = Number(maxMoney);
+      const minMoney = Number(req.body.minMoney);
+      const maxMoney = Number(req.body.maxMoney);
       const latitude = '33.501298'; /// 제주도 예시
       const longitude = '126.525482';
       const radius = gRadius;
@@ -2794,11 +2793,10 @@ export const getRecommendListFromDB = asyncWrapper(
       const hotelTransition = 0;
 
       /// 파라미터 유효성 검사
-      if (Number(minBudget) === 0 || Number(maxBudget) === 0) {
+      if (Number(minMoney) === 0 || Number(maxMoney) === 0) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message:
-            'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+          message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
         });
       }
 
@@ -2823,23 +2821,23 @@ export const getRecommendListFromDB = asyncWrapper(
       // }
 
       if (
-        isEmpty(travelStartDate) ||
-        isEmpty(travelEndDate) ||
-        !(new Date(travelStartDate) instanceof Date) ||
-        !(new Date(travelEndDate) instanceof Date)
+        isEmpty(startDate) ||
+        isEmpty(endDate) ||
+        !(new Date(startDate) instanceof Date) ||
+        !(new Date(endDate) instanceof Date)
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
           message:
-            'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+            'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
         });
       }
 
       const travelNights = getTravelNights(
         // searchCond.searchHotelReqParams.checkinDate,
         // searchCond.searchHotelReqParams.checkoutDate,
-        travelStartDate,
-        travelEndDate,
+        startDate,
+        endDate,
       );
       const travelDays = travelNights + 1;
       if (travelNights < 1) {
@@ -2866,9 +2864,9 @@ export const getRecommendListFromDB = asyncWrapper(
       const sameDatedSearchHotelReqParams: SearchHotelReqParams = {
         orderBy: 'review_score',
         adultsNumber: Number(adult),
-        checkinDate: moment(travelStartDate).format('YYYY-MM-DD'),
+        checkinDate: moment(startDate).format('YYYY-MM-DD'),
 
-        checkoutDate: moment(travelEndDate).format('YYYY-MM-DD'),
+        checkoutDate: moment(endDate).format('YYYY-MM-DD'),
         latitude,
         longitude,
         childrenNumber: Number(child) + Number(infant),
@@ -2878,13 +2876,13 @@ export const getRecommendListFromDB = asyncWrapper(
       };
 
       const sameDatedSearchCond: QueryReqParams = {
-        minBudget: Number(minBudget),
-        maxBudget: Number(maxBudget),
+        minMoney: Number(minMoney),
+        maxMoney: Number(maxMoney),
         currency,
         travelType: arrTravelTypeToObj(favoriteTravelType),
-        travelIntensity: Number(travelHard),
-        travelStartDate,
-        travelEndDate,
+        travelHard: Number(travelHard),
+        startDate,
+        endDate,
         hotelTransition: 0,
         searchHotelReqParams: sameDatedSearchHotelReqParams,
         nearbySearchReqParams: {
@@ -2913,10 +2911,10 @@ export const getRecommendListFromDB = asyncWrapper(
       const spotResult = await getTourPlaceFromDB('SPOT');
 
       const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
-        filterHotelWithBudget({
+        filterHotelWithMoney({
           hotels: searchHotelRes,
-          minBudget,
-          maxBudget,
+          minMoney,
+          maxMoney,
           travelNights,
         });
 
@@ -2965,11 +2963,11 @@ export const getRecommendListFromDB = asyncWrapper(
           if (midHotel) recommendedMidHotelCount += 1;
           if (maxHotel) recommendedMaxHotelCount += 1;
         }
-        const minBudgetHotel =
+        const minMoneyHotel =
           idx % transitionTerm === 0 ? minHotel : prevMinHotel;
-        const midBudgetHotel =
+        const midMoneyHotel =
           idx % transitionTerm === 0 ? midHotel : prevMidHotel;
-        const maxBudgetHotel =
+        const maxMoneyHotel =
           idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
         // minHotel의 idx 해당일 spot들 구하기
@@ -2978,11 +2976,11 @@ export const getRecommendListFromDB = asyncWrapper(
         const thatDayRestaurantFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
-        if (minBudgetHotel) {
+        if (minMoneyHotel) {
           let destination: GglNearbySearchResWithGeoNTourPlace;
           let prevDest:
             | SearchHotelResWithTourPlace
-            | GglNearbySearchResWithGeoNTourPlace = minBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = minMoneyHotel;
           thatDayVisitOrderFromMinHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3052,12 +3050,12 @@ export const getRecommendListFromDB = asyncWrapper(
         const thatDayRestaurantFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
-        if (midBudgetHotel) {
+        if (midMoneyHotel) {
           let destination: GglNearbySearchResWithGeoNTourPlace;
 
           let prevDest:
             | SearchHotelResWithTourPlace
-            | GglNearbySearchResWithGeoNTourPlace = midBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = midMoneyHotel;
           thatDayVisitOrderFromMidHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3127,11 +3125,11 @@ export const getRecommendListFromDB = asyncWrapper(
         const thatDayRestaurantFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] =
           [];
         const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
-        if (maxBudgetHotel) {
+        if (maxMoneyHotel) {
           let destination: GglNearbySearchResWithGeoNTourPlace;
           let prevDest:
             | SearchHotelResWithTourPlace
-            | GglNearbySearchResWithGeoNTourPlace = maxBudgetHotel;
+            | GglNearbySearchResWithGeoNTourPlace = maxMoneyHotel;
           thatDayVisitOrderFromMaxHotel.push({
             type: 'hotel',
             data: prevDest,
@@ -3254,9 +3252,9 @@ export const getRecommendListFromDB = asyncWrapper(
           },
           hotel: {
             // 여행 마지막날은 숙박하지 않는다.
-            minBudgetHotel: idx === arr.length - 1 ? undefined : minBudgetHotel,
-            midBudgetHotel: idx === arr.length - 1 ? undefined : midBudgetHotel,
-            maxBudgetHotel: idx === arr.length - 1 ? undefined : maxBudgetHotel,
+            minMoneyHotel: idx === arr.length - 1 ? undefined : minMoneyHotel,
+            midMoneyHotel: idx === arr.length - 1 ? undefined : midMoneyHotel,
+            maxMoneyHotel: idx === arr.length - 1 ? undefined : maxMoneyHotel,
           },
         });
 

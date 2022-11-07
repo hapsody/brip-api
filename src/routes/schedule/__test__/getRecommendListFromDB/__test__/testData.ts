@@ -1,8 +1,8 @@
 import { childInfantToChildrenAges } from '@src/routes/schedule/internalFunc';
 import { getNDaysLater } from '@src/utils';
 
-export const minBudget = 1000000;
-export const maxBudget = 3000000;
+export const minMoney = 1000000;
+export const maxMoney = 3000000;
 // export const travelStartDate = '2022-11-30T00:00:00';
 // export const travelEndDate = '2022-12-02T00:00:00';
 export const travelStartDate = getNDaysLater(30);
@@ -38,8 +38,8 @@ export const params = {
     },
   },
   mainResource: {
-    minMoney: minBudget.toString(),
-    maxMoney: maxBudget.toString(),
+    minMoney: minMoney.toString(),
+    maxMoney: maxMoney.toString(),
     startDate: travelStartDate,
     endDate: travelEndDate,
     adult,

@@ -1,19 +1,19 @@
 import { getNDaysLater } from '@src/utils';
 
-export const minBudget = 1000000;
-export const maxBudget = 3000000;
+export const minMoney = 1000000;
+export const maxMoney = 3000000;
 // export const travelStartDate = '2022-11-30T00:00:00';
 // export const travelEndDate = '2022-12-02T00:00:00';
-export const travelStartDate = getNDaysLater(30);
-export const travelEndDate = getNDaysLater(33);
+export const startDate = getNDaysLater(30);
+export const endDate = getNDaysLater(33);
 export const hotelTransition = 1;
 export const childrenNumber = 2;
 export const childrenAges = [1, 3];
 
 export const params = {
   // searchCond: {
-  //   minBudget,
-  //   maxBudget,
+  //   minMoney,
+  //   maxMoney,
   //   currency: 'USD',
   //   travelType: {
   //     landActivity: true,
@@ -65,8 +65,8 @@ export const params = {
   // },
 
   searchCond: {
-    minBudget,
-    maxBudget,
+    minMoney,
+    maxMoney,
     currency: 'USD',
     travelType: {
       landActivity: true,
@@ -85,9 +85,9 @@ export const params = {
       nativeExperience: false,
       noIdea: false,
     },
-    travelIntensity: 6,
-    travelStartDate,
-    travelEndDate,
+    travelHard: 6,
+    startDate,
+    endDate,
     hotelTransition,
     nearbySearchReqParams: {
       keyword: '',

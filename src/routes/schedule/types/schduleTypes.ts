@@ -17,13 +17,13 @@ export const spotPerDay = 2;
 export const gHotelTransition = 0;
 export const gRadius = 4000;
 export const gCurrency = 'KRW';
-export const minHotelBudgetPortion = 0.5;
-export const midHotelBudgetPortion = 0.6;
-export const maxHotelBudgetPortion = 0.7;
+export const minHotelMoneyPortion = 0.5;
+export const midHotelMoneyPortion = 0.6;
+export const maxHotelMoneyPortion = 0.7;
 export const flexPortionLimit = 1.3;
 // const hotelPerDay = 1;
 
-export interface NearBySearchReqParams {
+export interface NearbySearchReqParams {
   keyword: string;
   location: {
     latitude: string; // 위도
@@ -34,7 +34,7 @@ export interface NearBySearchReqParams {
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
 
-export type TextSearchReqParams = Partial<NearBySearchReqParams>;
+export type TextSearchReqParams = Partial<NearbySearchReqParams>;
 export type Currency = 'USD' | 'KRW';
 
 export type BookingComOrderBy =
@@ -108,16 +108,16 @@ export interface FavoriteAccommodationLocation {
 
 export interface QueryReqParams {
   // searchLocation?: string; // ex) o'ahu ex) seoul
-  minBudget?: number; /// ex) 4000000,
-  maxBudget?: number; /// ex) 5000000,
+  minMoney?: number; /// ex) 4000000,
+  maxMoney?: number; /// ex) 5000000,
   currency: Currency; /// "USD" | "KRW" default USD
   travelType: FavoriteTravelType; ///
-  travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
-  travelEndDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  travelHard?: number; // 여행강도 0~10 ex) 6; default 5
+  startDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
+  endDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   searchHotelReqParams: SearchHotelReqParams;
-  nearbySearchReqParams: NearBySearchReqParams;
+  nearbySearchReqParams: NearbySearchReqParams;
   textSearchReqParams?: TextSearchReqParams;
 }
 
@@ -261,9 +261,9 @@ export interface VisitSchedule {
     restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
   };
   hotel: {
-    minBudgetHotel: SearchHotelResWithTourPlace | undefined;
-    midBudgetHotel: SearchHotelResWithTourPlace | undefined;
-    maxBudgetHotel: SearchHotelResWithTourPlace | undefined;
+    minMoneyHotel: SearchHotelResWithTourPlace | undefined;
+    midMoneyHotel: SearchHotelResWithTourPlace | undefined;
+    maxMoneyHotel: SearchHotelResWithTourPlace | undefined;
   };
 }
 export type VisitSchedules = VisitSchedule[];
@@ -409,12 +409,12 @@ export type FiltersForSearchFromBookingRawResponse = {
 export type FiltersForSearchFromBookingComInnerAsyncFnRetParams =
   | FiltersForSearchFromBookingComRawFilterOfResponse[];
 
-export const defaultNearbySearchReqParams = {
-  keyword: undefined,
-  radius: undefined,
+export const defaultNearbySearchReqParams: NearbySearchReqParams = {
+  keyword: '',
+  radius: 4000,
   location: {
-    latitude: undefined,
-    longitude: undefined,
+    latitude: '33.501298',
+    longitude: '126.525482',
   },
   loadAll: false,
 };
@@ -436,7 +436,7 @@ export const defaultSearchHotelReqParams: SearchHotelReqParams = {
   mock: true,
 };
 
-export const defaultQueryParams = {
+export const defaultQueryParams: QueryReqParams = {
   searchHotelReqParams: defaultSearchHotelReqParams,
   nearbySearchReqParams: defaultNearbySearchReqParams,
   currency: 'USD' as Currency, // "USD" | "KRW" default USD
@@ -444,9 +444,9 @@ export const defaultQueryParams = {
     // default { noIdea: true }
     noIdea: true, // 모르겠음
   },
-  travelIntensity: 5, // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: moment(new Date()).startOf('day').format(), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
-  travelEndDate: moment(new Date()).startOf('day').add(1, 'day').format(),
+  travelHard: 5, // 여행강도 0~10 ex) 6; default 5
+  startDate: moment(new Date()).startOf('day').format(), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
+  endDate: moment(new Date()).startOf('day').add(1, 'day').format(),
   // 여행일정 종료일 ex) '2022-10-03T00:00:00';
 };
 
@@ -1051,14 +1051,14 @@ export type GetRecommendListFromDBRetParams = Omit<IBResFormat, 'IBparams'> & {
 //   return `${str}`;
 // };
 
-export interface FilterHotelWithBudgetReqParams {
+export interface FilterHotelWithMoneyReqParams {
   hotels: SearchHotelResWithTourPlace[];
-  minBudget: number;
-  maxBudget: number;
+  minMoney: number;
+  maxMoney: number;
   travelNights: number;
 }
 
-export interface FilterHotelWithBudgetRetParams {
+export interface FilterHotelWithMoneyRetParams {
   minFilteredHotels: SearchHotelResWithTourPlace[];
   midFilteredHotels: SearchHotelResWithTourPlace[];
   maxFilteredHotels: SearchHotelResWithTourPlace[];

@@ -35,9 +35,9 @@ import {
   MealOrder,
   mealPerDay,
   spotPerDay,
-  minHotelBudgetPortion,
-  midHotelBudgetPortion,
-  maxHotelBudgetPortion,
+  minHotelMoneyPortion,
+  midHotelMoneyPortion,
+  maxHotelMoneyPortion,
   VisitOrder,
   flexPortionLimit,
   GetPlaceDetailRawResponse,
@@ -54,8 +54,8 @@ import {
   FavoriteAccommodationType,
   FavoriteAccommodationLocation,
   gCurrency,
-  FilterHotelWithBudgetReqParams,
-  FilterHotelWithBudgetRetParams,
+  FilterHotelWithMoneyReqParams,
+  FilterHotelWithMoneyRetParams,
 } from './types/schduleTypes';
 
 const language = 'ko';
@@ -1065,31 +1065,31 @@ export const orderByDistanceFromNode = ({
   };
 };
 
-export const filterHotelWithBudget = (
-  params: FilterHotelWithBudgetReqParams,
-): FilterHotelWithBudgetRetParams => {
-  const { hotels, minBudget, maxBudget, travelNights } = params;
+export const filterHotelWithMoney = (
+  params: FilterHotelWithMoneyReqParams,
+): FilterHotelWithMoneyRetParams => {
+  const { hotels, minMoney, maxMoney, travelNights } = params;
   const copiedHotelRes = Array.from(hotels).reverse();
 
-  const minHotelBudget = minBudget * minHotelBudgetPortion;
-  const dailyMinBudget = minHotelBudget / travelNights;
-  const midBudget = (minBudget + maxBudget) / 2;
+  const minHotelMoney = minMoney * minHotelMoneyPortion;
+  const dailyMinMoney = minHotelMoney / travelNights;
+  const midMoney = (minMoney + maxMoney) / 2;
   // const flexPortionLimit = 1.3;
 
-  const midHotelBudget = midBudget * midHotelBudgetPortion;
-  const dailyMidBudget = (midHotelBudget * flexPortionLimit) / travelNights;
+  const midHotelMoney = midMoney * midHotelMoneyPortion;
+  const dailyMidMoney = (midHotelMoney * flexPortionLimit) / travelNights;
 
-  const maxHotelBudget = maxBudget * maxHotelBudgetPortion;
-  const dailyMaxBudget = maxHotelBudget / travelNights;
+  const maxHotelMoney = maxMoney * maxHotelMoneyPortion;
+  const dailyMaxMoney = maxHotelMoney / travelNights;
 
   const minFilteredHotels = copiedHotelRes.filter(
-    hotel => hotel.min_total_price / travelNights < dailyMinBudget,
+    hotel => hotel.min_total_price / travelNights < dailyMinMoney,
   );
   const midFilteredHotels = copiedHotelRes.filter(
-    hotel => hotel.min_total_price / travelNights < dailyMidBudget,
+    hotel => hotel.min_total_price / travelNights < dailyMidMoney,
   );
   const maxFilteredHotels = copiedHotelRes.filter(
-    hotel => hotel.min_total_price / travelNights < dailyMaxBudget,
+    hotel => hotel.min_total_price / travelNights < dailyMaxMoney,
   );
   return {
     minFilteredHotels,
@@ -1110,13 +1110,13 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
 
   const { searchCond } = params;
   const {
-    minBudget = 0, // 여행 전체일정중 최소비용
-    maxBudget = 0, // 여행 전체 일정중 최대 비용
+    minMoney = 0, // 여행 전체일정중 최소비용
+    maxMoney = 0, // 여행 전체 일정중 최대 비용
     // currency,
     // travelType,
     // travelIntensity,
-    travelStartDate, // 여행 시작일
-    travelEndDate, // 여행 종료일
+    startDate, // 여행 시작일
+    endDate, // 여행 종료일
     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     nearbySearchReqParams,
     searchHotelReqParams,
@@ -1125,10 +1125,10 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
   const { radius = gRadius, location } = nearbySearchReqParams;
   const { latitude: hotelLat, longitude: hotelLngt } = searchHotelReqParams;
 
-  if (minBudget === 0 || maxBudget === 0) {
+  if (minMoney === 0 || maxMoney === 0) {
     throw new IBError({
       type: 'INVALIDPARAMS',
-      message: 'minBudget, maxBudget은 모두 0이상의 값이 제공되어야 합니다.',
+      message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
     });
   }
 
@@ -1153,23 +1153,23 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
   }
 
   if (
-    isEmpty(travelStartDate) ||
-    isEmpty(travelEndDate) ||
-    !(new Date(travelStartDate) instanceof Date) ||
-    !(new Date(travelEndDate) instanceof Date)
+    isEmpty(startDate) ||
+    isEmpty(endDate) ||
+    !(new Date(startDate) instanceof Date) ||
+    !(new Date(endDate) instanceof Date)
   ) {
     throw new IBError({
       type: 'INVALIDPARAMS',
       message:
-        'travelStartDate, travelEndDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+        'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
     });
   }
 
   const travelNights = getTravelNights(
     // searchCond.searchHotelReqParams.checkinDate,
     // searchCond.searchHotelReqParams.checkoutDate,
-    travelStartDate,
-    travelEndDate,
+    startDate,
+    endDate,
   );
   if (travelNights < 1) {
     throw new IBError({
@@ -1188,8 +1188,8 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
   // 호텔 검색
   const sameDatedSearchHotelReqParams = {
     ...searchCond.searchHotelReqParams,
-    checkinDate: searchCond.searchHotelReqParams.checkinDate ?? travelStartDate,
-    checkoutDate: searchCond.searchHotelReqParams.checkoutDate ?? travelEndDate,
+    checkinDate: searchCond.searchHotelReqParams.checkinDate ?? startDate,
+    checkoutDate: searchCond.searchHotelReqParams.checkoutDate ?? endDate,
   };
   const sameDatedSearchCond = {
     ...searchCond,
@@ -1293,10 +1293,10 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
 
   const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
-    filterHotelWithBudget({
+    filterHotelWithMoney({
       hotels: searchHotelRes,
-      minBudget,
-      maxBudget,
+      minMoney,
+      maxMoney,
       travelNights,
     });
 
@@ -1346,20 +1346,20 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
       if (midHotel) recommendedMidHotelCount += 1;
       if (maxHotel) recommendedMaxHotelCount += 1;
     }
-    const minBudgetHotel = idx % transitionTerm === 0 ? minHotel : prevMinHotel;
-    const midBudgetHotel = idx % transitionTerm === 0 ? midHotel : prevMidHotel;
-    const maxBudgetHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
+    const minMoneyHotel = idx % transitionTerm === 0 ? minHotel : prevMinHotel;
+    const midMoneyHotel = idx % transitionTerm === 0 ? midHotel : prevMidHotel;
+    const maxMoneyHotel = idx % transitionTerm === 0 ? maxHotel : prevMaxHotel;
 
     // minHotel의 idx 해당일 spot들 구하기
     const thatDaySpotFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] = [];
     const thatDayRestaurantFromMinHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMinHotel: VisitOrder[] = [];
-    if (minBudgetHotel) {
+    if (minMoneyHotel) {
       let destination: GglNearbySearchResWithGeoNTourPlace;
       let prevDest:
         | SearchHotelResWithTourPlace
-        | GglNearbySearchResWithGeoNTourPlace = minBudgetHotel;
+        | GglNearbySearchResWithGeoNTourPlace = minMoneyHotel;
       thatDayVisitOrderFromMinHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1428,12 +1428,12 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDayRestaurantFromMidHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMidHotel: VisitOrder[] = [];
-    if (midBudgetHotel) {
+    if (midMoneyHotel) {
       let destination: GglNearbySearchResWithGeoNTourPlace;
 
       let prevDest:
         | SearchHotelResWithTourPlace
-        | GglNearbySearchResWithGeoNTourPlace = midBudgetHotel;
+        | GglNearbySearchResWithGeoNTourPlace = midMoneyHotel;
       thatDayVisitOrderFromMidHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1502,11 +1502,11 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
     const thatDayRestaurantFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[] =
       [];
     const thatDayVisitOrderFromMaxHotel: VisitOrder[] = [];
-    if (maxBudgetHotel) {
+    if (maxMoneyHotel) {
       let destination: GglNearbySearchResWithGeoNTourPlace;
       let prevDest:
         | SearchHotelResWithTourPlace
-        | GglNearbySearchResWithGeoNTourPlace = maxBudgetHotel;
+        | GglNearbySearchResWithGeoNTourPlace = maxMoneyHotel;
       thatDayVisitOrderFromMaxHotel.push({
         type: 'hotel',
         data: prevDest,
@@ -1629,9 +1629,9 @@ export const getRecommendListWithLatLngtInnerAsyncFn = async (
       },
       hotel: {
         // 여행 마지막날은 숙박하지 않는다.
-        minBudgetHotel: idx === arr.length - 1 ? undefined : minBudgetHotel,
-        midBudgetHotel: idx === arr.length - 1 ? undefined : midBudgetHotel,
-        maxBudgetHotel: idx === arr.length - 1 ? undefined : maxBudgetHotel,
+        minMoneyHotel: idx === arr.length - 1 ? undefined : minMoneyHotel,
+        midMoneyHotel: idx === arr.length - 1 ? undefined : midMoneyHotel,
+        maxMoneyHotel: idx === arr.length - 1 ? undefined : maxMoneyHotel,
       },
     });
 
