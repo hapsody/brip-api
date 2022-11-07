@@ -275,96 +275,6 @@ const prismaTest = asyncWrapper(
   },
 );
 
-// export const validNearbySearchPageToken = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<{
-//       keyword: string;
-//       location: {
-//         latitude: string; // 위도
-//         longitude: string; // 경도
-//       };
-//       radius: number;
-//     }>,
-//     res: Express.IBTypedResponse<IBResFormat>,
-//   ) => {
-//     const {
-//       body: { keyword, location, radius },
-//     } = req;
-//     let pageToken: string | undefined;
-//     let resArr: google.maps.places.PlaceResult[] = [];
-
-//     const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-//       location?.latitude
-//     }%2C${location?.longitude}&radius=${radius}&key=${
-//       process.env.GCP_MAPS_APIKEY as string
-//     }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-//     console.log(queryUrl);
-//     // eslint-disable-next-line no-await-in-loop
-//     const response = await axios.get(queryUrl);
-//     if (response?.statusText === 'OK') {
-//       // eslint-disable-next-line @typescript-eslint/naming-convention
-//       const { results, next_page_token } = response.data as {
-//         next_page_token: string;
-//         results: google.maps.places.PlaceResult[];
-//       };
-
-//       pageToken = next_page_token;
-//       resArr = [...resArr, ...results];
-//     }
-
-//     const promise = new Promise(resolve => {
-//       (function loop() {
-//         if (pageToken) {
-//           const queryUrl2 = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${keyword}&location=${
-//             location?.latitude
-//           }%2C${location?.longitude}&radius=${radius}&key=${
-//             process.env.GCP_MAPS_APIKEY as string
-//           }${pageToken ? `&pagetoken=${pageToken}` : ''}`;
-//           console.log(queryUrl2);
-//           // eslint-disable-next-line no-await-in-loop
-//           axios
-//             .get(queryUrl)
-//             .then(response2 => {
-//               if (response2?.statusText === 'OK') {
-//                 // eslint-disable-next-line @typescript-eslint/naming-convention
-//                 const { results, next_page_token } = response2.data as {
-//                   next_page_token: string;
-//                   results: google.maps.places.PlaceResult[];
-//                 };
-
-//                 pageToken = next_page_token;
-//                 resArr = [...resArr, ...results];
-//                 resolve(true);
-//               }
-//               loop();
-//               // console.log(JSON.stringify(response.data, null, 2));
-//             })
-//             .catch(err => console.error(err));
-//         }
-//       })();
-//     });
-
-//     await promise;
-//     console.log(
-//       JSON.stringify(
-//         resArr.map((item, i) => {
-//           return {
-//             idx: i,
-//             name: item.name,
-//             hash: item.place_id,
-//           };
-//         }),
-//         null,
-//         2,
-//       ),
-//     );
-//     res.json({
-//       ...ibDefs.SUCCESS,
-//       IBparams: resArr,
-//     });
-//   },
-// );
-
 export const addMockHotelResource = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<SearchHotelReqParams>,
@@ -506,21 +416,6 @@ export const addMockSearchLocationsResource = asyncWrapper(
     });
   },
 );
-
-// export const readMockHotelResource = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<{}>,
-//     res: Express.IBTypedResponse<IBResFormat>,
-//   ) => {
-//     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-//     const result = await readHotelDataFromMock();
-
-//     res.json({
-//       ...ibDefs.SUCCESS,
-//       IBparams: result ? (JSON.parse(result.responseData) as Object) : {},
-//     });
-//   },
-// );
 
 export const reqSchedule = (
   req: Express.IBTypedReqBody<ReqScheduleParams>,
@@ -3319,12 +3214,10 @@ scheduleRouter.post('/nearbySearch', nearbySearch);
 scheduleRouter.post('/googleTextSearch', textSearch);
 scheduleRouter.post('/searchHotel', searchHotel);
 scheduleRouter.post('/getListQueryParams', getListQueryParams);
-// scheduleRouter.post('/getRecommendList', getRecommendList);
 scheduleRouter.post(
   '/getRecommendListWithLatLngt',
   getRecommendListWithLatLngt,
 );
-// scheduleRouter.post('/validNearbySearchPageToken', validNearbySearchPageToken);
 scheduleRouter.post('/prismaTest', prismaTest);
 scheduleRouter.post(
   '/filtersForSearchFromBookingCom',

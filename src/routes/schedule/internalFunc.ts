@@ -70,53 +70,6 @@ export const childInfantToChildrenAges = (params: {
   ); /// child는 5세, infant는 1세로 일괄 처리.
 };
 
-// const getPlacePhoto = async (data: unknown) => {
-//   const { photos } = data as {
-//     photos: {
-//       height: number;
-//       html_attributions: string[];
-//       photo_reference: string;
-//       width: number;
-//     }[];
-//   };
-//   if (!photos) return undefined;
-//   const retArr: {
-//     height: number;
-//     width: number;
-//     html_attributions: string;
-//     photo_reference: string;
-//     url?: string;
-//   }[] = [];
-//   // eslint-disable-next-line no-restricted-syntax
-//   for await (const photo of photos) {
-//     const photo_reference =
-//       (photo as Partial<{ photo_reference: string }>).photo_reference ?? '';
-//     const photoUrlReqParam = `https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=${photo_reference}&key=${
-//       process.env.GCP_MAPS_APIKEY as string
-//     }`;
-
-//     const rawResult: {
-//       request: {
-//         protocol: string;
-//         host: string;
-//         path: string;
-//       };
-//     } = await axios.get(encodeURI(photoUrlReqParam));
-//     // console.log(photoUrlReqParam);
-//     const { protocol, host, path } = rawResult.request;
-//     const url = `${protocol}//${host}/${path}`;
-
-//     retArr.push({
-//       height: photo.height,
-//       width: photo.width,
-//       html_attributions: JSON.stringify(photo.html_attributions),
-//       photo_reference,
-//       url,
-//     });
-//   }
-//   return retArr;
-// };
-
 export const createQueryParamId = async (
   prismaX: Omit<
     PrismaClient<
@@ -569,27 +522,6 @@ export const getAllNearbySearchPages = async (
 ): Promise<google.maps.places.IBPlaceResult[]> => {
   let retry = 1;
   const retryLimit = 10;
-
-  // do while loop version
-  // do {
-  //   const loopQueryParams: QueryReqParams = {
-  //     nearbySearchReqParams: {
-  //       ...queryReqParams.nearbySearchReqParams,
-  //       pageToken: loopPageToken ?? '',
-  //     },
-  //     searchHotelReqParams: queryReqParams.searchHotelReqParams,
-  //   };
-  //   // eslint-disable-next-line no-await-in-loop
-  //   const loopTemp = await nearbySearchInnerAsyncFn(
-  //     loopQueryParams,
-  //     queryParamId,
-  //   );
-
-  //   loopResult = [...loopResult, ...loopTemp.nearbySearchResult];
-  //   loopPageToken = loopTemp.pageToken ?? '';
-  //   retry += 1;
-  //   console.log(retry);
-  // } while (loopLoadAll && !isEmpty(loopPageToken) && retry <= retryLimit);
 
   // recursion version
   const loopFunc = async (curPageToken: string) => {
