@@ -4,12 +4,7 @@
 import { IBError, getToday, getTomorrow } from '@src/utils';
 import axios, { AxiosResponse, Method } from 'axios';
 import prisma from '@src/prisma';
-import {
-  PrismaClient,
-  SearchHotelRes,
-  Prisma,
-  PlaceType,
-} from '@prisma/client';
+import { PrismaClient, Prisma, PlaceType } from '@prisma/client';
 import moment from 'moment';
 import { omit, isEmpty, isNumber, isNil, isUndefined } from 'lodash';
 import {
@@ -970,61 +965,6 @@ export const getDistance = ({
   );
 };
 
-// const evalMetaData = (withXDistances: number[]): MetaDataForSpike => {
-//   let prevValue = 0;
-//   const withXDelta = withXDistances.map(v => {
-//     const retValue = v - prevValue;
-//     prevValue = v;
-//     return retValue;
-//   });
-
-//   let sum = 0;
-//   const withXDeltaAvg = withXDelta.map((v, i) => {
-//     sum += v;
-//     return sum / (i + 1);
-//   });
-//   const calibValue = 1.7;
-//   const totalDeltaAvg = sum / withXDelta.length;
-//   const withHotelCalibDeltaAvg = withXDeltaAvg.map(v => calibValue * v);
-
-//   sum = 0;
-//   const withXDeltaSepAvg = withXDelta.map((d, i) => {
-//     sum += d;
-//     const curSeperatedAvg = sum / (i + 1);
-//     // let seperatedIdx = -1;
-//     if (
-//       d > totalDeltaAvg * calibValue &&
-//       d > curSeperatedAvg &&
-//       d > withHotelCalibDeltaAvg[i]
-//     ) {
-//       sum = withXDelta[i];
-//       // seperatedIdx = i;
-//     }
-
-//     return curSeperatedAvg;
-//   });
-
-//   const sepIdxs = withXDeltaSepAvg.map((curSeperatedAvg, i) => {
-//     const d = withXDelta[i];
-//     if (
-//       d > totalDeltaAvg * calibValue &&
-//       d > curSeperatedAvg &&
-//       d > withHotelCalibDeltaAvg[i]
-//     ) {
-//       return i;
-//     }
-//     return -1;
-//   });
-
-//   return {
-//     distances: withXDistances,
-//     delta: withXDelta,
-//     deltaAvg: withXDeltaAvg,
-//     deltaSepAvg: withXDeltaSepAvg,
-//     seperatedIdxs: sepIdxs,
-//   };
-// };
-
 export const orderByDistanceFromNode = ({
   baseNode,
   scheduleNodeLists,
@@ -1043,10 +983,10 @@ export const orderByDistanceFromNode = ({
   };
 
   const baseLocation = (() => {
-    if ((baseNode as SearchHotelRes).latitude !== undefined)
+    if ((baseNode as SearchHotelResWithTourPlace).latitude !== undefined)
       return {
-        latitude: (baseNode as SearchHotelRes).latitude,
-        longitude: (baseNode as SearchHotelRes).longitude,
+        latitude: (baseNode as SearchHotelResWithTourPlace).latitude,
+        longitude: (baseNode as SearchHotelResWithTourPlace).longitude,
       };
 
     const location = JSON.parse(
@@ -1056,19 +996,6 @@ export const orderByDistanceFromNode = ({
       latitude: location.lat,
       longitude: location.lng,
     };
-
-    // const { geometry } = baseNode as Partial<google.maps.places.IBPlaceResult>;
-    // const { location } = geometry ?? {
-    //   location: {
-    //     lat: 0,
-    //     lng: 0,
-    //   },
-    // };
-
-    // return {
-    //   latitude: location.lat,
-    //   longitude: location.lng,
-    // };
   })();
   const withHotels = scheduleNodeLists.hotel.map(hotel => {
     return {
@@ -1135,222 +1062,6 @@ export const orderByDistanceFromNode = ({
     withRestaurants,
   };
 };
-
-// const orderByDistanceFromNode = <
-//   MyType extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
-// >({
-//   baseNode,
-//   scheduleNodeLists,
-//   baseListType = 'hotel',
-// }: {
-//   baseNode: MyType;
-//   scheduleNodeLists: ScheduleNodeList;
-//   baseListType: PlaceType;
-// }): DistanceMap<MyType> => {
-//   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
-//     if (a.distance > b.distance) {
-//       return 1;
-//     }
-//     if (a.distance < b.distance) {
-//       return -1;
-//     }
-//     return 0;
-//   };
-
-//   const baseLocation = (() => {
-//     if (baseListType === 'hotel')
-//       return {
-//         latitude: (baseNode as SearchHotelRes).latitude,
-//         longitude: (baseNode as SearchHotelRes).longitude,
-//       };
-//     const location = JSON.parse(
-//       (baseNode as GglNearbySearchResWithGeoNTourPlace).geometry.location,
-//     ) as LatLngt;
-//     return {
-//       latitude: location.lat,
-//       longitude: location.lngt,
-//     };
-//   })();
-//   const withHotels = scheduleNodeLists.hotel.map(hotel => {
-//     return {
-//       data: hotel,
-//       distance: getDistance({
-//         startPoint: {
-//           lat: baseLocation.latitude,
-//           lngt: baseLocation.longitude,
-//         },
-//         endPoint: {
-//           lat: hotel.latitude,
-//           lngt: hotel.longitude,
-//         },
-//       }),
-//     };
-//   });
-//   withHotels.sort(sortByDistance);
-
-//   const withSpots = scheduleNodeLists.spot.map(spot => {
-//     const spotLocation = JSON.parse(spot.geometry.location) as LatLngt;
-
-//     return {
-//       data: spot,
-//       distance: getDistance({
-//         startPoint: {
-//           lat: baseLocation.latitude,
-//           lngt: baseLocation.longitude,
-//         },
-//         endPoint: {
-//           lat: spotLocation.lat,
-//           lngt: spotLocation.lngt,
-//         },
-//       }),
-//     };
-//   });
-//   withSpots.sort(sortByDistance);
-
-//   const withRestaurants = scheduleNodeLists.spot.map(restaurant => {
-//     const spotLocation = JSON.parse(restaurant.geometry.location) as LatLngt;
-
-//     return {
-//       data: restaurant,
-//       distance: getDistance({
-//         startPoint: {
-//           lat: baseLocation.latitude,
-//           lngt: baseLocation.longitude,
-//         },
-//         endPoint: {
-//           lat: spotLocation.lat,
-//           lngt: spotLocation.lngt,
-//         },
-//       }),
-//     };
-//   });
-//   withRestaurants.sort(sortByDistance);
-
-//   return {
-//     data: baseNode,
-//     withHotels,
-//     withSpots,
-//     withRestaurants,
-//   };
-// };
-
-// const evalSperatedPlaces = <
-//   BaseListType extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
-// >({
-//   searchHotelRes,
-//   touringSpotGglNearbySearchRes,
-//   restaurantGglNearbySearchRes,
-//   baseType = 'hotel',
-// }: EvalSeperatedPlacesReqParams) => {
-//   const sortByDistance = (a: { distance: number }, b: { distance: number }) => {
-//     if (a.distance > b.distance) {
-//       return 1;
-//     }
-//     if (a.distance < b.distance) {
-//       return -1;
-//     }
-//     return 0;
-//   };
-
-//   const distanceMaps: DistanceMap<BaseListType> = (() => {
-//     if (baseType === 'hotel') return searchHotelRes;
-//     if (baseType === 'spot') return touringSpotGglNearbySearchRes;
-//     return restaurantGglNearbySearchRes;
-//   })().map((outerItem: unknown) => {
-//     let lat = 0;
-//     let lngt = 0;
-//     if ((outerItem as SearchHotelRes) !== undefined) {
-//       lat = (outerItem as SearchHotelRes).latitude;
-//       lngt = (outerItem as SearchHotelRes).longitude;
-//     } else if (
-//       (outerItem as GglNearbySearchResWithGeoNTourPlace) !== undefined
-//     ) {
-//       const location = JSON.parse(
-//         (outerItem as GglNearbySearchResWithGeoNTourPlace).geometry.location,
-//       ) as LatLngt;
-//       lat = location.lat;
-//       lngt = location.lngt;
-//     }
-
-//     const withHotelDistances = searchHotelRes.map(hotel => {
-//       return {
-//         data: hotel,
-//         distance: getDistance({
-//           startPoint: {
-//             lat,
-//             lngt,
-//           },
-//           endPoint: {
-//             lat: hotel.latitude,
-//             lngt: hotel.longitude,
-//           },
-//         }),
-//       };
-//     });
-//     withHotelDistances.sort(sortByDistance);
-
-//     const withSpotDistances = touringSpotGglNearbySearchRes.map(spot => {
-//       const location = JSON.parse(spot.geometry.location) as LatLngt;
-//       return {
-//         data: spot,
-//         distance: getDistance({
-//           startPoint: {
-//             lat,
-//             lngt,
-//           },
-//           endPoint: {
-//             lat: location.lat,
-//             lngt: location.lngt,
-//           },
-//         }),
-//       };
-//     });
-//     withSpotDistances.sort(sortByDistance);
-
-//     const withRestaurantDistances = restaurantGglNearbySearchRes.map(
-//       restaurant => {
-//         const location = JSON.parse(restaurant.geometry.location) as LatLngt;
-//         return {
-//           data: restaurant,
-//           distance: getDistance({
-//             startPoint: {
-//               lat,
-//               lngt,
-//             },
-//             endPoint: {
-//               lat: location.lat,
-//               lngt: location.lngt,
-//             },
-//           }),
-//         };
-//       },
-//     );
-//     withRestaurantDistances.sort(sortByDistance);
-//     return {
-//       me: outerItem as BaseListType,
-//       withHotel: {
-//         data: withHotelDistances.map(e => e.data),
-//         metaDataForDistance: evalMetaData(
-//           withHotelDistances.map(e => e.distance),
-//         ),
-//       },
-//       withSpot: {
-//         data: withSpotDistances.map(e => e.data),
-//         metaDataForDistance: evalMetaData(
-//           withSpotDistances.map(e => e.distance),
-//         ),
-//       },
-//       withRestaurant: {
-//         data: withRestaurantDistances.map(e => e.data),
-//         metaDataForDistance: evalMetaData(
-//           withSpotDistances.map(e => e.distance),
-//         ),
-//       },
-//     };
-//   });
-
-//   return distanceMaps;
-// };
 
 export const filterHotelWithBudget = (params: {
   hotels: SearchHotelResWithTourPlace[];
@@ -2170,7 +1881,7 @@ export const getTourPlaceFromDB = async (
     tourPlaceId: number;
     tpCreatedAt: Date;
     tpUpdatedAt: Date;
-    tourPlaceType?: PlaceType;
+    tourPlaceType: PlaceType;
     queryParamsId?: number;
     gglNearbySearchResId: number;
     gglNCreatedAt: Date;
@@ -2291,21 +2002,6 @@ export const getTourPlaceFromDB = async (
   })();
 
   const result: GglNearbySearchResWithGeoNTourPlace[] = queryResult.map(v => {
-    // const location = JSON.parse(v.location) as unknown as {
-    //   lat: string;
-    //   lngt: string;
-    // };
-
-    // const viewport = JSON.parse(v.viewport) as unknown as {
-    //   northeast: {
-    //     lat: string;
-    //     lngt: string;
-    //   };
-    //   southwest: {
-    //     lat: string;
-    //     lngt: string;
-    //   };
-    // };
     return {
       id: v.gglNearbySearchResId,
       tourPlaceId: v.tourPlaceId,
@@ -2313,7 +2009,7 @@ export const getTourPlaceFromDB = async (
       updatedAt: v.gglNUpdatedAt,
       tourPlace: {
         id: v.tourPlaceId,
-        tourPlaceType: v.tourPlaceType ?? 'SPOT',
+        tourPlaceType: v.tourPlaceType,
         queryParamsId: v.queryParamsId ?? null,
         createdAt: v.tpCreatedAt,
         updatedAt: v.tpUpdatedAt,

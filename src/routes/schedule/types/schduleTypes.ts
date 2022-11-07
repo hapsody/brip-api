@@ -627,74 +627,16 @@ export const getQueryParamsForHotel = (
           { searchHotelRes: { distance: 'asc' } },
         ],
       },
-
-      // gglNearbySearchRes: {
-      //   where: {
-      //     types: {
-      //       some: {
-      //         value: {
-      //           equals: 'restaurant',
-      //         },
-      //       },
-      //     },
-      //   },
-      //   include: {
-      //     geometry: true,
-      //   },
-      //   orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
-      // },
-      // searchHotelRes: {
-      //   orderBy: [
-      //     {
-      //       review_score: 'desc',
-      //     },
-      //     {
-      //       distance: 'asc',
-      //     },
-      //   ],
-      // },
     },
   };
 };
 // export type LatLngt = { lat: number; lng: number };
 export type LatLngt = google.maps.IBLatLng;
 
-// export type MetaDataForSpike = {
-//   distances: number[];
-//   delta: number[];
-//   deltaAvg: number[];
-//   deltaSepAvg: number[];
-//   seperatedIdxs: number[];
-// };
-// export type DistanceMap<
-//   Type extends SearchHotelRes | GglNearbySearchResWithGeoNTourPlace,
-// > = {
-//   me: Type;
-//   withHotel: {
-//     data: SearchHotelRes[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-//   withRestaurant: {
-//     data: GglNearbySearchResWithGeoNTourPlace[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-//   withSpot: {
-//     data: GglNearbySearchResWithGeoNTourPlace[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-// }[];
-
-// export interface EvalSeperatedPlacesReqParams {
-//   searchHotelRes: SearchHotelRes[];
-//   touringSpotGglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace[];
-//   restaurantGglNearbySearchRes: GglNearbySearchResWithGeoNTourPlace[];
-//   baseType?: 'hotel' | 'spot' | 'restaurant';
-// }
-
 export type DistanceMap = {
-  me: SearchHotelRes | GglNearbySearchResWithGeoNTourPlace;
+  me: SearchHotelResWithTourPlace | GglNearbySearchResWithGeoNTourPlace;
   withHotels: {
-    data: SearchHotelRes;
+    data: SearchHotelResWithTourPlace;
     distance: number;
   }[];
   withRestaurants: {
@@ -713,7 +655,7 @@ export type GglNearbySearchResWithGeoNTourPlace = GglNearbySearchRes & {
 };
 
 export type ScheduleNodeList = {
-  hotel: SearchHotelRes[];
+  hotel: SearchHotelResWithTourPlace[];
   restaurant: GglNearbySearchResWithGeoNTourPlace[];
   spot: GglNearbySearchResWithGeoNTourPlace[];
 };
