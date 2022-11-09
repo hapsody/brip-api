@@ -27,7 +27,7 @@ export const getNDaysLater = (n: number): string => {
 
 /**
  * GetHotelDataFromBKCREQParam 조건에 맞춰 booking.com api로 호텔을 검색한다.
- * /searchHotelFromBookingCom api 호출시 실제 동작부를 형성한다.
+ * /searchHotel api 호출시 실제 동작부를 형성한다.
  * (비슷한 동작부를 다른곳에서 사용하기 용이하도록 모듈로써 사용하기 위해 endpoint 함수와 wrapper-inner함수로써 분리함)
  *
  * (구) searchHotelInnerFn을 대체한다.

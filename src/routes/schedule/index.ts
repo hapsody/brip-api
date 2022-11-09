@@ -10,6 +10,6 @@ scheduleRouter.post('/searchPlace', getPlaceDataFromGGLWrapper);
 /**
  * 내부 개발용
  */
-scheduleRouter.post('/addMockHotelResource', addMockBKCHotelResource);
+scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResource);
 
 export default scheduleRouter;
