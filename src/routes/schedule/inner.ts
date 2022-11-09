@@ -12,7 +12,7 @@ import {
   BKCHotelRawData,
   GetPlaceDataFromGGLREQParam,
   GetPlaceDataFromGGLRETParamPayload,
-  GglNearbySearchRawData,
+  GglPlaceResultRawData,
 } from './types/schduleTypes';
 
 export const getToday = (): string => {
@@ -141,17 +141,53 @@ export const getHotelDataFromBKC = async (
  * @param param
  * @returns
  */
-export const getPlaceDataFromGGL = async (
+export const getPlaceDataFromGglNrbySrch = async (
   param: GetPlaceDataFromGGLREQParam,
 ): Promise<GetPlaceDataFromGGLRETParamPayload> => {
   const { location, radius, pageToken, keyword } = param;
 
-  console.log(param);
+  console.log('google nearbySearch');
   const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${
     keyword ?? ''
   }&language=${gLanguage}&location=${location?.latitude},${
     location?.longitude
   }&radius=${radius}&key=${process.env.GCP_MAPS_APIKEY as string}${
+    pageToken ? `&pagetoken=${pageToken}` : ''
+  }`;
+  console.log(queryUrl);
+
+  const response = await axios.get(encodeURI(queryUrl));
+  const results =
+    (
+      response.data as Partial<{
+        results: google.maps.places.IBPlaceResult[];
+      }>
+    ).results ?? [];
+
+  return {
+    placeSearchCount: results.length,
+    placeSearchResult: results,
+    nextPageToken: (response.data as { next_page_token?: string })
+      .next_page_token,
+  };
+};
+
+/**
+ * google map api인 textSearch api를 요청하고 그 결과를 반환하는 함수
+ * (구) textSearchInnerFn
+ *
+ * @param param
+ * @returns
+ */
+export const getPlaceDataFromGglTxtSrch = async (
+  param: GetPlaceDataFromGGLREQParam,
+): Promise<GetPlaceDataFromGGLRETParamPayload> => {
+  const { pageToken, keyword } = param;
+
+  console.log('google textSearch');
+  const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
+    keyword ?? ''
+  }&language=ko&key=${process.env.GCP_MAPS_APIKEY as string}${
     pageToken ? `&pagetoken=${pageToken}` : ''
   }`;
   console.log(queryUrl);
@@ -183,9 +219,9 @@ export const getPlaceDataFromGGL = async (
  * @param
  * @returns
  */
-export const getAllPlaceDataFromGGL = async (
+export const getAllPlaceDataFromGGLPlaceAPI = async (
   param: GetPlaceDataFromGGLREQParam,
-): Promise<google.maps.places.IBPlaceResult[]> => {
+): Promise<GglPlaceResultRawData[]> => {
   let retry = 1;
   const retryLimit = 5;
 
@@ -198,7 +234,17 @@ export const getAllPlaceDataFromGGL = async (
       pageToken: curPageToken ?? '',
     };
     // eslint-disable-next-line no-await-in-loop
-    const loopTemp = await getPlaceDataFromGGL(loopQryParams);
+    const loopTemp = await (async () => {
+      if (
+        !isEmpty(param.location?.latitude) &&
+        !isEmpty(param.location?.longitude)
+      ) {
+        const r = await getPlaceDataFromGglNrbySrch(loopQryParams);
+        return r;
+      }
+      const r = await getPlaceDataFromGglTxtSrch(loopQryParams);
+      return r;
+    })();
 
     const nextPageToken = loopTemp.nextPageToken ?? '';
     const stopLoop = !param.loadAll;
@@ -207,7 +253,6 @@ export const getAllPlaceDataFromGGL = async (
     if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
       return [...loopTemp.placeSearchResult];
 
-    // const subResults: google.maps.places.IBPlaceResult[];
     const subResults = await new Promise(resolve => {
       setTimeout(() => {
         loopFunc(nextPageToken)
@@ -216,14 +261,14 @@ export const getAllPlaceDataFromGGL = async (
           })
           .catch(err => {
             console.error(err);
-            resolve([] as GglNearbySearchRawData[]);
+            resolve([] as GglPlaceResultRawData[]);
           });
       }, 2000);
     });
 
-    let loopResult: GglNearbySearchRawData[] = [];
+    let loopResult: GglPlaceResultRawData[] = [];
     loopResult = [
-      ...(subResults as GglNearbySearchRawData[]),
+      ...(subResults as GglPlaceResultRawData[]),
       ...loopTemp.placeSearchResult,
     ];
 

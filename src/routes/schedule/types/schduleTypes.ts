@@ -100,13 +100,19 @@ export interface GglNearbySearchReqOpt {
   radius: number;
   pageToken?: string;
 }
-export type GglNearbySearchRawData = google.maps.places.IBPlaceResult;
-export interface GetPlaceDataFromGGLREQParam extends GglNearbySearchReqOpt {
+export type GglTextSearchReqOpt = Pick<
+  GglNearbySearchReqOpt,
+  'keyword' | 'pageToken'
+>;
+export type GglPlaceResultRawData = google.maps.places.IBPlaceResult;
+export interface GetPlaceDataFromGGLREQParam
+  extends GglNearbySearchReqOpt,
+    GglTextSearchReqOpt {
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
 export interface GetPlaceDataFromGGLRETParamPayload {
   placeSearchCount: number;
-  placeSearchResult: GglNearbySearchRawData[];
+  placeSearchResult: GglPlaceResultRawData[];
   nextPageToken?: string;
 }
 export type GetPlaceDataFromGGLRETParam = Omit<IBResFormat, 'IBparams'> & {

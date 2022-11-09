@@ -17,7 +17,7 @@ import {
   GetPlaceDataFromGGLRETParam,
 } from './types/schduleTypes';
 
-import { getHotelDataFromBKC, getAllPlaceDataFromGGL } from './inner';
+import { getHotelDataFromBKC, getAllPlaceDataFromGGLPlaceAPI } from './inner';
 
 const scheduleRouter: express.Application = express();
 
@@ -74,7 +74,7 @@ export const getPlaceDataFromGGLWrapper = asyncWrapper(
     // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
     const param = req.body;
 
-    const placeSearchResult = await getAllPlaceDataFromGGL(param);
+    const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: {
