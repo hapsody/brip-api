@@ -1,5 +1,5 @@
 import { SearchHotelRes } from '@prisma/client';
-import { IBResFormat } from '@src/utils';
+import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
 export const gSpotPerDay = 2;
@@ -25,7 +25,7 @@ export type BookingComOrderBy =
   | 'review_score'
   | 'price';
 export type Currency = 'USD' | 'KRW';
-export interface GetHotelDataFromBKCREQParam {
+export interface BKCSrchByCoordReqOpt {
   orderBy: BookingComOrderBy; // default popularity
   adultsNumber: number;
   // units: 'metric';
@@ -41,6 +41,8 @@ export interface GetHotelDataFromBKCREQParam {
   childrenNumber?: number;
   childrenAges?: number[];
   categoriesFilterIds?: string[];
+}
+export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
   mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다.
   loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
 }
@@ -117,4 +119,27 @@ export interface GetPlaceDataFromGGLRETParamPayload {
 }
 export type GetPlaceDataFromGGLRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetPlaceDataFromGGLRETParamPayload;
+};
+
+/**
+ * AddMockHotelResource
+ */
+export interface AddMockBKCHotelResourceREQParam extends BKCSrchByCoordReqOpt {
+  mock?: boolean;
+}
+export const defaultBKCHotelReqParams: AddMockBKCHotelResourceREQParam = {
+  orderBy: 'popularity',
+  adultsNumber: 2,
+  roomNumber: 1,
+  checkinDate: getToday(),
+  checkoutDate: getTomorrow(),
+  filterByCurrency: 'USD',
+  latitude: '21.4286856',
+  longitude: '-158.1389763',
+  pageNumber: 0,
+  includeAdjacency: false,
+  childrenNumber: undefined,
+  childrenAges: undefined,
+  categoriesFilterIds: undefined,
+  mock: true,
 };
