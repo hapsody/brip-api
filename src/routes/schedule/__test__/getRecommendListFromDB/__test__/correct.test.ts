@@ -189,13 +189,18 @@ describe('Correct case test', () => {
         );
         // eslint-disable-next-line no-restricted-syntax
         for await (const aSpot of spot.spotsFromMinHotel) {
-          const tp = await prisma.tourPlace.findUnique({
-            where: { id: aSpot.tourPlaceId },
-            select: {
-              queryParamsId: true,
-            },
-          });
-          expect(tp?.queryParamsId).toBe(queryParamId);
+          expect(aSpot.tourPlace.id).not.toBeNull();
+          if (aSpot.tourPlace.id) {
+            const tp = await prisma.tourPlace.findUnique({
+              where: { id: aSpot.tourPlace.id },
+              select: {
+                queryParamsId: true,
+              },
+            });
+            const testResultQueryId = queryParamId;
+            const crossCheckTPQueryId = tp?.queryParamsId;
+            expect(crossCheckTPQueryId).toBe(testResultQueryId);
+          }
         }
 
         if (minMoneyHotel && prevMinMoneyHotel?.id !== minMoneyHotel.id) {
@@ -390,10 +395,16 @@ describe('Correct case test', () => {
       // );
 
       // 식당 검색
-      const restaurantResult = await getTourPlaceFromDB('RESTAURANT');
+      const restaurantResult = await getTourPlaceFromDB({
+        placeType: 'RESTAURANT',
+        queryParamId,
+      });
 
       // 식당 검색
-      const spotResult = await getTourPlaceFromDB('SPOT');
+      const spotResult = await getTourPlaceFromDB({
+        placeType: 'SPOT',
+        queryParamId,
+      });
 
       const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
       const searchHotelRes = tourPlaceHotel.map(v => v.searchHotelRes);
@@ -451,7 +462,9 @@ describe('Correct case test', () => {
                     .findMany({
                       where: {
                         tourPlace: {
-                          queryParamsId: queryParamId,
+                          some: {
+                            queryParamsId: queryParamId,
+                          },
                         },
                       },
                       orderBy: [
@@ -524,8 +537,8 @@ describe('Correct case test', () => {
                   };
                   if (
                     (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
-                      .tourPlaceId ===
-                    distanceMap.sortedSpots[0].nodeData.tourPlaceId
+                      .tourPlace.id ===
+                    distanceMap.sortedSpots[0].nodeData.tourPlace.id
                   ) {
                     resolve({
                       result: true,
@@ -560,8 +573,8 @@ describe('Correct case test', () => {
                   };
                   if (
                     (curOrder.data as GglNearbySearchResWithGeoNTourPlace)
-                      .tourPlaceId ===
-                    distanceMap.sortedRestaurants[0].nodeData.tourPlaceId
+                      .tourPlace.id ===
+                    distanceMap.sortedRestaurants[0].nodeData.tourPlace.id
                   ) {
                     resolve({
                       result: true,

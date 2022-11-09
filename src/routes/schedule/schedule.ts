@@ -1718,7 +1718,7 @@ export const getCandidateSchedule = asyncWrapper(
             spotList: queryParams?.tourPlace.map(v => {
               const hotel = v.searchHotelRes as SearchHotelRes;
               return {
-                id: hotel.tourPlaceId?.toString() ?? '',
+                id: v.id.toString() ?? '',
                 spotType: 'hotel',
                 previewImg: hotel.main_photo_url,
                 spotName: hotel.hotel_name,
@@ -1792,7 +1792,7 @@ export const getCandidateSchedule = asyncWrapper(
               };
 
               return {
-                id: restaurant.tourPlaceId?.toString() ?? '',
+                id: v.id.toString() ?? '',
                 spotType: 'restaurant',
                 previewImg:
                   restaurant.photos.length > 0 && restaurant.photos[0].url
@@ -1885,7 +1885,7 @@ export const getCandidateSchedule = asyncWrapper(
             };
 
             return {
-              id: spot.tourPlaceId?.toString() ?? '',
+              id: v.id.toString() ?? '',
               spotType: 'spot',
               previewImg:
                 spot.photos.length > 0 && spot.photos[0].url
@@ -2792,11 +2792,81 @@ export const getRecommendListFromDB = asyncWrapper(
       const { tourPlace: tourPlaceHotel } = hotelQueryParamsDataFromDB[0];
       const searchHotelResWithTP = tourPlaceHotel.map(v => v.searchHotelRes);
 
+      // GglNearbySearchRes
       // 식당 검색
-      const restaurantResult = await getTourPlaceFromDB('RESTAURANT');
+      const restaurantResult = await getTourPlaceFromDB({
+        placeType: 'RESTAURANT',
+        queryParamId,
+      });
 
-      // 식당 검색
-      const spotResult = await getTourPlaceFromDB('SPOT');
+      // 장소 검색
+      const spotResult = await getTourPlaceFromDB({
+        placeType: 'SPOT',
+        queryParamId,
+      });
+
+      const makeRelationBetweenRestaurantAndQueryParamsPromise =
+        restaurantResult.map(r => {
+          return prisma.tourPlace.create({
+            data: {
+              tourPlaceType: 'RESTAURANT',
+              queryParams: {
+                connect: {
+                  id: queryParamId,
+                },
+              },
+              gglNearbySearchRes: {
+                connect: {
+                  id: r.id,
+                },
+              },
+            },
+          });
+        });
+
+      const makeRelationBetweenSpotAndQueryParamsPromise = spotResult.map(r => {
+        return prisma.tourPlace.create({
+          data: {
+            tourPlaceType: 'SPOT',
+            queryParams: {
+              connect: {
+                id: queryParamId,
+              },
+            },
+            gglNearbySearchRes: {
+              connect: {
+                id: r.id,
+              },
+            },
+          },
+        });
+      });
+
+      const createdRestaurantTP = await prisma.$transaction([
+        ...makeRelationBetweenRestaurantAndQueryParamsPromise,
+      ]);
+
+      const createdSpotTP = await prisma.$transaction([
+        ...makeRelationBetweenSpotAndQueryParamsPromise,
+      ]);
+
+      const restaurantWithCreatedTP: GglNearbySearchResWithGeoNTourPlace[] =
+        restaurantResult.map((v, i) => {
+          return {
+            ...v,
+            tourPlaceId: createdRestaurantTP[i].id,
+            tourPlace: createdRestaurantTP[i],
+          };
+        });
+
+      const spotWithCreatedTP: GglNearbySearchResWithGeoNTourPlace[] =
+        spotResult.map((v, i) => {
+          return {
+            ...v,
+            tourPlaceId: createdSpotTP[i].id,
+            tourPlace: createdSpotTP[i],
+          };
+        });
 
       const { minFilteredHotels, midFilteredHotels, maxFilteredHotels } =
         filterHotelWithMoney({
@@ -2822,20 +2892,20 @@ export const getRecommendListFromDB = asyncWrapper(
       let maxHotel: SearchHotelResWithTourPlace | undefined;
       let minNodeLists: ScheduleNodeList = {
         hotel: searchHotelResWithTP,
-        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
-        spot: spotResult.slice(0, gSpotPerDay * travelDays),
+        restaurant: restaurantWithCreatedTP.slice(0, gMealPerDay * travelDays),
+        spot: spotWithCreatedTP.slice(0, gSpotPerDay * travelDays),
       };
 
       let midNodeLists = {
         hotel: searchHotelResWithTP,
-        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
-        spot: spotResult.slice(0, gSpotPerDay * travelDays),
+        restaurant: restaurantWithCreatedTP.slice(0, gMealPerDay * travelDays),
+        spot: spotWithCreatedTP.slice(0, gSpotPerDay * travelDays),
       };
 
       let maxNodeLists = {
         hotel: searchHotelResWithTP,
-        restaurant: restaurantResult.slice(0, gMealPerDay * travelDays),
-        spot: spotResult.slice(0, gSpotPerDay * travelDays),
+        restaurant: restaurantWithCreatedTP.slice(0, gMealPerDay * travelDays),
+        spot: spotWithCreatedTP.slice(0, gSpotPerDay * travelDays),
       };
 
       arr.reduce((acc: VisitSchedules, cur, idx) => {
@@ -3128,8 +3198,8 @@ export const getRecommendListFromDB = asyncWrapper(
         // totalNearbySearchCount: gglNearbySearchRes.length,
         metaInfo: {
           totalHotelSearchCount: searchHotelResWithTP.length,
-          totalRestaurantSearchCount: restaurantResult.length,
-          totalSpotSearchCount: spotResult.length,
+          totalRestaurantSearchCount: restaurantWithCreatedTP.length,
+          totalSpotSearchCount: spotWithCreatedTP.length,
           spotPerDay: gSpotPerDay,
           mealPerDay: gMealPerDay,
           mealSchedule: new MealOrder().mealOrder,

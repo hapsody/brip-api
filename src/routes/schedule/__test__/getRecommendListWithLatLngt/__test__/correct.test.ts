@@ -449,7 +449,9 @@ describe('Correct case test', () => {
                     .findMany({
                       where: {
                         tourPlace: {
-                          queryParamsId: queryParamId,
+                          some: {
+                            queryParamsId: queryParamId,
+                          },
                         },
                       },
                       orderBy: [

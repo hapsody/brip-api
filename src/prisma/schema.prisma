@@ -82,6 +82,12 @@ model GglNearbySearchResType {
 
 /// 구글 nearbySearch 검색 결과, 관광지나 식당등의 정보를 갖는다.
 /// google document: https://developers.google.com/maps/documentation/places/web-service/search-nearby?hl=ko
+// GglNearbySearchRes는 데이터 패치(배치 스크립트 등) 수행시 생성된다.
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model GglNearbySearchRes {
   id                    Int                      @id @default(autoincrement())
   createdAt             DateTime                 @default(now())
@@ -105,11 +111,20 @@ model GglNearbySearchRes {
   plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
   plus_codeId           Int?
   photos                GglPhotos[] /// 장소 사진 url
-  tourPlace             TourPlace                @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tourPlaceId           Int                      @unique
+  tourPlace             TourPlace[]
+  batchQueryParams      BatchQueryParams?        @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchQueryParamsId    Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
+  batchSearchKeyword    BatchSearchKeyword?      @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchSearchKeywordId  Int?
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
+// tourPlace는 일정 생성이 요청되면(getRecommendList 수행중에 생성된다.)
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
   id                   Int                 @id @default(autoincrement())
   createdAt            DateTime            @default(now())
@@ -118,37 +133,46 @@ model TourPlace {
   visitSchedule        VisitSchedule[]
   queryParams          QueryParams?        @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId        Int?
-  batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
-  batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  batchSearchKeywordId Int?
-  searchHotelRes       SearchHotelRes?
-  gglNearbySearchRes   GglNearbySearchRes?
-  visitJejuData        VisitJejuData?
+  searchHotelRes       SearchHotelRes?     @relation(fields: [searchHotelResId], references: [id])
+  searchHotelResId     Int?
+  gglNearbySearchRes   GglNearbySearchRes? @relation(fields: [gglNearbySearchResId], references: [id])
+  gglNearbySearchResId Int?
+  visitJejuData        VisitJejuData?      @relation(fields: [visitJejuDataId], references: [id])
+  visitJejuDataId      Int?
 }
 
 model BatchQueryParams {
-  id            Int                  @id @default(autoincrement())
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @default(now())
-  latitude      Float?
-  longitude     Float?
-  radius        Float?
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  latitude           Float?
+  longitude          Float?
+  radius             Float?
   // keyword           String?
-  searchkeyword BatchSearchKeyword[]
-  tourPlace     TourPlace[]
+  searchkeyword      BatchSearchKeyword[]
+  gglNearbySearchRes GglNearbySearchRes[]
+  visitJejuData      VisitJejuData[]
+  searchHotelRes     SearchHotelRes[]
 }
 
 model BatchSearchKeyword {
-  id               Int                @id @default(autoincrement())
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @default(now())
-  keyword          String             @unique
-  batchQueryParams BatchQueryParams[]
-  tourPlace        TourPlace[]
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  keyword            String               @unique
+  batchQueryParams   BatchQueryParams[]
+  gglNearbysearchRes GglNearbySearchRes[]
+  visitJejuData      VisitJejuData[]
+  searchHotelRes     SearchHotelRes[]
 }
 
 /// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
+// queryParams는 일정 생성이 요청되면 생성된다.
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -197,18 +221,25 @@ model ScheduleBank {
   queryParamsId Int           @unique
 }
 
+/// booking.com의 호텔 검색결과이다.
+// SearchHotelRes는 데이터 패치(배치 스크립트 등) 수행시 생성된다.
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model SearchHotelRes {
-  id                                Int      @id @default(autoincrement())
-  createdAt                         DateTime @default(now())
-  updatedAt                         DateTime @default(now())
+  id                                Int                 @id @default(autoincrement())
+  createdAt                         DateTime            @default(now())
+  updatedAt                         DateTime            @default(now())
   unit_configuration_label          String /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   min_total_price                   Float /// ex) 572.61373972
-  gross_amount_per_night            Float    @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
+  gross_amount_per_night            Float               @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
   gross_amount                      Float /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
   included_taxes_and_charges_amount Float /// 세금 포함한 금액
   net_amount                        Float /// 순액
   // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  hotelClass                        Int      @default(-1) /// 호텔 성급 ex) 3
+  hotelClass                        Int                 @default(-1) /// 호텔 성급 ex) 3
   countrycode                       String /// ex) en
   default_language                  String /// ex) xu
   address                           String /// ex) 92-161 Waipahe Place
@@ -233,11 +264,13 @@ model SearchHotelRes {
   zip                               String /// ex) HI 96792
   main_photo_url                    String /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
   max_photo_url                     String /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  hotel_facilities                  String   @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  hotel_facilities                  String              @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // has_swimming_pool       Int /// ex) 1
-
-  tourPlace   TourPlace @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tourPlaceId Int       @unique
+  tourPlace                         TourPlace[]
+  batchQueryParams                  BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchQueryParamsId                Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
+  batchSearchKeyword                BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchSearchKeywordId              Int?
 }
 
 /// 개발용 booking.com hotels mock data type 구분용
@@ -435,34 +468,43 @@ model VisitJejuTag {
   visitJejuData VisitJejuData[]
 }
 
+/// 제주 관광공사에서 제공하는 Visit jeju 이다.
+// 데이터 패치(배치 스크립트 등) 수행시 생성된다.
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model VisitJejuData {
-  id              Int            @id @default(autoincrement())
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @default(now())
+  id                   Int                 @id @default(autoincrement())
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @default(now())
   // alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
-  contentsid      String? /// 콘텐츠 ID ex) CONT_000000000500349
+  contentsid           String? /// 콘텐츠 ID ex) CONT_000000000500349
   // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
-  contentscdValue String? /// 콘텐츠 코드 값, ex) c1
-  contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지
-  contentscdRefId String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
-  title           String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+  contentscdValue      String? /// 콘텐츠 코드 값, ex) c1
+  contentscdLabel      String? /// 콘텐츠 코드 라벨 ex) 관광지
+  contentscdRefId      String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
+  title                String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
   // region1cd   VisitJejuClassCode /// 1차 지역코드
-  region1cdValue  String? /// 1차 지역코드 값, ex) region2
-  region1cdLabel  String? /// 1차 지역코드 라벨, ex) 서귀포시
-  region1cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
+  region1cdValue       String? /// 1차 지역코드 값, ex) region2
+  region1cdLabel       String? /// 1차 지역코드 라벨, ex) 서귀포시
+  region1cdRefId       String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
   // region2cd   VisitJejuClassCode /// 2차 지역코드
-  region2cdValue  String? /// 1차 지역코드 값, ex) 17
-  region2cdLabel  String? /// 1차 지역코드 라벨, ex) 성산
-  region2cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
-  address         String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
-  roadaddress     String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
-  tag             VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
-  introduction    String?        @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
-  latitude        Float? /// 위도 ex) 33.462147
-  longitude       Float? /// 경도 ex) 126.936424
-  postcode        String? /// 우편번호 ex) 63643
-  phoneno         String? /// 전화번호 ex) 064-783-0959
-
-  tourPlace   TourPlace @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tourPlaceId Int       @unique
+  region2cdValue       String? /// 1차 지역코드 값, ex) 17
+  region2cdLabel       String? /// 1차 지역코드 라벨, ex) 성산
+  region2cdRefId       String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
+  address              String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+  roadaddress          String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+  tag                  VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
+  introduction         String?             @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+  latitude             Float? /// 위도 ex) 33.462147
+  longitude            Float? /// 경도 ex) 126.936424
+  postcode             String? /// 우편번호 ex) 63643
+  phoneno              String? /// 전화번호 ex) 064-783-0959
+  tourPlace            TourPlace[]
+  batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
+  batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchSearchKeywordId Int?
 }

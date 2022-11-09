@@ -190,56 +190,6 @@ export const storeDataRelatedWithQueryParams = async (params: {
                 ) === -1
                   ? 'SPOT'
                   : 'RESTAURANT',
-              ...(batchJobId &&
-                batchJobId > 0 && {
-                  batchQueryParams: {
-                    connectOrCreate: {
-                      where: {
-                        id: batchJobId,
-                      },
-                      create: {
-                        // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                        latitude: queryReqParams?.textSearchReqParams?.location
-                          ? Number(
-                              queryReqParams.textSearchReqParams.location
-                                .latitude,
-                            )
-                          : undefined,
-                        longitude: queryReqParams?.textSearchReqParams?.location
-                          ? Number(
-                              queryReqParams.textSearchReqParams.location
-                                .longitude,
-                            )
-                          : undefined,
-                        radius: queryReqParams?.textSearchReqParams?.radius,
-                        searchkeyword: {
-                          connectOrCreate: {
-                            where: {
-                              keyword:
-                                queryReqParams?.textSearchReqParams?.keyword,
-                            },
-                            create: {
-                              keyword:
-                                queryReqParams?.textSearchReqParams?.keyword ??
-                                '',
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                  batchSearchKeyword: {
-                    connectOrCreate: {
-                      where: {
-                        keyword: queryReqParams?.textSearchReqParams?.keyword,
-                      },
-                      create: {
-                        keyword:
-                          queryReqParams?.textSearchReqParams?.keyword ?? '',
-                      },
-                    },
-                  },
-                }),
             },
           },
           geometry: {
@@ -311,6 +261,51 @@ export const storeDataRelatedWithQueryParams = async (params: {
               };
             }),
           },
+          ...(batchJobId &&
+            batchJobId > 0 && {
+              batchQueryParams: {
+                connectOrCreate: {
+                  where: {
+                    id: batchJobId,
+                  },
+                  create: {
+                    // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                    latitude: queryReqParams?.textSearchReqParams?.location
+                      ? Number(
+                          queryReqParams.textSearchReqParams.location.latitude,
+                        )
+                      : undefined,
+                    longitude: queryReqParams?.textSearchReqParams?.location
+                      ? Number(
+                          queryReqParams.textSearchReqParams.location.longitude,
+                        )
+                      : undefined,
+                    radius: queryReqParams?.textSearchReqParams?.radius,
+                    searchkeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: queryReqParams?.textSearchReqParams?.keyword,
+                        },
+                        create: {
+                          keyword:
+                            queryReqParams?.textSearchReqParams?.keyword ?? '',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              batchSearchKeyword: {
+                connectOrCreate: {
+                  where: {
+                    keyword: queryReqParams?.textSearchReqParams?.keyword,
+                  },
+                  create: {
+                    keyword: queryReqParams?.textSearchReqParams?.keyword ?? '',
+                  },
+                },
+              },
+            }),
         },
       });
     }
@@ -1781,15 +1776,17 @@ export const arrAccommodationLocationToObj = (
   return accommodationType;
 };
 
-export const getTourPlaceFromDB = async (
-  placeType: 'RESTAURANT' | 'SPOT',
-): Promise<GglNearbySearchResWithGeoNTourPlace[]> => {
+export const getTourPlaceFromDB = async (params: {
+  placeType: 'RESTAURANT' | 'SPOT';
+  queryParamId: number;
+}): Promise<GglNearbySearchResWithGeoNTourPlace[]> => {
+  const { placeType, queryParamId } = params;
   type Result = {
     tourPlaceId: number;
     tpCreatedAt: Date;
     tpUpdatedAt: Date;
     tourPlaceType: PlaceType;
-    queryParamsId?: number;
+    // queryParamsId?: number;
     gglNearbySearchResId: number;
     gglNCreatedAt: Date;
     gglNUpdatedAt: Date;
@@ -1819,7 +1816,7 @@ export const getTourPlaceFromDB = async (
     vicinity?: string;
     reliable_score?: number;
   };
-  const queryResult: Result[] = await (async () => {
+  const tpResult: Result[] = await (async () => {
     if (placeType === 'RESTAURANT') {
       const res: Result[] = await prisma.$queryRaw`
       select 
@@ -1854,16 +1851,17 @@ export const getTourPlaceFromDB = async (
         gnsr.formatted_address, 
         gnsr.vicinity,
         gnsr.rating * gnsr.user_ratings_total as reliable_score
-      from TourPlace tp
-      left join GglNearbySearchRes gnsr on gnsr.tourPlaceId = tp.id
+      from GglNearbySearchRes gnsr 
+      left join TourPlace tp on gnsr.id = tp.gglNearbySearchResId
       left join _GglNearbySearchResToGglPhotos gnsrtgp on gnsrtgp.A = gnsr.id
       left join GglPhotos gp on gp.id = gnsrtgp.B
       left join Gglgeometry g on g.id = gnsr.gglgeometryId
-      where tp.tourPlaceType in ('RESTAURANT')
+      where tp.tourPlaceType in ('RESTAURANT') && tp.queryParamsId is null
       order by reliable_score desc;
       `;
       return res;
     }
+
     const res: Result[] = await prisma.$queryRaw`
     select 
       tp.id as tourPlaceId,
@@ -1897,18 +1895,18 @@ export const getTourPlaceFromDB = async (
       gnsr.formatted_address, 
       gnsr.vicinity,
       gnsr.rating * gnsr.user_ratings_total as reliable_score
-    from TourPlace tp
-    left join GglNearbySearchRes gnsr on gnsr.tourPlaceId = tp.id
+    from GglNearbySearchRes gnsr 
+    left join TourPlace tp on gnsr.id = tp.gglNearbySearchResId
     left join _GglNearbySearchResToGglPhotos gnsrtgp on gnsrtgp.A = gnsr.id
     left join GglPhotos gp on gp.id = gnsrtgp.B
     left join Gglgeometry g on g.id = gnsr.gglgeometryId
-    where tp.tourPlaceType in ('SPOT')
+    where tp.tourPlaceType in ('SPOT') && tp.queryParamsId is null
     order by reliable_score desc;
     `;
     return res;
   })();
 
-  const result: GglNearbySearchResWithGeoNTourPlace[] = queryResult.map(v => {
+  const result: GglNearbySearchResWithGeoNTourPlace[] = tpResult.map(v => {
     return {
       id: v.gglNearbySearchResId,
       tourPlaceId: v.tourPlaceId,
@@ -1917,13 +1915,14 @@ export const getTourPlaceFromDB = async (
       tourPlace: {
         id: v.tourPlaceId,
         tourPlaceType: v.tourPlaceType,
-        queryParamsId: v.queryParamsId ?? null,
+        // queryParamsId: v.queryParamsId ?? null,
+        queryParamsId: queryParamId,
         createdAt: v.tpCreatedAt,
         updatedAt: v.tpUpdatedAt,
-        batchQueryParamsId: null,
-        batchSearchKeywordId: null,
+        searchHotelResId: null,
+        gglNearbySearchResId: v.gglNearbySearchResId,
+        visitJejuDataId: null,
       },
-      queryParamsId: v.queryParamsId,
       gglgeometryId: v.geometryId,
       icon: v.icon ?? null,
       icon_background_color: v.icon_background_color ?? null,
@@ -1955,6 +1954,8 @@ export const getTourPlaceFromDB = async (
       rating: v.rating ?? null,
       user_ratings_total: v.user_ratings_total ?? null,
       vicinity: v.formatted_address ?? v.vicinity ?? null,
+      batchQueryParamsId: null,
+      batchSearchKeywordId: null,
     };
   });
   return result;
