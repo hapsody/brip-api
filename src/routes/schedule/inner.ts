@@ -8,7 +8,11 @@ import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParamPayload,
   gCurrency,
+  gLanguage,
   BKCHotelRawData,
+  GetPlaceDataFromGGLREQParam,
+  GetPlaceDataFromGGLRETParamPayload,
+  GglNearbySearchRawData,
 } from './types/schduleTypes';
 
 export const getToday = (): string => {
@@ -23,8 +27,13 @@ export const getNDaysLater = (n: number): string => {
 
 /**
  * GetHotelDataFromBKCREQParam 조건에 맞춰 booking.com api로 호텔을 검색한다.
- * /searchHotelFromBookingCom api 호출시 실제 동작부를 형성한다. (비슷한 동작부를 다른곳에서 사용하기 용이하도록 모듈로써 사용하기 위해 endpoint 함수와 wrapper-inner함수로써 분리함)
+ * /searchHotelFromBookingCom api 호출시 실제 동작부를 형성한다.
+ * (비슷한 동작부를 다른곳에서 사용하기 용이하도록 모듈로써 사용하기 위해 endpoint 함수와 wrapper-inner함수로써 분리함)
+ *
  * (구) searchHotelInnerFn을 대체한다.
+ *
+ * @param param
+ * @returns
  */
 export const getHotelDataFromBKC = async (
   param: GetHotelDataFromBKCREQParam,
@@ -123,4 +132,104 @@ export const getHotelDataFromBKC = async (
   })();
 
   return { hotelSearchResult, hotelSearchCount: hotelSearchResult.length };
+};
+
+/**
+ * google map api인 nearbySearch api를 요청하고 그 결과를 반환하는 함수
+ * (구) nearbySearchInnerFn
+ *
+ * @param param
+ * @returns
+ */
+export const getPlaceDataFromGGL = async (
+  param: GetPlaceDataFromGGLREQParam,
+): Promise<GetPlaceDataFromGGLRETParamPayload> => {
+  const { location, radius, pageToken, keyword } = param;
+
+  console.log(param);
+  const queryUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?keyword=${
+    keyword ?? ''
+  }&language=${gLanguage}&location=${location?.latitude},${
+    location?.longitude
+  }&radius=${radius}&key=${process.env.GCP_MAPS_APIKEY as string}${
+    pageToken ? `&pagetoken=${pageToken}` : ''
+  }`;
+  console.log(queryUrl);
+
+  const response = await axios.get(encodeURI(queryUrl));
+  const results =
+    (
+      response.data as Partial<{
+        results: google.maps.places.IBPlaceResult[];
+      }>
+    ).results ?? [];
+
+  return {
+    placeSearchCount: results.length,
+    placeSearchResult: results,
+    nextPageToken: (response.data as { next_page_token?: string })
+      .next_page_token,
+  };
+};
+
+/**
+ * 구글 nearbySearch를 반복적으로 요청해 전체 페이지의 데이터를 반환하는 함수
+ * 구글 nearbySearch시에는 한 페이지당 20개의 목록만을 보여준다.
+ * 전체 일정중 필요한 스팟(관광지) 또는 식당이 충분한 숫자가 확보되어야 하는데
+ * nearbySearch 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
+ * 이때 사용할 끝 페이지까지 계속해서 자동으로 nearbySearch를 요청하는 함수
+ *
+ * (구) getAllNearbySearchPages
+ * @param
+ * @returns
+ */
+export const getAllPlaceDataFromGGL = async (
+  param: GetPlaceDataFromGGLREQParam,
+): Promise<google.maps.places.IBPlaceResult[]> => {
+  let retry = 1;
+  const retryLimit = 5;
+
+  console.log(param);
+
+  // recursion version
+  const loopFunc = async (curPageToken: string) => {
+    const loopQryParams: GetPlaceDataFromGGLREQParam = {
+      ...param,
+      pageToken: curPageToken ?? '',
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const loopTemp = await getPlaceDataFromGGL(loopQryParams);
+
+    const nextPageToken = loopTemp.nextPageToken ?? '';
+    const stopLoop = !param.loadAll;
+    retry += 1;
+
+    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+      return [...loopTemp.placeSearchResult];
+
+    // const subResults: google.maps.places.IBPlaceResult[];
+    const subResults = await new Promise(resolve => {
+      setTimeout(() => {
+        loopFunc(nextPageToken)
+          .then(promiseRes => {
+            resolve(promiseRes);
+          })
+          .catch(err => {
+            console.error(err);
+            resolve([] as GglNearbySearchRawData[]);
+          });
+      }, 2000);
+    });
+
+    let loopResult: GglNearbySearchRawData[] = [];
+    loopResult = [
+      ...(subResults as GglNearbySearchRawData[]),
+      ...loopTemp.placeSearchResult,
+    ];
+
+    return loopResult;
+  };
+  const loopFuncRes = await loopFunc(param.pageToken ?? '');
+
+  return loopFuncRes;
 };

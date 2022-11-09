@@ -13,6 +13,9 @@ export const gFlexPortionLimit = 1.3;
 export const gLanguage = 'ko';
 // const hotelPerDay = 1;
 
+/**
+ * GetHotelDataFromBKC Type
+ */
 export type BookingComOrderBy =
   | 'popularity'
   | 'class_ascending'
@@ -22,7 +25,6 @@ export type BookingComOrderBy =
   | 'review_score'
   | 'price';
 export type Currency = 'USD' | 'KRW';
-
 export interface GetHotelDataFromBKCREQParam {
   orderBy: BookingComOrderBy; // default popularity
   adultsNumber: number;
@@ -39,9 +41,9 @@ export interface GetHotelDataFromBKCREQParam {
   childrenNumber?: number;
   childrenAges?: number[];
   categoriesFilterIds?: string[];
-  mock?: boolean; // default true
+  mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다.
+  loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
 }
-
 /// rapid api booking.com search hotels by coordinates 검색 결과
 export type BKCHotelRawData = Omit<
   SearchHotelRes,
@@ -78,12 +80,35 @@ export type BKCHotelRawData = Omit<
     until: string;
   };
 };
-
 export interface GetHotelDataFromBKCRETParamPayload {
   hotelSearchCount: number;
   hotelSearchResult: BKCHotelRawData[];
 }
-
 export type GetHotelDataFromBKCRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetHotelDataFromBKCRETParamPayload;
+  IBparams: GetHotelDataFromBKCRETParamPayload | {};
+};
+
+/**
+ * GetPlaceDataFromGGL Type
+ */
+export interface GglNearbySearchReqOpt {
+  keyword: string;
+  location: {
+    latitude: string; // 위도
+    longitude: string; // 경도
+  };
+  radius: number;
+  pageToken?: string;
+}
+export type GglNearbySearchRawData = google.maps.places.IBPlaceResult;
+export interface GetPlaceDataFromGGLREQParam extends GglNearbySearchReqOpt {
+  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
+}
+export interface GetPlaceDataFromGGLRETParamPayload {
+  placeSearchCount: number;
+  placeSearchResult: GglNearbySearchRawData[];
+  nextPageToken?: string;
+}
+export type GetPlaceDataFromGGLRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceDataFromGGLRETParamPayload;
 };
