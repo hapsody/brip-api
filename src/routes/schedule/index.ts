@@ -1,3 +1,3 @@
-import scheduleRouter from './schedule';
+import scheduleRouter from './apiWrapperFunc';
 
 export default scheduleRouter;
