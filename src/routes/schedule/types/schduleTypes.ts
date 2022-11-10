@@ -118,7 +118,7 @@ export interface GetPlaceDataFromGGLRETParamPayload {
   nextPageToken?: string;
 }
 export type GetPlaceDataFromGGLRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetPlaceDataFromGGLRETParamPayload;
+  IBparams: GetPlaceDataFromGGLRETParamPayload | {};
 };
 
 /**

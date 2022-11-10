@@ -71,17 +71,39 @@ export const getPlaceDataFromGGLWrapper = asyncWrapper(
     req: Express.IBTypedReqBody<GetPlaceDataFromGGLREQParam>,
     res: Express.IBTypedResponse<GetPlaceDataFromGGLRETParam>,
   ) => {
-    // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
-    const param = req.body;
+    try {
+      // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
+      const param = req.body;
 
-    const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: {
-        placeSearchCount: placeSearchResult.length,
-        placeSearchResult,
-      },
-    });
+      const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          placeSearchCount: placeSearchResult.length,
+          placeSearchResult,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
   },
 );
 

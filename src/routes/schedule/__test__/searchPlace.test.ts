@@ -1,7 +1,10 @@
 import request from 'supertest';
 import app from '@src/app';
 import { ibDefs } from '@src/utils';
-import { GetPlaceDataFromGGLRETParam } from '../types/schduleTypes';
+import {
+  GetPlaceDataFromGGLRETParam,
+  GetPlaceDataFromGGLRETParamPayload,
+} from '../types/schduleTypes';
 import { params } from './testData';
 
 jest.setTimeout(120000);
@@ -14,7 +17,7 @@ describe('Schedule Express Router E2E Test', () => {
         .send(params.placeSearchOpt);
 
       const result = response.body as GetPlaceDataFromGGLRETParam;
-      const { IBparams } = result;
+      const IBparams = result.IBparams as GetPlaceDataFromGGLRETParamPayload;
       expect(result.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
       expect(IBparams.placeSearchCount).not.toBeFalsy();
@@ -23,7 +26,7 @@ describe('Schedule Express Router E2E Test', () => {
       expect(IBparams.placeSearchResult).toHaveLength(
         IBparams.placeSearchCount,
       );
-      const { placeSearchResult } = result.IBparams;
+      const { placeSearchResult } = IBparams;
       // eslint-disable-next-line no-restricted-syntax
       for await (const item of placeSearchResult) {
         expect(item).toHaveProperty('business_status');
