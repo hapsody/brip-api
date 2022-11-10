@@ -111,7 +111,7 @@ export interface GetPlaceDataFromGGLREQParam
   extends GglNearbySearchReqOpt,
     GglTextSearchReqOpt {
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
-  store?: boolean; // 검색결과를 DB에 저장한다.
+  store?: boolean; // true면 검색결과를 DB에 저장한다.
 }
 export interface GetPlaceDataFromGGLRETParamPayload {
   placeSearchCount: number;

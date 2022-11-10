@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn test schedule",
-      "name": "test schedule",
+      "command": "yarn test searchPlace",
+      "name": "test searchPlace",
       "request": "launch",
       "type": "node-terminal"
     }

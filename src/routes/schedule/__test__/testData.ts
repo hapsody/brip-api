@@ -31,12 +31,13 @@ export const params = {
   },
 
   placeSearchOpt: {
-    keyword: 'restaurant',
+    keyword: '카트 in 제주',
     location: {
       latitude,
       longitude,
     },
-    radius: 4000,
+    radius: 50000,
     loadAll: false,
+    store: false,
   },
 };
