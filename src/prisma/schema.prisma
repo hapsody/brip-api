@@ -482,7 +482,7 @@ model VisitJejuData {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @default(now())
   // alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
-  contentsid           String? /// 콘텐츠 ID ex) CONT_000000000500349
+  contentsid           String              @unique /// 콘텐츠 ID ex) CONT_000000000500349
   // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
   contentscdValue      String? /// 콘텐츠 코드 값, ex) c1
   contentscdLabel      String? /// 콘텐츠 코드 라벨 ex) 관광지
@@ -509,4 +509,6 @@ model VisitJejuData {
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
   batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchSearchKeywordId Int?
+
+  @@index([contentsid])
 }

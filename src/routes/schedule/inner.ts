@@ -508,11 +508,117 @@ export const getAllPlaceDataFromVJ = async (
 
 /**
  * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
- * visit jeju data를 반복적으로 요청해 전체 페이지 데이터를 반환한다.
+ * store 옵션이 있을 경우 idealbllom DB에 저장한다.
  */
 export const getPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   const jejuRes = await getAllPlaceDataFromVJ(param);
+
+  /// store data to db
+  if (param.store) {
+    const { items } = jejuRes;
+
+    const batchJobId = 1;
+    const createPromises =
+      items &&
+      items.map(item => {
+        const promise = prisma.tourPlace.create({
+          data: {
+            tourPlaceType:
+              item.contentscd?.label === '음식점'
+                ? 'VISITJEJU_RESTAURANT'
+                : 'VISITJEJU_SPOT',
+            visitJejuData: {
+              connectOrCreate: {
+                where: {
+                  contentsid: item.contentsid,
+                },
+                create: {
+                  contentsid: item.contentsid as string,
+                  contentscdLabel: item.contentscd?.label,
+                  contentscdValue: item.contentscd?.value,
+                  contentscdRefId: item.contentscd?.refId,
+                  title: item.title,
+                  region1cdLabel: item.region1cd?.label,
+                  region1cdValue: item.region1cd?.value,
+                  region1cdRefId: item.region1cd?.refId,
+                  region2cdLabel: item.region2cd?.label,
+                  region2cdValue: item.region2cd?.value,
+                  region2cdRefId: item.region2cd?.refId,
+                  address: item.address,
+                  roadaddress: item.roadaddress,
+                  tag: {
+                    ...(item.tag && {
+                      connectOrCreate: item.tag.split(',').map(v => {
+                        return {
+                          where: {
+                            value: v,
+                          },
+                          create: {
+                            value: v,
+                          },
+                        };
+                      }),
+                    }),
+                  },
+                  introduction: item.introduction,
+                  latitude: item.latitude,
+                  longitude: item.longitude,
+                  postcode: item.postcode,
+                  phoneno: item.phoneno,
+                  ...(batchJobId &&
+                    batchJobId > 0 && {
+                      batchQueryParams: {
+                        connectOrCreate: {
+                          where: {
+                            id: batchJobId,
+                          },
+                          create: {
+                            // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                            latitude: undefined,
+                            longitude: undefined,
+                            radius: undefined,
+                            searchkeyword: {
+                              connectOrCreate: {
+                                where: {
+                                  keyword: '',
+                                },
+                                create: {
+                                  keyword: '',
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      batchSearchKeyword: {
+                        connectOrCreate: {
+                          where: {
+                            keyword: '',
+                          },
+                          create: {
+                            keyword: '',
+                          },
+                        },
+                      },
+                    }),
+                },
+              },
+            },
+          },
+        });
+        return promise;
+      });
+
+    const createdList =
+      createPromises && (await prisma.$transaction(createPromises));
+
+    if (!createdList)
+      throw new IBError({
+        type: 'EXTERNALAPI',
+        message: '반환된 visitJeju searchList 결과값이 없습니다.',
+      });
+  }
   return jejuRes;
 };
