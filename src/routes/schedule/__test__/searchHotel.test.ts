@@ -17,7 +17,7 @@ beforeAll(async () => {
   if (mockData.length === 0) {
     const addMockTransactionRawRes = await request(app)
       .post('/schedule/addMockBKCHotelResource')
-      .send({ ...params, mock: undefined });
+      .send({ ...params.searchHotelOpt, mock: undefined });
     const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
     expect(IBcode).toBe('1000');
   }

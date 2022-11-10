@@ -9,20 +9,34 @@ export const endDate = getNDaysLater(33);
 export const hotelTransition = 1;
 export const childrenNumber = 2;
 export const childrenAges = [1, 3];
+const latitude = '33.501298';
+const longitude = '126.525482';
 
 export const params = {
-  radius: 4000,
-  orderBy: 'review_score', // popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price
-  adultsNumber: 2,
-  // childrenNumber,
-  // childrenAges,
-  roomNumber: 1,
-  // checkinDate: travelStartDate,
-  // checkoutDate: travelEndDate,
-  latitude: '33.501298',
-  longitude: '126.525482',
-  pageNumber: 0,
-  includeAdjacency: true,
-  categoriesFilterIds: ['property_type::204'],
-  mock: true,
+  searchHotelOpt: {
+    radius: 4000,
+    orderBy: 'review_score', // popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price
+    adultsNumber: 2,
+    // childrenNumber,
+    // childrenAges,
+    roomNumber: 1,
+    // checkinDate: travelStartDate,
+    // checkoutDate: travelEndDate,
+    latitude,
+    longitude,
+    pageNumber: 0,
+    includeAdjacency: true,
+    categoriesFilterIds: ['property_type::204'],
+    mock: true,
+  },
+
+  placeSearchOpt: {
+    keyword: 'restaurant',
+    location: {
+      latitude,
+      longitude,
+    },
+    radius: 4000,
+    loadAll: false,
+  },
 };
