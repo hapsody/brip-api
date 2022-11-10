@@ -3,7 +3,7 @@ import scheduleRouter, {
   getPlaceDataFromGGLWrapper,
 } from './wrapper';
 import {
-  addMockBKCHotelResource,
+  addMockBKCHotelResourceWrapper,
   getPlaceDataFromVJWrapper,
 } from './devWrapper';
 
@@ -13,6 +13,6 @@ scheduleRouter.post('/searchPlace', getPlaceDataFromGGLWrapper);
 /**
  * 내부 개발용
  */
-scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResource);
+scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResourceWrapper);
 scheduleRouter.post('/getPlaceDataFromVJ', getPlaceDataFromVJWrapper);
 export default scheduleRouter;

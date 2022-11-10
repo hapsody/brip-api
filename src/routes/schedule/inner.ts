@@ -211,8 +211,9 @@ export const getPlaceDataFromGglTxtSrch = async (
 };
 
 /**
- * 구글 nearbySearch를 반복적으로 요청해 전체 페이지의 데이터를 반환하는 함수
- * 구글 nearbySearch시에는 한 페이지당 20개의 목록만을 보여준다.
+ * 구글 nearbySearch 또는 TextSearch를(이하 nextSearch 로 지칭) 반복적으로 요청해
+ * 전체 페이지의 데이터를 반환하는 함수
+ * 구글 nearbySearch 한 페이지당 20개의 목록만을 보여준다.
  * 전체 일정중 필요한 스팟(관광지) 또는 식당이 충분한 숫자가 확보되어야 하는데
  * nearbySearch 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
  * 이때 사용할 끝 페이지까지 계속해서 자동으로 nearbySearch를 요청하는 함수
@@ -279,6 +280,162 @@ export const getAllPlaceDataFromGGLPlaceAPI = async (
   const loopFuncRes = await loopFunc(param.pageToken ?? '');
 
   return loopFuncRes;
+};
+
+/**
+ * 구글 Place API(nearbySearch, textSearch 등)을 요청해 결과를 반환한다.
+ * store 옵션이 있을 경우 idealbllom DB에 저장한다.
+ *
+ * @param
+ * @returns
+ */
+export const getPlaceDataFromGGL = async (
+  param: GetPlaceDataFromGGLREQParam,
+): Promise<GetPlaceDataFromGGLRETParamPayload> => {
+  const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
+
+  /// store data to db
+  if (param.store) {
+    const batchJobId = 1;
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const item of placeSearchResult) {
+      await prisma.tourPlace.create({
+        data: {
+          tourPlaceType:
+            item.types?.findIndex(
+              type => type.toUpperCase() === 'RESTAURANT',
+            ) === -1
+              ? 'SPOT'
+              : 'RESTAURANT',
+          gglNearbySearchRes: {
+            connectOrCreate: {
+              where: {
+                place_id: item.place_id,
+              },
+              create: {
+                geometry: {
+                  create: {
+                    location: JSON.stringify({
+                      lat: item.geometry?.location?.lat,
+                      lngt: item.geometry?.location?.lng,
+                    }),
+                    viewport: JSON.stringify({
+                      northeast: {
+                        lat: item.geometry?.viewport?.northeast?.lat,
+                        lngt: item.geometry?.viewport?.northeast?.lng,
+                      },
+                      southwest: {
+                        lat: item.geometry?.viewport?.southwest?.lat,
+                        lngt: item.geometry?.viewport?.southwest?.lng,
+                      },
+                    }),
+                  },
+                },
+                icon: item.icon,
+                icon_background_color: item.icon_background_color,
+                icon_mask_base_uri: item.icon_mask_base_uri,
+                name: item.name,
+                opening_hours:
+                  (
+                    item.opening_hours as Partial<{
+                      open_now: boolean;
+                    }>
+                  )?.open_now ?? false,
+                place_id: item.place_id,
+                price_level: item.price_level,
+                rating: item.rating,
+                types: (() => {
+                  return item.types
+                    ? {
+                        connectOrCreate: item.types?.map(type => {
+                          return {
+                            create: { value: type },
+                            where: { value: type },
+                          };
+                        }),
+                      }
+                    : {
+                        create: {
+                          value: 'Not Applicaple',
+                        },
+                      };
+                })(),
+                user_ratings_total: item.user_ratings_total,
+                vicinity: item.vicinity,
+                formatted_address: item.formatted_address,
+                plus_code: {
+                  create: {
+                    compund_code: item.plus_code?.compound_code ?? '',
+                    global_code: item.plus_code?.global_code ?? '',
+                  },
+                },
+                photos: {
+                  // create: await getPlacePhoto(item),
+                  create: item.photos?.map(photo => {
+                    return {
+                      height: photo.height,
+                      width: photo.width,
+                      html_attributions: JSON.stringify(
+                        photo.html_attributions,
+                      ),
+                      photo_reference:
+                        (photo as Partial<{ photo_reference: string }>)
+                          .photo_reference ?? '',
+                    };
+                  }),
+                },
+                ...(batchJobId &&
+                  batchJobId > 0 && {
+                    batchQueryParams: {
+                      connectOrCreate: {
+                        where: {
+                          id: batchJobId,
+                        },
+                        create: {
+                          // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                          latitude: param.location
+                            ? Number(param.location.latitude)
+                            : undefined,
+                          longitude: param.location
+                            ? Number(param.location.longitude)
+                            : undefined,
+                          radius: param.radius,
+                          searchkeyword: {
+                            connectOrCreate: {
+                              where: {
+                                keyword: param.keyword,
+                              },
+                              create: {
+                                keyword: param.keyword ?? '',
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    batchSearchKeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: param.keyword,
+                        },
+                        create: {
+                          keyword: param.keyword ?? '',
+                        },
+                      },
+                    },
+                  }),
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return {
+    placeSearchCount: placeSearchResult.length,
+    placeSearchResult,
+  };
 };
 
 /**

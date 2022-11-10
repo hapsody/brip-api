@@ -12,7 +12,7 @@ import {
 } from './types/schduleTypes';
 import { getNDaysLater, getPlaceDataFromVJ } from './inner';
 
-export const addMockBKCHotelResource = asyncWrapper(
+export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<AddMockBKCHotelResourceREQParam>,
     res: Express.IBTypedResponse<IBResFormat>,

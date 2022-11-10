@@ -101,7 +101,7 @@ model GglNearbySearchRes {
   opening_hours         Boolean /// 검색시각 기준으로 현재 영업 상태인지
   // opening_periods       String? /// 오픈 클로즈 시간 ex)
   // weekday_text          String? /// 일주일 기준 영업일 ex) 
-  place_id              String? /// 구글이 부여한 place의 고유값
+  place_id              String?                  @unique /// 구글이 부여한 place의 고유값
   price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
   rating                Float? /// 별점, 0-5 
   types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
@@ -116,6 +116,8 @@ model GglNearbySearchRes {
   batchQueryParamsId    Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
   batchSearchKeyword    BatchSearchKeyword?      @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchSearchKeywordId  Int?
+
+  @@index([place_id])
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델

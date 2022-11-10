@@ -1,15 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import express from 'express';
-// import prisma from '@src/prisma';
-import {
-  ibDefs,
-  asyncWrapper,
-  // IBResFormat,
-  IBError,
-  // getNDaysLater,
-  // accessTokenValidCheck,
-} from '@src/utils';
+import { ibDefs, asyncWrapper, IBError } from '@src/utils';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParam,
@@ -17,7 +9,7 @@ import {
   GetPlaceDataFromGGLRETParam,
 } from './types/schduleTypes';
 
-import { getHotelDataFromBKC, getAllPlaceDataFromGGLPlaceAPI } from './inner';
+import { getHotelDataFromBKC, getPlaceDataFromGGL } from './inner';
 
 const scheduleRouter: express.Application = express();
 
@@ -34,6 +26,7 @@ export const getHotelDataFromBKCWrapper = asyncWrapper(
       const param = req.body;
 
       const hotelData = await getHotelDataFromBKC(param);
+
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: hotelData,
@@ -72,16 +65,11 @@ export const getPlaceDataFromGGLWrapper = asyncWrapper(
     res: Express.IBTypedResponse<GetPlaceDataFromGGLRETParam>,
   ) => {
     try {
-      // const { nearbySearchResult } = await nearbySearchInnerFn(req.body);
       const param = req.body;
-
-      const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
+      const placeResult = await getPlaceDataFromGGL(param);
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          placeSearchCount: placeSearchResult.length,
-          placeSearchResult,
-        },
+        IBparams: placeResult,
       });
     } catch (err) {
       if (err instanceof IBError) {
