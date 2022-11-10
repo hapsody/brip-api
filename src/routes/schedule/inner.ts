@@ -13,6 +13,8 @@ import {
   GetPlaceDataFromGGLREQParam,
   GetPlaceDataFromGGLRETParamPayload,
   GglPlaceResultRawData,
+  GetPlaceDataFromVJREQParam,
+  GetPlaceDataFromVJRETParamPayload,
 } from './types/schduleTypes';
 
 export const getToday = (): string => {
@@ -277,4 +279,26 @@ export const getAllPlaceDataFromGGLPlaceAPI = async (
   const loopFuncRes = await loopFunc(param.pageToken ?? '');
 
   return loopFuncRes;
+};
+
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ */
+export const getPlaceDataFromVJ = async (
+  param: GetPlaceDataFromVJREQParam,
+): Promise<GetPlaceDataFromVJRETParamPayload> => {
+  const { locale, page, cid } = param;
+
+  console.log(param);
+
+  const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
+    process.env.VISITJEJU_API_KEY as string
+  }${`&locale=${locale ?? 'kr'}`}${page ? `&page=${page}` : '1'}${
+    cid ? `&cid=${cid ?? ''}` : ''
+  }`;
+  const jejuRawRes = await axios.get(option);
+  console.log(option);
+  const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
+
+  return jejuRes;
 };

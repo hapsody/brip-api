@@ -143,3 +143,64 @@ export const defaultBKCHotelReqParams: AddMockBKCHotelResourceREQParam = {
   categoriesFilterIds: undefined,
   mock: true,
 };
+
+/**
+ * GetPlaceDataFromVJ Type
+ */
+export interface VisitJejuReqOpt {
+  locale: string; /// 언어코드, ex) kr, en, jp, cn(중국간체), zh(중국번체), my(말레이)
+  page?: number; /// 페이지번호, ex) 1
+  cid?: string; /// 콘텐츠ID ex) CONT_000000000500513
+}
+export interface GetPlaceDataFromVJREQParam extends VisitJejuReqOpt {}
+export interface VisitJejuClassCode {
+  value: string;
+  /// 1. 콘텐츠 코드 값일 경우, ex) c1
+  /// 2. 1차 지역코드 값일 경우, ex) region2
+  /// 3. 2차 지역코드 값일 경우, ex) 17
+  label: string;
+  /// 1. 콘텐츠코드 라벨일 경우, ex) 관광지,
+  /// 2. 1차 지역코드 라벨일 경우, ex) 서귀포시
+  /// 3. 2차 지역코드 라벨일 경우, ex) 성산
+  refId: string;
+  /// 1. 콘텐츠코드 Reference ID, ex) contentscd>c1,
+  /// 2. 1차 지역코드 레퍼런스 ID 일 경우, ex) region>region2
+  /// 3. 2차 지역코드 레퍼런스 ID 일 경우, ex) region2>17
+}
+export interface VisitJejuResultRawData {
+  result?: string; /// 결과코드 ex) 00
+  resultMessage?: string; /// 결과메시지 ex) success
+  totalCount?: number; /// 전체 결과 개수 ex) 1152
+  resultCount?: number; /// 현재 결과 개수 ex) 100
+  pageSize?: number; /// 페이지당 결과 개수 ex) 100
+  pageCount?: number; /// 전체 페이지 ex) 12
+  currentPage?: number; /// 현재 페이지 ex) 1
+  items?: {
+    alltag?: string; /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
+    contentsid?: string; /// 콘텐츠 ID ex) CONT_000000000500349
+    contentscd?: VisitJejuClassCode; /// 콘텐츠 코드
+    title?: string; /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+    region1cd?: VisitJejuClassCode; /// 1차 지역코드
+    region2cd?: VisitJejuClassCode; /// 2차 지역코드
+    address?: string; /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+    roadaddress?: string; /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+    tag?: string; /// 태그 ex) 일출,오름,경관/포토,부모
+    introduction?: string; /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+    latitude?: number; /// 위도 ex) 33.462147
+    longitude?: number; /// 경도 ex) 126.936424
+    postcode?: string; /// 우편번호 ex) 63643
+    phoneno?: string; /// 전화번호 ex) 064-783-0959
+    reqPhoto?: {
+      /// 대표 등록사진
+      descseo?: string; /// 검색엔진 최적화 키워드, ex) 성산일출봉(UNESCO 세계자연유산)
+      photoid?: string; /// 사진 ID, ex) 2018052306801
+      imgpath?: string; /// 일반 이미지 경로, ex) https://api.cdn.visitjeju.net/photomng/imgpath/201810/17/c072ee1a-2a02-4be7-b0cd-62f4daf2f847.gif
+      thumbnailpath?: string; /// 썸네일 이미지경로, ex) https://api.cdn.visitjeju.net/photomng/thumbnailpath/201810/17/e798d53c-1c8a-4d44-a8ab-111beae96db4.gif
+    };
+  }[];
+}
+export interface GetPlaceDataFromVJRETParamPayload
+  extends VisitJejuResultRawData {}
+export type GetPlaceDataFromVJRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceDataFromVJRETParamPayload | {};
+};

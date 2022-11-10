@@ -7,18 +7,10 @@ import { isNumber, isNil, isEmpty } from 'lodash';
 import {
   AddMockBKCHotelResourceREQParam,
   defaultBKCHotelReqParams,
+  GetPlaceDataFromVJREQParam,
+  GetPlaceDataFromVJRETParam,
 } from './types/schduleTypes';
-import { getNDaysLater } from './inner';
-
-export const dummy = (
-  req: Express.IBTypedReqBody<{}>,
-  res: Express.IBTypedResponse<IBResFormat>,
-): void => {
-  res.json({
-    ...ibDefs.SUCCESS,
-    IBparams: {} as object,
-  });
-};
+import { getNDaysLater, getPlaceDataFromVJ } from './inner';
 
 export const addMockBKCHotelResource = asyncWrapper(
   async (
@@ -110,5 +102,46 @@ export const addMockBKCHotelResource = asyncWrapper(
       ...ibDefs.SUCCESS,
       IBparams: response.data as object,
     });
+  },
+);
+
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ */
+export const getPlaceDataFromVJWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetPlaceDataFromVJREQParam>,
+    res: Express.IBTypedResponse<GetPlaceDataFromVJRETParam>,
+  ) => {
+    try {
+      const param = req.body;
+      const jejuRes = await getPlaceDataFromVJ(param);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: jejuRes,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
   },
 );
