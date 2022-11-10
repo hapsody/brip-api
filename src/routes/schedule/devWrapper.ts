@@ -116,6 +116,7 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
     try {
       const param = req.body;
       const jejuRes = await getPlaceDataFromVJ(param);
+      // const jejuRes = await getPlaceDataFromVJ(param);
 
       res.json({
         ...ibDefs.SUCCESS,

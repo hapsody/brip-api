@@ -441,12 +441,10 @@ export const getPlaceDataFromGGL = async (
 /**
  * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
  */
-export const getPlaceDataFromVJ = async (
+export const getVisitJejuData = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   const { locale, page, cid } = param;
-
-  console.log(param);
 
   const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
     process.env.VISITJEJU_API_KEY as string
@@ -457,5 +455,64 @@ export const getPlaceDataFromVJ = async (
   console.log(option);
   const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
 
+  return jejuRes;
+};
+
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ * visit jeju data를 반복적으로 요청해 전체 페이지 데이터를 반환한다.
+ */
+export const getAllPlaceDataFromVJ = async (
+  param: GetPlaceDataFromVJREQParam,
+): Promise<GetPlaceDataFromVJRETParamPayload> => {
+  console.log(param);
+  const { loadAll } = param;
+
+  let curRes = await getVisitJejuData(param);
+  let nextPage = (curRes.currentPage ?? 1) + 1;
+  const allRes: GetPlaceDataFromVJRETParamPayload = { ...curRes };
+
+  if (loadAll) {
+    while (
+      curRes.currentPage &&
+      curRes.pageCount &&
+      curRes.currentPage < curRes.pageCount
+    ) {
+      // eslint-disable-next-line no-await-in-loop
+      const nextRes = await getVisitJejuData({
+        ...param,
+        page: nextPage,
+      });
+      if (
+        allRes.items &&
+        allRes.items.length > 0 &&
+        nextRes.items &&
+        nextRes.items.length > 0
+      ) {
+        allRes.items = [...allRes.items, ...nextRes.items];
+        if (allRes.resultCount) {
+          allRes.resultCount += nextRes.resultCount ?? 0;
+        }
+        if (allRes.currentPage) {
+          allRes.currentPage = nextRes.currentPage ?? 1;
+        }
+
+        curRes = { ...nextRes };
+        nextPage += 1;
+      }
+    }
+  }
+
+  return allRes;
+};
+
+/**
+ * internal 제주 관광공사 jeju visit 관광 데이터를 요청하여 반환한다.
+ * visit jeju data를 반복적으로 요청해 전체 페이지 데이터를 반환한다.
+ */
+export const getPlaceDataFromVJ = async (
+  param: GetPlaceDataFromVJREQParam,
+): Promise<GetPlaceDataFromVJRETParamPayload> => {
+  const jejuRes = await getAllPlaceDataFromVJ(param);
   return jejuRes;
 };

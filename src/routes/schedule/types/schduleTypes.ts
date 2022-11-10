@@ -153,7 +153,10 @@ export interface VisitJejuReqOpt {
   page?: number; /// 페이지번호, ex) 1
   cid?: string; /// 콘텐츠ID ex) CONT_000000000500513
 }
-export interface GetPlaceDataFromVJREQParam extends VisitJejuReqOpt {}
+export interface GetPlaceDataFromVJREQParam extends VisitJejuReqOpt {
+  loadAll?: boolean;
+  store?: boolean;
+}
 export interface VisitJejuClassCode {
   value: string;
   /// 1. 콘텐츠 코드 값일 경우, ex) c1
