@@ -19,6 +19,13 @@
     },
 
     {
+      "command": "yarn batch",
+      "name": "batch",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+
+    {
       "command": "yarn test getPlaceByGglNrby",
       "name": "test getPlaceByGglNrby",
       "request": "launch",

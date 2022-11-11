@@ -13,7 +13,7 @@ import {
 
 import {
   getHotelDataFromBKC,
-  getPlaceByTxtSrch,
+  getPlaceByGglTxtSrch,
   getPlaceByGglNrby,
 } from './inner';
 
@@ -62,7 +62,7 @@ export const getHotelDataFromBKCWrapper = asyncWrapper(
 );
 
 /**
- * 구글 getPlaceByTxtSrch 수행 요청하는 api endpoint 함수
+ * 구글 getPlaceByGglTxtSrch 수행 요청하는 api endpoint 함수
  * (구) textSearch
  */
 export const getPlaceByGglTxtSrchWrapper = asyncWrapper(
@@ -72,7 +72,7 @@ export const getPlaceByGglTxtSrchWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const placeResult = await getPlaceByTxtSrch(param);
+      const placeResult = await getPlaceByGglTxtSrch(param);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: placeResult,

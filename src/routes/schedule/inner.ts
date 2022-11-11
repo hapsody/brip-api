@@ -183,7 +183,7 @@ export const qryPlaceDataToGglNrby = async (
  * @param param
  * @returns
  */
-export const qryPlaceDataToTxtSrch = async (
+export const qryPlaceDataToGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
   const { pageToken, keyword } = param;
@@ -225,7 +225,7 @@ export const qryPlaceDataToTxtSrch = async (
  * @returns
  */
 // export const getAllPlaceDataFromGGLPlaceAPI = async (
-export const getAllPlaceByTxtSrch = async (
+export const getAllPlaceByGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GglPlaceResultRawData[]> => {
   let retry = 1;
@@ -240,7 +240,7 @@ export const getAllPlaceByTxtSrch = async (
       pageToken: curPageToken ?? '',
     };
     // eslint-disable-next-line no-await-in-loop
-    const loopTemp = await qryPlaceDataToTxtSrch(loopQryParams);
+    const loopTemp = await qryPlaceDataToGglTxtSrch(loopQryParams);
 
     const nextPageToken = loopTemp.nextPageToken ?? '';
     const stopLoop = !param.loadAll;
@@ -345,14 +345,14 @@ export const getAllPlaceByGglNrby = async (
  * @param
  * @returns
  */
-export const getPlaceByTxtSrch = async (
+export const getPlaceByGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
-  const placeSearchResult = await getAllPlaceByTxtSrch(param);
+  const placeSearchResult = await getAllPlaceByGglTxtSrch(param);
 
   /// store data to db
   if (param.store) {
-    const batchJobId = 1;
+    const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
       await prisma.tourPlace.create({
@@ -440,14 +440,17 @@ export const getPlaceByTxtSrch = async (
                     };
                   }),
                 },
-                ...(batchJobId &&
-                  batchJobId > 0 && {
+                ...(batchJobCtx &&
+                  batchJobCtx.batchQueryParamsId && {
                     batchQueryParams: {
                       connectOrCreate: {
                         where: {
-                          id: batchJobId,
+                          id: batchJobCtx.batchQueryParamsId,
                         },
                         create: {
+                          latitude: batchJobCtx.latitude,
+                          longitude: batchJobCtx.longitude,
+                          radius: batchJobCtx.radius,
                           searchkeyword: {
                             connectOrCreate: {
                               where: {

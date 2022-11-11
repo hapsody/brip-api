@@ -120,6 +120,14 @@ export type GetPlaceByGglNrbyRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetPlaceByGglNrbyRETParamPayload | {};
 };
 export interface GetPlaceByGglTxtSrchREQParam extends GglTextSearchReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+  };
+  // batchJobId?: number; // batchJob을 통해 호출되는 경우 data model들에 batchQueryParam이 전달받은 batchJobId 번째로 생성된다. 본 파라미터를 통해 batchJob 스크립트로 실행인지 일반 함수 호출인지를 판별한다.
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
   store?: boolean; // true면 검색결과를 DB에 저장한다.
 }
