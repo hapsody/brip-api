@@ -236,7 +236,7 @@ describe('Schedule Express Router E2E Test', () => {
       const deleteNSPromise = prisma.gglNearbySearchRes.deleteMany({
         where: {
           id: {
-            in: deleteTPDBListToRestore,
+            in: deleteNSDBListToRestore,
           },
         },
       });

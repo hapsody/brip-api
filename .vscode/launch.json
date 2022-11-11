@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn test searchPlace",
-      "name": "test searchPlace",
+      "command": "yarn test getPlaceDataFromVJ",
+      "name": "test getPlaceDataFromVJ",
       "request": "launch",
       "type": "node-terminal"
     }
