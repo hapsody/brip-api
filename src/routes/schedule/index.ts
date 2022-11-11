@@ -1,6 +1,7 @@
 import scheduleRouter, {
   getHotelDataFromBKCWrapper,
-  getPlaceDataFromGGLWrapper,
+  getPlaceByGglNrbyWrapper,
+  getPlaceByGglTxtSrchWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -8,7 +9,8 @@ import {
 } from './devWrapper';
 
 scheduleRouter.post('/searchHotel', getHotelDataFromBKCWrapper);
-scheduleRouter.post('/searchPlace', getPlaceDataFromGGLWrapper);
+scheduleRouter.post('/getPlaceByGglNrby', getPlaceByGglNrbyWrapper);
+scheduleRouter.post('/getPlaceByGglTxtSrch', getPlaceByGglTxtSrchWrapper);
 
 /**
  * 내부 개발용

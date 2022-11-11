@@ -107,19 +107,29 @@ export type GglTextSearchReqOpt = Pick<
   'keyword' | 'pageToken'
 >;
 export type GglPlaceResultRawData = google.maps.places.IBPlaceResult;
-export interface GetPlaceDataFromGGLREQParam
-  extends GglNearbySearchReqOpt,
-    GglTextSearchReqOpt {
+export interface GetPlaceByGglNrbyREQParam extends GglNearbySearchReqOpt {
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
   store?: boolean; // true면 검색결과를 DB에 저장한다.
 }
-export interface GetPlaceDataFromGGLRETParamPayload {
+export interface GetPlaceByGglNrbyRETParamPayload {
   placeSearchCount: number;
   placeSearchResult: GglPlaceResultRawData[];
   nextPageToken?: string;
 }
-export type GetPlaceDataFromGGLRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetPlaceDataFromGGLRETParamPayload | {};
+export type GetPlaceByGglNrbyRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceByGglNrbyRETParamPayload | {};
+};
+export interface GetPlaceByGglTxtSrchREQParam extends GglTextSearchReqOpt {
+  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
+  store?: boolean; // true면 검색결과를 DB에 저장한다.
+}
+export interface GetPlaceByGglTxtSrchRETParamPayload {
+  placeSearchCount: number;
+  placeSearchResult: GglPlaceResultRawData[];
+  nextPageToken?: string;
+}
+export type GetPlaceByGglTxtSrchRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceByGglTxtSrchRETParamPayload | {};
 };
 
 /**

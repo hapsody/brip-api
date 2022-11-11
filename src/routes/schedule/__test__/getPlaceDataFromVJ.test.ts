@@ -16,7 +16,7 @@ describe('Schedule Express Router E2E Test', () => {
     it('Case: Correct - store true 테스트', async () => {
       const response = await request(app)
         .post('/schedule/getPlaceDataFromVJ')
-        .send({ ...params.placeSearchOpt, store: true });
+        .send({ ...params.gglNearbySearchOpt, store: true });
 
       const result = response.body as GetPlaceDataFromVJRETParam;
       const IBparams = result.IBparams as GetPlaceDataFromVJRETParamPayload;

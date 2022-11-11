@@ -30,13 +30,18 @@ export const params = {
     mock: true,
   },
 
-  placeSearchOpt: {
-    keyword: '카트 in 제주',
+  gglNearbySearchOpt: {
     location: {
       latitude,
       longitude,
     },
     radius: 50000,
+    loadAll: false,
+    store: false,
+  },
+
+  gglTxtSearchOpt: {
+    keyword: '카트 in 제주',
     loadAll: false,
     store: false,
   },

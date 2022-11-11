@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn test getPlaceDataFromVJ",
-      "name": "test getPlaceDataFromVJ",
+      "command": "yarn test getPlaceByGglNrby",
+      "name": "test getPlaceByGglNrby",
       "request": "launch",
       "type": "node-terminal"
     }

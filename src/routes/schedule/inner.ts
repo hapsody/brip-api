@@ -10,8 +10,10 @@ import {
   gCurrency,
   gLanguage,
   BKCHotelRawData,
-  GetPlaceDataFromGGLREQParam,
-  GetPlaceDataFromGGLRETParamPayload,
+  GetPlaceByGglNrbyREQParam,
+  GetPlaceByGglNrbyRETParamPayload,
+  GetPlaceByGglTxtSrchREQParam,
+  GetPlaceByGglTxtSrchRETParamPayload,
   GglPlaceResultRawData,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
@@ -143,9 +145,9 @@ export const getHotelDataFromBKC = async (
  * @param param
  * @returns
  */
-export const getPlaceDataFromGglNrbySrch = async (
-  param: GetPlaceDataFromGGLREQParam,
-): Promise<GetPlaceDataFromGGLRETParamPayload> => {
+export const qryPlaceDataToGglNrby = async (
+  param: GetPlaceByGglNrbyREQParam,
+): Promise<GetPlaceByGglNrbyRETParamPayload> => {
   const { location, radius, pageToken, keyword } = param;
 
   console.log('google nearbySearch');
@@ -181,9 +183,9 @@ export const getPlaceDataFromGglNrbySrch = async (
  * @param param
  * @returns
  */
-export const getPlaceDataFromGglTxtSrch = async (
-  param: GetPlaceDataFromGGLREQParam,
-): Promise<GetPlaceDataFromGGLRETParamPayload> => {
+export const qryPlaceDataToTxtSrch = async (
+  param: GetPlaceByGglTxtSrchREQParam,
+): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
   const { pageToken, keyword } = param;
 
   console.log('google textSearch');
@@ -211,19 +213,20 @@ export const getPlaceDataFromGglTxtSrch = async (
 };
 
 /**
- * 구글 nearbySearch 또는 TextSearch를(이하 nextSearch 로 지칭) 반복적으로 요청해
+ * 구글 TextSearch를 반복적으로 요청해
  * 전체 페이지의 데이터를 반환하는 함수
- * 구글 nearbySearch 한 페이지당 20개의 목록만을 보여준다.
+ * 구글 TextSearch를 한 페이지당 20개의 목록만을 보여준다.
  * 전체 일정중 필요한 스팟(관광지) 또는 식당이 충분한 숫자가 확보되어야 하는데
- * nearbySearch 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
- * 이때 사용할 끝 페이지까지 계속해서 자동으로 nearbySearch를 요청하는 함수
+ * TextSearch를 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
+ * 이때 사용할 끝 페이지까지 계속해서 자동으로 TextSearch를를 요청하는 함수
  *
- * (구) getAllNearbySearchPages
+ * (구) getAllTextSearchPages
  * @param
  * @returns
  */
-export const getAllPlaceDataFromGGLPlaceAPI = async (
-  param: GetPlaceDataFromGGLREQParam,
+// export const getAllPlaceDataFromGGLPlaceAPI = async (
+export const getAllPlaceByTxtSrch = async (
+  param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GglPlaceResultRawData[]> => {
   let retry = 1;
   const retryLimit = 5;
@@ -232,22 +235,12 @@ export const getAllPlaceDataFromGGLPlaceAPI = async (
 
   // recursion version
   const loopFunc = async (curPageToken: string) => {
-    const loopQryParams: GetPlaceDataFromGGLREQParam = {
+    const loopQryParams: GetPlaceByGglTxtSrchREQParam = {
       ...param,
       pageToken: curPageToken ?? '',
     };
     // eslint-disable-next-line no-await-in-loop
-    const loopTemp = await (async () => {
-      if (
-        !isEmpty(param.location?.latitude) &&
-        !isEmpty(param.location?.longitude)
-      ) {
-        const r = await getPlaceDataFromGglNrbySrch(loopQryParams);
-        return r;
-      }
-      const r = await getPlaceDataFromGglTxtSrch(loopQryParams);
-      return r;
-    })();
+    const loopTemp = await qryPlaceDataToTxtSrch(loopQryParams);
 
     const nextPageToken = loopTemp.nextPageToken ?? '';
     const stopLoop = !param.loadAll;
@@ -283,16 +276,227 @@ export const getAllPlaceDataFromGGLPlaceAPI = async (
 };
 
 /**
- * 구글 Place API(nearbySearch, textSearch 등)을 요청해 결과를 반환한다.
+ * 구글 nearbySearch 또는 반복적으로 요청해
+ * 전체 페이지의 데이터를 반환하는 함수
+ * 구글 nearbySearch 한 페이지당 20개의 목록만을 보여준다.
+ * 전체 일정중 필요한 스팟(관광지) 또는 식당이 충분한 숫자가 확보되어야 하는데
+ * nearbySearch 후 끝 페이지 모든 장소를 미리 읽어 해당 숫자만큼 확보되었는지 확인하여야 한다.
+ * 이때 사용할 끝 페이지까지 계속해서 자동으로 nearbySearch를 요청하는 함수
+ *
+ * (구) getAllNearbySearchPages
+ * @param
+ * @returns
+ */
+//  export const getAllPlaceDataFromGGLPlaceAPI = async (
+export const getAllPlaceByGglNrby = async (
+  param: GetPlaceByGglNrbyREQParam,
+): Promise<GglPlaceResultRawData[]> => {
+  let retry = 1;
+  const retryLimit = 5;
+
+  console.log(param);
+
+  // recursion version
+  const loopFunc = async (curPageToken: string) => {
+    const loopQryParams: GetPlaceByGglNrbyREQParam = {
+      ...param,
+      pageToken: curPageToken ?? '',
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const loopTemp = await qryPlaceDataToGglNrby(loopQryParams);
+
+    const nextPageToken = loopTemp.nextPageToken ?? '';
+    const stopLoop = !param.loadAll;
+    retry += 1;
+
+    if (stopLoop || isEmpty(nextPageToken) || retry > retryLimit)
+      return [...loopTemp.placeSearchResult];
+
+    const subResults = await new Promise(resolve => {
+      setTimeout(() => {
+        loopFunc(nextPageToken)
+          .then(promiseRes => {
+            resolve(promiseRes);
+          })
+          .catch(err => {
+            console.error(err);
+            resolve([] as GglPlaceResultRawData[]);
+          });
+      }, 2000);
+    });
+
+    let loopResult: GglPlaceResultRawData[] = [];
+    loopResult = [
+      ...(subResults as GglPlaceResultRawData[]),
+      ...loopTemp.placeSearchResult,
+    ];
+
+    return loopResult;
+  };
+  const loopFuncRes = await loopFunc(param.pageToken ?? '');
+
+  return loopFuncRes;
+};
+
+/**
+ * getPlaceByGglTxtSrchWrapper의 실제 동작부인 inner 함수
  * store 옵션이 있을 경우 idealbllom DB에 저장한다.
  *
  * @param
  * @returns
  */
-export const getPlaceDataFromGGL = async (
-  param: GetPlaceDataFromGGLREQParam,
-): Promise<GetPlaceDataFromGGLRETParamPayload> => {
-  const placeSearchResult = await getAllPlaceDataFromGGLPlaceAPI(param);
+export const getPlaceByTxtSrch = async (
+  param: GetPlaceByGglTxtSrchREQParam,
+): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
+  const placeSearchResult = await getAllPlaceByTxtSrch(param);
+
+  /// store data to db
+  if (param.store) {
+    const batchJobId = 1;
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const item of placeSearchResult) {
+      await prisma.tourPlace.create({
+        data: {
+          tourPlaceType:
+            item.types?.findIndex(
+              type => type.toUpperCase() === 'RESTAURANT',
+            ) === -1
+              ? 'SPOT'
+              : 'RESTAURANT',
+          gglNearbySearchRes: {
+            connectOrCreate: {
+              where: {
+                place_id: item.place_id,
+              },
+              create: {
+                geometry: {
+                  create: {
+                    location: JSON.stringify({
+                      lat: item.geometry?.location?.lat,
+                      lngt: item.geometry?.location?.lng,
+                    }),
+                    viewport: JSON.stringify({
+                      northeast: {
+                        lat: item.geometry?.viewport?.northeast?.lat,
+                        lngt: item.geometry?.viewport?.northeast?.lng,
+                      },
+                      southwest: {
+                        lat: item.geometry?.viewport?.southwest?.lat,
+                        lngt: item.geometry?.viewport?.southwest?.lng,
+                      },
+                    }),
+                  },
+                },
+                icon: item.icon,
+                icon_background_color: item.icon_background_color,
+                icon_mask_base_uri: item.icon_mask_base_uri,
+                name: item.name,
+                opening_hours:
+                  (
+                    item.opening_hours as Partial<{
+                      open_now: boolean;
+                    }>
+                  )?.open_now ?? false,
+                place_id: item.place_id,
+                price_level: item.price_level,
+                rating: item.rating,
+                types: (() => {
+                  return item.types
+                    ? {
+                        connectOrCreate: item.types?.map(type => {
+                          return {
+                            create: { value: type },
+                            where: { value: type },
+                          };
+                        }),
+                      }
+                    : {
+                        create: {
+                          value: 'Not Applicaple',
+                        },
+                      };
+                })(),
+                user_ratings_total: item.user_ratings_total,
+                vicinity: item.vicinity,
+                formatted_address: item.formatted_address,
+                plus_code: {
+                  create: {
+                    compund_code: item.plus_code?.compound_code ?? '',
+                    global_code: item.plus_code?.global_code ?? '',
+                  },
+                },
+                photos: {
+                  // create: await getPlacePhoto(item),
+                  create: item.photos?.map(photo => {
+                    return {
+                      height: photo.height,
+                      width: photo.width,
+                      html_attributions: JSON.stringify(
+                        photo.html_attributions,
+                      ),
+                      photo_reference:
+                        (photo as Partial<{ photo_reference: string }>)
+                          .photo_reference ?? '',
+                    };
+                  }),
+                },
+                ...(batchJobId &&
+                  batchJobId > 0 && {
+                    batchQueryParams: {
+                      connectOrCreate: {
+                        where: {
+                          id: batchJobId,
+                        },
+                        create: {
+                          searchkeyword: {
+                            connectOrCreate: {
+                              where: {
+                                keyword: param.keyword ?? '',
+                              },
+                              create: {
+                                keyword: param.keyword ?? '',
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    batchSearchKeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: param.keyword ?? '',
+                        },
+                        create: {
+                          keyword: param.keyword ?? '',
+                        },
+                      },
+                    },
+                  }),
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return {
+    placeSearchCount: placeSearchResult.length,
+    placeSearchResult,
+  };
+};
+
+/**
+ * getPlaceByGglNrbyWrapper의 실제 동작부인 inner 함수
+ * store 옵션이 있을 경우 idealbllom DB에 저장한다.
+ *
+ * @param
+ * @returns
+ */
+export const getPlaceByGglNrby = async (
+  param: GetPlaceByGglNrbyREQParam,
+): Promise<GetPlaceByGglNrbyRETParamPayload> => {
+  const placeSearchResult = await getAllPlaceByGglNrby(param);
 
   /// store data to db
   if (param.store) {
@@ -403,7 +607,7 @@ export const getPlaceDataFromGGL = async (
                           searchkeyword: {
                             connectOrCreate: {
                               where: {
-                                keyword: param.keyword,
+                                keyword: param.keyword ?? '',
                               },
                               create: {
                                 keyword: param.keyword ?? '',
@@ -416,7 +620,7 @@ export const getPlaceDataFromGGL = async (
                     batchSearchKeyword: {
                       connectOrCreate: {
                         where: {
-                          keyword: param.keyword,
+                          keyword: param.keyword ?? '',
                         },
                         create: {
                           keyword: param.keyword ?? '',
