@@ -95,10 +95,12 @@ describe('Schedule Express Router E2E Test', () => {
         where: {
           AND: [
             {
-              gglNearbySearchRes: {
-                place_id: {
-                  in: placeIds,
-                },
+              OR: [
+                { tourPlaceType: 'GL_RESTAURANT' },
+                { tourPlaceType: 'GL_SPOT' },
+              ],
+              gl_place_id: {
+                in: placeIds,
               },
             },
             {
@@ -109,66 +111,47 @@ describe('Schedule Express Router E2E Test', () => {
           ],
         },
         include: {
-          gglNearbySearchRes: {
-            include: {
-              geometry: true,
-              types: true,
-              plus_code: true,
-              photos: true,
-            },
-          },
+          gl_types: true,
+          gl_photos: true,
+
+          // geometry: true,
+          // types: true,
+          // plus_code: true,
+          // photos: true,
         },
       });
 
-      const gglNearbySearchRes = await prisma.gglNearbySearchRes.findMany({
-        where: {
-          place_id: { in: placeIds },
-        },
-      });
       /// 검색된 결과를 DB에 저장하면 중복된 place_id가 DB에 있는 경우 새로 저장이 되지는 않는다.
       /// 구글로부터의 결과중 place_id가 만약 undefined 인 경우는 제외하고 실제 저장이 되어야하는 결과들은 placeIds다.
       /// 때문에 placeIds.length만큼 DB에서 찾은 결과 숫자가 정확히 같아야한다.
-      expect(gglNearbySearchRes.length).toBe(fromGoogleCount);
-      expect(tourPlace.length).toBeGreaterThanOrEqual(
-        gglNearbySearchRes.length,
-      );
+      expect(tourPlace.length).toBe(fromGoogleCount);
 
       const deleteTPDBListToRestore: number[] = [];
-      const deleteNSDBListToRestore: number[] = [];
+
       // eslint-disable-next-line no-restricted-syntax
       for await (const item of placeSearchResult) {
-        const tpDB = tourPlace.find(
-          tp => tp.gglNearbySearchRes?.place_id === item.place_id,
-        );
+        const tpDB = tourPlace.find(tp => tp.gl_place_id === item.place_id);
         expect(tpDB).not.toBeUndefined();
-        const gglDB = tpDB?.gglNearbySearchRes;
-        expect(gglDB).not.toBeUndefined();
-        if (gglDB) {
-          deleteTPDBListToRestore.push(tpDB.id);
-          if (moment().diff(moment(gglDB.updatedAt)) < 2000) {
-            deleteNSDBListToRestore.push(gglDB.id);
+
+        if (tpDB) {
+          if (moment().diff(moment(tpDB.updatedAt)) < 2000) {
+            deleteTPDBListToRestore.push(tpDB.id);
           }
 
           /// 최근 업데이트가 된 DB항목만 새로 추가된 것이라고 가정
-          const dbLocation = JSON.parse(
-            gglDB?.geometry?.location as string,
-          ) as {
-            lat: string;
-            lngt: string;
-          };
-          expect(item.geometry.location.lat).toBe(dbLocation.lat);
-          expect(item.geometry.location.lng).toBe(dbLocation.lngt);
+          expect(item.geometry.location.lat).toBe(tpDB.gl_lat);
+          expect(item.geometry.location.lng).toBe(tpDB.gl_lng);
 
           if (item.opening_hours && !isEmpty(item.opening_hours)) {
             expect((item.opening_hours as { open_now: boolean }).open_now).toBe(
-              gglDB?.opening_hours,
+              tpDB?.gl_opening_hours,
             );
           }
 
           // photo_reference는 매번 검색때마다 달라진다는점을 발견했다..
           if (item.photos && item.photos.length > 0) {
             for (let i = 0; i < item.photos.length; i += 1) {
-              // const photoFoundIdx = gglDB.photos.findIndex(
+              // const photoFoundIdx = tpDB.photos.findIndex(
               //   v =>
               //     item &&
               //     item.photos &&
@@ -177,7 +160,7 @@ describe('Schedule Express Router E2E Test', () => {
               // );
               // expect(photoFoundIdx).not.toBe(-1);
 
-              const photoFoundIdx = gglDB.photos.findIndex(
+              const photoFoundIdx = tpDB.gl_photos.findIndex(
                 v =>
                   (item &&
                     item.photos &&
@@ -188,17 +171,19 @@ describe('Schedule Express Router E2E Test', () => {
             }
           }
 
-          expect(item.place_id).toBe(gglDB?.place_id?.toString() ?? undefined);
-          expect(item.rating).toBe(gglDB?.rating ?? undefined);
+          expect(item.place_id).toBe(
+            tpDB?.gl_place_id?.toString() ?? undefined,
+          );
+          expect(item.rating).toBe(tpDB?.gl_rating ?? undefined);
           const typeMatch = item.types?.map(gglType => {
-            const found = gglDB?.types.findIndex(
+            const found = tpDB?.gl_types.findIndex(
               dbType => dbType.value === gglType,
             );
             return found > -1;
           });
-          expect(typeMatch?.findIndex(v => v === false)).toBe(-1); /// typeMatched가 -1이어야 gglDB에 type으로 존재한다는 말이다.
+          expect(typeMatch?.findIndex(v => v === false)).toBe(-1); /// typeMatched가 -1이어야 tpDB에 type으로 존재한다는 말이다.
           expect(item.user_ratings_total).toBe(
-            gglDB?.user_ratings_total ?? undefined,
+            tpDB?.gl_user_ratings_total ?? undefined,
           );
         }
       }
@@ -210,18 +195,8 @@ describe('Schedule Express Router E2E Test', () => {
           },
         },
       });
-      const deleteNSPromise = prisma.gglNearbySearchRes.deleteMany({
-        where: {
-          id: {
-            in: deleteNSDBListToRestore,
-          },
-        },
-      });
 
-      const deleteRes = await prisma.$transaction([
-        deleteTPPromise,
-        deleteNSPromise,
-      ]);
+      const deleteRes = await prisma.$transaction([deleteTPPromise]);
       console.log(
         `test data(gglNearbySearchRes) deletion done ${JSON.stringify(
           deleteRes,

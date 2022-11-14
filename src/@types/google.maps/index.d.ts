@@ -10,7 +10,7 @@ declare namespace google.maps.places {
   export type IBPlaceResult = Omit<PlaceResult, 'geometry'> & {
     geometry: {
       location: google.maps.IBLatLng;
-      viewport?: {
+      viewport: {
         northeast: google.maps.IBLatLng;
         southwest: google.maps.IBLatLng;
       };

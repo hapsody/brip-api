@@ -165,29 +165,44 @@ async function batchJob() {
   };
   // eslint-disable-next-line no-restricted-syntax
   for await (const v of dummyRestaurants) {
-    await prisma.gglNearbySearchRes.upsert({
+    const geoLocation = JSON.parse(v.geoLocation) as {
+      lat: number;
+      lngt: number;
+    };
+    const geoViewPort = JSON.parse(v.geoViewport) as {
+      northeast: {
+        lat: number;
+        lngt: number;
+      };
+      southwest: {
+        lat: number;
+        lngt: number;
+      };
+    };
+
+    await prisma.tourPlace.upsert({
       where: {
-        place_id: v.place_id,
+        gl_place_id: v.place_id,
       },
       update: {},
       create: {
-        icon: v.icon,
-        icon_background_color: v.icon_background_color,
-        icon_mask_base_uri: v.icon_mask_base_uri,
-        name: v.name,
-        opening_hours: v.opening_hours === 1,
-        place_id: v.place_id,
-        price_level: v.price_level,
-        rating: v.rating,
-        user_ratings_total: v.user_ratings_total,
-        vicinity: v.vicinity,
-        geometry: {
-          create: {
-            location: v.geoLocation,
-            viewport: v.geoViewport,
-          },
-        },
-        formatted_address: v.formatted_address,
+        gl_icon: v.icon,
+        gl_icon_background_color: v.icon_background_color,
+        gl_icon_mask_base_uri: v.icon_mask_base_uri,
+        gl_name: v.name,
+        gl_opening_hours: v.opening_hours === 1,
+        gl_place_id: v.place_id,
+        gl_price_level: v.price_level,
+        gl_rating: v.rating,
+        gl_user_ratings_total: v.user_ratings_total,
+        gl_vicinity: v.vicinity,
+        gl_lat: geoLocation.lat,
+        gl_lng: geoLocation.lngt,
+        gl_viewport_ne_lat: geoViewPort.northeast.lat,
+        gl_viewport_ne_lng: geoViewPort.northeast.lngt,
+        gl_viewport_sw_lat: geoViewPort.northeast.lat,
+        gl_viewport_sw_lng: geoViewPort.northeast.lngt,
+        gl_formatted_address: v.formatted_address,
         batchQueryParams: {
           connectOrCreate: {
             where: {
@@ -206,54 +221,11 @@ async function batchJob() {
             },
           },
         },
-        tourPlace: {
-          create: {
-            tourPlaceType: 'RESTAURANT',
-          },
-        },
+        tourPlaceType: 'GL_RESTAURANT',
       },
     });
   }
-  // const promises = dummyRestaurants.map(v => {
-  //   return prisma.gglNearbySearchRes.upsert({
-  //     where: {
-  //       place_id: v.place_id,
-  //     },
-  //     update: {},
-  //     create: {
-  //       icon: v.icon,
-  //       icon_background_color: v.icon_background_color,
-  //       icon_mask_base_uri: v.icon_mask_base_uri,
-  //       name: v.name,
-  //       opening_hours: v.opening_hours === 1,
-  //       place_id: v.place_id,
-  //       price_level: v.price_level,
-  //       rating: v.rating,
-  //       user_ratings_total: v.user_ratings_total,
-  //       vicinity: v.vicinity,
-  //       geometry: {
-  //         create: {
-  //           location: v.geoLocation,
-  //           viewport: v.geoViewport,
-  //         },
-  //       },
-  //       formatted_address: v.formatted_address,
-  //       batchQueryParams: {
-  //         create: {
-  //           latitude: 33.501298,
-  //           longitude: 126.525482,
-  //           radius: 4000,
-  //         },
-  //       },
-  //       tourPlace: {
-  //         create: {
-  //           tourPlaceType: 'RESTAURANT',
-  //         },
-  //       },
-  //     },
-  //   });
-  // });
-  // await Promise.all(promises);
+
   console.log('restaurant dummy data created too');
 }
 

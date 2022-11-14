@@ -1,4 +1,4 @@
-import { SearchHotelRes } from '@prisma/client';
+import { QueryParams, MetaScheduleInfo } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
@@ -47,16 +47,14 @@ export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
   loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
 }
 /// rapid api booking.com search hotels by coordinates 검색 결과
-export type BKCHotelRawData = Omit<
-  SearchHotelRes,
-  | 'hotelClass'
-  | 'distance'
-  | 'gross_amount'
-  | 'included_taxes_and_charges_amount'
-  | 'net_amount'
-  | 'checkout'
-  | 'checkin'
-> & {
+export interface BKCHotelRawData {
+  unit_configuration_label: string;
+  min_total_price: number;
+  countrycode: string;
+  default_language: string;
+  address: string;
+  city: string;
+  city_name_en: string;
   class: number;
   distance: string;
   composite_price_breakdown: {
@@ -81,7 +79,23 @@ export type BKCHotelRawData = Omit<
   checkout: {
     until: string;
   };
-};
+  review_score_word: string;
+  review_score: string;
+  currencycode: string;
+  timezone: string;
+  urgency_message?: string;
+  hotel_id: number;
+  hotel_name: string;
+  latitude: number;
+  longitude: number;
+  url: string;
+  accommodation_type_name: string;
+  zip: string;
+  main_photo_url: string;
+  max_photo_url?: string;
+  hotel_facilities?: string;
+  has_swimming_pool?: number;
+}
 export interface GetHotelDataFromBKCRETParamPayload {
   hotelSearchCount: number;
   hotelSearchResult: BKCHotelRawData[];
@@ -108,6 +122,14 @@ export type GglTextSearchReqOpt = Pick<
 >;
 export type GglPlaceResultRawData = google.maps.places.IBPlaceResult;
 export interface GetPlaceByGglNrbyREQParam extends GglNearbySearchReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+  };
+  // batchJobId?: number; // batchJob을 통해 호출되는 경우 data model들에 batchQueryParam이 전달받은 batchJobId 번째로 생성된다. 본 파라미터를 통해 batchJob 스크립트로 실행인지 일반 함수 호출인지를 판별한다.
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
   store?: boolean; // true면 검색결과를 DB에 저장한다.
 }
@@ -226,3 +248,115 @@ export interface GetPlaceDataFromVJRETParamPayload
 export type GetPlaceDataFromVJRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetPlaceDataFromVJRETParamPayload | {};
 };
+
+/**
+ * GetRecommendList Type
+ */
+
+export interface FavoriteTravelType {
+  // default { noIdea: true }
+  landActivity?: boolean; /// 육상 액티비티
+  golf?: boolean; /// 골프
+  relaxation?: boolean; /// 휴양
+  oceanActivity?: boolean; /// 해양 액티비티
+  groupActivity?: boolean; /// 그룹 액티비티
+  learn?: boolean; /// 교습
+  food?: boolean; /// 음식
+  experience?: boolean; /// 체험
+  visitTourSpot?: boolean; /// 관광명소 방문
+  packageTour?: boolean; /// 패키지 투어
+  shopping?: boolean; /// 쇼핑
+  waterPark?: boolean; /// 워터파크
+  noIdea?: boolean; /// 모르겠음
+  // nativeExperience?: boolean; /// 현지 문화체험
+}
+
+export interface FavoriteAccommodationType {
+  hotel?: boolean;
+  resort?: boolean; /// 리조트
+  houseRent?: boolean; /// 하우스 렌트
+  roomRent?: boolean; /// 룸렌트
+  bedRent?: boolean; /// 베드 렌트
+  apartRent?: boolean; /// 아파트 렌트
+  poolVilla?: boolean; /// 풀빌라
+  camping?: boolean; /// 캠핑
+  mixed?: boolean; /// 적절히 믹스
+  dontCare?: boolean; /// 상관없음
+}
+
+export interface FavoriteAccommodationLocation {
+  nature?: boolean; /// 자연과 함께
+  downtown?: boolean; /// 중심지
+  oceanView?: boolean; /// 오션뷰
+  mountainView?: boolean; /// 마운틴 뷰
+  cityView?: boolean; /// 시티뷰
+  mixed?: boolean; /// 적절히 믹스
+  dontCare?: boolean; /// 상관없음
+}
+
+// /// 일별 추천 일정 타입
+// export interface VisitSchedule {
+//   // spot: GglNearbySearchRes[];
+//   // restaurant: GglNearbySearchRes[];
+//   /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
+//   visitOrder: {
+//     ordersFromMinHotel: VisitOrder[];
+//     ordersFromMidHotel: VisitOrder[];
+//     ordersFromMaxHotel: VisitOrder[];
+//   };
+//   spot: {
+//     spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+//     spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+//     spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+//   };
+//   restaurant: {
+//     restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+//     restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+//     restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+//   };
+//   hotel: {
+//     minMoneyHotel: SearchHotelResWithTourPlace | undefined;
+//     midMoneyHotel: SearchHotelResWithTourPlace | undefined;
+//     maxMoneyHotel: SearchHotelResWithTourPlace | undefined;
+//   };
+// }
+// export type VisitSchedules = VisitSchedule[];
+export interface GetRcmdListRETParamPayload extends QueryParams {
+  metaInfo: MetaScheduleInfo;
+  visitSchedulesCount: number;
+  // visitSchedules: VisitSchedules;
+  // queryParamId: number;
+}
+
+export type GetRcmdListRETParam =
+  | (GetRcmdListRETParamPayload & {
+      searchLocation: string;
+    })
+  | void;
+
+export type HotelOptType = BKCSrchByCoordReqOpt;
+export type PlaceOptType = GglNearbySearchReqOpt | VisitJejuReqOpt;
+export type GetRcmdListHotelOpt<T extends AddMockBKCHotelResourceREQParam> = T;
+export type GetRcmdListPlaceOpt<T extends PlaceOptType> = T;
+
+export interface QueryReqParams<
+  H extends HotelOptType,
+  P extends PlaceOptType,
+> {
+  // searchLocation?: string; // ex) o'ahu ex) seoul
+  minMoney?: number; /// ex) 4000000,
+  maxMoney?: number; /// ex) 5000000,
+  currency: Currency; /// "USD" | "KRW" default USD
+  travelType: FavoriteTravelType; ///
+  travelHard?: number; // 여행강도 0~10 ex) 6; default 5
+  startDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
+  endDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
+  hotelSrchOpt: GetRcmdListHotelOpt<H>;
+  placeSrchOpt: GetRcmdListPlaceOpt<P>;
+}
+
+export type GetRcmdListREQParam<
+  H extends HotelOptType,
+  P extends PlaceOptType,
+> = QueryReqParams<H, P>;

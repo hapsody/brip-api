@@ -37,49 +37,27 @@ describe('Schedule Express Router E2E Test', () => {
             { tourPlaceType: 'VISITJEJU_SPOT' },
             { tourPlaceType: 'VISITJEJU_RESTAURANT' },
           ],
-          visitJejuData: {
-            contentsid: { in: contentsIds },
-          },
+          vj_contentsid: { in: contentsIds },
           updatedAt: {
             gte: moment().subtract(2000, 'milliseconds').toISOString(),
           },
         },
-        include: {
-          visitJejuData: true,
-        },
       });
 
-      const visitJejuFromDB = await prisma.visitJejuData.findMany({
-        where: {
-          contentsid: { in: contentsIds },
-        },
-      });
-      expect(visitJejuFromDB.length).toBe(fromVJCount);
-      expect(tourPlaceList.length).toBeGreaterThanOrEqual(
-        visitJejuFromDB.length,
-      );
+      expect(tourPlaceList.length).toBeGreaterThanOrEqual(fromVJCount);
 
       const deleteTPDBListToRestore: number[] = [];
-      const deleteVJDBListToRestore: number[] = [];
 
       // eslint-disable-next-line no-restricted-syntax
       for await (const vjAPI of visitJejuItemByAPI) {
         const tpDB = tourPlaceList.find(
-          tp => tp.visitJejuData?.contentsid === vjAPI.contentsid,
+          tp => tp.vj_contentsid === vjAPI.contentsid,
         );
-        const vjDB = tpDB?.visitJejuData;
 
-        if (vjDB) {
-          deleteTPDBListToRestore.push(tpDB.id);
+        if (tpDB) {
           /// visitJejuData 중 최근에 updateAt 시간으로 기록된것, 즉 본 테스트 스크립트로 쿼리 후 생성된 결과값들에 대해 다시 삭제하여 원복한다.
-          if (moment().diff(moment(vjDB.updatedAt)) < 2000) {
-            deleteVJDBListToRestore.push(vjDB.id);
-
-            if (vjAPI.contentsid) {
-              expect(vjAPI.contentsid).toBe(vjDB.contentsid);
-            } else {
-              expect(vjDB.contentsid).toBeNull();
-            }
+          if (moment().diff(moment(tpDB.updatedAt)) < 2000) {
+            deleteTPDBListToRestore.push(tpDB.id);
           }
         }
       }
@@ -91,18 +69,8 @@ describe('Schedule Express Router E2E Test', () => {
           },
         },
       });
-      const deleteVJPromise = prisma.visitJejuData.deleteMany({
-        where: {
-          id: {
-            in: deleteVJDBListToRestore,
-          },
-        },
-      });
 
-      const deleteRes = await prisma.$transaction([
-        deleteTPPromise,
-        deleteVJPromise,
-      ]);
+      const deleteRes = await prisma.$transaction([deleteTPPromise]);
       console.log(
         `test data(visitJejuData) deletion done ${JSON.stringify(deleteRes)}`,
       );

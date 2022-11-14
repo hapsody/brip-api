@@ -9,6 +9,7 @@ import {
   GetHotelDataFromBKCRETParamPayload,
   gCurrency,
   gLanguage,
+  // gHotelTransition,
   BKCHotelRawData,
   GetPlaceByGglNrbyREQParam,
   GetPlaceByGglNrbyRETParamPayload,
@@ -17,8 +18,15 @@ import {
   GglPlaceResultRawData,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
+  // GetRcmdListREQParam,
+  // GetRcmdListRETParamPayload,
+  // HotelOptType,
+  // PlaceOptType,
 } from './types/schduleTypes';
 
+/**
+ * inner utils
+ *  */
 export const getToday = (): string => {
   return moment().startOf('d').format();
 };
@@ -27,6 +35,16 @@ export const getTomorrow = (): string => {
 };
 export const getNDaysLater = (n: number): string => {
   return moment().add(n, 'day').startOf('d').format();
+};
+
+export const getTravelNights = (
+  checkinDate: string,
+  checkoutDate: string,
+): number => {
+  const mCheckinDate = moment(checkinDate);
+  const mCheckoutDate = moment(checkoutDate);
+
+  return Math.floor(moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays());
 };
 
 /**
@@ -359,125 +377,94 @@ export const getPlaceByGglTxtSrch = async (
         data: {
           tourPlaceType:
             item.types?.findIndex(
-              type => type.toUpperCase() === 'RESTAURANT',
+              type => type.toUpperCase() === 'GL_RESTAURANT',
             ) === -1
-              ? 'SPOT'
-              : 'RESTAURANT',
-          gglNearbySearchRes: {
-            connectOrCreate: {
-              where: {
-                place_id: item.place_id,
-              },
-              create: {
-                geometry: {
-                  create: {
-                    location: JSON.stringify({
-                      lat: item.geometry?.location?.lat,
-                      lngt: item.geometry?.location?.lng,
-                    }),
-                    viewport: JSON.stringify({
-                      northeast: {
-                        lat: item.geometry?.viewport?.northeast?.lat,
-                        lngt: item.geometry?.viewport?.northeast?.lng,
-                      },
-                      southwest: {
-                        lat: item.geometry?.viewport?.southwest?.lat,
-                        lngt: item.geometry?.viewport?.southwest?.lng,
-                      },
-                    }),
-                  },
-                },
-                icon: item.icon,
-                icon_background_color: item.icon_background_color,
-                icon_mask_base_uri: item.icon_mask_base_uri,
-                name: item.name,
-                opening_hours:
-                  (
-                    item.opening_hours as Partial<{
-                      open_now: boolean;
-                    }>
-                  )?.open_now ?? false,
-                place_id: item.place_id,
-                price_level: item.price_level,
-                rating: item.rating,
-                types: (() => {
-                  return item.types
-                    ? {
-                        connectOrCreate: item.types?.map(type => {
-                          return {
-                            create: { value: type },
-                            where: { value: type },
-                          };
-                        }),
-                      }
-                    : {
-                        create: {
-                          value: 'Not Applicaple',
-                        },
-                      };
-                })(),
-                user_ratings_total: item.user_ratings_total,
-                vicinity: item.vicinity,
-                formatted_address: item.formatted_address,
-                plus_code: {
-                  create: {
-                    compund_code: item.plus_code?.compound_code ?? '',
-                    global_code: item.plus_code?.global_code ?? '',
-                  },
-                },
-                photos: {
-                  // create: await getPlacePhoto(item),
-                  create: item.photos?.map(photo => {
+              ? 'GL_SPOT'
+              : 'GL_RESTAURANT',
+          gl_lat: item.geometry?.location?.lat,
+          gl_lng: item.geometry?.location?.lng,
+          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
+          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
+          gl_icon: item.icon,
+          gl_icon_background_color: item.icon_background_color,
+          gl_icon_mask_base_uri: item.icon_mask_base_uri,
+          gl_name: item.name,
+          gl_opening_hours:
+            (
+              item.opening_hours as Partial<{
+                open_now: boolean;
+              }>
+            )?.open_now ?? false,
+          gl_place_id: item.place_id,
+          gl_price_level: item.price_level,
+          gl_rating: item.rating,
+          gl_types: (() => {
+            return item.types
+              ? {
+                  connectOrCreate: item.types?.map(type => {
                     return {
-                      height: photo.height,
-                      width: photo.width,
-                      html_attributions: JSON.stringify(
-                        photo.html_attributions,
-                      ),
-                      photo_reference:
-                        (photo as Partial<{ photo_reference: string }>)
-                          .photo_reference ?? '',
+                      create: { value: type },
+                      where: { value: type },
                     };
                   }),
-                },
-                ...(batchJobCtx &&
-                  batchJobCtx.batchQueryParamsId && {
-                    batchQueryParams: {
-                      connectOrCreate: {
-                        where: {
-                          id: batchJobCtx.batchQueryParamsId,
-                        },
-                        create: {
-                          latitude: batchJobCtx.latitude,
-                          longitude: batchJobCtx.longitude,
-                          radius: batchJobCtx.radius,
-                          searchkeyword: {
-                            connectOrCreate: {
-                              where: {
-                                keyword: param.keyword ?? '',
-                              },
-                              create: {
-                                keyword: param.keyword ?? '',
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                    batchSearchKeyword: {
-                      connectOrCreate: {
-                        where: {
-                          keyword: param.keyword ?? '',
-                        },
-                        create: {
-                          keyword: param.keyword ?? '',
-                        },
-                      },
-                    },
-                  }),
-              },
-            },
+                }
+              : {
+                  create: {
+                    value: 'Not Applicaple',
+                  },
+                };
+          })(),
+          gl_user_ratings_total: item.user_ratings_total,
+          gl_vicinity: item.vicinity,
+          gl_formatted_address: item.formatted_address,
+          gl_photos: {
+            // create: await getPlacePhoto(item),
+            create: item.photos?.map(photo => {
+              return {
+                height: photo.height,
+                width: photo.width,
+                html_attributions: JSON.stringify(photo.html_attributions),
+                photo_reference:
+                  (photo as Partial<{ photo_reference: string }>)
+                    .photo_reference ?? '',
+              };
+            }),
           },
+          ...(batchJobCtx &&
+            batchJobCtx.batchQueryParamsId && {
+              batchQueryParams: {
+                connectOrCreate: {
+                  where: {
+                    id: batchJobCtx.batchQueryParamsId,
+                  },
+                  create: {
+                    latitude: batchJobCtx.latitude,
+                    longitude: batchJobCtx.longitude,
+                    radius: batchJobCtx.radius,
+                    searchkeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: param.keyword ?? '',
+                        },
+                        create: {
+                          keyword: param.keyword ?? '',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              batchSearchKeyword: {
+                connectOrCreate: {
+                  where: {
+                    keyword: param.keyword ?? '',
+                  },
+                  create: {
+                    keyword: param.keyword ?? '',
+                  },
+                },
+              },
+            }),
         },
       });
     }
@@ -503,137 +490,101 @@ export const getPlaceByGglNrby = async (
 
   /// store data to db
   if (param.store) {
-    const batchJobId = 1;
+    const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
       await prisma.tourPlace.create({
         data: {
           tourPlaceType:
             item.types?.findIndex(
-              type => type.toUpperCase() === 'RESTAURANT',
+              type => type.toUpperCase() === 'GL_RESTAURANT',
             ) === -1
-              ? 'SPOT'
-              : 'RESTAURANT',
-          gglNearbySearchRes: {
-            connectOrCreate: {
-              where: {
-                place_id: item.place_id,
-              },
-              create: {
-                geometry: {
-                  create: {
-                    location: JSON.stringify({
-                      lat: item.geometry?.location?.lat,
-                      lngt: item.geometry?.location?.lng,
-                    }),
-                    viewport: JSON.stringify({
-                      northeast: {
-                        lat: item.geometry?.viewport?.northeast?.lat,
-                        lngt: item.geometry?.viewport?.northeast?.lng,
-                      },
-                      southwest: {
-                        lat: item.geometry?.viewport?.southwest?.lat,
-                        lngt: item.geometry?.viewport?.southwest?.lng,
-                      },
-                    }),
-                  },
-                },
-                icon: item.icon,
-                icon_background_color: item.icon_background_color,
-                icon_mask_base_uri: item.icon_mask_base_uri,
-                name: item.name,
-                opening_hours:
-                  (
-                    item.opening_hours as Partial<{
-                      open_now: boolean;
-                    }>
-                  )?.open_now ?? false,
-                place_id: item.place_id,
-                price_level: item.price_level,
-                rating: item.rating,
-                types: (() => {
-                  return item.types
-                    ? {
-                        connectOrCreate: item.types?.map(type => {
-                          return {
-                            create: { value: type },
-                            where: { value: type },
-                          };
-                        }),
-                      }
-                    : {
-                        create: {
-                          value: 'Not Applicaple',
-                        },
-                      };
-                })(),
-                user_ratings_total: item.user_ratings_total,
-                vicinity: item.vicinity,
-                formatted_address: item.formatted_address,
-                plus_code: {
-                  create: {
-                    compund_code: item.plus_code?.compound_code ?? '',
-                    global_code: item.plus_code?.global_code ?? '',
-                  },
-                },
-                photos: {
-                  // create: await getPlacePhoto(item),
-                  create: item.photos?.map(photo => {
+              ? 'GL_SPOT'
+              : 'GL_RESTAURANT',
+          gl_lat: item.geometry?.location?.lat,
+          gl_lng: item.geometry?.location?.lng,
+          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
+          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
+          gl_icon: item.icon,
+          gl_icon_background_color: item.icon_background_color,
+          gl_icon_mask_base_uri: item.icon_mask_base_uri,
+          gl_name: item.name,
+          gl_opening_hours:
+            (
+              item.opening_hours as Partial<{
+                open_now: boolean;
+              }>
+            )?.open_now ?? false,
+          gl_place_id: item.place_id,
+          gl_price_level: item.price_level,
+          gl_rating: item.rating,
+          gl_types: (() => {
+            return item.types
+              ? {
+                  connectOrCreate: item.types?.map(type => {
                     return {
-                      height: photo.height,
-                      width: photo.width,
-                      html_attributions: JSON.stringify(
-                        photo.html_attributions,
-                      ),
-                      photo_reference:
-                        (photo as Partial<{ photo_reference: string }>)
-                          .photo_reference ?? '',
+                      create: { value: type },
+                      where: { value: type },
                     };
                   }),
-                },
-                ...(batchJobId &&
-                  batchJobId > 0 && {
-                    batchQueryParams: {
-                      connectOrCreate: {
-                        where: {
-                          id: batchJobId,
-                        },
-                        create: {
-                          // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                          latitude: param.location
-                            ? Number(param.location.latitude)
-                            : undefined,
-                          longitude: param.location
-                            ? Number(param.location.longitude)
-                            : undefined,
-                          radius: param.radius,
-                          searchkeyword: {
-                            connectOrCreate: {
-                              where: {
-                                keyword: param.keyword ?? '',
-                              },
-                              create: {
-                                keyword: param.keyword ?? '',
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                    batchSearchKeyword: {
-                      connectOrCreate: {
-                        where: {
-                          keyword: param.keyword ?? '',
-                        },
-                        create: {
-                          keyword: param.keyword ?? '',
-                        },
-                      },
-                    },
-                  }),
-              },
-            },
+                }
+              : {
+                  create: {
+                    value: 'Not Applicaple',
+                  },
+                };
+          })(),
+          gl_user_ratings_total: item.user_ratings_total,
+          gl_vicinity: item.vicinity,
+          gl_formatted_address: item.formatted_address,
+          gl_photos: {
+            // create: await getPlacePhoto(item),
+            create: item.photos?.map(photo => {
+              return {
+                height: photo.height,
+                width: photo.width,
+                html_attributions: JSON.stringify(photo.html_attributions),
+                photo_reference:
+                  (photo as Partial<{ photo_reference: string }>)
+                    .photo_reference ?? '',
+              };
+            }),
           },
+          ...(batchJobCtx &&
+            batchJobCtx.batchQueryParamsId && {
+              batchQueryParams: {
+                connectOrCreate: {
+                  where: {
+                    id: batchJobCtx.batchQueryParamsId,
+                  },
+                  create: {
+                    latitude: batchJobCtx.latitude,
+                    longitude: batchJobCtx.longitude,
+                    radius: batchJobCtx.radius,
+                    searchkeyword: {
+                      connectOrCreate: {
+                        where: {
+                          keyword: param.keyword ?? '',
+                        },
+                        create: {
+                          keyword: param.keyword ?? '',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              batchSearchKeyword: {
+                connectOrCreate: {
+                  where: {
+                    keyword: param.keyword ?? '',
+                  },
+                  create: {
+                    keyword: param.keyword ?? '',
+                  },
+                },
+              },
+            }),
         },
       });
     }
@@ -736,83 +687,75 @@ export const getPlaceDataFromVJ = async (
               item.contentscd?.label === '음식점'
                 ? 'VISITJEJU_RESTAURANT'
                 : 'VISITJEJU_SPOT',
-            visitJejuData: {
-              connectOrCreate: {
-                where: {
-                  contentsid: item.contentsid,
-                },
-                create: {
-                  contentsid: item.contentsid as string,
-                  contentscdLabel: item.contentscd?.label,
-                  contentscdValue: item.contentscd?.value,
-                  contentscdRefId: item.contentscd?.refId,
-                  title: item.title,
-                  region1cdLabel: item.region1cd?.label,
-                  region1cdValue: item.region1cd?.value,
-                  region1cdRefId: item.region1cd?.refId,
-                  region2cdLabel: item.region2cd?.label,
-                  region2cdValue: item.region2cd?.value,
-                  region2cdRefId: item.region2cd?.refId,
-                  address: item.address,
-                  roadaddress: item.roadaddress,
-                  tag: {
-                    ...(item.tag && {
-                      connectOrCreate: item.tag.split(',').map(v => {
-                        return {
-                          where: {
-                            value: v,
-                          },
-                          create: {
-                            value: v,
-                          },
-                        };
-                      }),
-                    }),
-                  },
-                  introduction: item.introduction,
-                  latitude: item.latitude,
-                  longitude: item.longitude,
-                  postcode: item.postcode,
-                  phoneno: item.phoneno,
-                  ...(batchJobId &&
-                    batchJobId > 0 && {
-                      batchQueryParams: {
-                        connectOrCreate: {
-                          where: {
-                            id: batchJobId,
-                          },
-                          create: {
-                            // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                            latitude: undefined,
-                            longitude: undefined,
-                            radius: undefined,
-                            searchkeyword: {
-                              connectOrCreate: {
-                                where: {
-                                  keyword: '',
-                                },
-                                create: {
-                                  keyword: '',
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                      batchSearchKeyword: {
-                        connectOrCreate: {
-                          where: {
-                            keyword: '',
-                          },
-                          create: {
-                            keyword: '',
-                          },
-                        },
-                      },
-                    }),
-                },
-              },
+
+            vj_contentsid: item.contentsid as string,
+            vj_contentscdLabel: item.contentscd?.label,
+            vj_contentscdValue: item.contentscd?.value,
+            vj_contentscdRefId: item.contentscd?.refId,
+            vj_title: item.title,
+            vj_region1cdLabel: item.region1cd?.label,
+            vj_region1cdValue: item.region1cd?.value,
+            vj_region1cdRefId: item.region1cd?.refId,
+            vj_region2cdLabel: item.region2cd?.label,
+            vj_region2cdValue: item.region2cd?.value,
+            vj_region2cdRefId: item.region2cd?.refId,
+            vj_address: item.address,
+            vj_roadaddress: item.roadaddress,
+            vj_tag: {
+              ...(item.tag && {
+                connectOrCreate: item.tag.split(',').map(v => {
+                  return {
+                    where: {
+                      value: v,
+                    },
+                    create: {
+                      value: v,
+                    },
+                  };
+                }),
+              }),
             },
+            vj_introduction: item.introduction,
+            vj_latitude: item.latitude,
+            vj_longitude: item.longitude,
+            vj_postcode: item.postcode,
+            vj_phoneno: item.phoneno,
+            ...(batchJobId &&
+              batchJobId > 0 && {
+                batchQueryParams: {
+                  connectOrCreate: {
+                    where: {
+                      id: batchJobId,
+                    },
+                    create: {
+                      // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                      latitude: undefined,
+                      longitude: undefined,
+                      radius: undefined,
+                      searchkeyword: {
+                        connectOrCreate: {
+                          where: {
+                            keyword: '',
+                          },
+                          create: {
+                            keyword: '',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                batchSearchKeyword: {
+                  connectOrCreate: {
+                    where: {
+                      keyword: '',
+                    },
+                    create: {
+                      keyword: '',
+                    },
+                  },
+                },
+              }),
           },
         });
         return promise;
@@ -829,3 +772,94 @@ export const getPlaceDataFromVJ = async (
   }
   return jejuRes;
 };
+
+// /**
+//  * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
+//  * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
+//  */
+// export const getRcmdList = async <
+//   H extends HotelOptType,
+//   P extends PlaceOptType,
+// >(
+//   param: GetRcmdListREQParam<H, P>,
+// ): Promise<GetRcmdListRETParamPayload> => {
+//   const {
+//     minMoney = 0, // 여행 전체일정중 최소비용
+//     maxMoney = 0, // 여행 전체 일정중 최대 비용
+//     // currency,
+//     // travelType,
+//     // travelHard,
+//     startDate, // 여행 시작일
+//     endDate, // 여행 종료일
+//     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
+//     hotelSrchOpt,
+//     placeSrchOpt,
+//   } = param;
+
+//   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
+//   // const { radius = gRadius, location } = placeSrchOpt;
+
+//   if (minMoney === 0 || maxMoney === 0) {
+//     throw new IBError({
+//       type: 'INVALIDPARAMS',
+//       message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
+//     });
+//   }
+
+//   // if (
+//   //   isEmpty(location) ||
+//   //   isEmpty(location.latitude) ||
+//   //   isEmpty(location.longitude)
+//   // ) {
+//   //   throw new IBError({
+//   //     type: 'INVALIDPARAMS',
+//   //     message:
+//   //       '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
+//   //   });
+//   // }
+
+//   if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
+//     throw new IBError({
+//       type: 'INVALIDPARAMS',
+//       message:
+//         '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
+//     });
+//   }
+
+//   if (
+//     isEmpty(startDate) ||
+//     isEmpty(endDate) ||
+//     !(new Date(startDate) instanceof Date) ||
+//     !(new Date(endDate) instanceof Date)
+//   ) {
+//     throw new IBError({
+//       type: 'INVALIDPARAMS',
+//       message:
+//         'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+//     });
+//   }
+
+//   const travelNights = getTravelNights(
+//     // searchCond.searchHotelReqParams.checkinDate,
+//     // searchCond.searchHotelReqParams.checkoutDate,
+//     startDate,
+//     endDate,
+//   );
+//   if (travelNights < 1) {
+//     throw new IBError({
+//       type: 'INVALIDPARAMS',
+//       message: '여행 시작일과 종료일의 차이가 1미만입니다.',
+//     });
+//   }
+
+//   if (travelNights < hotelTransition)
+//     throw new IBError({
+//       type: 'INVALIDPARAMS',
+//       message:
+//         "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+//     });
+
+//   const hotels = await getHotelDataFromBKC(hotelSrchOpt);
+//   const gglNearbySearchRes = await prisma.gglNearbySearchRes.findMany();
+//   const visitJejuData = await prisma.visitJejuData.findMany();
+// };
