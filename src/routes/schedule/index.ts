@@ -7,6 +7,7 @@ import {
   addMockBKCHotelResourceWrapper,
   getPlaceDataFromVJWrapper,
   prismaTestWrapper,
+  getRcmdListWrapper,
 } from './devWrapper';
 
 scheduleRouter.post('/searchHotel', getHotelDataFromBKCWrapper);
@@ -19,4 +20,5 @@ scheduleRouter.post('/getPlaceByGglTxtSrch', getPlaceByGglTxtSrchWrapper);
 scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResourceWrapper);
 scheduleRouter.post('/getPlaceDataFromVJ', getPlaceDataFromVJWrapper);
 scheduleRouter.post('/prismaTest', prismaTestWrapper);
+scheduleRouter.post('/getRcmdList', getRcmdListWrapper);
 export default scheduleRouter;

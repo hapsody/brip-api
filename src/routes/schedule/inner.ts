@@ -10,7 +10,6 @@ import {
   GetHotelDataFromBKCRETParamPayload,
   gCurrency,
   gLanguage,
-  // gHotelTransition,
   BKCHotelRawData,
   GetPlaceByGglNrbyREQParam,
   GetPlaceByGglNrbyRETParamPayload,
@@ -19,10 +18,15 @@ import {
   GglPlaceResultRawData,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
-  // GetRcmdListREQParam,
-  // GetRcmdListRETParamPayload,
+  GetRcmdListREQParam,
+  GetRcmdListRETParamPayload,
+  gHotelTransition,
+  PlaceOptType,
   HotelOptType,
-  // PlaceOptType,
+  gMinHotelMoneyPortion,
+  gMidHotelMoneyPortion,
+  gMaxHotelMoneyPortion,
+  gFlexPortionLimit,
 } from './types/schduleTypes';
 
 /**
@@ -229,6 +233,8 @@ export const getHotelDataFromBKC = async (
         'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
       },
     };
+    console.log('\n');
+    console.log(options);
     const response = await axios.request(options);
     const { result: responseData } = response.data as {
       result: BKCHotelRawData[];
@@ -1034,20 +1040,20 @@ export const getPlaceDataFromVJ = async (
  * curCheckin ~ curCheckout 기간동안
  * hotelTransition 수만큼 자동으로 날짜를 나누어 검색한 결과들을 리턴하는 재귀 함수
  *  */
+export interface CandidateHotel {
+  transitionNo: number;
+  stayPeriod: number;
+  checkin: string;
+  checkout: string;
+  hotels: Partial<TourPlace>[];
+}
+
 export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
   hotelSrchOpt: H;
   curLoopCnt?: number;
   hotelTransition: number;
   transitionTerm: number;
-}): Promise<
-  {
-    transitionNo: number;
-    stayPeriod: number;
-    checkin: string;
-    checkout: string;
-    hotels: Partial<TourPlace>[];
-  }[]
-> => {
+}): Promise<CandidateHotel[]> => {
   const { hotelSrchOpt, curLoopCnt, hotelTransition, transitionTerm } =
     hotelLoopParam;
   if (isUndefined(curLoopCnt)) {
@@ -1083,6 +1089,16 @@ export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
     transitionTerm,
   });
 
+  // /// 뽑을 호텔들중 겹치지 않도록 차순위 호텔을 선택하는 로직
+  // const picked =                        .find(candidateHotel => {
+  //   return (
+  //     list.findIndex(
+  //       alreadyPicked =>
+  //         alreadyPicked.hotel?.bkc_hotel_id === candidateHotel.bkc_hotel_id,
+  //     ) === -1
+  //   );
+  // });
+
   return [
     {
       transitionNo: curLoopCnt,
@@ -1095,99 +1111,232 @@ export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
   ];
 };
 
-// /**
-//  * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
-//  * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
-//  */
-// export const getRcmdList = async <
-//   H extends HotelOptType,
-//   P extends PlaceOptType,
-// >(
-//   param: GetRcmdListREQParam<H, P>,
-// ): Promise<GetRcmdListRETParamPayload> => {
-//   const {
-//     minMoney = 0, // 여행 전체일정중 최소비용
-//     maxMoney = 0, // 여행 전체 일정중 최대 비용
-//     // currency,
-//     // travelType,
-//     // travelHard,
-//     startDate, // 여행 시작일
-//     endDate, // 여행 종료일
-//     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
-//     hotelSrchOpt,
-//     placeSrchOpt,
-//   } = param;
+/*
+ * minMoney와 maxMoney에 맞게 비용 초과되지 않는 호텔들만 변경 숙소들로 리턴하는 함수
+ *  */
+export const moneyFilterForHotel = (param: {
+  candidates: CandidateHotel[];
+  inputCtx: {
+    minMoney: number;
+    maxMoney: number;
+    travelNights: number;
+  };
+}): {
+  min: CandidateHotel[];
+  mid: CandidateHotel[];
+  max: CandidateHotel[];
+} => {
+  const {
+    candidates,
+    inputCtx: { minMoney, maxMoney, travelNights },
+  } = param;
 
-//   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
+  const minHotelMoney = minMoney * gMinHotelMoneyPortion;
+  const dailyMinMoney = minHotelMoney / travelNights;
 
-//   if (minMoney === 0 || maxMoney === 0) {
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
-//     });
-//   }
+  const midMoney = (minMoney + maxMoney) / 2;
+  const midHotelMoney = midMoney * gMidHotelMoneyPortion;
+  const dailyMidMoney = (midHotelMoney * gFlexPortionLimit) / travelNights;
 
-//   if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message:
-//         '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
-//     });
-//   }
+  const maxHotelMoney = maxMoney * gMaxHotelMoneyPortion;
+  const dailyMaxMoney = maxHotelMoney / travelNights;
 
-//   if (
-//     isEmpty(startDate) ||
-//     isEmpty(endDate) ||
-//     !(new Date(startDate) instanceof Date) ||
-//     !(new Date(endDate) instanceof Date)
-//   ) {
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message:
-//         'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
-//     });
-//   }
+  const minFilteredCandidates = candidates.map(c => {
+    return {
+      ...c,
+      hotels: c.hotels.filter(hotel =>
+        hotel.bkc_gross_amount_per_night
+          ? hotel.bkc_gross_amount_per_night < dailyMinMoney
+          : false,
+      ),
+    };
+  });
+  const midFilteredCandidates = candidates.map(c => {
+    return {
+      ...c,
+      hotels: c.hotels.filter(hotel =>
+        hotel.bkc_gross_amount_per_night
+          ? hotel.bkc_gross_amount_per_night < dailyMidMoney
+          : false,
+      ),
+    };
+  });
+  const maxFilteredCandidates = candidates.map(c => {
+    return {
+      ...c,
+      hotels: c.hotels.filter(hotel =>
+        hotel.bkc_gross_amount_per_night
+          ? hotel.bkc_gross_amount_per_night < dailyMaxMoney
+          : false,
+      ),
+    };
+  });
 
-//   const travelNights = getTravelNights(startDate, endDate);
-//   if (travelNights < 1) {
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message: '여행 시작일과 종료일의 차이가 1미만입니다.',
-//     });
-//   }
+  // const alreadyBuf: Partial<TourPlace>[] = [];
+  // const pick = (mfc: CandidateHotel) => {
+  //   const { hotels: curHotels } = mfc;
 
-//   if (travelNights < hotelTransition)
-//     throw new IBError({
-//       type: 'INVALIDPARAMS',
-//       message:
-//         "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
-//     });
-//   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
+  //   const curPicked = curHotels.find(
+  //     ch =>
+  //       alreadyBuf.findIndex(
+  //         alreadyPicked => alreadyPicked.bkc_hotel_id === ch.bkc_hotel_id,
+  //       ) === -1,
+  //   );
+  //   if (curPicked) {
+  //     alreadyBuf.push(curPicked);
+  //   }
+  //   return {
+  //     ...mfc,
+  //     hotels: (curPicked ?? []) as Partial<TourPlace>[],
+  //   };
+  // };
+  // const minRes = minFilteredCandidates.map(mfc => pick(mfc));
+  // const midRes = midFilteredCandidates.map(mfc => pick(mfc));
+  // const maxRes = maxFilteredCandidates.map(mfc => pick(mfc));
 
-//   const hotels = await hotelLoopSrch<H>({
-//     hotelSrchOpt,
-//     curCheckin: moment(startDate).format(),
-//     curCheckout: moment(startDate).add(transitionTerm, 'd').format(),
-//     curLoopCnt: 1,
-//     hotelTransition,
-//     transitionTerm,
-//     hotelRes: [],
-//   });
+  /**
+   * pick 함수
+   * 중복이 되지 않도록 후보 호텔 리스트 앞에서부터 선택해서
+   * (review_score 또는 popularity 정렬되어있음)
+   * Candidate[] 형태의 hotels 프로퍼티에 선택된 하나씩만 넣어서 리턴하는 reduce 함수
+   *  */
+  const pick = (acc: CandidateHotel[], cur: CandidateHotel) => {
+    const { hotels: curHotels } = cur;
+    const alreadyBuf = acc.map(v => v.hotels).flat();
+    const curPicked = curHotels.find(
+      h =>
+        alreadyBuf.findIndex(
+          alreadyPicked => alreadyPicked.bkc_hotel_id === h.bkc_hotel_id,
+        ) === -1,
+    );
 
-//   const spots = await prisma.tourPlace.findMany({
-//     where: {
-//       OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
-//     },
-//     orderBy: [{ evalScore: 'desc' }],
-//   });
-//   const restaurants = await prisma.tourPlace.findMany({
-//     where: {
-//       OR: [
-//         { tourPlaceType: 'GL_RESTAURANT' },
-//         { tourPlaceType: 'VISITJEJU_RESTAURANT' },
-//       ],
-//     },
-//     orderBy: [{ evalScore: 'desc' }],
-//   });
-//   return {};
-// };
+    return [
+      ...acc,
+      {
+        ...cur,
+        hotels: (curPicked ?? []) as Partial<TourPlace>[],
+      },
+    ];
+  };
+
+  const minRes = minFilteredCandidates.reduce(
+    (acc, cur) => pick(acc, cur),
+    [] as CandidateHotel[],
+  );
+  const midRes = midFilteredCandidates.reduce(
+    (acc, cur) => pick(acc, cur),
+    [] as CandidateHotel[],
+  );
+  const maxRes = maxFilteredCandidates.reduce(
+    (acc, cur) => pick(acc, cur),
+    [] as CandidateHotel[],
+  );
+
+  return {
+    min: minRes,
+    mid: midRes,
+    max: maxRes,
+  };
+};
+/**
+ * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
+ * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
+ */
+export const getRcmdList = async <
+  H extends HotelOptType,
+  P extends PlaceOptType,
+>(
+  param: GetRcmdListREQParam<H, P>,
+): Promise<GetRcmdListRETParamPayload> => {
+  const {
+    minMoney = 0, // 여행 전체일정중 최소비용
+    maxMoney = 0, // 여행 전체 일정중 최대 비용
+    // currency,
+    // travelType,
+    // travelHard,
+    startDate, // 여행 시작일
+    endDate, // 여행 종료일
+    hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
+    hotelSrchOpt,
+    // placeSrchOpt,
+  } = param;
+
+  const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
+
+  if (minMoney === 0 || maxMoney === 0) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
+    });
+  }
+
+  if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
+    });
+  }
+
+  if (
+    isEmpty(startDate) ||
+    isEmpty(endDate) ||
+    !(new Date(startDate) instanceof Date) ||
+    !(new Date(endDate) instanceof Date)
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
+    });
+  }
+
+  const travelNights = getTravelNights(startDate, endDate);
+  if (travelNights < 1) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: '여행 시작일과 종료일의 차이가 1미만입니다.',
+    });
+  }
+
+  if (travelNights < hotelTransition)
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+    });
+  const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
+
+  const candidateBKCHotels = await hotelLoopSrch<H>({
+    hotelSrchOpt,
+    hotelTransition,
+    transitionTerm,
+  });
+
+  const hotels = moneyFilterForHotel({
+    candidates: candidateBKCHotels,
+    inputCtx: {
+      minMoney,
+      maxMoney,
+      travelNights,
+    },
+  });
+
+  // const spots = await prisma.tourPlace.findMany({
+  //   where: {
+  //     OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
+  //   },
+  //   orderBy: [{ evalScore: 'desc' }],
+  // });
+  // const restaurants = await prisma.tourPlace.findMany({
+  //   where: {
+  //     OR: [
+  //       { tourPlaceType: 'GL_RESTAURANT' },
+  //       { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+  //     ],
+  //   },
+  //   orderBy: [{ evalScore: 'desc' }],
+  // });
+
+  return hotels;
+};

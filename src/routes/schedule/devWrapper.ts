@@ -11,6 +11,9 @@ import {
   GetPlaceDataFromVJRETParam,
   GetHotelDataFromBKCREQParam,
   BKCSrchByCoordReqOpt,
+  GetRcmdListREQParam,
+  GetRcmdListRETParam,
+  GglNearbySearchReqOpt,
 } from './types/schduleTypes';
 
 import {
@@ -18,6 +21,7 @@ import {
   getPlaceDataFromVJ,
   hotelLoopSrch,
   getTravelNights,
+  getRcmdList,
 } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
@@ -155,6 +159,52 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
   },
 );
 
+/**
+ * inner 함수인 getRcmdList 확인용
+ */
+export const getRcmdListWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<
+      GetRcmdListREQParam<BKCSrchByCoordReqOpt, GglNearbySearchReqOpt>
+    >,
+    res: Express.IBTypedResponse<GetRcmdListRETParam>,
+  ) => {
+    try {
+      const param = req.body;
+      const ret = await getRcmdList(param);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: ret,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 테스트용
+ */
 export const prismaTestWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetHotelDataFromBKCREQParam>,

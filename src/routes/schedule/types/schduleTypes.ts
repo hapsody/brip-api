@@ -339,7 +339,10 @@ export type GetRcmdListRETParam =
 
 export type HotelOptType = BKCSrchByCoordReqOpt;
 export type PlaceOptType = GglNearbySearchReqOpt | VisitJejuReqOpt;
-export type GetRcmdListHotelOpt<T extends AddMockBKCHotelResourceREQParam> = T;
+export type GetRcmdListHotelOpt<T extends AddMockBKCHotelResourceREQParam> =
+  T & {
+    store?: boolean;
+  };
 export type GetRcmdListPlaceOpt<T extends PlaceOptType> = T;
 
 export interface QueryReqParams<
