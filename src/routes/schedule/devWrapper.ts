@@ -9,8 +9,16 @@ import {
   defaultBKCHotelReqParams,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParam,
+  GetHotelDataFromBKCREQParam,
+  BKCSrchByCoordReqOpt,
 } from './types/schduleTypes';
-import { getNDaysLater, getPlaceDataFromVJ } from './inner';
+
+import {
+  getNDaysLater,
+  getPlaceDataFromVJ,
+  hotelLoopSrch,
+  getTravelNights,
+} from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -144,5 +152,27 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
       }
       throw err;
     }
+  },
+);
+
+export const prismaTestWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetHotelDataFromBKCREQParam>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const param = req.body;
+    const travelNights = getTravelNights(param.checkinDate, param.checkoutDate);
+    const hotelTransition = 1;
+    const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔
+    const result = await hotelLoopSrch<BKCSrchByCoordReqOpt>({
+      hotelSrchOpt: param,
+      hotelTransition,
+      transitionTerm,
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: result as object,
+    });
   },
 );

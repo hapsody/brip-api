@@ -67,22 +67,23 @@ model GglNearbySearchResType {
 // 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
 // 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
-  id                                    Int             @id @default(autoincrement())
-  createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime        @default(now())
-  tourPlaceType                         PlaceType
-  visitSchedule                         VisitSchedule[]
-  queryParams                           QueryParams?    @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  queryParamsId                         Int?
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+  tourPlaceType PlaceType
+  visitSchedule VisitSchedule[]
+  queryParams   QueryParams[]
+  evalScore     Int             @default(0)
+
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   bkc_min_total_price                   Float? /// ex) 572.61373972
-  bkc_gross_amount_per_night            Float?          @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
+  bkc_gross_amount_per_night            Float?  @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
   bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
   bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
   bkc_net_amount                        Float? /// 순액
   // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  bkc_hotelClass                        Int?            @default(-1) /// 호텔 성급 ex) 3
+  bkc_hotelClass                        Int?    @default(-1) /// 호텔 성급 ex) 3
   bkc_countrycode                       String? /// ex) en
   bkc_default_language                  String? /// ex) xu
   bkc_address                           String? /// ex) 92-161 Waipahe Place
@@ -103,11 +104,11 @@ model TourPlace {
   bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
   bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
   bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
-  accommodation_type_name               String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
+  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
   bkc_zip                               String? /// ex) HI 96792
   bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
   bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  bkc_hotel_facilities                  String? @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // bkc_has_swimming_pool       Int /// ex) 1
 
   /// google place result format

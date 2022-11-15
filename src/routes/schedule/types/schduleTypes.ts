@@ -1,4 +1,4 @@
-import { QueryParams, MetaScheduleInfo } from '@prisma/client';
+import { TourPlace } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
@@ -44,7 +44,8 @@ export interface BKCSrchByCoordReqOpt {
 }
 export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
   mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다.
-  loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
+  // loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
+  store?: boolean;
 }
 /// rapid api booking.com search hotels by coordinates 검색 결과
 export interface BKCHotelRawData {
@@ -80,7 +81,7 @@ export interface BKCHotelRawData {
     until: string;
   };
   review_score_word: string;
-  review_score: string;
+  review_score: number;
   currencycode: string;
   timezone: string;
   urgency_message?: string;
@@ -98,7 +99,8 @@ export interface BKCHotelRawData {
 }
 export interface GetHotelDataFromBKCRETParamPayload {
   hotelSearchCount: number;
-  hotelSearchResult: BKCHotelRawData[];
+  // hotelSearchResult: BKCHotelRawData[];
+  hotelSearchResult: Partial<TourPlace>[];
 }
 export type GetHotelDataFromBKCRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetHotelDataFromBKCRETParamPayload | {};
@@ -321,18 +323,19 @@ export interface FavoriteAccommodationLocation {
 //   };
 // }
 // export type VisitSchedules = VisitSchedule[];
-export interface GetRcmdListRETParamPayload extends QueryParams {
-  metaInfo: MetaScheduleInfo;
-  visitSchedulesCount: number;
-  // visitSchedules: VisitSchedules;
-  // queryParamId: number;
-}
+export interface GetRcmdListRETParamPayload {}
+// export interface GetRcmdListRETParamPayload extends QueryParams {
+//   metaInfo: MetaScheduleInfo;
+//   visitSchedulesCount: number;
+//   // visitSchedules: VisitSchedules;
+//   // queryParamId: number;
+// }
 
 export type GetRcmdListRETParam =
   | (GetRcmdListRETParamPayload & {
       searchLocation: string;
     })
-  | void;
+  | {};
 
 export type HotelOptType = BKCSrchByCoordReqOpt;
 export type PlaceOptType = GglNearbySearchReqOpt | VisitJejuReqOpt;

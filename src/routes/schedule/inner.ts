@@ -3,7 +3,8 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
-import { isNumber, isNil, isEmpty } from 'lodash';
+import { TourPlace } from '@prisma/client';
+import { isNumber, isNil, isEmpty, isUndefined } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParamPayload,
@@ -20,7 +21,7 @@ import {
   GetPlaceDataFromVJRETParamPayload,
   // GetRcmdListREQParam,
   // GetRcmdListRETParamPayload,
-  // HotelOptType,
+  HotelOptType,
   // PlaceOptType,
 } from './types/schduleTypes';
 
@@ -67,14 +68,15 @@ export const getHotelDataFromBKC = async (
     checkinDate = getToday(),
     checkoutDate = getTomorrow(),
     filterByCurrency = gCurrency,
-    latitude,
-    longitude,
+    latitude: lat,
+    longitude: lng,
     pageNumber = 0,
     includeAdjacency = true,
     childrenAges,
     childrenNumber,
     categoriesFilterIds,
     mock = true,
+    store = false,
   } = param;
 
   if (childrenAges && childrenAges.length > 0 && !isNumber(childrenNumber)) {
@@ -111,7 +113,88 @@ export const getHotelDataFromBKC = async (
             result: BKCHotelRawData[];
           })
         : { result: [] };
-      return result;
+
+      const transResult: Partial<TourPlace>[] = result.map(item => {
+        const {
+          unit_configuration_label,
+          min_total_price,
+          composite_price_breakdown: {
+            product_price_breakdowns: [
+              {
+                gross_amount: { value: gross_amount },
+              },
+            ],
+            included_taxes_and_charges_amount: {
+              value: included_taxes_and_charges_amount,
+            },
+            net_amount: { value: net_amount },
+
+            gross_amount_per_night: { value: gross_amount_per_night },
+          },
+          class: hotelClass,
+          countrycode,
+          default_language,
+          address,
+          city,
+          city_name_en,
+          checkin: { from: checkin },
+          checkout: { until: checkout },
+          distance,
+          review_score_word,
+          review_score,
+          // currency,
+          currencycode,
+          timezone,
+          urgency_message,
+          hotel_id,
+          hotel_name,
+          latitude,
+          longitude,
+          url,
+          accommodation_type_name,
+          zip,
+          main_photo_url,
+          max_photo_url,
+          hotel_facilities,
+          // has_swimming_pool,
+        } = item;
+
+        return {
+          bkc_unit_configuration_label: unit_configuration_label,
+          bkc_min_total_price: min_total_price,
+          bkc_gross_amount_per_night: gross_amount_per_night,
+          bkc_gross_amount: gross_amount,
+          bkc_included_taxes_and_charges_amount:
+            included_taxes_and_charges_amount,
+          bkc_net_amount: net_amount,
+          bkc_hotelClass: hotelClass,
+          bkc_countrycode: countrycode,
+          bkc_default_language: default_language,
+          bkc_address: address,
+          bkc_city: city,
+          bkc_city_name_en: city_name_en,
+          bkc_checkin: checkin,
+          bkc_checkout: checkout,
+          bkc_distance: parseFloat(distance),
+          bkc_review_score_word: review_score_word,
+          bkc_review_score: review_score,
+          bkc_currency_code: currencycode,
+          bkc_timezone: timezone,
+          bkc_urgency_message: urgency_message,
+          bkc_hotel_id: hotel_id,
+          bkc_hotel_name: hotel_name,
+          bkc_latitude: latitude,
+          bkc_longitude: longitude,
+          bkc_url: url,
+          bkc_accommodation_type_name: accommodation_type_name,
+          bkc_zip: zip,
+          bkc_main_photo_url: main_photo_url,
+          bkc_max_photo_url: max_photo_url,
+          bkc_hotel_facilities: hotel_facilities,
+        };
+      });
+
+      return transResult;
     }
     const options = {
       method: 'GET' as Method,
@@ -125,8 +208,8 @@ export const getHotelDataFromBKC = async (
         checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
         filter_by_currency: filterByCurrency ?? 'USD',
         locale: 'en-us',
-        latitude: latitude.toString(),
-        longitude: longitude.toString(),
+        latitude: lat.toString(),
+        longitude: lng.toString(),
         page_number: pageNumber ? pageNumber.toString() : '0',
         include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
         ...(isNumber(childrenNumber) &&
@@ -147,10 +230,180 @@ export const getHotelDataFromBKC = async (
       },
     };
     const response = await axios.request(options);
+    const { result: responseData } = response.data as {
+      result: BKCHotelRawData[];
+    };
 
-    const { result } = response.data as { result: BKCHotelRawData[] };
+    if (store) {
+      const createSearchHotelResPromises = responseData.map(item => {
+        const {
+          unit_configuration_label,
+          min_total_price,
+          composite_price_breakdown: {
+            product_price_breakdowns: [
+              {
+                gross_amount: { value: gross_amount },
+              },
+            ],
+            included_taxes_and_charges_amount: {
+              value: included_taxes_and_charges_amount,
+            },
+            net_amount: { value: net_amount },
 
-    return result;
+            gross_amount_per_night: { value: gross_amount_per_night },
+          },
+          class: hotelClass,
+          countrycode,
+          default_language,
+          address,
+          city,
+          city_name_en,
+          checkin: { from: checkin },
+          checkout: { until: checkout },
+          distance,
+          review_score_word,
+          review_score,
+          // currency,
+          currencycode,
+          timezone,
+          urgency_message,
+          hotel_id,
+          hotel_name,
+          latitude,
+          longitude,
+          url,
+          accommodation_type_name,
+          zip,
+          main_photo_url,
+          max_photo_url,
+          hotel_facilities,
+          // has_swimming_pool,
+        } = item;
+
+        return prisma.tourPlace.create({
+          data: {
+            tourPlaceType: 'BKC_HOTEL',
+            bkc_unit_configuration_label: unit_configuration_label,
+            bkc_min_total_price: min_total_price,
+            bkc_gross_amount_per_night: gross_amount_per_night,
+            bkc_gross_amount: gross_amount,
+            bkc_included_taxes_and_charges_amount:
+              included_taxes_and_charges_amount,
+            bkc_net_amount: net_amount,
+            bkc_hotelClass: hotelClass,
+            bkc_countrycode: countrycode,
+            bkc_default_language: default_language,
+            bkc_address: address,
+            bkc_city: city,
+            bkc_city_name_en: city_name_en,
+            bkc_checkin: checkin,
+            bkc_checkout: checkout,
+            bkc_distance: parseFloat(distance),
+            bkc_review_score_word: review_score_word,
+            bkc_review_score: review_score,
+            bkc_currency_code: currencycode,
+            bkc_timezone: timezone,
+            bkc_urgency_message: urgency_message,
+            bkc_hotel_id: hotel_id,
+            bkc_hotel_name: hotel_name,
+            bkc_latitude: latitude,
+            bkc_longitude: longitude,
+            bkc_url: url,
+            bkc_accommodation_type_name: accommodation_type_name,
+            bkc_zip: zip,
+            bkc_main_photo_url: main_photo_url,
+            bkc_max_photo_url: max_photo_url,
+            bkc_hotel_facilities: hotel_facilities,
+            // has_swimming_pool,
+          },
+        });
+      });
+      const tourPlaceTrRes = await prisma.$transaction(
+        createSearchHotelResPromises,
+      );
+      return tourPlaceTrRes;
+    }
+
+    const retValue: Partial<TourPlace>[] = responseData.map(item => {
+      const {
+        unit_configuration_label,
+        min_total_price,
+        composite_price_breakdown: {
+          product_price_breakdowns: [
+            {
+              gross_amount: { value: gross_amount },
+            },
+          ],
+          included_taxes_and_charges_amount: {
+            value: included_taxes_and_charges_amount,
+          },
+          net_amount: { value: net_amount },
+
+          gross_amount_per_night: { value: gross_amount_per_night },
+        },
+        class: hotelClass,
+        countrycode,
+        default_language,
+        address,
+        city,
+        city_name_en,
+        checkin: { from: checkin },
+        checkout: { until: checkout },
+        distance,
+        review_score_word,
+        review_score,
+        // currency,
+        currencycode,
+        timezone,
+        urgency_message,
+        hotel_id,
+        hotel_name,
+        latitude,
+        longitude,
+        url,
+        accommodation_type_name,
+        zip,
+        main_photo_url,
+        max_photo_url,
+        hotel_facilities,
+        // has_swimming_pool,
+      } = item;
+
+      return {
+        bkc_unit_configuration_label: unit_configuration_label,
+        bkc_min_total_price: min_total_price,
+        bkc_gross_amount_per_night: gross_amount_per_night,
+        bkc_gross_amount: gross_amount,
+        bkc_included_taxes_and_charges_amount:
+          included_taxes_and_charges_amount,
+        bkc_net_amount: net_amount,
+        bkc_hotelClass: hotelClass,
+        bkc_countrycode: countrycode,
+        bkc_default_language: default_language,
+        bkc_address: address,
+        bkc_city: city,
+        bkc_city_name_en: city_name_en,
+        bkc_checkin: checkin,
+        bkc_checkout: checkout,
+        bkc_distance: parseFloat(distance),
+        bkc_review_score_word: review_score_word,
+        bkc_review_score: review_score,
+        bkc_currency_code: currencycode,
+        bkc_timezone: timezone,
+        bkc_urgency_message: urgency_message,
+        bkc_hotel_id: hotel_id,
+        bkc_hotel_name: hotel_name,
+        bkc_latitude: latitude,
+        bkc_longitude: longitude,
+        bkc_url: url,
+        bkc_accommodation_type_name: accommodation_type_name,
+        bkc_zip: zip,
+        bkc_main_photo_url: main_photo_url,
+        bkc_max_photo_url: max_photo_url,
+        bkc_hotel_facilities: hotel_facilities,
+      };
+    });
+    return retValue;
   })();
 
   return { hotelSearchResult, hotelSearchCount: hotelSearchResult.length };
@@ -373,8 +626,10 @@ export const getPlaceByGglTxtSrch = async (
     const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
-      await prisma.tourPlace.create({
-        data: {
+      await prisma.tourPlace.upsert({
+        where: { gl_place_id: item.place_id },
+        update: {},
+        create: {
           tourPlaceType:
             item.types?.findIndex(
               type => type.toUpperCase() === 'GL_RESTAURANT',
@@ -493,8 +748,10 @@ export const getPlaceByGglNrby = async (
     const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
-      await prisma.tourPlace.create({
-        data: {
+      await prisma.tourPlace.upsert({
+        where: { gl_place_id: item.place_id },
+        update: {},
+        create: {
           tourPlaceType:
             item.types?.findIndex(
               type => type.toUpperCase() === 'GL_RESTAURANT',
@@ -773,6 +1030,71 @@ export const getPlaceDataFromVJ = async (
   return jejuRes;
 };
 
+/*
+ * curCheckin ~ curCheckout 기간동안
+ * hotelTransition 수만큼 자동으로 날짜를 나누어 검색한 결과들을 리턴하는 재귀 함수
+ *  */
+export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
+  hotelSrchOpt: H;
+  curLoopCnt?: number;
+  hotelTransition: number;
+  transitionTerm: number;
+}): Promise<
+  {
+    transitionNo: number;
+    stayPeriod: number;
+    checkin: string;
+    checkout: string;
+    hotels: Partial<TourPlace>[];
+  }[]
+> => {
+  const { hotelSrchOpt, curLoopCnt, hotelTransition, transitionTerm } =
+    hotelLoopParam;
+  if (isUndefined(curLoopCnt)) {
+    const list = await hotelLoopSrch<H>({
+      hotelSrchOpt,
+      curLoopCnt: 0,
+      hotelTransition,
+      transitionTerm,
+    });
+    return list;
+  }
+
+  if (curLoopCnt > hotelTransition) return []; /// recursion exit condition
+
+  const curCheckin = moment(hotelSrchOpt.checkinDate)
+    .add(transitionTerm * curLoopCnt, 'd')
+    .format();
+  let curCheckout = moment(curCheckin).add(transitionTerm, 'd').format();
+
+  if (moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0)
+    curCheckout = hotelSrchOpt.checkoutDate;
+
+  const { hotelSearchResult: curHotels } = await getHotelDataFromBKC({
+    ...hotelSrchOpt,
+    checkinDate: curCheckin,
+    checkoutDate: curCheckout,
+  });
+
+  const list = await hotelLoopSrch<H>({
+    hotelSrchOpt,
+    curLoopCnt: curLoopCnt + 1,
+    hotelTransition,
+    transitionTerm,
+  });
+
+  return [
+    {
+      transitionNo: curLoopCnt,
+      stayPeriod: moment(curCheckout).diff(curCheckin, 'd'),
+      checkin: curCheckin,
+      checkout: curCheckout,
+      hotels: curHotels,
+    },
+    ...list,
+  ];
+};
+
 // /**
 //  * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
 //  * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
@@ -797,7 +1119,6 @@ export const getPlaceDataFromVJ = async (
 //   } = param;
 
 //   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
-//   // const { radius = gRadius, location } = placeSrchOpt;
 
 //   if (minMoney === 0 || maxMoney === 0) {
 //     throw new IBError({
@@ -805,18 +1126,6 @@ export const getPlaceDataFromVJ = async (
 //       message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
 //     });
 //   }
-
-//   // if (
-//   //   isEmpty(location) ||
-//   //   isEmpty(location.latitude) ||
-//   //   isEmpty(location.longitude)
-//   // ) {
-//   //   throw new IBError({
-//   //     type: 'INVALIDPARAMS',
-//   //     message:
-//   //       '전달된 파라미터중 nearbySearchReqParams의 location(latitude, longitude) 값이 없거나 string으로 제공되지 않았습니다.',
-//   //   });
-//   // }
 
 //   if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
 //     throw new IBError({
@@ -839,12 +1148,7 @@ export const getPlaceDataFromVJ = async (
 //     });
 //   }
 
-//   const travelNights = getTravelNights(
-//     // searchCond.searchHotelReqParams.checkinDate,
-//     // searchCond.searchHotelReqParams.checkoutDate,
-//     startDate,
-//     endDate,
-//   );
+//   const travelNights = getTravelNights(startDate, endDate);
 //   if (travelNights < 1) {
 //     throw new IBError({
 //       type: 'INVALIDPARAMS',
@@ -858,8 +1162,32 @@ export const getPlaceDataFromVJ = async (
 //       message:
 //         "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
 //     });
+//   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
 
-//   const hotels = await getHotelDataFromBKC(hotelSrchOpt);
-//   const gglNearbySearchRes = await prisma.gglNearbySearchRes.findMany();
-//   const visitJejuData = await prisma.visitJejuData.findMany();
+//   const hotels = await hotelLoopSrch<H>({
+//     hotelSrchOpt,
+//     curCheckin: moment(startDate).format(),
+//     curCheckout: moment(startDate).add(transitionTerm, 'd').format(),
+//     curLoopCnt: 1,
+//     hotelTransition,
+//     transitionTerm,
+//     hotelRes: [],
+//   });
+
+//   const spots = await prisma.tourPlace.findMany({
+//     where: {
+//       OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
+//     },
+//     orderBy: [{ evalScore: 'desc' }],
+//   });
+//   const restaurants = await prisma.tourPlace.findMany({
+//     where: {
+//       OR: [
+//         { tourPlaceType: 'GL_RESTAURANT' },
+//         { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+//       ],
+//     },
+//     orderBy: [{ evalScore: 'desc' }],
+//   });
+//   return {};
 // };
