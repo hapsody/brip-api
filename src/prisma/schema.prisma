@@ -205,23 +205,31 @@ model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
-  keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
-  latitude  Float /// -90 ~ 90
-  longitude Float /// -180 ~ 180 
-  radius    Float? /// unit: km, ex) 20
 
-  // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
-  hotelOrderBy             String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
-  hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
-  hotelUnits               String? /// metric | imperial ex) metric
-  hotelRoomNumber          Int? ///  Number of rooms ex) 1
-  hotelCheckinDate         DateTime? /// 유저가 입력한 여행 시작일 '2022-09-30';
-  hotelCheckoutDate        DateTime? ///  유저가 입력한 여행 종료일 '2022-10-01';
-  hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
-  hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
-  hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
-  hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
-  hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
+  minMoney   Int?
+  maxMoney   Int?
+  startDate  DateTime?
+  endDate    DateTime?
+  adult      Int?
+  child      Int?
+  travelHard Int?
+  // keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
+  // latitude  Float /// -90 ~ 90
+  // longitude Float /// -180 ~ 180 
+  // radius    Float? /// unit: km, ex) 20
+
+  // // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
+  // hotelOrderBy             String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
+  // hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
+  // hotelUnits               String? /// metric | imperial ex) metric
+  // hotelRoomNumber          Int? ///  Number of rooms ex) 1
+  // hotelCheckinDate         DateTime? /// 유저가 입력한 여행 시작일 '2022-09-30';
+  // hotelCheckoutDate        DateTime? ///  유저가 입력한 여행 종료일 '2022-10-01';
+  // hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
+  // hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
+  // hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
+  // hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
+  // hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
 
   tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
   metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
@@ -345,7 +353,7 @@ model VisitSchedule {
   dayNo     Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
   orderNo   Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
   planType  PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
-  // type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
+  placeType String? /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
 
   tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tourPlaceId   Int?

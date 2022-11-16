@@ -321,7 +321,7 @@ export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 export type VisitSchedule = {
   dayNo: number;
   orderNo: number;
-  type: VisitPlaceType;
+  placeType: VisitPlaceType;
   planType: PlanType;
   data: Partial<TourPlace>;
 };
@@ -354,11 +354,14 @@ export interface QueryReqParams<
   // searchLocation?: string; // ex) o'ahu ex) seoul
   minMoney?: number; /// ex) 4000000,
   maxMoney?: number; /// ex) 5000000,
-  currency: Currency; /// "USD" | "KRW" default USD
-  travelType: FavoriteTravelType; ///
-  travelHard?: number; // 여행강도 0~10 ex) 6; default 5
   startDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
   endDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  adult?: number;
+  child?: number;
+  infant?: number;
+  // travelType: FavoriteTravelType; ///
+  travelHard?: number; // 여행강도 0~10 ex) 6; default 5
+  currency: Currency; /// "USD" | "KRW" default USD
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   hotelSrchOpt: GetRcmdListHotelOpt<H>;
   placeSrchOpt: GetRcmdListPlaceOpt<P>;

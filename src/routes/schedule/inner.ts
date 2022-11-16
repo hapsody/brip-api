@@ -1257,9 +1257,11 @@ export const getRcmdList = async <
     maxMoney = 0, // 여행 전체 일정중 최대 비용
     // currency,
     // travelType,
-    // travelHard,
+    travelHard,
     startDate, // 여행 시작일
     endDate, // 여행 종료일
+    adult,
+    child,
     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     hotelSrchOpt,
     // placeSrchOpt,
@@ -1363,7 +1365,7 @@ export const getRcmdList = async <
       if (orderNo === 0) {
         ret = {
           ...ret,
-          type: 'HOTEL',
+          placeType: 'HOTEL',
           data: (() => {
             if (planType === 'MIN')
               return (
@@ -1386,12 +1388,16 @@ export const getRcmdList = async <
       }
 
       if (nextMealOrder === orderNo) {
-        ret = { ...ret, type: 'RESTAURANT', data: cpRestaurants.shift() ?? {} };
+        ret = {
+          ...ret,
+          placeType: 'RESTAURANT',
+          data: cpRestaurants.shift() ?? {},
+        };
         nextMealOrder = mealOrder.getNextMealOrder();
         return ret;
       }
 
-      ret = { ...ret, type: 'SPOT', data: cpSpots.shift() ?? {} };
+      ret = { ...ret, placeType: 'SPOT', data: cpSpots.shift() ?? {} };
       return ret;
     };
   };
@@ -1484,7 +1490,33 @@ export const getRcmdList = async <
 
   // const visitSchedules = await Promise.all(visitSchedulePromises);
 
+  const queryParams = await prisma.queryParams.create({
+    data: {
+      minMoney: minMoney ? Number(minMoney) : undefined,
+      maxMoney: maxMoney ? Number(maxMoney) : undefined,
+      startDate,
+      endDate,
+      travelHard: travelHard ? Number(travelHard) : travelHard,
+      adult: adult ? Number(adult) : undefined,
+      child: child ? Number(child) : undefined,
+      visitSchedule: {
+        createMany: {
+          data: visitSchedules.map(v => {
+            return {
+              dayNo: v.dayNo ?? -1,
+              orderNo: v.orderNo ?? -1,
+              planType: v.planType ?? 'MIN',
+              placeType: v.placeType ?? null,
+              tourPlaceId: v.data?.id,
+            };
+          }),
+        },
+      },
+    },
+  });
+
   return {
+    ...queryParams,
     // ...
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
