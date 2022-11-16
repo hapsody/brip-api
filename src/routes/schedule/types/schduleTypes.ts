@@ -321,6 +321,10 @@ export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 export type VisitSchedule = {
   dayNo: number;
   orderNo: number;
+  transitionNo: number;
+  stayPeriod: number;
+  checkin: string;
+  checkout: string;
   placeType: VisitPlaceType;
   planType: PlanType;
   data: Partial<TourPlace>;

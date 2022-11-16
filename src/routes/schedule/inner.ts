@@ -1363,24 +1363,22 @@ export const getRcmdList = async <
       const orderNo = i % numOfADaySchedule;
       let ret: Partial<VisitSchedule> = { dayNo, orderNo, planType };
       if (orderNo === 0) {
+        const candidates = (() => {
+          if (planType === 'MIN')
+            return minCandidates[Math.floor(dayNo / transitionTerm)];
+          if (planType === 'MID')
+            return midCandidates[Math.floor(dayNo / transitionTerm)];
+          return maxCandidates[Math.floor(dayNo / transitionTerm)];
+        })();
+
         ret = {
           ...ret,
           placeType: 'HOTEL',
-          data: (() => {
-            if (planType === 'MIN')
-              return (
-                minCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ??
-                {}
-              );
-            if (planType === 'MID')
-              return (
-                midCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ??
-                {}
-              );
-            return (
-              maxCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ?? {}
-            );
-          })(),
+          transitionNo: candidates.transitionNo ?? {},
+          stayPeriod: candidates.stayPeriod ?? {},
+          checkin: candidates.checkin ?? {},
+          checkout: candidates.checkout ?? {},
+          data: candidates.hotels[0] ?? {},
         };
         mealOrder = new MealOrder();
         nextMealOrder = mealOrder.getNextMealOrder();
@@ -1404,16 +1402,10 @@ export const getRcmdList = async <
 
   const numOfADaySchedule = gMealPerDay + gSpotPerDay + 1;
   const visitScheduleLength = travelDays * numOfADaySchedule;
-
-  const minVisitSchedules = Array.from(Array(visitScheduleLength)).map(
-    makeVisitSchedule('MIN'),
-  );
-  const midVisitSchedules = Array.from(Array(visitScheduleLength)).map(
-    makeVisitSchedule('MID'),
-  );
-  const maxVisitSchedules = Array.from(Array(visitScheduleLength)).map(
-    makeVisitSchedule('MAX'),
-  );
+  const tmpArr = Array.from(Array(visitScheduleLength));
+  const minVisitSchedules = tmpArr.map(makeVisitSchedule('MIN'));
+  const midVisitSchedules = tmpArr.map(makeVisitSchedule('MID'));
+  const maxVisitSchedules = tmpArr.map(makeVisitSchedule('MAX'));
 
   const visitSchedules = [
     ...minVisitSchedules,
@@ -1517,7 +1509,6 @@ export const getRcmdList = async <
 
   return {
     ...queryParams,
-    // ...
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
   };
