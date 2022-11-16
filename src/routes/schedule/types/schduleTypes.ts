@@ -1,5 +1,5 @@
 import { isUndefined } from 'lodash';
-import { TourPlace } from '@prisma/client';
+import { PlanType, TourPlace } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
@@ -317,44 +317,19 @@ export interface FavoriteAccommodationLocation {
 
 export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 
-export type VisitOrder = {
+/// 일별 추천 일정 타입
+export type VisitSchedule = {
+  dayNo: number;
+  orderNo: number;
   type: VisitPlaceType;
+  planType: PlanType;
   data: Partial<TourPlace>;
 };
-
-/// 일별 추천 일정 타입
-export interface VisitSchedule {
-  // spot: GglNearbySearchRes[];
-  // restaurant: GglNearbySearchRes[];
-  /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
-  visitOrder: {
-    ordersFromMinHotel: VisitOrder[];
-    ordersFromMidHotel: VisitOrder[];
-    ordersFromMaxHotel: VisitOrder[];
-  };
-  // spot: {
-  //   spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-  //   spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-  //   spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
-  // };
-  // restaurant: {
-  //   restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-  //   restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-  //   restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
-  // };
-  // hotel: {
-  //   minMoneyHotel: SearchHotelResWithTourPlace | undefined;
-  //   midMoneyHotel: SearchHotelResWithTourPlace | undefined;
-  //   maxMoneyHotel: SearchHotelResWithTourPlace | undefined;
-  // };
-}
-export type VisitSchedules = VisitSchedule[];
-
 // export interface GetRcmdListRETParamPayload extends QueryParams {
 export interface GetRcmdListRETParamPayload {
   // metaInfo: MetaScheduleInfo;
   visitSchedulesCount: number;
-  visitSchedules: VisitSchedules;
+  visitSchedules: Partial<VisitSchedule>[];
   // queryParamId: number;
 }
 

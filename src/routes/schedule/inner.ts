@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
-import { TourPlace } from '@prisma/client';
+import { TourPlace, PlanType } from '@prisma/client';
 import { isNumber, isNil, isEmpty, isUndefined } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -19,7 +19,7 @@ import {
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
   GetRcmdListREQParam,
-  // GetRcmdListRETParamPayload,
+  GetRcmdListRETParamPayload,
   gHotelTransition,
   PlaceOptType,
   HotelOptType,
@@ -30,7 +30,7 @@ import {
   gMealPerDay,
   gSpotPerDay,
   MealOrder,
-  VisitOrder,
+  VisitSchedule,
 } from './types/schduleTypes';
 
 /**
@@ -1251,7 +1251,7 @@ export const getRcmdList = async <
   P extends PlaceOptType,
 >(
   param: GetRcmdListREQParam<H, P>,
-): Promise<any> => {
+): Promise<GetRcmdListRETParamPayload> => {
   const {
     minMoney = 0, // 여행 전체일정중 최소비용
     maxMoney = 0, // 여행 전체 일정중 최대 비용
@@ -1347,77 +1347,146 @@ export const getRcmdList = async <
     orderBy: [{ evalScore: 'desc' }],
   });
 
-  const visitSchedulePromises = Array.from(Array(travelDays)).map(
-    async (x, day) => {
-      const mealOrder = new MealOrder();
-      let nextMealOrder = mealOrder.getNextMealOrder();
+  const makeVisitSchedule = (planType: PlanType) => {
+    const cpSpots = [...spots];
+    const cpRestaurants = [...restaurants];
 
-      const dayArr = Array.from(Array(gMealPerDay + gSpotPerDay + 1));
+    const numOfADaySchedule = gMealPerDay + gSpotPerDay + 1;
+    // const totalScheduleLength = visitScheduleLength * 3; /// min,  mid, max 세개
+    let mealOrder: MealOrder;
+    let nextMealOrder: number;
 
-      const makeVisitSchedule = (type: 'min' | 'mid' | 'max') => {
-        return async (v: unknown, i: number) => {
-          const promise: Promise<VisitOrder> = new Promise(resolve => {
-            if (i === 0) {
-              resolve({
-                type: 'HOTEL',
-                data: ((): Partial<TourPlace> => {
-                  if (type === 'min') {
-                    return (
-                      minCandidates[Math.floor(day / transitionTerm)]
-                        .hotels[0] ?? {}
-                    );
-                  }
-
-                  if (type === 'mid') {
-                    return (
-                      midCandidates[Math.floor(day / transitionTerm)]
-                        .hotels[0] ?? {}
-                    );
-                  }
-
-                  return (
-                    maxCandidates[Math.floor(day / transitionTerm)].hotels[0] ??
-                    {}
-                  );
-                })(),
-              });
-            }
-            if (nextMealOrder === i) {
-              nextMealOrder = mealOrder.getNextMealOrder();
-              resolve({
-                type: 'RESTAURANT',
-                data: restaurants.shift() ?? {},
-              });
-            }
-            resolve({
-              type: 'SPOT',
-              data: spots.shift() ?? {},
-            });
-          });
-          const result = await promise;
-          return result;
+    return (x: unknown, i: number) => {
+      const dayNo = Math.floor(i / numOfADaySchedule);
+      const orderNo = i % numOfADaySchedule;
+      let ret: Partial<VisitSchedule> = { dayNo, orderNo, planType };
+      if (orderNo === 0) {
+        ret = {
+          ...ret,
+          type: 'HOTEL',
+          data: (() => {
+            if (planType === 'MIN')
+              return (
+                minCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ??
+                {}
+              );
+            if (planType === 'MID')
+              return (
+                midCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ??
+                {}
+              );
+            return (
+              maxCandidates[Math.floor(dayNo / transitionTerm)].hotels[0] ?? {}
+            );
+          })(),
         };
-      };
+        mealOrder = new MealOrder();
+        nextMealOrder = mealOrder.getNextMealOrder();
+        return ret;
+      }
 
-      const min = await Promise.all(dayArr.map(makeVisitSchedule('min')));
-      const mid = await Promise.all(dayArr.map(makeVisitSchedule('mid')));
-      const max = await Promise.all(dayArr.map(makeVisitSchedule('max')));
+      if (nextMealOrder === orderNo) {
+        ret = { ...ret, type: 'RESTAURANT', data: cpRestaurants.shift() ?? {} };
+        nextMealOrder = mealOrder.getNextMealOrder();
+        return ret;
+      }
 
-      return {
-        visitOrder: {
-          min,
-          mid,
-          max,
-        },
-      };
-    },
+      ret = { ...ret, type: 'SPOT', data: cpSpots.shift() ?? {} };
+      return ret;
+    };
+  };
+
+  const numOfADaySchedule = gMealPerDay + gSpotPerDay + 1;
+  const visitScheduleLength = travelDays * numOfADaySchedule;
+
+  const minVisitSchedules = Array.from(Array(visitScheduleLength)).map(
+    makeVisitSchedule('MIN'),
+  );
+  const midVisitSchedules = Array.from(Array(visitScheduleLength)).map(
+    makeVisitSchedule('MID'),
+  );
+  const maxVisitSchedules = Array.from(Array(visitScheduleLength)).map(
+    makeVisitSchedule('MAX'),
   );
 
-  const visitSchedules = await Promise.all(visitSchedulePromises);
+  const visitSchedules = [
+    ...minVisitSchedules,
+    ...midVisitSchedules,
+    ...maxVisitSchedules,
+  ];
+
+  /// legacy code day, order 2중 루프
+  // const visitSchedulePromises = Array.from(Array(travelDays)).map(
+  //   async (x, day) => {
+  //     const mealOrder = new MealOrder();
+  //     let nextMealOrder = mealOrder.getNextMealOrder();
+
+  //     const dayArr = Array.from(Array(gMealPerDay + gSpotPerDay + 1));
+
+  //     const makeVisitSchedule = (type: 'min' | 'mid' | 'max') => {
+  //       return async (v: unknown, i: number) => {
+  //         const promise: Promise<VisitOrder> = new Promise(resolve => {
+  //           if (i === 0) {
+  //             resolve({
+  //               type: 'HOTEL',
+  //               data: ((): Partial<TourPlace> => {
+  //                 if (type === 'min') {
+  //                   return (
+  //                     minCandidates[Math.floor(day / transitionTerm)]
+  //                       .hotels[0] ?? {}
+  //                   );
+  //                 }
+
+  //                 if (type === 'mid') {
+  //                   return (
+  //                     midCandidates[Math.floor(day / transitionTerm)]
+  //                       .hotels[0] ?? {}
+  //                   );
+  //                 }
+
+  //                 return (
+  //                   maxCandidates[Math.floor(day / transitionTerm)].hotels[0] ??
+  //                   {}
+  //                 );
+  //               })(),
+  //             });
+  //           }
+  //           if (nextMealOrder === i) {
+  //             nextMealOrder = mealOrder.getNextMealOrder();
+  //             resolve({
+  //               type: 'RESTAURANT',
+  //               data: restaurants.shift() ?? {},
+  //             });
+  //           }
+  //           resolve({
+  //             type: 'SPOT',
+  //             data: spots.shift() ?? {},
+  //           });
+  //         });
+  //         const result = await promise;
+  //         return result;
+  //       };
+  //     };
+
+  //     const min = await Promise.all(dayArr.map(makeVisitSchedule('min')));
+  //     const mid = await Promise.all(dayArr.map(makeVisitSchedule('mid')));
+  //     const max = await Promise.all(dayArr.map(makeVisitSchedule('max')));
+
+  //     return {
+  //       visitOrder: {
+  //         min,
+  //         mid,
+  //         max,
+  //       },
+  //     };
+  //   },
+  // );
+
+  // const visitSchedules = await Promise.all(visitSchedulePromises);
 
   return {
-    queryParamsId: null,
     // ...
+    visitSchedulesCount: visitSchedules.length,
     visitSchedules,
   };
 };

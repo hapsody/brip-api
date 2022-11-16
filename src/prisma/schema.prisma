@@ -344,7 +344,7 @@ model VisitSchedule {
   updatedAt DateTime @default(now())
   dayNo     Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
   orderNo   Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
-  from      PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
+  planType  PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
   // type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
 
   tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
