@@ -19,7 +19,7 @@ import {
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
   GetRcmdListREQParam,
-  GetRcmdListRETParamPayload,
+  // GetRcmdListRETParamPayload,
   gHotelTransition,
   PlaceOptType,
   HotelOptType,
@@ -27,6 +27,10 @@ import {
   gMidHotelMoneyPortion,
   gMaxHotelMoneyPortion,
   gFlexPortionLimit,
+  gMealPerDay,
+  gSpotPerDay,
+  MealOrder,
+  VisitOrder,
 } from './types/schduleTypes';
 
 /**
@@ -1214,7 +1218,7 @@ export const moneyFilterForHotel = (param: {
       ...acc,
       {
         ...cur,
-        hotels: (curPicked ?? []) as Partial<TourPlace>[],
+        hotels: ([curPicked] ?? []) as Partial<TourPlace>[],
       },
     ];
   };
@@ -1247,7 +1251,7 @@ export const getRcmdList = async <
   P extends PlaceOptType,
 >(
   param: GetRcmdListREQParam<H, P>,
-): Promise<GetRcmdListRETParamPayload> => {
+): Promise<any> => {
   const {
     minMoney = 0, // 여행 전체일정중 최소비용
     maxMoney = 0, // 여행 전체 일정중 최대 비용
@@ -1305,6 +1309,7 @@ export const getRcmdList = async <
       message:
         "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
     });
+  const travelDays = travelNights + 1;
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
 
   const candidateBKCHotels = await hotelLoopSrch<H>({
@@ -1313,7 +1318,11 @@ export const getRcmdList = async <
     transitionTerm,
   });
 
-  const hotels = moneyFilterForHotel({
+  const {
+    min: minCandidates,
+    mid: midCandidates,
+    max: maxCandidates,
+  } = moneyFilterForHotel({
     candidates: candidateBKCHotels,
     inputCtx: {
       minMoney,
@@ -1322,21 +1331,93 @@ export const getRcmdList = async <
     },
   });
 
-  // const spots = await prisma.tourPlace.findMany({
-  //   where: {
-  //     OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
-  //   },
-  //   orderBy: [{ evalScore: 'desc' }],
-  // });
-  // const restaurants = await prisma.tourPlace.findMany({
-  //   where: {
-  //     OR: [
-  //       { tourPlaceType: 'GL_RESTAURANT' },
-  //       { tourPlaceType: 'VISITJEJU_RESTAURANT' },
-  //     ],
-  //   },
-  //   orderBy: [{ evalScore: 'desc' }],
-  // });
+  const spots = await prisma.tourPlace.findMany({
+    where: {
+      OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
+    },
+    orderBy: [{ evalScore: 'desc' }],
+  });
+  const restaurants = await prisma.tourPlace.findMany({
+    where: {
+      OR: [
+        { tourPlaceType: 'GL_RESTAURANT' },
+        { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+      ],
+    },
+    orderBy: [{ evalScore: 'desc' }],
+  });
 
-  return hotels;
+  const visitSchedulePromises = Array.from(Array(travelDays)).map(
+    async (x, day) => {
+      const mealOrder = new MealOrder();
+      let nextMealOrder = mealOrder.getNextMealOrder();
+
+      const dayArr = Array.from(Array(gMealPerDay + gSpotPerDay + 1));
+
+      const makeVisitSchedule = (type: 'min' | 'mid' | 'max') => {
+        return async (v: unknown, i: number) => {
+          const promise: Promise<VisitOrder> = new Promise(resolve => {
+            if (i === 0) {
+              resolve({
+                type: 'HOTEL',
+                data: ((): Partial<TourPlace> => {
+                  if (type === 'min') {
+                    return (
+                      minCandidates[Math.floor(day / transitionTerm)]
+                        .hotels[0] ?? {}
+                    );
+                  }
+
+                  if (type === 'mid') {
+                    return (
+                      midCandidates[Math.floor(day / transitionTerm)]
+                        .hotels[0] ?? {}
+                    );
+                  }
+
+                  return (
+                    maxCandidates[Math.floor(day / transitionTerm)].hotels[0] ??
+                    {}
+                  );
+                })(),
+              });
+            }
+            if (nextMealOrder === i) {
+              nextMealOrder = mealOrder.getNextMealOrder();
+              resolve({
+                type: 'RESTAURANT',
+                data: restaurants.shift() ?? {},
+              });
+            }
+            resolve({
+              type: 'SPOT',
+              data: spots.shift() ?? {},
+            });
+          });
+          const result = await promise;
+          return result;
+        };
+      };
+
+      const min = await Promise.all(dayArr.map(makeVisitSchedule('min')));
+      const mid = await Promise.all(dayArr.map(makeVisitSchedule('mid')));
+      const max = await Promise.all(dayArr.map(makeVisitSchedule('max')));
+
+      return {
+        visitOrder: {
+          min,
+          mid,
+          max,
+        },
+      };
+    },
+  );
+
+  const visitSchedules = await Promise.all(visitSchedulePromises);
+
+  return {
+    queryParamsId: null,
+    // ...
+    visitSchedules,
+  };
 };

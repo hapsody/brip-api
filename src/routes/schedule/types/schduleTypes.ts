@@ -1,3 +1,4 @@
+import { isUndefined } from 'lodash';
 import { TourPlace } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
@@ -12,6 +13,24 @@ export const gMaxHotelMoneyPortion = 0.7;
 export const gFlexPortionLimit = 1.3;
 export const gLanguage = 'ko';
 // const hotelPerDay = 1;
+
+export class MealOrder {
+  mealOrder = [-1, 1, 3];
+
+  getNextMealOrder = (): number => {
+    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+    let nextMealOrder: number | undefined;
+    do {
+      nextMealOrder = this.mealOrder.shift();
+      if (isUndefined(nextMealOrder)) return -2;
+    } while (nextMealOrder === -1);
+
+    return nextMealOrder;
+  };
+}
 
 /**
  * GetHotelDataFromBKC Type
@@ -296,40 +315,48 @@ export interface FavoriteAccommodationLocation {
   dontCare?: boolean; /// 상관없음
 }
 
-// /// 일별 추천 일정 타입
-// export interface VisitSchedule {
-//   // spot: GglNearbySearchRes[];
-//   // restaurant: GglNearbySearchRes[];
-//   /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
-//   visitOrder: {
-//     ordersFromMinHotel: VisitOrder[];
-//     ordersFromMidHotel: VisitOrder[];
-//     ordersFromMaxHotel: VisitOrder[];
-//   };
-//   spot: {
-//     spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-//     spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-//     spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
-//   };
-//   restaurant: {
-//     restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
-//     restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
-//     restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
-//   };
-//   hotel: {
-//     minMoneyHotel: SearchHotelResWithTourPlace | undefined;
-//     midMoneyHotel: SearchHotelResWithTourPlace | undefined;
-//     maxMoneyHotel: SearchHotelResWithTourPlace | undefined;
-//   };
-// }
-// export type VisitSchedules = VisitSchedule[];
-export interface GetRcmdListRETParamPayload {}
+export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
+
+export type VisitOrder = {
+  type: VisitPlaceType;
+  data: Partial<TourPlace>;
+};
+
+/// 일별 추천 일정 타입
+export interface VisitSchedule {
+  // spot: GglNearbySearchRes[];
+  // restaurant: GglNearbySearchRes[];
+  /// 하루중 spot, restaurant, hotel등의 순서 정보를 갖는 타입. 배열의 순서대로 그날의 일정순서로 간주한다.
+  visitOrder: {
+    ordersFromMinHotel: VisitOrder[];
+    ordersFromMidHotel: VisitOrder[];
+    ordersFromMaxHotel: VisitOrder[];
+  };
+  // spot: {
+  //   spotsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+  //   spotsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+  //   spotsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+  // };
+  // restaurant: {
+  //   restaurantsFromMinHotel: GglNearbySearchResWithGeoNTourPlace[];
+  //   restaurantsFromMidHotel: GglNearbySearchResWithGeoNTourPlace[];
+  //   restaurantsFromMaxHotel: GglNearbySearchResWithGeoNTourPlace[];
+  // };
+  // hotel: {
+  //   minMoneyHotel: SearchHotelResWithTourPlace | undefined;
+  //   midMoneyHotel: SearchHotelResWithTourPlace | undefined;
+  //   maxMoneyHotel: SearchHotelResWithTourPlace | undefined;
+  // };
+}
+export type VisitSchedules = VisitSchedule[];
+
 // export interface GetRcmdListRETParamPayload extends QueryParams {
-//   metaInfo: MetaScheduleInfo;
-//   visitSchedulesCount: number;
-//   // visitSchedules: VisitSchedules;
-//   // queryParamId: number;
-// }
+export interface GetRcmdListRETParamPayload {
+  // metaInfo: MetaScheduleInfo;
+  visitSchedulesCount: number;
+  visitSchedules: VisitSchedules;
+  // queryParamId: number;
+}
 
 export type GetRcmdListRETParam =
   | (GetRcmdListRETParamPayload & {
