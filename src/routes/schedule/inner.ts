@@ -1362,6 +1362,7 @@ export const getRcmdList = async <
       const dayNo = Math.floor(i / numOfADaySchedule);
       const orderNo = i % numOfADaySchedule;
       let ret: Partial<VisitSchedule> = { dayNo, orderNo, planType };
+
       if (orderNo === 0) {
         const candidates = (() => {
           if (planType === 'MIN')
@@ -1491,6 +1492,35 @@ export const getRcmdList = async <
       travelHard: travelHard ? Number(travelHard) : travelHard,
       adult: adult ? Number(adult) : undefined,
       child: child ? Number(child) : undefined,
+      tourPlace: {
+        connect: [
+          ...(() => {
+            const result = candidateBKCHotels
+              .map(c => {
+                const hotelIds = c.hotels
+                  .map(h => {
+                    if (h.id)
+                      return {
+                        id: h.id,
+                      };
+                    return undefined;
+                  })
+                  .filter(x => x) as unknown[] as {
+                  id: number;
+                }[];
+                return hotelIds;
+              })
+              .flat();
+            return result;
+          })(),
+          ...restaurants.map(v => {
+            return { id: v.id };
+          }),
+          ...spots.map(v => {
+            return { id: v.id };
+          }),
+        ],
+      },
       visitSchedule: {
         createMany: {
           data: visitSchedules.map(v => {
