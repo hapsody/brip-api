@@ -1,5 +1,5 @@
 import { isUndefined } from 'lodash';
-import { PlanType, TourPlace } from '@prisma/client';
+import { PlanType, TourPlace, QueryParams } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
@@ -329,19 +329,17 @@ export type VisitSchedule = {
   planType: PlanType;
   data: Partial<TourPlace>;
 };
-// export interface GetRcmdListRETParamPayload extends QueryParams {
-export interface GetRcmdListRETParamPayload {
+export interface GetRcmdListRETParamPayload extends QueryParams {
+  // export interface GetRcmdListRETParamPayload {
   // metaInfo: MetaScheduleInfo;
   visitSchedulesCount: number;
   visitSchedules: Partial<VisitSchedule>[];
   // queryParamId: number;
 }
 
-export type GetRcmdListRETParam =
-  | (GetRcmdListRETParamPayload & {
-      searchLocation: string;
-    })
-  | {};
+export type GetRcmdListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRcmdListRETParamPayload | {};
+};
 
 export type HotelOptType = BKCSrchByCoordReqOpt;
 export type PlaceOptType = GglNearbySearchReqOpt | VisitJejuReqOpt;

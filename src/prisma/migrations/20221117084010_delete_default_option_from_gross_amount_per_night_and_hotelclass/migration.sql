@@ -41,3 +41,7 @@ ALTER TABLE `QueryParams` DROP COLUMN `hotelAdultsNumber`,
     ADD COLUMN `minMoney` INTEGER NULL,
     ADD COLUMN `startDate` DATETIME(3) NULL,
     ADD COLUMN `travelHard` INTEGER NULL;
+
+-- AlterTable
+    ALTER table `TourPlace` MODIFY COLUMN `bkc_gross_amount_per_night` DOUBLE NULL,
+     modify COLUMN `bkc_hotelClass` INTEGER NULL DEFAULT -1
