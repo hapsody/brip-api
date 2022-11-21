@@ -26,8 +26,8 @@
     },
 
     {
-      "command": "yarn test getRcmdList",
-      "name": "test getRcmdList",
+      "command": "yarn test searchHotel",
+      "name": "test searchHotel",
       "request": "launch",
       "type": "node-terminal"
     }

@@ -12,8 +12,7 @@ export const infant = 1;
 export const travelHard = 5;
 export const hotelTransition = 1;
 export const childrenAges = [5, 3];
-// export const childrenNumber = 2;
-// export const childrenAges = [1, 3];
+export const childrenNumber = child + infant;
 const latitude = '33.501298';
 const longitude = '126.525482';
 
@@ -22,15 +21,15 @@ export const params = {
     radius: 4000,
     orderBy: 'review_score', // popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price
     adultsNumber: 2,
-    // childrenNumber,
-    // childrenAges,
+    childrenNumber,
     roomNumber: 1,
-    // checkinDate: travelStartDate,
-    // checkoutDate: travelEndDate,
+    checkinDate: startDate,
+    checkoutDate: endDate,
     latitude,
     longitude,
     pageNumber: 0,
     includeAdjacency: true,
+    childrenAges,
     categoriesFilterIds: ['property_type::204'],
     mock: true,
   },
@@ -77,7 +76,7 @@ export const params = {
       pageNumber: 0,
       includeAdjacency: true,
       childrenAges,
-      childrenNumber: child + infant,
+      childrenNumber,
     },
   },
 };
