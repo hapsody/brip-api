@@ -1,15 +1,16 @@
 import request from 'supertest';
 import app from '@src/app';
 import moment from 'moment';
-import prisma from '@src/prisma';
 import { TourPlace } from '@prisma/client';
 import { isNil, keys, isUndefined, isEmpty } from 'lodash';
-import { ibDefs, IBResFormat } from '@src/utils';
+import { ibDefs } from '@src/utils';
 import {
+  // BKCSrchByCoordReqOpt,
   GetRcmdListRETParam,
   GetRcmdListRETParamPayload,
   gMealPerDay,
   gSpotPerDay,
+  // BookingComOrderBy,
 } from '../types/schduleTypes';
 import { getTravelNights } from '../inner';
 import { params } from './testData';
@@ -19,14 +20,39 @@ jest.setTimeout(120000);
 let recommendRawResult: GetRcmdListRETParam;
 let rcmdRes: GetRcmdListRETParamPayload;
 beforeAll(async () => {
-  const mockData = await prisma.mockBookingDotComHotelResource.findMany();
-  if (mockData.length === 0) {
-    const addMockTransactionRawRes = await request(app)
-      .post('/schedule/addMockBKCHotelResource')
-      .send({ ...params.searchHotelOpt, mock: undefined });
-    const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
-    expect(IBcode).toBe('1000');
-  }
+  // const { getRcmdListReqOpt: reqOpt } = params;
+  // const mockData = await prisma.mockBookingDotComHotelResource.findMany();
+  // if (mockData.length <= 1) {
+  //   const travelNights = getTravelNights(reqOpt.startDate, reqOpt.endDate);
+  //   const { hotelTransition, hotelSrchOpt } = reqOpt;
+  //   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
+
+  //   const loopArr = Array(hotelTransition + 1)
+  //     .fill(0)
+  //     .map((_, i) => i);
+  //   // eslint-disable-next-line no-restricted-syntax
+  //   for await (const curLoopCnt of loopArr) {
+  //     const curCheckin = moment(hotelSrchOpt.checkinDate)
+  //       .add(transitionTerm * curLoopCnt, 'd')
+  //       .format();
+  //     let curCheckout = moment(curCheckin).add(transitionTerm, 'd').format();
+
+  //     if (moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0)
+  //       curCheckout = hotelSrchOpt.checkoutDate;
+
+  //     const curHotelSrchOpt: BKCSrchByCoordReqOpt = {
+  //       ...hotelSrchOpt,
+  //       orderBy: hotelSrchOpt.orderBy as BookingComOrderBy,
+  //       checkinDate: curCheckin,
+  //       checkoutDate: curCheckout,
+  //     };
+  //     const addMockTransactionRawRes = await request(app)
+  //       .post('/schedule/addMockBKCHotelResource')
+  //       .send({ ...curHotelSrchOpt, mock: undefined });
+  //     const { IBcode } = addMockTransactionRawRes.body as IBResFormat;
+  //     expect(IBcode).toBe('1000');
+  //   }
+  // }
 
   const response = await request(app)
     .post('/schedule/getRcmdList')
@@ -82,8 +108,8 @@ describe('Schedule Express Router E2E Test', () => {
       } = params.getRcmdListReqOpt;
       expect(rcmdRes.minMoney).toBe(Number(minMoney));
       expect(rcmdRes.maxMoney).toBe(Number(maxMoney));
-      expect(rcmdRes.startDate).toBe(startDate);
-      expect(rcmdRes.endDate).toBe(endDate);
+      expect(rcmdRes.startDate).toBe(new Date(startDate).toISOString());
+      expect(rcmdRes.endDate).toBe(new Date(endDate).toISOString());
       expect(rcmdRes.adult).toBe(Number(adult));
       expect(rcmdRes.child).toBe(Number(child));
       //   expect(rcmdRes.infant).toBe(Number(infant));
@@ -118,11 +144,13 @@ describe('Schedule Express Router E2E Test', () => {
           let curCheckin: string = '';
           let curCheckout: string = '';
           if (!isUndefined(vs.transitionNo)) {
-            curCheckin = moment(checkinDate)
-              .add(vs.transitionNo * transitionTerm, 'd')
-              .format();
+            curCheckin = moment(
+              moment(checkinDate).add(vs.transitionNo * transitionTerm, 'd'),
+            ).toISOString();
 
-            curCheckout = moment(curCheckin).add(transitionTerm, 'd').format();
+            curCheckout = moment(
+              moment(curCheckin).add(transitionTerm, 'd'),
+            ).toISOString();
             if (moment(curCheckout).diff(moment(checkoutDate), 'd') > 0)
               curCheckout = checkoutDate;
           }
@@ -134,8 +162,8 @@ describe('Schedule Express Router E2E Test', () => {
 
           /// tp는 비용에 따른 호텔 검색 필터 결과에 따라 null일수도 있다. 있을때만 아래 검사
           if (tp && !isEmpty(tp)) {
-            expect(tp.tourPlaceType).toContain('HOTEL');
-            expect(tp.evalScore).toBeGreaterThanOrEqual(0);
+            // expect(tp.tourPlaceType).toContain('HOTEL');
+            // expect(tp.evalScore).toBeGreaterThanOrEqual(0);
 
             /// hotel data중 bkc_ 접두어가 붙은 필드에 undefined거나 null이지 않은 값을 갖는 필드가 하나 이상은 있어야 한다.
             const notUndefinedAtLeastOneBKCValue = keys(tp)

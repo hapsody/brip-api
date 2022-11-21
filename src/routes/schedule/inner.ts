@@ -21,7 +21,6 @@ import {
   GetRcmdListREQParam,
   GetRcmdListRETParamPayload,
   gHotelTransition,
-  PlaceOptType,
   HotelOptType,
   gMinHotelMoneyPortion,
   gMidHotelMoneyPortion,
@@ -50,8 +49,8 @@ export const getTravelNights = (
   checkinDate: string,
   checkoutDate: string,
 ): number => {
-  const mCheckinDate = moment(checkinDate);
-  const mCheckoutDate = moment(checkoutDate);
+  const mCheckinDate = moment(checkinDate).startOf('d');
+  const mCheckoutDate = moment(checkoutDate).startOf('d');
 
   return Math.floor(moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays());
 };
@@ -83,7 +82,7 @@ export const getHotelDataFromBKC = async (
     childrenAges,
     childrenNumber,
     categoriesFilterIds,
-    mock = true,
+    mock = false,
     store = false,
   } = param;
 
@@ -109,100 +108,115 @@ export const getHotelDataFromBKC = async (
 
   const hotelSearchResult = await (async () => {
     if (mock) {
-      const responseData =
-        await prisma.mockBookingDotComHotelResource.findFirst({
+      const responseData = await prisma.mockBookingDotComHotelResource.findMany(
+        {
           where: {
             reqType: 'SEARCH_HOTELS_BY_COORDINATES',
+            adultsNumber,
+            childrenNumber,
+            childrenAges: childrenAges?.toString(),
+            roomNumber,
+            checkinDate,
+            checkoutDate,
+            latitude: Number(lat),
+            longitude: Number(lng),
+            pageNumber,
+            includeAdjacency,
+            categoriesFilterIds: categoriesFilterIds?.toString(),
           },
           orderBy: [{ id: 'desc' }],
-        });
-      const { result } = responseData
-        ? (JSON.parse(responseData?.responseData) as {
-            result: BKCHotelRawData[];
-          })
-        : { result: [] };
+        },
+      );
+      const { result } =
+        responseData && responseData.length > 0
+          ? (JSON.parse(responseData[0].responseData) as {
+              result: BKCHotelRawData[];
+            })
+          : { result: [] };
 
-      const transResult: Partial<TourPlace>[] = result.map(item => {
-        const {
-          unit_configuration_label,
-          min_total_price,
-          composite_price_breakdown: {
-            product_price_breakdowns: [
-              {
-                gross_amount: { value: gross_amount },
+      if (!isEmpty(result)) {
+        const transResult: Partial<TourPlace>[] = result.map(item => {
+          const {
+            unit_configuration_label,
+            min_total_price,
+            composite_price_breakdown: {
+              product_price_breakdowns: [
+                {
+                  gross_amount: { value: gross_amount },
+                },
+              ],
+              included_taxes_and_charges_amount: {
+                value: included_taxes_and_charges_amount,
               },
-            ],
-            included_taxes_and_charges_amount: {
-              value: included_taxes_and_charges_amount,
+              net_amount: { value: net_amount },
+
+              gross_amount_per_night: { value: gross_amount_per_night },
             },
-            net_amount: { value: net_amount },
+            class: hotelClass,
+            countrycode,
+            default_language,
+            address,
+            city,
+            city_name_en,
+            checkin: { from: checkin },
+            checkout: { until: checkout },
+            distance,
+            review_score_word,
+            review_score,
+            // currency,
+            currencycode,
+            timezone,
+            urgency_message,
+            hotel_id,
+            hotel_name,
+            latitude,
+            longitude,
+            url,
+            accommodation_type_name,
+            zip,
+            main_photo_url,
+            max_photo_url,
+            hotel_facilities,
+            // has_swimming_pool,
+          } = item;
 
-            gross_amount_per_night: { value: gross_amount_per_night },
-          },
-          class: hotelClass,
-          countrycode,
-          default_language,
-          address,
-          city,
-          city_name_en,
-          checkin: { from: checkin },
-          checkout: { until: checkout },
-          distance,
-          review_score_word,
-          review_score,
-          // currency,
-          currencycode,
-          timezone,
-          urgency_message,
-          hotel_id,
-          hotel_name,
-          latitude,
-          longitude,
-          url,
-          accommodation_type_name,
-          zip,
-          main_photo_url,
-          max_photo_url,
-          hotel_facilities,
-          // has_swimming_pool,
-        } = item;
+          return {
+            bkc_unit_configuration_label: unit_configuration_label,
+            bkc_min_total_price: min_total_price,
+            bkc_gross_amount_per_night: gross_amount_per_night,
+            bkc_gross_amount: gross_amount,
+            bkc_included_taxes_and_charges_amount:
+              included_taxes_and_charges_amount,
+            bkc_net_amount: net_amount,
+            bkc_hotelClass: hotelClass,
+            bkc_countrycode: countrycode,
+            bkc_default_language: default_language,
+            bkc_address: address,
+            bkc_city: city,
+            bkc_city_name_en: city_name_en,
+            bkc_checkin: checkin,
+            bkc_checkout: checkout,
+            bkc_distance: parseFloat(distance),
+            bkc_review_score_word: review_score_word,
+            bkc_review_score: review_score,
+            bkc_currency_code: currencycode,
+            bkc_timezone: timezone,
+            bkc_urgency_message: urgency_message,
+            bkc_hotel_id: hotel_id,
+            bkc_hotel_name: hotel_name,
+            bkc_latitude: latitude,
+            bkc_longitude: longitude,
+            bkc_url: url,
+            bkc_accommodation_type_name: accommodation_type_name,
+            bkc_zip: zip,
+            bkc_main_photo_url: main_photo_url,
+            bkc_max_photo_url: max_photo_url,
+            bkc_hotel_facilities: hotel_facilities,
+          };
+        });
 
-        return {
-          bkc_unit_configuration_label: unit_configuration_label,
-          bkc_min_total_price: min_total_price,
-          bkc_gross_amount_per_night: gross_amount_per_night,
-          bkc_gross_amount: gross_amount,
-          bkc_included_taxes_and_charges_amount:
-            included_taxes_and_charges_amount,
-          bkc_net_amount: net_amount,
-          bkc_hotelClass: hotelClass,
-          bkc_countrycode: countrycode,
-          bkc_default_language: default_language,
-          bkc_address: address,
-          bkc_city: city,
-          bkc_city_name_en: city_name_en,
-          bkc_checkin: checkin,
-          bkc_checkout: checkout,
-          bkc_distance: parseFloat(distance),
-          bkc_review_score_word: review_score_word,
-          bkc_review_score: review_score,
-          bkc_currency_code: currencycode,
-          bkc_timezone: timezone,
-          bkc_urgency_message: urgency_message,
-          bkc_hotel_id: hotel_id,
-          bkc_hotel_name: hotel_name,
-          bkc_latitude: latitude,
-          bkc_longitude: longitude,
-          bkc_url: url,
-          bkc_accommodation_type_name: accommodation_type_name,
-          bkc_zip: zip,
-          bkc_main_photo_url: main_photo_url,
-          bkc_max_photo_url: max_photo_url,
-          bkc_hotel_facilities: hotel_facilities,
-        };
-      });
-
-      return transResult;
+        return transResult;
+      }
     }
     const options = {
       method: 'GET' as Method,
@@ -243,6 +257,27 @@ export const getHotelDataFromBKC = async (
     const { result: responseData } = response.data as {
       result: BKCHotelRawData[];
     };
+
+    if (mock) {
+      const data = JSON.stringify(response.data);
+      await prisma.mockBookingDotComHotelResource.create({
+        data: {
+          orderBy,
+          adultsNumber,
+          childrenNumber,
+          childrenAges: childrenAges?.toString(),
+          roomNumber,
+          checkinDate,
+          checkoutDate,
+          latitude: Number(lat),
+          longitude: Number(lng),
+          pageNumber,
+          includeAdjacency,
+          categoriesFilterIds: categoriesFilterIds?.toString(),
+          responseData: data,
+        },
+      });
+    }
 
     if (store) {
       const createSearchHotelResPromises = responseData.map(item => {
@@ -1052,30 +1087,54 @@ export interface CandidateHotel {
   hotels: Partial<TourPlace>[];
 }
 
-export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
+/**
+ * 전체 여행 일정에서 호텔 변경 횟수(hotelTransition) 만큼 일정을 나누어
+ * 일정별 호텔을 검색하여 반환하는 함수
+ * hotelSrchOpt의 타입에 따라 호출할 외부 api가 결정되게 된다.(현재는 bookin.com만 존재)
+ *
+ * hotelSrchOpt 파라미터로 전달된 전체일정에서
+ * (checkinDate, checkoutDate)
+ * hotelTransition 값에 따라 일정을 쪼개어 필요한 호텔 수 만큼 검색한다.
+ * ex) hotelTransition === 1 이고, 2022-01-01 ~ 2022-01-06 일정이라면
+ * 1일부터 5일까지 5박일정으로 1번 호텔을 변경하게 되면 총 필요한 호텔 수는 2이다.
+ * 즉 5/2 = 2.5 를 올림하여 호텔 변경까지 텀은 3일이다. (3일에 한번씩 바꾼다는 의미)
+ *  - 2022-01-01 ~ 2022-01-04
+ *  - 2022-01-04 ~ 2022-01-05
+ * 로 끊어서 두번 호텔 방을 검색하게 된다.
+ *
+ * @param hotelLoopParam
+ * @returns
+ */
+export const hotelLoopSrchByHotelTrans = async <
+  H extends HotelOptType,
+>(hotelLoopParam: {
   hotelSrchOpt: H;
   curLoopCnt?: number;
   hotelTransition: number;
   transitionTerm: number;
+  mock?: boolean;
 }): Promise<CandidateHotel[]> => {
-  const { hotelSrchOpt, curLoopCnt, hotelTransition, transitionTerm } =
+  const { hotelSrchOpt, curLoopCnt, hotelTransition, transitionTerm, mock } =
     hotelLoopParam;
   if (isUndefined(curLoopCnt)) {
-    const list = await hotelLoopSrch<H>({
+    const list = await hotelLoopSrchByHotelTrans<H>({
       hotelSrchOpt,
       curLoopCnt: 0,
       hotelTransition,
       transitionTerm,
+      mock,
     });
     return list;
   }
 
   if (curLoopCnt > hotelTransition) return []; /// recursion exit condition
 
-  const curCheckin = moment(hotelSrchOpt.checkinDate)
-    .add(transitionTerm * curLoopCnt, 'd')
-    .format();
-  let curCheckout = moment(curCheckin).add(transitionTerm, 'd').format();
+  const curCheckin = moment(
+    moment(hotelSrchOpt.checkinDate).add(transitionTerm * curLoopCnt, 'd'),
+  ).toISOString();
+  let curCheckout = moment(
+    moment(curCheckin).add(transitionTerm, 'd'),
+  ).toISOString();
 
   if (moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0)
     curCheckout = hotelSrchOpt.checkoutDate;
@@ -1084,13 +1143,15 @@ export const hotelLoopSrch = async <H extends HotelOptType>(hotelLoopParam: {
     ...hotelSrchOpt,
     checkinDate: curCheckin,
     checkoutDate: curCheckout,
+    mock,
   });
 
-  const list = await hotelLoopSrch<H>({
+  const list = await hotelLoopSrchByHotelTrans<H>({
     hotelSrchOpt,
     curLoopCnt: curLoopCnt + 1,
     hotelTransition,
     transitionTerm,
+    mock,
   });
 
   // /// 뽑을 호텔들중 겹치지 않도록 차순위 호텔을 선택하는 로직
@@ -1246,11 +1307,8 @@ export const moneyFilterForHotel = (param: {
  * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
  * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
  */
-export const getRcmdList = async <
-  H extends HotelOptType,
-  P extends PlaceOptType,
->(
-  param: GetRcmdListREQParam<H, P>,
+export const getRcmdList = async <H extends HotelOptType>(
+  param: GetRcmdListREQParam<H>,
 ): Promise<GetRcmdListRETParamPayload> => {
   const {
     minMoney = 0, // 여행 전체일정중 최소비용
@@ -1265,6 +1323,7 @@ export const getRcmdList = async <
     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     hotelSrchOpt,
     // placeSrchOpt,
+    mock,
   } = param;
 
   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
@@ -1313,11 +1372,11 @@ export const getRcmdList = async <
     });
   const travelDays = travelNights + 1;
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-
-  const candidateBKCHotels = await hotelLoopSrch<H>({
+  const candidateBKCHotels = await hotelLoopSrchByHotelTrans<H>({
     hotelSrchOpt,
     hotelTransition,
     transitionTerm,
+    mock,
   });
 
   const {
@@ -1483,12 +1542,17 @@ export const getRcmdList = async <
 
   // const visitSchedules = await Promise.all(visitSchedulePromises);
 
+  const tStartDate = moment(moment(startDate).startOf('d')).toISOString();
+  const tEndDate = moment(moment(endDate).startOf('d')).toISOString();
+
   const queryParams = await prisma.queryParams.create({
     data: {
       minMoney: minMoney ? Number(minMoney) : undefined,
       maxMoney: maxMoney ? Number(maxMoney) : undefined,
-      startDate,
-      endDate,
+      startDate: tStartDate,
+      endDate: tEndDate,
+      // startDate,
+      // endDate,
       travelHard: travelHard ? Number(travelHard) : travelHard,
       adult: adult ? Number(adult) : undefined,
       child: child ? Number(child) : undefined,

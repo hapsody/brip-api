@@ -13,13 +13,12 @@ import {
   BKCSrchByCoordReqOpt,
   GetRcmdListREQParam,
   GetRcmdListRETParam,
-  GglNearbySearchReqOpt,
 } from './types/schduleTypes';
 
 import {
   getNDaysLater,
   getPlaceDataFromVJ,
-  hotelLoopSrch,
+  hotelLoopSrchByHotelTrans,
   getTravelNights,
   getRcmdList,
 } from './inner';
@@ -106,6 +105,18 @@ export const addMockBKCHotelResourceWrapper = asyncWrapper(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     await prisma.mockBookingDotComHotelResource.create({
       data: {
+        orderBy,
+        adultsNumber,
+        childrenNumber,
+        childrenAges: childrenAges?.toString(),
+        roomNumber,
+        checkinDate,
+        checkoutDate,
+        latitude: Number(paramLat),
+        longitude: Number(paramLngt),
+        pageNumber,
+        includeAdjacency,
+        categoriesFilterIds: categoriesFilterIds?.toString(),
         responseData: data,
       },
     });
@@ -164,9 +175,7 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
  */
 export const getRcmdListWrapper = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<
-      GetRcmdListREQParam<BKCSrchByCoordReqOpt, GglNearbySearchReqOpt>
-    >,
+    req: Express.IBTypedReqBody<GetRcmdListREQParam<BKCSrchByCoordReqOpt>>,
     res: Express.IBTypedResponse<GetRcmdListRETParam>,
   ) => {
     try {
@@ -214,7 +223,7 @@ export const prismaTestWrapper = asyncWrapper(
     const travelNights = getTravelNights(param.checkinDate, param.checkoutDate);
     const hotelTransition = 1;
     const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔
-    const result = await hotelLoopSrch<BKCSrchByCoordReqOpt>({
+    const result = await hotelLoopSrchByHotelTrans<BKCSrchByCoordReqOpt>({
       hotelSrchOpt: param,
       hotelTransition,
       transitionTerm,

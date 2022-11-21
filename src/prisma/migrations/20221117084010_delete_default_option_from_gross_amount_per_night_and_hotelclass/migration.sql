@@ -44,4 +44,4 @@ ALTER TABLE `QueryParams` DROP COLUMN `hotelAdultsNumber`,
 
 -- AlterTable
     ALTER table `TourPlace` MODIFY COLUMN `bkc_gross_amount_per_night` DOUBLE NULL,
-     modify COLUMN `bkc_hotelClass` INTEGER NULL DEFAULT -1
+     modify COLUMN `bkc_hotelClass` INTEGER NULL

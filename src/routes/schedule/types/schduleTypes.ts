@@ -349,10 +349,7 @@ export type GetRcmdListHotelOpt<T extends AddMockBKCHotelResourceREQParam> =
   };
 export type GetRcmdListPlaceOpt<T extends PlaceOptType> = T;
 
-export interface QueryReqParams<
-  H extends HotelOptType,
-  P extends PlaceOptType,
-> {
+export interface QueryReqParams<H extends HotelOptType> {
   // searchLocation?: string; // ex) o'ahu ex) seoul
   minMoney?: number; /// ex) 4000000,
   maxMoney?: number; /// ex) 5000000,
@@ -366,10 +363,9 @@ export interface QueryReqParams<
   currency: Currency; /// "USD" | "KRW" default USD
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   hotelSrchOpt: GetRcmdListHotelOpt<H>;
-  placeSrchOpt: GetRcmdListPlaceOpt<P>;
+  // placeSrchOpt: GetRcmdListPlaceOpt<P>;
+  mock?: boolean;
+  store?: boolean;
 }
 
-export type GetRcmdListREQParam<
-  H extends HotelOptType,
-  P extends PlaceOptType,
-> = QueryReqParams<H, P>;
+export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;

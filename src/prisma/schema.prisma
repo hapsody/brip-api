@@ -267,11 +267,23 @@ enum BookingComReqType {
 
 /// 개발용, booking.com hotel 검색 api 쿼리 비용을 줄이기 위해 mydb에 저장할수 있도록 model을 마련함
 model MockBookingDotComHotelResource {
-  id           Int               @id @default(autoincrement())
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @default(now())
-  reqType      BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
-  responseData String            @db.LongText
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now())
+  reqType             BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
+  orderBy             String?
+  adultsNumber        Int?
+  childrenNumber      Int?
+  childrenAges        String?
+  roomNumber          Int?
+  checkinDate         DateTime?
+  checkoutDate        DateTime?
+  latitude            Float?
+  longitude           Float?
+  pageNumber          Float?
+  includeAdjacency    Boolean?
+  categoriesFilterIds String?
+  responseData        String            @db.LongText
 }
 
 model NonMembersCount {
