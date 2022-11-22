@@ -178,6 +178,7 @@ describe('Schedule Express Router E2E Test', () => {
           expect(placeTypeMatchRes).toBe(true);
 
           const tp = vs.data;
+          expect(isEmpty(tp)).toBe(false);
           if (tp && !isEmpty(tp)) {
             if (vs.placeType === 'SPOT')
               expect(tp.tourPlaceType).toContain('SPOT');
