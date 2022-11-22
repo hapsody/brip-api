@@ -82,7 +82,6 @@ export const getHotelDataFromBKC = async (
     childrenAges,
     childrenNumber,
     categoriesFilterIds,
-    mock = false,
     store = false,
   } = param;
 
@@ -107,159 +106,72 @@ export const getHotelDataFromBKC = async (
   }
 
   const hotelSearchResult = await (async () => {
-    if (mock) {
-      const responseData = await prisma.mockBookingDotComHotelResource.findMany(
-        {
-          where: {
-            reqType: 'SEARCH_HOTELS_BY_COORDINATES',
-            adultsNumber,
-            childrenNumber,
-            childrenAges: childrenAges?.toString(),
-            roomNumber,
-            checkinDate,
-            checkoutDate,
-            latitude: Number(lat),
-            longitude: Number(lng),
-            pageNumber,
-            includeAdjacency,
-            categoriesFilterIds: categoriesFilterIds?.toString(),
-          },
-          orderBy: [{ id: 'desc' }],
+    const rawList = await (async () => {
+      const rawData = await prisma.mockBookingDotComHotelResource.findMany({
+        where: {
+          reqType: 'SEARCH_HOTELS_BY_COORDINATES',
+          adultsNumber,
+          childrenNumber,
+          childrenAges: childrenAges?.toString(),
+          roomNumber,
+          checkinDate,
+          checkoutDate,
+          latitude: Number(lat),
+          longitude: Number(lng),
+          pageNumber,
+          includeAdjacency,
+          categoriesFilterIds: categoriesFilterIds?.toString(),
         },
-      );
-      const { result } =
-        responseData && responseData.length > 0
-          ? (JSON.parse(responseData[0].responseData) as {
-              result: BKCHotelRawData[];
-            })
-          : { result: [] };
+        orderBy: [{ id: 'desc' }],
+      });
 
-      if (!isEmpty(result)) {
-        const transResult: Partial<TourPlace>[] = result.map(item => {
-          const {
-            unit_configuration_label,
-            min_total_price,
-            composite_price_breakdown: {
-              product_price_breakdowns: [
-                {
-                  gross_amount: { value: gross_amount },
-                },
-              ],
-              included_taxes_and_charges_amount: {
-                value: included_taxes_and_charges_amount,
-              },
-              net_amount: { value: net_amount },
-
-              gross_amount_per_night: { value: gross_amount_per_night },
-            },
-            class: hotelClass,
-            countrycode,
-            default_language,
-            address,
-            city,
-            city_name_en,
-            checkin: { from: checkin },
-            checkout: { until: checkout },
-            distance,
-            review_score_word,
-            review_score,
-            // currency,
-            currencycode,
-            timezone,
-            urgency_message,
-            hotel_id,
-            hotel_name,
-            latitude,
-            longitude,
-            url,
-            accommodation_type_name,
-            zip,
-            main_photo_url,
-            max_photo_url,
-            hotel_facilities,
-            // has_swimming_pool,
-          } = item;
-
-          return {
-            bkc_unit_configuration_label: unit_configuration_label,
-            bkc_min_total_price: min_total_price,
-            bkc_gross_amount_per_night: gross_amount_per_night,
-            bkc_gross_amount: gross_amount,
-            bkc_included_taxes_and_charges_amount:
-              included_taxes_and_charges_amount,
-            bkc_net_amount: net_amount,
-            bkc_hotelClass: hotelClass,
-            bkc_countrycode: countrycode,
-            bkc_default_language: default_language,
-            bkc_address: address,
-            bkc_city: city,
-            bkc_city_name_en: city_name_en,
-            bkc_checkin: checkin,
-            bkc_checkout: checkout,
-            bkc_distance: parseFloat(distance),
-            bkc_review_score_word: review_score_word,
-            bkc_review_score: review_score,
-            bkc_currency_code: currencycode,
-            bkc_timezone: timezone,
-            bkc_urgency_message: urgency_message,
-            bkc_hotel_id: hotel_id,
-            bkc_hotel_name: hotel_name,
-            bkc_latitude: latitude,
-            bkc_longitude: longitude,
-            bkc_url: url,
-            bkc_accommodation_type_name: accommodation_type_name,
-            bkc_zip: zip,
-            bkc_main_photo_url: main_photo_url,
-            bkc_max_photo_url: max_photo_url,
-            bkc_hotel_facilities: hotel_facilities,
-          };
-        });
-
-        return transResult;
+      if (rawData && rawData.length > 0) {
+        const temp = JSON.parse(rawData[0].responseData) as BKCHotelRawData[];
+        return temp;
       }
-    }
-    const options = {
-      method: 'GET' as Method,
-      url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
-      params: {
-        order_by: orderBy ?? 'popularity',
-        adults_number: adultsNumber.toString(),
-        units: 'metric',
-        room_number: roomNumber ? roomNumber.toString() : '1',
-        checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
-        checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
-        filter_by_currency: filterByCurrency ?? 'USD',
-        locale: 'en-us',
-        latitude: lat.toString(),
-        longitude: lng.toString(),
-        page_number: pageNumber ? pageNumber.toString() : '0',
-        include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
-        ...(isNumber(childrenNumber) &&
-          childrenNumber > 0 && {
-            children_number: childrenNumber.toString(),
-          }),
-        ...(childrenAges &&
-          !isEmpty(childrenAges) && { children_ages: childrenAges.toString() }),
-        ...(categoriesFilterIds &&
-          !isEmpty(categoriesFilterIds) && {
-            categories_filter_ids: categoriesFilterIds?.toString(),
-          }),
-        // categories_filter_ids: 'class::2,class::4,free_cancellation::1',
-      },
-      headers: {
-        'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
-        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-      },
-    };
-    console.log('\n');
-    console.log(options);
-    const response = await axios.request(options);
-    const { result: responseData } = response.data as {
-      result: BKCHotelRawData[];
-    };
 
-    if (mock) {
-      const data = JSON.stringify(response.data);
+      const options = {
+        method: 'GET' as Method,
+        url: 'https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates',
+        params: {
+          order_by: orderBy ?? 'popularity',
+          adults_number: adultsNumber.toString(),
+          units: 'metric',
+          room_number: roomNumber ? roomNumber.toString() : '1',
+          checkin_date: moment(checkinDate).format('YYYY-MM-DD'),
+          checkout_date: moment(checkoutDate).format('YYYY-MM-DD'),
+          filter_by_currency: filterByCurrency ?? 'USD',
+          locale: 'en-us',
+          latitude: lat.toString(),
+          longitude: lng.toString(),
+          page_number: pageNumber ? pageNumber.toString() : '0',
+          include_adjacency: includeAdjacency.valueOf().toString() ?? 'true',
+          ...(isNumber(childrenNumber) &&
+            childrenNumber > 0 && {
+              children_number: childrenNumber.toString(),
+            }),
+          ...(childrenAges &&
+            !isEmpty(childrenAges) && {
+              children_ages: childrenAges.toString(),
+            }),
+          ...(categoriesFilterIds &&
+            !isEmpty(categoriesFilterIds) && {
+              categories_filter_ids: categoriesFilterIds?.toString(),
+            }),
+          // categories_filter_ids: 'class::2,class::4,free_cancellation::1',
+        },
+        headers: {
+          'X-RapidAPI-Key': (process.env.RAPID_API_KEY as string) ?? '',
+          'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+        },
+      };
+      console.log('\n');
+      console.log(options);
+      const response = await axios.request(options);
+      const { result } = response.data as {
+        result: BKCHotelRawData[];
+      };
+
       await prisma.mockBookingDotComHotelResource.create({
         data: {
           orderBy,
@@ -274,13 +186,14 @@ export const getHotelDataFromBKC = async (
           pageNumber,
           includeAdjacency,
           categoriesFilterIds: categoriesFilterIds?.toString(),
-          responseData: data,
+          responseData: JSON.stringify(result),
         },
       });
-    }
+      return result;
+    })();
 
     if (store) {
-      const createSearchHotelResPromises = responseData.map(item => {
+      const createSearchHotelResPromises = rawList.map(item => {
         const {
           unit_configuration_label,
           min_total_price,
@@ -328,6 +241,7 @@ export const getHotelDataFromBKC = async (
         return prisma.tourPlace.create({
           data: {
             tourPlaceType: 'BKC_HOTEL',
+            status: 'IN_USE',
             bkc_unit_configuration_label: unit_configuration_label,
             bkc_min_total_price: min_total_price,
             bkc_gross_amount_per_night: gross_amount_per_night,
@@ -369,7 +283,7 @@ export const getHotelDataFromBKC = async (
       return tourPlaceTrRes;
     }
 
-    const retValue: Partial<TourPlace>[] = responseData.map(item => {
+    const retValue: Partial<TourPlace>[] = rawList.map(item => {
       const {
         unit_configuration_label,
         min_total_price,
@@ -1157,17 +1071,22 @@ export const hotelLoopSrchByHotelTrans = async <
   curLoopCnt?: number;
   hotelTransition: number;
   transitionTerm: number;
-  mock?: boolean;
+  store?: boolean;
 }): Promise<CandidateHotel[]> => {
-  const { hotelSrchOpt, curLoopCnt, hotelTransition, transitionTerm, mock } =
-    hotelLoopParam;
+  const {
+    hotelSrchOpt,
+    curLoopCnt,
+    hotelTransition,
+    transitionTerm,
+    store = false,
+  } = hotelLoopParam;
   if (isUndefined(curLoopCnt)) {
     const list = await hotelLoopSrchByHotelTrans<H>({
       hotelSrchOpt,
       curLoopCnt: 0,
       hotelTransition,
       transitionTerm,
-      mock,
+      store,
     });
     return list;
   }
@@ -1188,7 +1107,7 @@ export const hotelLoopSrchByHotelTrans = async <
     ...hotelSrchOpt,
     checkinDate: curCheckin,
     checkoutDate: curCheckout,
-    mock,
+    store,
   });
 
   const list = await hotelLoopSrchByHotelTrans<H>({
@@ -1196,7 +1115,7 @@ export const hotelLoopSrchByHotelTrans = async <
     curLoopCnt: curLoopCnt + 1,
     hotelTransition,
     transitionTerm,
-    mock,
+    store,
   });
 
   // /// 뽑을 호텔들중 겹치지 않도록 차순위 호텔을 선택하는 로직
@@ -1368,7 +1287,7 @@ export const getRcmdList = async <H extends HotelOptType>(
     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     hotelSrchOpt,
     // placeSrchOpt,
-    mock,
+    store,
   } = param;
 
   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
@@ -1421,7 +1340,7 @@ export const getRcmdList = async <H extends HotelOptType>(
     hotelSrchOpt,
     hotelTransition,
     transitionTerm,
-    mock,
+    store,
   });
 
   const {

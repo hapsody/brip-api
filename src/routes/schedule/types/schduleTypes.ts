@@ -62,7 +62,7 @@ export interface BKCSrchByCoordReqOpt {
   categoriesFilterIds?: string[];
 }
 export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
-  mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다.
+  // mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다. => mock 옵션이 없어도 기본적용되도록 수정함
   // loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
   store?: boolean;
 }
@@ -371,7 +371,6 @@ export interface QueryReqParams<H extends HotelOptType> {
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
   hotelSrchOpt: GetRcmdListHotelOpt<H>;
   // placeSrchOpt: GetRcmdListPlaceOpt<P>;
-  mock?: boolean;
   store?: boolean;
 }
 
