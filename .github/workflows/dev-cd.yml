@@ -51,6 +51,7 @@ jobs:
           yarn migrate
           yarn generate
           yarn seed
+          yarn batch
       - name: test
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
