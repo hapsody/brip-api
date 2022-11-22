@@ -215,6 +215,13 @@ export interface VisitJejuReqOpt {
   cid?: string; /// 콘텐츠ID ex) CONT_000000000500513
 }
 export interface GetPlaceDataFromVJREQParam extends VisitJejuReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+  };
   loadAll?: boolean;
   store?: boolean;
 }

@@ -671,10 +671,25 @@ export const getPlaceByGglTxtSrch = async (
     const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
-      await prisma.tourPlace.upsert({
-        where: { gl_place_id: item.place_id },
-        update: {},
-        create: {
+      /// 배치 스크립트로 store 옵션과 함께 실행되면
+      /// 기존 사용중인 데이터는 ARCHIVED가 되고
+      /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+      if (batchJobCtx && !isEmpty(batchJobCtx)) {
+        await prisma.tourPlace.updateMany({
+          where: {
+            gl_place_id: item.place_id,
+            status: 'IN_USE',
+            tourPlaceType: { in: ['GL_RESTAURANT', 'GL_SPOT'] },
+          },
+          data: {
+            status: 'ARCHIVED',
+          },
+        });
+      }
+
+      await prisma.tourPlace.create({
+        data: {
+          status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
           tourPlaceType:
             item.types?.findIndex(
               type => type.toUpperCase() === 'GL_RESTAURANT',
@@ -793,10 +808,26 @@ export const getPlaceByGglNrby = async (
     const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
-      await prisma.tourPlace.upsert({
-        where: { gl_place_id: item.place_id },
-        update: {},
-        create: {
+      /// 배치 스크립트로 store 옵션과 함께 실행되면
+      /// 기존 사용중인 데이터는 ARCHIVED가 되고
+      /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+      if (batchJobCtx && !isEmpty(batchJobCtx)) {
+        const updated = await prisma.tourPlace.updateMany({
+          where: {
+            gl_place_id: item.place_id,
+            status: 'IN_USE',
+            tourPlaceType: { in: ['GL_RESTAURANT', 'GL_SPOT'] },
+          },
+          data: {
+            status: 'ARCHIVED',
+          },
+        });
+        console.log(updated);
+      }
+
+      await prisma.tourPlace.create({
+        data: {
+          status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
           tourPlaceType:
             item.types?.findIndex(
               type => type.toUpperCase() === 'GL_RESTAURANT',
@@ -973,18 +1004,42 @@ export const getAllPlaceDataFromVJ = async (
 export const getPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
+  const { batchJobCtx } = param;
+
   const jejuRes = await getAllPlaceDataFromVJ(param);
 
   /// store data to db
   if (param.store) {
     const { items } = jejuRes;
 
-    const batchJobId = 1;
+    /// 배치 스크립트로 store 옵션과 함께 실행되면
+    /// 기존 사용중인 데이터는 ARCHIVED가 되고
+    /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+    if (batchJobCtx && !isEmpty(batchJobCtx)) {
+      const updatedPromises =
+        items &&
+        items.map(item => {
+          const promise = prisma.tourPlace.updateMany({
+            where: {
+              vj_contentsid: item.contentsid,
+              status: 'IN_USE',
+              tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'] },
+            },
+            data: {
+              status: 'ARCHIVED',
+            },
+          });
+          return promise;
+        });
+      if (updatedPromises) await prisma.$transaction(updatedPromises);
+    }
+
     const createPromises =
       items &&
       items.map(item => {
         const promise = prisma.tourPlace.create({
           data: {
+            status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
             tourPlaceType:
               item.contentscd?.label === '음식점'
                 ? 'VISITJEJU_RESTAURANT'
@@ -1022,12 +1077,12 @@ export const getPlaceDataFromVJ = async (
             vj_longitude: item.longitude,
             vj_postcode: item.postcode,
             vj_phoneno: item.phoneno,
-            ...(batchJobId &&
-              batchJobId > 0 && {
+            ...(batchJobCtx &&
+              batchJobCtx.batchQueryParamsId && {
                 batchQueryParams: {
                   connectOrCreate: {
                     where: {
-                      id: batchJobId,
+                      id: batchJobCtx.batchQueryParamsId,
                     },
                     create: {
                       // keyword: queryReqParams?.textSearchReqParams?.keyword,
@@ -1044,16 +1099,6 @@ export const getPlaceDataFromVJ = async (
                           },
                         },
                       },
-                    },
-                  },
-                },
-                batchSearchKeyword: {
-                  connectOrCreate: {
-                    where: {
-                      keyword: '',
-                    },
-                    create: {
-                      keyword: '',
                     },
                   },
                 },

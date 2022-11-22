@@ -19,8 +19,8 @@
     },
 
     {
-      "command": "yarn batch",
-      "name": "batch",
+      "command": "yarn seed",
+      "name": "seed",
       "request": "launch",
       "type": "node-terminal"
     },

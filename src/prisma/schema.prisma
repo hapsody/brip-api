@@ -59,6 +59,14 @@ model GglNearbySearchResType {
   tourPlace TourPlace[]
 }
 
+/// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
+enum DataStageStatus {
+  NEW /// 새로 수집된 데이터, 이후 사용승인이 나야 IN_USE 단계로 넘어갈수 있다.
+  APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
+  IN_USE ///  사용중인 데이터
+  ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+}
+
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
 // tourPlace는 일정 생성이 요청되면(getRecommendList 수행중에 생성된다.)
 // 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
@@ -73,6 +81,7 @@ model TourPlace {
   tourPlaceType PlaceType
   visitSchedule VisitSchedule[]
   queryParams   QueryParams[]
+  status        DataStageStatus @default(NEW)
   evalScore     Int             @default(0)
 
   /// booking.com hotel result
@@ -125,7 +134,7 @@ model TourPlace {
   gl_opening_hours         Boolean? /// 검색시각 기준으로 현재 영업 상태인지
   // opening_periods       String? /// 오픈 클로즈 시간 ex)
   // weekday_text          String? /// 일주일 기준 영업일 ex) 
-  gl_place_id              String?                  @unique /// 구글이 부여한 place의 고유값
+  gl_place_id              String? /// 구글이 부여한 place의 고유값
   gl_price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
   gl_rating                Float? /// 별점, 0-5 
   gl_types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
@@ -136,7 +145,7 @@ model TourPlace {
 
   /// visitJeju result format
   // vj_alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
-  vj_contentsid      String?        @unique /// 콘텐츠 ID ex) CONT_000000000500349
+  vj_contentsid      String? /// 콘텐츠 ID ex) CONT_000000000500349
   // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
   vj_contentscdValue String? /// 콘텐츠 코드 값, ex) c1
   vj_contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지

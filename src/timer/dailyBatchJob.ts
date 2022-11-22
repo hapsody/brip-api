@@ -2,7 +2,10 @@ import { PrismaClient } from '@prisma/client';
 
 // import { getAllTextSearchPages } from '@src/routes/schedule/schedule';
 // import { TextSearchReqParams } from '@src/routes/schedule/types/schduleTypes';
-import { getPlaceByGglTxtSrch } from '../routes/schedule/inner';
+import {
+  getPlaceByGglTxtSrch,
+  getPlaceDataFromVJ,
+} from '../routes/schedule/inner';
 import {
   GglTextSearchReqOpt,
   GglPlaceResultRawData,
@@ -25,14 +28,14 @@ const textSearchReqParams: GglTextSearchReqOpt[] = [
     /// 육지 액티비티 > 육지 레포츠
     keyword: `leisure in ${locationTitle}`,
   },
-  {
-    /// 육지 액티비티 > 패러 글라이딩
-    keyword: `paragliding in ${locationTitle}`,
-  },
-  {
-    /// 육지 액티비티 > 패러 글라이딩
-    keyword: `paragliding in ${locationTitle}`,
-  },
+  // {
+  //   /// 육지 액티비티 > 패러 글라이딩
+  //   keyword: `paragliding in ${locationTitle}`,
+  // },
+  // {
+  //   /// 육지 액티비티 > 패러 글라이딩
+  //   keyword: `paragliding in ${locationTitle}`,
+  // },
   // {
   //   /// 골프 > 골프 cc
   //   keyword: `golf cc in ${locationTitle}`,
@@ -135,7 +138,7 @@ const textSearchReqParams: GglTextSearchReqOpt[] = [
   // },
 ];
 
-async function batchJob() {
+async function batchJob(): Promise<void> {
   const lastOne = await prisma.batchQueryParams.findFirst({
     orderBy: { id: 'desc' },
   });
@@ -180,12 +183,20 @@ async function batchJob() {
       };
     };
 
-    await prisma.tourPlace.upsert({
+    await prisma.tourPlace.updateMany({
       where: {
         gl_place_id: v.place_id,
+        status: 'IN_USE',
+        tourPlaceType: 'GL_RESTAURANT',
       },
-      update: {},
-      create: {
+      data: {
+        status: 'ARCHIVED',
+      },
+    });
+
+    await prisma.tourPlace.create({
+      data: {
+        status: 'IN_USE',
         gl_icon: v.icon,
         gl_icon_background_color: v.icon_background_color,
         gl_icon_mask_base_uri: v.icon_mask_base_uri,
@@ -227,6 +238,18 @@ async function batchJob() {
   }
 
   console.log('restaurant dummy data created too');
+
+  await getPlaceDataFromVJ({
+    locale: 'kr',
+    page: 44,
+    loadAll: true,
+    store: true,
+    batchJobCtx: {
+      batchQueryParamsId: nextBatchJobId,
+    },
+  });
+
+  console.log('fetching visitjeju data job is done');
 }
 
 function wrapper(func: () => Promise<void>): () => void {
@@ -245,3 +268,5 @@ batchJob()
       await prisma.$disconnect();
     }),
   );
+
+export default batchJob;
