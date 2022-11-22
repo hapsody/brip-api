@@ -31,7 +31,6 @@ export const params = {
     includeAdjacency: true,
     childrenAges,
     categoriesFilterIds: ['property_type::204'],
-    mock: true,
   },
 
   gglNearbySearchOpt: {
@@ -63,7 +62,6 @@ export const params = {
     favoriteAccommodation: ['hotel', 'resort'],
     favoriteAccommodationLocation: ['nature', 'city'],
     hotelTransition: 1,
-    mock: true,
     store: true,
     hotelSrchOpt: {
       orderBy: 'review_score',
