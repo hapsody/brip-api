@@ -380,7 +380,20 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
  * reqSchedule
  */
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
-export interface ReqScheduleRETParamPayload {}
+export interface ReqScheduleRETParamPayload {
+  queryParamsId: string;
+  plan: {
+    planType: PlanType;
+    day: {
+      dayNo: string;
+      titleList: {
+        visitScheduleId: string;
+        orderNo: string;
+        title: string;
+      }[];
+    }[];
+  }[];
+}
 export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqScheduleRETParamPayload | {};
 };

@@ -31,6 +31,8 @@ import {
   MealOrder,
   VisitSchedule,
   FavoriteTravelType,
+  ReqScheduleREQParam,
+  ReqScheduleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -1639,5 +1641,164 @@ export const getRcmdList = async <H extends HotelOptType>(
     ...queryParams,
     visitSchedulesCount: visitSchedules.length,
     visitSchedules,
+  };
+};
+
+/**
+ * 일정 생성 요청을 하는 reqSchedule 구현부 함수.
+ * 내부적으로 getRcmdList를 호출하여 타입 변환 후 프론트로 전달한다.
+ */
+export const reqSchedule = async <H extends HotelOptType>(
+  param: ReqScheduleREQParam<H>,
+): Promise<ReqScheduleRETParamPayload> => {
+  // const watchStart = moment();
+
+  const {
+    startDate,
+    endDate,
+    adult,
+    child,
+    infant,
+    // favoriteTravelType,
+    // favoriteAccommodation,
+    // favoriteAccommodationLocation,
+    hotelSrchOpt: inputHotelSrchOpt,
+  } = param;
+
+  // const scheduleHash = uuidv4();
+
+  // const travelType: FavoriteTravelType =
+  //   arrTravelTypeToObj(favoriteTravelType);
+  // const accommodationType: FavoriteAccommodationLocation =
+  //   arrAccommodationTypeToObj(favoriteAccommodation);
+  // const accommodationLocationType: FavoriteAccommodationLocation =
+  //   arrAccommodationLocationToObj(favoriteAccommodationLocation);
+
+  const childrenAges = childInfantToChildrenAges({
+    child: Number(child),
+    infant: Number(infant),
+  });
+
+  const hotelSrchOpt = {
+    orderBy: 'review_score',
+    adultsNumber: adult ? Number(adult) : 2,
+    roomNumber: 1,
+    checkinDate: startDate,
+    checkoutDate: endDate,
+    filterByCurrency: 'KRW',
+    latitude: '33.389464',
+    longitude: '126.554401',
+    pageNumber: 0,
+    includeAdjacency: true,
+    childrenAges,
+    childrenNumber: (infant ? Number(infant) : 0) + (child ? Number(child) : 0),
+    categoriesFilterIds: inputHotelSrchOpt?.categoriesFilterIds ?? [
+      'property_type::204',
+    ],
+  } as H;
+
+  const schd = await getRcmdList<H>({
+    ...param,
+    hotelTransition: 1,
+    hotelSrchOpt,
+    store: true,
+  });
+
+  const minSchds = schd.visitSchedules.filter(v => v.planType === 'MIN');
+  const midSchds = schd.visitSchedules.filter(v => v.planType === 'MID');
+  const maxSchds = schd.visitSchedules.filter(v => v.planType === 'MAX');
+
+  type RetType = {
+    dayNo: string;
+    titleList: {
+      visitScheduleId: string;
+      orderNo: string;
+      title: string;
+    }[];
+  };
+  const getRcmdListTypeToRetType = (
+    acc: RetType[],
+    cur: Partial<VisitSchedule>,
+  ) => {
+    if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
+      const alreadyDayExist = acc.find(
+        v =>
+          v.dayNo ===
+          (cur.dayNo === undefined ? 'error' : (cur.dayNo + 1).toString()),
+      );
+      if (!alreadyDayExist) {
+        acc.push({
+          dayNo: (cur.dayNo + 1).toString(),
+          titleList: [
+            {
+              visitScheduleId: cur.data?.id?.toString() ?? 'none',
+              orderNo: '0',
+              title: (() => {
+                if (cur.data?.tourPlaceType === 'BKC_HOTEL')
+                  return cur.data.bkc_hotel_name ?? '';
+                if (cur.data?.tourPlaceType?.includes('GL_'))
+                  return cur.data.gl_name ?? '';
+                if (cur.data?.tourPlaceType?.includes('VJ_'))
+                  return cur.data.vj_title ?? '';
+                return 'none';
+              })(),
+            },
+          ],
+        });
+        return acc;
+      }
+
+      const alreadyOrderExist = alreadyDayExist.titleList.find(
+        v => v.orderNo === cur.orderNo?.toString(),
+      );
+
+      if (!alreadyOrderExist) {
+        alreadyDayExist.titleList.push({
+          visitScheduleId: cur.data?.id?.toString() ?? 'none',
+          orderNo: cur.orderNo.toString(),
+          title: (() => {
+            if (cur.data?.tourPlaceType === 'BKC_HOTEL')
+              return cur.data.bkc_hotel_name ?? '';
+            if (cur.data?.tourPlaceType?.includes('GL_'))
+              return cur.data.gl_name ?? '';
+            if (cur.data?.tourPlaceType?.includes('VJ_'))
+              return cur.data.vj_title ?? '';
+            return 'none';
+          })(),
+        });
+        const last = acc.pop();
+        if (!isUndefined(last)) {
+          return [
+            ...acc,
+            {
+              ...last,
+              titleList: alreadyDayExist.titleList,
+            },
+          ];
+        }
+      }
+    }
+    return acc;
+  };
+  const minRetValue = minSchds.reduce(
+    getRcmdListTypeToRetType,
+    [] as RetType[],
+  );
+  const midRetValue = midSchds.reduce(
+    getRcmdListTypeToRetType,
+    [] as RetType[],
+  );
+  const maxRetValue = maxSchds.reduce(
+    getRcmdListTypeToRetType,
+    [] as RetType[],
+  );
+
+  return {
+    queryParamsId: schd.id.toString(),
+    plan: [
+      { planType: 'MIN', day: minRetValue },
+      { planType: 'MID', day: midRetValue },
+      { planType: 'MAX', day: maxRetValue },
+    ],
   };
 };
