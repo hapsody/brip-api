@@ -1430,15 +1430,28 @@ export const getRcmdList = async <H extends HotelOptType>(
 
   const spots = await prisma.tourPlace.findMany({
     where: {
-      OR: [{ tourPlaceType: 'GL_SPOT' }, { tourPlaceType: 'VISITJEJU_SPOT' }],
+      AND: [
+        { status: 'IN_USE' },
+        {
+          OR: [
+            { tourPlaceType: 'GL_SPOT' },
+            { tourPlaceType: 'VISITJEJU_SPOT' },
+          ],
+        },
+      ],
     },
     orderBy: [{ evalScore: 'desc' }],
   });
   const restaurants = await prisma.tourPlace.findMany({
     where: {
-      OR: [
-        { tourPlaceType: 'GL_RESTAURANT' },
-        { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+      AND: [
+        { status: 'IN_USE' },
+        {
+          OR: [
+            { tourPlaceType: 'GL_RESTAURANT' },
+            { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+          ],
+        },
       ],
     },
     orderBy: [{ evalScore: 'desc' }],
