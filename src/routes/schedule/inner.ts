@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
-import { TourPlace, PlanType } from '@prisma/client';
+import { TourPlace, PlanType, VisitSchedule } from '@prisma/client';
 import { isNumber, isNil, isEmpty, isUndefined } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -29,7 +29,7 @@ import {
   gMealPerDay,
   gSpotPerDay,
   MealOrder,
-  VisitSchedule,
+  IVisitSchedule,
   FavoriteTravelType,
   ReqScheduleREQParam,
   ReqScheduleRETParamPayload,
@@ -1469,7 +1469,7 @@ export const getRcmdList = async <H extends HotelOptType>(
     return (x: unknown, i: number) => {
       const dayNo = Math.floor(i / numOfADaySchedule);
       const orderNo = i % numOfADaySchedule;
-      let ret: Partial<VisitSchedule> = { dayNo, orderNo, planType };
+      let ret: Partial<IVisitSchedule> = { dayNo, orderNo, planType };
 
       if (orderNo === 0) {
         const candidates = (() => {
@@ -1643,8 +1643,19 @@ export const getRcmdList = async <H extends HotelOptType>(
               planType: v.planType ?? 'MIN',
               placeType: v.placeType ?? null,
               tourPlaceId: v.data?.id,
+              transitionNo: v.transitionNo,
+              stayPeriod: v.stayPeriod,
+              checkin: v.checkin,
+              checkout: v.checkout,
             };
           }),
+        },
+      },
+    },
+    include: {
+      visitSchedule: {
+        include: {
+          tourPlace: true,
         },
       },
     },
@@ -1652,8 +1663,6 @@ export const getRcmdList = async <H extends HotelOptType>(
 
   return {
     ...queryParams,
-    visitSchedulesCount: visitSchedules.length,
-    visitSchedules,
   };
 };
 
@@ -1717,21 +1726,27 @@ export const reqSchedule = async <H extends HotelOptType>(
     store: true,
   });
 
-  const minSchds = schd.visitSchedules.filter(v => v.planType === 'MIN');
-  const midSchds = schd.visitSchedules.filter(v => v.planType === 'MID');
-  const maxSchds = schd.visitSchedules.filter(v => v.planType === 'MAX');
-
+  const minSchds = schd.visitSchedule.filter(v => v.planType === 'MIN');
+  const midSchds = schd.visitSchedule.filter(v => v.planType === 'MID');
+  const maxSchds = schd.visitSchedule.filter(v => v.planType === 'MAX');
   type RetType = {
     dayNo: string;
     titleList: {
       visitScheduleId: string;
       orderNo: string;
       title: string;
+      transitionNo: number | null;
+      stayPeriod: number | null;
+      checkin: string | null;
+      checkout: string | null;
+      tourPlaceData: TourPlace | null;
     }[];
   };
   const getRcmdListTypeToRetType = (
     acc: RetType[],
-    cur: Partial<VisitSchedule>,
+    cur: VisitSchedule & {
+      tourPlace: TourPlace | null;
+    },
   ) => {
     if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
       const alreadyDayExist = acc.find(
@@ -1744,17 +1759,22 @@ export const reqSchedule = async <H extends HotelOptType>(
           dayNo: (cur.dayNo + 1).toString(),
           titleList: [
             {
-              visitScheduleId: cur.data?.id?.toString() ?? 'none',
-              orderNo: '0',
+              visitScheduleId: cur.id.toString(),
+              orderNo: cur.orderNo.toString(),
+              transitionNo: cur.transitionNo,
+              stayPeriod: cur.stayPeriod,
+              checkin: cur.checkin?.toISOString() ?? null,
+              checkout: cur.checkout?.toISOString() ?? null,
               title: (() => {
-                if (cur.data?.tourPlaceType === 'BKC_HOTEL')
-                  return cur.data.bkc_hotel_name ?? '';
-                if (cur.data?.tourPlaceType?.includes('GL_'))
-                  return cur.data.gl_name ?? '';
-                if (cur.data?.tourPlaceType?.includes('VJ_'))
-                  return cur.data.vj_title ?? '';
+                if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
+                  return cur.tourPlace?.bkc_hotel_name ?? '';
+                if (cur.tourPlace?.tourPlaceType.includes('GL_'))
+                  return cur.tourPlace?.gl_name ?? '';
+                if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+                  return cur.tourPlace?.vj_title ?? '';
                 return 'none';
               })(),
+              tourPlaceData: cur.tourPlace,
             },
           ],
         });
@@ -1767,17 +1787,22 @@ export const reqSchedule = async <H extends HotelOptType>(
 
       if (!alreadyOrderExist) {
         alreadyDayExist.titleList.push({
-          visitScheduleId: cur.data?.id?.toString() ?? 'none',
+          visitScheduleId: cur.id?.toString() ?? 'none',
           orderNo: cur.orderNo.toString(),
+          transitionNo: cur.transitionNo,
+          stayPeriod: cur.stayPeriod,
+          checkin: cur.checkin?.toISOString() ?? null,
+          checkout: cur.checkout?.toISOString() ?? null,
           title: (() => {
-            if (cur.data?.tourPlaceType === 'BKC_HOTEL')
-              return cur.data.bkc_hotel_name ?? '';
-            if (cur.data?.tourPlaceType?.includes('GL_'))
-              return cur.data.gl_name ?? '';
-            if (cur.data?.tourPlaceType?.includes('VJ_'))
-              return cur.data.vj_title ?? '';
+            if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
+              return cur.tourPlace?.bkc_hotel_name ?? '';
+            if (cur.tourPlace?.tourPlaceType.includes('GL_'))
+              return cur.tourPlace?.gl_name ?? '';
+            if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+              return cur.tourPlace?.vj_title ?? '';
             return 'none';
           })(),
+          tourPlaceData: cur.tourPlace,
         });
         const last = acc.pop();
         if (!isUndefined(last)) {

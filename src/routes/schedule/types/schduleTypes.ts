@@ -1,5 +1,10 @@
 import { isUndefined } from 'lodash';
-import { PlanType, TourPlace, QueryParams } from '@prisma/client';
+import {
+  PlanType,
+  TourPlace,
+  QueryParams,
+  VisitSchedule,
+} from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
 export const gMealPerDay = 2;
@@ -325,7 +330,7 @@ export interface FavoriteAccommodationLocation {
 export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 
 /// 일별 추천 일정 타입
-export type VisitSchedule = {
+export interface IVisitSchedule {
   dayNo: number;
   orderNo: number;
   transitionNo: number;
@@ -335,14 +340,20 @@ export type VisitSchedule = {
   placeType: VisitPlaceType;
   planType: PlanType;
   data: Partial<TourPlace>;
-};
-export interface GetRcmdListRETParamPayload extends QueryParams {
-  // export interface GetRcmdListRETParamPayload {
-  // metaInfo: MetaScheduleInfo;
-  visitSchedulesCount: number;
-  visitSchedules: Partial<VisitSchedule>[];
-  // queryParamId: number;
 }
+// export interface GetRcmdListRETParamPayload extends QueryParams {
+//   // export interface GetRcmdListRETParamPayload {
+//   // metaInfo: MetaScheduleInfo;
+//   visitSchedulesCount: number;
+//   visitSchedules: Partial<VisitSchedule>[];
+//   // queryParamId: number;
+// }
+
+export type GetRcmdListRETParamPayload = QueryParams & {
+  visitSchedule: (VisitSchedule & {
+    tourPlace: TourPlace | null;
+  })[];
+};
 
 export type GetRcmdListRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetRcmdListRETParamPayload | {};
@@ -390,6 +401,7 @@ export interface ReqScheduleRETParamPayload {
         visitScheduleId: string;
         orderNo: string;
         title: string;
+        tourPlaceData: TourPlace | null;
       }[];
     }[];
   }[];

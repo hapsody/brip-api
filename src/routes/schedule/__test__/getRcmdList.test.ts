@@ -118,11 +118,11 @@ describe('Schedule Express Router E2E Test', () => {
       const travelNights = getTravelNights(startDate, endDate);
       const travelDays = travelNights + 1;
       const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-      expect(rcmdRes.visitSchedulesCount).toBe(
+      expect(rcmdRes.visitSchedule.length).toBe(
         travelDays * (gMealPerDay + gSpotPerDay + 1) * 3, /// min + mid + max => 3
       );
 
-      const rcmdVS = rcmdRes.visitSchedules;
+      const rcmdVS = rcmdRes.visitSchedule;
 
       // eslint-disable-next-line no-restricted-syntax
       for await (const vs of rcmdVS) {
@@ -143,7 +143,7 @@ describe('Schedule Express Router E2E Test', () => {
 
           let curCheckin: string = '';
           let curCheckout: string = '';
-          if (!isUndefined(vs.transitionNo)) {
+          if (!isUndefined(vs.transitionNo) && vs.transitionNo !== null) {
             curCheckin = moment(
               moment(checkinDate).add(vs.transitionNo * transitionTerm, 'd'),
             ).toISOString();
@@ -158,7 +158,7 @@ describe('Schedule Express Router E2E Test', () => {
           expect(vs.checkout).toBe(curCheckout);
 
           /// hotel TourPlace 필드 데이터 유효성 검증
-          const tp = vs.data;
+          const tp = vs.tourPlace;
 
           /// tp는 비용에 따른 호텔 검색 필터 결과에 따라 null일수도 있다. 있을때만 아래 검사
           if (tp && !isEmpty(tp)) {
@@ -177,7 +177,7 @@ describe('Schedule Express Router E2E Test', () => {
             vs.placeType === 'SPOT' || vs.placeType === 'RESTAURANT';
           expect(placeTypeMatchRes).toBe(true);
 
-          const tp = vs.data;
+          const tp = vs.tourPlace;
           expect(isEmpty(tp)).toBe(false);
           if (tp && !isEmpty(tp)) {
             if (vs.placeType === 'SPOT')
