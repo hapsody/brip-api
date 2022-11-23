@@ -30,6 +30,7 @@ import {
   gSpotPerDay,
   MealOrder,
   VisitSchedule,
+  FavoriteTravelType,
 } from './types/schduleTypes';
 
 /**
@@ -53,6 +54,75 @@ export const getTravelNights = (
   const mCheckoutDate = moment(checkoutDate).startOf('d');
 
   return Math.floor(moment.duration(mCheckoutDate.diff(mCheckinDate)).asDays());
+};
+
+export const childInfantToChildrenAges = (params: {
+  child: number;
+  infant: number;
+}): number[] => {
+  const { child, infant } = params;
+  return Array.from({ length: child }, () => 5).concat(
+    Array.from({ length: infant }, () => 1),
+  ); /// child는 5세, infant는 1세로 일괄 처리.
+};
+
+export const arrTravelTypeToObj = (
+  favoriteTravelType: (keyof FavoriteTravelType)[],
+): FavoriteTravelType => {
+  const travelType: FavoriteTravelType = favoriteTravelType.reduce(
+    (acc: FavoriteTravelType, cur: string) => {
+      let newAcc: FavoriteTravelType = {};
+      const formatted = cur.toUpperCase();
+      switch (formatted) {
+        case 'LANDACTIVITY':
+          newAcc = { ...acc, landActivity: true };
+          break;
+        case 'GOLF':
+          newAcc = { ...acc, golf: true };
+          break;
+        case 'RELAXATION':
+          newAcc = { ...acc, relaxation: true };
+          break;
+        case 'OCEANACTIVITY':
+          newAcc = { ...acc, oceanActivity: true };
+          break;
+        case 'GROUPACTIVITY':
+          newAcc = { ...acc, groupActivity: true };
+          break;
+        case 'LEARN':
+          newAcc = { ...acc, learn: true };
+          break;
+        case 'FOOD':
+          newAcc = { ...acc, food: true };
+          break;
+        case 'EXPERIENCE':
+          newAcc = { ...acc, experience: true };
+          break;
+        case 'VISITTOURSPOT':
+          newAcc = { ...acc, visitTourSpot: true };
+          break;
+        case 'PACKAGETOUR':
+          newAcc = { ...acc, packageTour: true };
+          break;
+        case 'SHOPPING':
+          newAcc = { ...acc, shopping: true };
+          break;
+        case 'WATERPARK':
+          newAcc = { ...acc, waterPark: true };
+          break;
+        case 'NOIDEA':
+          newAcc = { ...acc, noIdea: true };
+          break;
+
+        default:
+          newAcc = { ...acc };
+          break;
+      }
+      return newAcc;
+    },
+    {},
+  );
+  return travelType;
 };
 
 /**

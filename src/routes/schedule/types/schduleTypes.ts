@@ -375,3 +375,12 @@ export interface QueryReqParams<H extends HotelOptType> {
 }
 
 export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
+
+/**
+ * reqSchedule
+ */
+export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
+export interface ReqScheduleRETParamPayload {}
+export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqScheduleRETParamPayload | {};
+};
