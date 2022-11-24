@@ -243,7 +243,7 @@ model QueryParams {
   tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
   metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
   visitSchedule    VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
-  userTokenId      String? /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  userTokenId      String? /// 일정을 생성 요청한 유저의 고유 유저 토큰 아이디
   // scheduleTitle             String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // schedulePlanType
@@ -260,7 +260,7 @@ model ScheduleBank {
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   planType      PlanType
   hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
-  scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  // scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
   queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId Int           @unique

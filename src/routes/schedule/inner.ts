@@ -38,6 +38,9 @@ import {
   DayScheduleType,
   GetScheduleListREQParam,
   GetScheduleListRETParamPayload,
+  SaveScheduleREQParam,
+  SaveScheduleRETParamPayload,
+  IBContext,
 } from './types/schduleTypes';
 
 /**
@@ -1350,6 +1353,7 @@ export const moneyFilterForHotel = (param: {
  */
 export const getRcmdList = async <H extends HotelOptType>(
   param: GetRcmdListREQParam<H>,
+  ctx?: IBContext,
 ): Promise<GetRcmdListRETParamPayload> => {
   const {
     minMoney = 0, // 여행 전체일정중 최소비용
@@ -1366,6 +1370,8 @@ export const getRcmdList = async <H extends HotelOptType>(
     // placeSrchOpt,
     store,
   } = param;
+
+  const userTokenId = ctx?.userTokenId;
 
   const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
 
@@ -1639,6 +1645,7 @@ export const getRcmdList = async <H extends HotelOptType>(
           }),
         ],
       },
+      userTokenId,
       visitSchedule: {
         createMany: {
           data: visitSchedules.map(v => {
@@ -1754,6 +1761,7 @@ const visitScheduleToDayScheduleType = (
  */
 export const reqSchedule = async <H extends HotelOptType>(
   param: ReqScheduleREQParam<H>,
+  ctx?: IBContext,
 ): Promise<ReqScheduleRETParamPayload> => {
   // const watchStart = moment();
 
@@ -1801,12 +1809,15 @@ export const reqSchedule = async <H extends HotelOptType>(
     ],
   } as H;
 
-  const schd = await getRcmdList<H>({
-    ...param,
-    hotelTransition: 1,
-    hotelSrchOpt,
-    store: true,
-  });
+  const schd = await getRcmdList<H>(
+    {
+      ...param,
+      hotelTransition: 1,
+      hotelSrchOpt,
+      store: true,
+    },
+    ctx,
+  );
 
   const minSchds = schd.visitSchedule.filter(v => v.planType === 'MIN');
   const midSchds = schd.visitSchedule.filter(v => v.planType === 'MID');
@@ -1907,8 +1918,10 @@ export const getSchedule = async (
  */
 export const getScheduleList = async (
   param: GetScheduleListREQParam,
+  ctx?: IBContext,
 ): Promise<GetScheduleListRETParamPayload[]> => {
-  const { skip, take, userTokenId } = param;
+  const { skip, take } = param;
+  const userTokenId = ctx?.userTokenId;
 
   const queryParams = await prisma.queryParams.findMany({
     skip: Number(skip),
@@ -1945,11 +1958,76 @@ export const getScheduleList = async (
         title: savedSchedule.title,
         createdAt: savedSchedule.createdAt.toISOString(),
         thumbnail: savedSchedule.thumbnail,
-        scheduleHash: savedSchedule.scheduleHash,
+        // scheduleHash: savedSchedule.scheduleHash,
         planType: savedSchedule.planType.toLowerCase(),
       };
     })
     .filter(v => v) as GetScheduleListRETParamPayload[];
 
   return retValue;
+};
+
+/**
+ * 일정 생성 요청을 하는 saveSchedule 로 생성된 일정중
+ * 해당 유저가 확인 후 '저장' 요청시에 호출하는 함수
+ */
+export const saveSchedule = async (
+  param: SaveScheduleREQParam,
+): Promise<SaveScheduleRETParamPayload> => {
+  const { title, keyword, planType, queryParamsId, userTokenId } = param;
+
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    include: {
+      savedSchedule: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'scheduleHash에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  if (queryParams.savedSchedule?.id) {
+    throw new IBError({
+      type: 'DUPLICATEDDATA',
+      message: '이미 저장한 일정입니다.',
+    });
+  }
+
+  const createResult = await prisma.scheduleBank.create({
+    data: {
+      title,
+      thumbnail:
+        'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+      planType: planType.toUpperCase() as PlanType,
+      hashTag: {
+        connectOrCreate: keyword.map(k => {
+          return {
+            where: {
+              value: k,
+            },
+            create: {
+              value: k,
+            },
+          };
+        }),
+      },
+      userTokenId: userTokenId ?? '',
+      queryParams: {
+        connect: {
+          id: queryParams.id,
+        },
+      },
+    },
+  });
+  return { queryParamsId: createResult.queryParamsId.toString() };
 };

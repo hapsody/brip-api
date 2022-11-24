@@ -6,6 +6,7 @@ import scheduleRouter, {
   reqScheduleWrapper,
   getScheduleWrapper,
   getScheduleListWrapper,
+  saveScheduleWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -23,6 +24,11 @@ scheduleRouter.post(
   '/getScheduleList',
   accessTokenValidCheck,
   getScheduleListWrapper,
+);
+scheduleRouter.post(
+  '/saveSchedule',
+  accessTokenValidCheck,
+  saveScheduleWrapper,
 );
 
 /**

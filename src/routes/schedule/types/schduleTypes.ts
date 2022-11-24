@@ -36,7 +36,13 @@ export class MealOrder {
     return nextMealOrder;
   };
 }
-
+/**
+ * 함수-함수 전달시 함수간 전달해야할 내부 변수들
+ */
+export interface IBContext {
+  queryParamsId?: string;
+  userTokenId?: string;
+}
 /**
  * GetHotelDataFromBKC Type
  */
@@ -434,7 +440,6 @@ export type GetScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface GetScheduleListREQParam {
   skip: string;
   take: string;
-  userTokenId?: string;
 }
 export interface GetScheduleListRETParamPayload {
   id: string; /// ex) 112345
@@ -442,10 +447,29 @@ export interface GetScheduleListRETParamPayload {
   title: string; /// 타이틀 ex) "하와이 가족여행"
   createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
-  scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
+  // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
   planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
 }
 
 export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleListRETParamPayload[] | {};
+};
+
+/**
+ * saveSchedule
+ */
+export interface SaveScheduleREQParam {
+  title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
+  keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
+  planType: PlanType;
+  queryParamsId: string;
+  // scheduleHash: string; ///  저장할 schedule의 고유 hash ex) "1bgfjv1asdnn1gbbnaidi125nh5hb1fh"
+  userTokenId?: string;
+}
+export interface SaveScheduleRETParamPayload {
+  queryParamsId: string;
+}
+
+export type SaveScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleRETParamPayload | {};
 };

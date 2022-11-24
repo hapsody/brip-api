@@ -16,6 +16,9 @@ import {
   GetScheduleRETParam,
   GetScheduleListREQParam,
   GetScheduleListRETParam,
+  SaveScheduleREQParam,
+  SaveScheduleRETParam,
+  IBContext,
 } from './types/schduleTypes';
 
 import {
@@ -25,6 +28,7 @@ import {
   reqSchedule,
   getSchedule,
   getScheduleList,
+  saveSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -176,8 +180,14 @@ export const reqScheduleWrapper = asyncWrapper(
         });
       }
 
+      const ctx: IBContext = {
+        userTokenId,
+      };
       const param = req.body;
-      const scheduleResult = await reqSchedule<BKCSrchByCoordReqOpt>(param);
+      const scheduleResult = await reqSchedule<BKCSrchByCoordReqOpt>(
+        param,
+        ctx,
+      );
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,
@@ -286,8 +296,65 @@ export const getScheduleListWrapper = asyncWrapper(
       }
 
       const param = req.body;
+      const ctx: IBContext = {
+        userTokenId,
+      };
+      const scheduleResult = await getScheduleList(param, ctx);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
-      const scheduleResult = await getScheduleList({ ...param, userTokenId });
+/**
+ * 생성된 일정중 유저가 저장하기를 요청할때 호출하는 api
+ *
+ */
+export const saveScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SaveScheduleREQParam>,
+    res: Express.IBTypedResponse<SaveScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await saveSchedule({ ...param, userTokenId });
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,
