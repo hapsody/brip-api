@@ -392,22 +392,22 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
  */
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
-  dayNo: string;
+  dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
   titleList: {
-    visitScheduleId: string;
-    orderNo: string;
-    title: string;
-    transitionNo: number | null;
-    stayPeriod: number | null;
-    checkin: string | null;
-    checkout: string | null;
-    tourPlaceData: TourPlace | null;
+    visitScheduleId: string; // ex)  171273
+    orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
+    title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+    transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+    stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
+    checkin: string | null; // 호텔일경우 해당 호텔에 체크인하는 날짜
+    checkout: string | null; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+    tourPlaceData: TourPlace | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
 }
 export interface ReqScheduleRETParamPayload {
   queryParamsId: string;
   plan: {
-    planType: PlanType;
+    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
     day: DayScheduleType[];
   }[];
 }
@@ -426,4 +426,26 @@ export interface GetScheduleRETParamPayload
 
 export type GetScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleRETParamPayload | {};
+};
+
+/**
+ * getScheduleList
+ */
+export interface GetScheduleListREQParam {
+  skip: string;
+  take: string;
+  userTokenId?: string;
+}
+export interface GetScheduleListRETParamPayload {
+  id: string; /// ex) 112345
+  tag: string[]; ///  태그 ex) "가족여행", "한달살기"
+  title: string; /// 타이틀 ex) "하와이 가족여행"
+  createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
+  thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
+  scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
+  planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
+}
+
+export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleListRETParamPayload[] | {};
 };

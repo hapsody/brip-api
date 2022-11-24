@@ -14,6 +14,8 @@ import {
   BKCSrchByCoordReqOpt,
   GetScheduleREQParam,
   GetScheduleRETParam,
+  GetScheduleListREQParam,
+  GetScheduleListRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -22,6 +24,7 @@ import {
   getPlaceByGglNrby,
   reqSchedule,
   getSchedule,
+  getScheduleList,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -230,6 +233,61 @@ export const getScheduleWrapper = asyncWrapper(
 
       const param = req.body;
       const scheduleResult = await getSchedule(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 일정중 요청하는 유저의 tokenId로 생성된 Schedule 리스트를 반환하는 api
+ *
+ */
+export const getScheduleListWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleListREQParam>,
+    res: Express.IBTypedResponse<GetScheduleListRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await getScheduleList({ ...param, userTokenId });
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,

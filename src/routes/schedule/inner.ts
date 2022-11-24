@@ -36,6 +36,8 @@ import {
   GetScheduleREQParam,
   GetScheduleRETParamPayload,
   DayScheduleType,
+  GetScheduleListREQParam,
+  GetScheduleListRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -1834,8 +1836,10 @@ export const reqSchedule = async <H extends HotelOptType>(
 };
 
 /**
- * 일정 생성 요청을 하는 reqSchedule 구현부 함수.
- * 내부적으로 getRcmdList를 호출하여 타입 변환 후 프론트로 전달한다.
+ * 일정 생성 요청을 하는 reqSchedule 로 생성된 일정을
+ * queryParamsId 파라미터로 특정하여 일정을 찾아 반환하는 함수.
+ * savedSchedule 로 구분되는 유저의 일정 '저장'여부와 상관없이
+ * 생성 요청으로 인해 일정이 구성되었기만 한다면 데이터를 반환한다.
  */
 export const getSchedule = async (
   param: GetScheduleREQParam,
@@ -1892,4 +1896,60 @@ export const getSchedule = async (
       { planType: 'MAX', day: maxRetValue },
     ],
   };
+};
+
+/**
+ * 일정 생성 요청을 하는 reqSchedule 로 생성된 일정중
+ * api 요청시에 Bearer 토큰으로 전달받는 userTokenId 파라미터로 특정하여
+ * 해당 유저가 '저장' 완료한 복수의 일정을 찾아 반환하는 함수.
+ * savedSchedule이 null이 아닌것을 조건으로 DB에서 검색한다.
+ * (savedSchedule이 생성되어 있다면 유저가 일정을 확인 후 '저장' 한것이다.)
+ */
+export const getScheduleList = async (
+  param: GetScheduleListREQParam,
+): Promise<GetScheduleListRETParamPayload[]> => {
+  const { skip, take, userTokenId } = param;
+
+  const queryParams = await prisma.queryParams.findMany({
+    skip: Number(skip),
+    take: Number(take),
+    where: {
+      userTokenId,
+      savedSchedule: {
+        NOT: undefined,
+      },
+    },
+    include: {
+      visitSchedule: {
+        include: {
+          tourPlace: true,
+        },
+      },
+      // metaScheduleInfo: true,
+      savedSchedule: {
+        include: {
+          hashTag: true,
+        },
+      },
+    },
+  });
+
+  const retValue = queryParams
+    .map(q => {
+      const { savedSchedule } = q;
+      if (!savedSchedule) return null;
+
+      return {
+        id: savedSchedule.id.toString(),
+        tag: savedSchedule.hashTag.map(v => v.value),
+        title: savedSchedule.title,
+        createdAt: savedSchedule.createdAt.toISOString(),
+        thumbnail: savedSchedule.thumbnail,
+        scheduleHash: savedSchedule.scheduleHash,
+        planType: savedSchedule.planType.toLowerCase(),
+      };
+    })
+    .filter(v => v) as GetScheduleListRETParamPayload[];
+
+  return retValue;
 };
