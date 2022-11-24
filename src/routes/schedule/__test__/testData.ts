@@ -1,4 +1,5 @@
 import { getNDaysLater } from '@src/utils';
+import { getTravelNights } from '../inner';
 
 export const minMoney = 600000;
 export const maxMoney = 1200000;
@@ -15,6 +16,21 @@ export const childrenAges = [5, 3];
 export const childrenNumber = child + infant;
 const latitude = '33.501298';
 const longitude = '126.525482';
+export const travelNights = getTravelNights(startDate, endDate);
+
+const reqScheduleReqOpt = {
+  minMoney,
+  maxMoney,
+  startDate,
+  endDate,
+  adult,
+  child,
+  infant,
+  travelHard,
+  favoriteTravelType: ['golf', 'learn', 'food'],
+  favoriteAccommodation: ['hotel', 'resort'],
+  favoriteAccommodationLocation: ['nature', 'city'],
+};
 
 export const params = {
   searchHotelOpt: {
@@ -50,17 +66,7 @@ export const params = {
   },
 
   getRcmdListReqOpt: {
-    minMoney,
-    maxMoney,
-    startDate,
-    endDate,
-    adult,
-    child,
-    infant,
-    travelHard,
-    favoriteTravelType: ['golf', 'learn', 'food'],
-    favoriteAccommodation: ['hotel', 'resort'],
-    favoriteAccommodationLocation: ['nature', 'city'],
+    ...reqScheduleReqOpt,
     hotelTransition: 1,
     store: true,
     hotelSrchOpt: {
@@ -77,4 +83,6 @@ export const params = {
       childrenNumber,
     },
   },
+
+  reqScheduleReqOpt,
 };

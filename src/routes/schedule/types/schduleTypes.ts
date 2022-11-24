@@ -401,6 +401,10 @@ export interface ReqScheduleRETParamPayload {
         visitScheduleId: string;
         orderNo: string;
         title: string;
+        transitionNo: number | null;
+        stayPeriod: number | null;
+        checkin: string | null;
+        checkout: string | null;
         tourPlaceData: TourPlace | null;
       }[];
     }[];
