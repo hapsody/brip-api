@@ -13,6 +13,8 @@ import {
 import {
   ReqScheduleRETParam,
   ReqScheduleRETParamPayload,
+  GetScheduleRETParam,
+  GetScheduleRETParamPayload,
   MealOrder,
 } from '../types/schduleTypes';
 import { params, travelNights } from './testData';
@@ -21,8 +23,8 @@ const travelDays = travelNights + 1;
 
 jest.setTimeout(120000);
 
-let rawResult: ReqScheduleRETParam;
-let callRes: ReqScheduleRETParamPayload;
+let getSchdRawResult: GetScheduleRETParam;
+let getSchdRes: GetScheduleRETParamPayload;
 let queryParams: QueryParams | null;
 beforeAll(async () => {
   const userTokenRawRes = await request(server)
@@ -32,19 +34,19 @@ beforeAll(async () => {
   const userToken =
     userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
 
-  const response = await request(server)
+  const reqSchdResponse = await request(server)
     .post('/schedule/reqSchedule')
     .set('Authorization', `Bearer ${userToken.userToken}`)
     .send(params.reqScheduleReqOpt);
 
-  rawResult = response.body as ReqScheduleRETParam;
-  callRes = rawResult.IBparams as ReqScheduleRETParamPayload;
-  expect(rawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+  const reqSchdRawResult = reqSchdResponse.body as ReqScheduleRETParam;
+  const reqSchdRes = reqSchdRawResult.IBparams as ReqScheduleRETParamPayload;
+  expect(reqSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(callRes).toHaveProperty('queryParamsId');
+  expect(reqSchdRes).toHaveProperty('queryParamsId');
   queryParams = await prisma.queryParams.findUnique({
     where: {
-      id: Number(callRes.queryParamsId),
+      id: Number(reqSchdRes.queryParamsId),
     },
     include: {
       visitSchedule: {
@@ -55,25 +57,38 @@ beforeAll(async () => {
     },
   });
   expect(queryParams).toBeDefined();
+
+  const getSchdResponse = await request(server)
+    .post('/schedule/getSchedule')
+    .set('Authorization', `Bearer ${userToken.userToken}`)
+    .send({
+      queryParamsId: queryParams?.id,
+    });
+
+  getSchdRawResult = getSchdResponse.body as ReqScheduleRETParam;
+  getSchdRes = getSchdRawResult.IBparams as ReqScheduleRETParamPayload;
+  expect(getSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+
+  expect(getSchdRes.queryParamsId).toBe(queryParams?.id.toString());
 });
 
 describe('Schedule Express Router E2E Test', () => {
-  describe('POST /reqSchedule', () => {
+  describe('POST /getSchedule', () => {
     it('Case: Correct - 파라미터-결과간 검증', () => {
       /**
        * 1. 응답값이 queryParamsId, plan 을 갖는가
        * 2. plan은 min, mid, max로 세개를 갖는가
        * 3. 각 plan별로 여행일수 (travelDays)에 해당하는 추천 일정들을 갖고 잇는가
        */
-      expect(callRes).toHaveProperty('queryParamsId');
-      expect(callRes).toHaveProperty('plan');
-      expect(callRes.plan.length).toBe(3);
-      expect(callRes.plan[0].planType).toBe('MIN');
-      expect(callRes.plan[1].planType).toBe('MID');
-      expect(callRes.plan[2].planType).toBe('MAX');
-      expect(callRes.plan[0].day.length).toBe(travelDays);
-      expect(callRes.plan[1].day.length).toBe(travelDays);
-      expect(callRes.plan[2].day.length).toBe(travelDays);
+      expect(getSchdRes).toHaveProperty('queryParamsId');
+      expect(getSchdRes).toHaveProperty('plan');
+      expect(getSchdRes.plan.length).toBe(3);
+      expect(getSchdRes.plan[0].planType).toBe('MIN');
+      expect(getSchdRes.plan[1].planType).toBe('MID');
+      expect(getSchdRes.plan[2].planType).toBe('MAX');
+      expect(getSchdRes.plan[0].day.length).toBe(travelDays);
+      expect(getSchdRes.plan[1].day.length).toBe(travelDays);
+      expect(getSchdRes.plan[2].day.length).toBe(travelDays);
     });
 
     it('Case: Correct - titleList의 tourPlace Type이 order 순서에 맞게 배치되어 있는가', async () => {
@@ -81,9 +96,9 @@ describe('Schedule Express Router E2E Test', () => {
        * 1. 각 날짜별 일정의 순서가 mealOrder에 제시된 대로 배치되었는가
        * 2.
        */
-      const { day: minDay } = callRes.plan[0];
-      const { day: midDay } = callRes.plan[1];
-      const { day: maxDay } = callRes.plan[2];
+      const { day: minDay } = getSchdRes.plan[0];
+      const { day: midDay } = getSchdRes.plan[1];
+      const { day: maxDay } = getSchdRes.plan[2];
 
       for await (const day of minDay) {
         const mealOrder = new MealOrder();
@@ -158,9 +173,9 @@ describe('Schedule Express Router E2E Test', () => {
        * 2. 각 호텔의 stayPeriod 유효성 검증
        * 3. 각 숙소가 변경될때 이전 숙소의 checkout날짜와 다음 숙소의 checkin 날짜가 같은지
        */
-      const { day: minDay } = callRes.plan[0];
-      const { day: midDay } = callRes.plan[1];
-      const { day: maxDay } = callRes.plan[2];
+      const { day: minDay } = getSchdRes.plan[0];
+      const { day: midDay } = getSchdRes.plan[1];
+      const { day: maxDay } = getSchdRes.plan[2];
 
       let firstCheckin: string = '';
       let lastCheckout: string = '';
@@ -246,9 +261,9 @@ describe('Schedule Express Router E2E Test', () => {
     });
 
     it('Case: Correct - 리턴값의 visitScheduleId와 tourPlaceData가 맞는 데이터를 제시하는가', async () => {
-      const { day: minDay } = callRes.plan[0];
-      const { day: midDay } = callRes.plan[1];
-      const { day: maxDay } = callRes.plan[2];
+      const { day: minDay } = getSchdRes.plan[0];
+      const { day: midDay } = getSchdRes.plan[1];
+      const { day: maxDay } = getSchdRes.plan[2];
 
       for await (const day of minDay) {
         for await (const order of day.titleList) {

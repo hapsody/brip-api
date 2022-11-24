@@ -391,25 +391,39 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
  * reqSchedule
  */
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
+export interface DayScheduleType {
+  dayNo: string;
+  titleList: {
+    visitScheduleId: string;
+    orderNo: string;
+    title: string;
+    transitionNo: number | null;
+    stayPeriod: number | null;
+    checkin: string | null;
+    checkout: string | null;
+    tourPlaceData: TourPlace | null;
+  }[];
+}
 export interface ReqScheduleRETParamPayload {
   queryParamsId: string;
   plan: {
     planType: PlanType;
-    day: {
-      dayNo: string;
-      titleList: {
-        visitScheduleId: string;
-        orderNo: string;
-        title: string;
-        transitionNo: number | null;
-        stayPeriod: number | null;
-        checkin: string | null;
-        checkout: string | null;
-        tourPlaceData: TourPlace | null;
-      }[];
-    }[];
+    day: DayScheduleType[];
   }[];
 }
 export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqScheduleRETParamPayload | {};
+};
+
+/**
+ * getSchedule
+ */
+export interface GetScheduleREQParam {
+  queryParamsId: string;
+}
+export interface GetScheduleRETParamPayload
+  extends ReqScheduleRETParamPayload {}
+
+export type GetScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleRETParamPayload | {};
 };

@@ -33,6 +33,9 @@ import {
   FavoriteTravelType,
   ReqScheduleREQParam,
   ReqScheduleRETParamPayload,
+  GetScheduleREQParam,
+  GetScheduleRETParamPayload,
+  DayScheduleType,
 } from './types/schduleTypes';
 
 /**
@@ -1666,6 +1669,83 @@ export const getRcmdList = async <H extends HotelOptType>(
   };
 };
 
+const visitScheduleToDayScheduleType = (
+  acc: DayScheduleType[],
+  cur: VisitSchedule & {
+    tourPlace: TourPlace | null;
+  },
+) => {
+  if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
+    const alreadyDayExist = acc.find(
+      v =>
+        v.dayNo ===
+        (cur.dayNo === undefined ? 'error' : (cur.dayNo + 1).toString()),
+    );
+    if (!alreadyDayExist) {
+      acc.push({
+        dayNo: (cur.dayNo + 1).toString(),
+        titleList: [
+          {
+            visitScheduleId: cur.id.toString(),
+            orderNo: cur.orderNo.toString(),
+            transitionNo: cur.transitionNo,
+            stayPeriod: cur.stayPeriod,
+            checkin: cur.checkin?.toISOString() ?? null,
+            checkout: cur.checkout?.toISOString() ?? null,
+            title: (() => {
+              if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
+                return cur.tourPlace?.bkc_hotel_name ?? '';
+              if (cur.tourPlace?.tourPlaceType.includes('GL_'))
+                return cur.tourPlace?.gl_name ?? '';
+              if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+                return cur.tourPlace?.vj_title ?? '';
+              return 'none';
+            })(),
+            tourPlaceData: cur.tourPlace,
+          },
+        ],
+      });
+      return acc;
+    }
+
+    const alreadyOrderExist = alreadyDayExist.titleList.find(
+      v => v.orderNo === cur.orderNo?.toString(),
+    );
+
+    if (!alreadyOrderExist) {
+      alreadyDayExist.titleList.push({
+        visitScheduleId: cur.id?.toString() ?? 'none',
+        orderNo: cur.orderNo.toString(),
+        transitionNo: cur.transitionNo,
+        stayPeriod: cur.stayPeriod,
+        checkin: cur.checkin?.toISOString() ?? null,
+        checkout: cur.checkout?.toISOString() ?? null,
+        title: (() => {
+          if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
+            return cur.tourPlace?.bkc_hotel_name ?? '';
+          if (cur.tourPlace?.tourPlaceType.includes('GL_'))
+            return cur.tourPlace?.gl_name ?? '';
+          if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+            return cur.tourPlace?.vj_title ?? '';
+          return 'none';
+        })(),
+        tourPlaceData: cur.tourPlace,
+      });
+      const last = acc.pop();
+      if (!isUndefined(last)) {
+        return [
+          ...acc,
+          {
+            ...last,
+            titleList: alreadyDayExist.titleList,
+          },
+        ];
+      }
+    }
+  }
+  return acc;
+};
+
 /**
  * 일정 생성 요청을 하는 reqSchedule 구현부 함수.
  * 내부적으로 getRcmdList를 호출하여 타입 변환 후 프론트로 전달한다.
@@ -1729,110 +1809,83 @@ export const reqSchedule = async <H extends HotelOptType>(
   const minSchds = schd.visitSchedule.filter(v => v.planType === 'MIN');
   const midSchds = schd.visitSchedule.filter(v => v.planType === 'MID');
   const maxSchds = schd.visitSchedule.filter(v => v.planType === 'MAX');
-  type RetType = {
-    dayNo: string;
-    titleList: {
-      visitScheduleId: string;
-      orderNo: string;
-      title: string;
-      transitionNo: number | null;
-      stayPeriod: number | null;
-      checkin: string | null;
-      checkout: string | null;
-      tourPlaceData: TourPlace | null;
-    }[];
-  };
-  const getRcmdListTypeToRetType = (
-    acc: RetType[],
-    cur: VisitSchedule & {
-      tourPlace: TourPlace | null;
-    },
-  ) => {
-    if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
-      const alreadyDayExist = acc.find(
-        v =>
-          v.dayNo ===
-          (cur.dayNo === undefined ? 'error' : (cur.dayNo + 1).toString()),
-      );
-      if (!alreadyDayExist) {
-        acc.push({
-          dayNo: (cur.dayNo + 1).toString(),
-          titleList: [
-            {
-              visitScheduleId: cur.id.toString(),
-              orderNo: cur.orderNo.toString(),
-              transitionNo: cur.transitionNo,
-              stayPeriod: cur.stayPeriod,
-              checkin: cur.checkin?.toISOString() ?? null,
-              checkout: cur.checkout?.toISOString() ?? null,
-              title: (() => {
-                if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
-                  return cur.tourPlace?.bkc_hotel_name ?? '';
-                if (cur.tourPlace?.tourPlaceType.includes('GL_'))
-                  return cur.tourPlace?.gl_name ?? '';
-                if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
-                  return cur.tourPlace?.vj_title ?? '';
-                return 'none';
-              })(),
-              tourPlaceData: cur.tourPlace,
-            },
-          ],
-        });
-        return acc;
-      }
 
-      const alreadyOrderExist = alreadyDayExist.titleList.find(
-        v => v.orderNo === cur.orderNo?.toString(),
-      );
-
-      if (!alreadyOrderExist) {
-        alreadyDayExist.titleList.push({
-          visitScheduleId: cur.id?.toString() ?? 'none',
-          orderNo: cur.orderNo.toString(),
-          transitionNo: cur.transitionNo,
-          stayPeriod: cur.stayPeriod,
-          checkin: cur.checkin?.toISOString() ?? null,
-          checkout: cur.checkout?.toISOString() ?? null,
-          title: (() => {
-            if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
-              return cur.tourPlace?.bkc_hotel_name ?? '';
-            if (cur.tourPlace?.tourPlaceType.includes('GL_'))
-              return cur.tourPlace?.gl_name ?? '';
-            if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
-              return cur.tourPlace?.vj_title ?? '';
-            return 'none';
-          })(),
-          tourPlaceData: cur.tourPlace,
-        });
-        const last = acc.pop();
-        if (!isUndefined(last)) {
-          return [
-            ...acc,
-            {
-              ...last,
-              titleList: alreadyDayExist.titleList,
-            },
-          ];
-        }
-      }
-    }
-    return acc;
-  };
   const minRetValue = minSchds.reduce(
-    getRcmdListTypeToRetType,
-    [] as RetType[],
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
   );
   const midRetValue = midSchds.reduce(
-    getRcmdListTypeToRetType,
-    [] as RetType[],
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
   );
   const maxRetValue = maxSchds.reduce(
-    getRcmdListTypeToRetType,
-    [] as RetType[],
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
   );
 
   return {
     queryParamsId: schd.id.toString(),
+    plan: [
+      { planType: 'MIN', day: minRetValue },
+      { planType: 'MID', day: midRetValue },
+      { planType: 'MAX', day: maxRetValue },
+    ],
+  };
+};
+
+/**
+ * 일정 생성 요청을 하는 reqSchedule 구현부 함수.
+ * 내부적으로 getRcmdList를 호출하여 타입 변환 후 프론트로 전달한다.
+ */
+export const getSchedule = async (
+  param: GetScheduleREQParam,
+): Promise<GetScheduleRETParamPayload> => {
+  const { queryParamsId } = param;
+
+  const queryParams = await prisma.queryParams.findUnique({
+    where: {
+      id: Number(queryParamsId),
+    },
+    include: {
+      visitSchedule: {
+        include: {
+          tourPlace: true,
+        },
+      },
+    },
+  });
+
+  if (isEmpty(queryParams))
+    throw new IBError({
+      type: 'NOTMATCHEDDATA',
+      message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
+    });
+
+  const minVisitSchd = queryParams.visitSchedule.filter(
+    v => v.planType === 'MIN',
+  );
+  const midVisitSchd = queryParams.visitSchedule.filter(
+    v => v.planType === 'MID',
+  );
+  const maxVisitSchd = queryParams.visitSchedule.filter(
+    v => v.planType === 'MAX',
+  );
+
+  const minRetValue = minVisitSchd.reduce(
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
+  );
+  const midRetValue = midVisitSchd.reduce(
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
+  );
+  const maxRetValue = maxVisitSchd.reduce(
+    visitScheduleToDayScheduleType,
+    [] as DayScheduleType[],
+  );
+
+  return {
+    queryParamsId: queryParams.id.toString(),
     plan: [
       { planType: 'MIN', day: minRetValue },
       { planType: 'MID', day: midRetValue },
