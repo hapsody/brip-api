@@ -49,6 +49,7 @@ import {
   GetPlaceDetailRawData,
   GooglePriceLevel,
   GooglePlaceReview,
+  GetRcmdListHotelOpt,
 } from './types/schduleTypes';
 
 /**
@@ -1355,6 +1356,60 @@ export const moneyFilterForHotel = (param: {
     max: maxRes,
   };
 };
+
+/**
+ * 일정을 만들기위한 데이터 검색 후 반환하는 함수 (호텔, 식당, 관광지)
+ */
+const searchData = async <H extends HotelOptType>(param: {
+  hotelSrchOpt: GetRcmdListHotelOpt<H>;
+  hotelTransition: number;
+  transitionTerm: number;
+  store?: boolean; /// 호텔 검색할때 검색 결과를 TourPlace로 저장할지
+}) => {
+  const { hotelSrchOpt, hotelTransition, transitionTerm, store } = param;
+
+  const hotels = await hotelLoopSrchByHotelTrans<H>({
+    hotelSrchOpt,
+    hotelTransition,
+    transitionTerm,
+    store,
+  });
+
+  const spots = await prisma.tourPlace.findMany({
+    where: {
+      AND: [
+        { status: 'IN_USE' },
+        {
+          OR: [
+            { tourPlaceType: 'GL_SPOT' },
+            { tourPlaceType: 'VISITJEJU_SPOT' },
+          ],
+        },
+      ],
+    },
+    orderBy: [{ evalScore: 'desc' }],
+  });
+  const restaurants = await prisma.tourPlace.findMany({
+    where: {
+      AND: [
+        { status: 'IN_USE' },
+        {
+          OR: [
+            { tourPlaceType: 'GL_RESTAURANT' },
+            { tourPlaceType: 'VISITJEJU_RESTAURANT' },
+          ],
+        },
+      ],
+    },
+    orderBy: [{ evalScore: 'desc' }],
+  });
+  return {
+    hotels,
+    restaurants,
+    spots,
+  };
+};
+
 /**
  * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
  * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
@@ -1376,7 +1431,7 @@ export const getRcmdList = async <H extends HotelOptType>(
     hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
     hotelSrchOpt,
     // placeSrchOpt,
-    store,
+    store = true,
   } = param;
 
   const userTokenId = ctx?.userTokenId;
@@ -1427,7 +1482,9 @@ export const getRcmdList = async <H extends HotelOptType>(
     });
   const travelDays = travelNights + 1;
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-  const candidateBKCHotels = await hotelLoopSrchByHotelTrans<H>({
+
+  /// data searching part (hotel, restaurant, spot)
+  const { hotels, restaurants, spots } = await searchData<H>({
     hotelSrchOpt,
     hotelTransition,
     transitionTerm,
@@ -1439,41 +1496,12 @@ export const getRcmdList = async <H extends HotelOptType>(
     mid: midCandidates,
     max: maxCandidates,
   } = moneyFilterForHotel({
-    candidates: candidateBKCHotels,
+    candidates: hotels,
     inputCtx: {
       minMoney,
       maxMoney,
       travelNights,
     },
-  });
-
-  const spots = await prisma.tourPlace.findMany({
-    where: {
-      AND: [
-        { status: 'IN_USE' },
-        {
-          OR: [
-            { tourPlaceType: 'GL_SPOT' },
-            { tourPlaceType: 'VISITJEJU_SPOT' },
-          ],
-        },
-      ],
-    },
-    orderBy: [{ evalScore: 'desc' }],
-  });
-  const restaurants = await prisma.tourPlace.findMany({
-    where: {
-      AND: [
-        { status: 'IN_USE' },
-        {
-          OR: [
-            { tourPlaceType: 'GL_RESTAURANT' },
-            { tourPlaceType: 'VISITJEJU_RESTAURANT' },
-          ],
-        },
-      ],
-    },
-    orderBy: [{ evalScore: 'desc' }],
   });
 
   const makeVisitSchedule = (planType: PlanType) => {
@@ -1640,7 +1668,7 @@ export const getRcmdList = async <H extends HotelOptType>(
       tourPlace: {
         connect: [
           ...(() => {
-            const result = candidateBKCHotels
+            const result = hotels
               .map(c => {
                 const hotelIds = c.hotels
                   .map(h => {
@@ -1686,7 +1714,7 @@ export const getRcmdList = async <H extends HotelOptType>(
       },
       metaScheduleInfo: {
         create: {
-          totalHotelSearchCount: candidateBKCHotels.length,
+          totalHotelSearchCount: hotels.length,
           totalRestaurantSearchCount: restaurants.length,
           totalSpotSearchCount: spots.length,
           spotPerDay: gSpotPerDay,
