@@ -43,6 +43,12 @@ import {
   IBContext,
   GetDayScheduleREQParam,
   GetDayScheduleRETParamPayload,
+  GetDetailScheduleREQParam,
+  GetDetailScheduleRETParamPayload,
+  GglPlaceDetailType,
+  GetPlaceDetailRawData,
+  GooglePriceLevel,
+  GooglePlaceReview,
 } from './types/schduleTypes';
 
 /**
@@ -1620,15 +1626,12 @@ export const getRcmdList = async <H extends HotelOptType>(
 
   // const visitSchedules = await Promise.all(visitSchedulePromises);
 
-  const tStartDate = moment(moment(startDate).startOf('d')).toISOString();
-  const tEndDate = moment(moment(endDate).startOf('d')).toISOString();
-
   const queryParams = await prisma.queryParams.create({
     data: {
       minMoney: minMoney ? Number(minMoney) : undefined,
       maxMoney: maxMoney ? Number(maxMoney) : undefined,
-      startDate: tStartDate,
-      endDate: tEndDate,
+      startDate: moment(moment(startDate).startOf('d')).toISOString(),
+      endDate: moment(moment(endDate).startOf('d')).toISOString(),
       // startDate,
       // endDate,
       travelHard: travelHard ? Number(travelHard) : travelHard,
@@ -1679,6 +1682,24 @@ export const getRcmdList = async <H extends HotelOptType>(
               checkout: v.checkout,
             };
           }),
+        },
+      },
+      metaScheduleInfo: {
+        create: {
+          totalHotelSearchCount: candidateBKCHotels.length,
+          totalRestaurantSearchCount: restaurants.length,
+          totalSpotSearchCount: spots.length,
+          spotPerDay: gSpotPerDay,
+          mealPerDay: gMealPerDay,
+          mealSchedule: new MealOrder().mealOrder.toString(),
+          travelNights,
+          travelDays,
+          hotelTransition,
+          transitionTerm,
+          recommendedMinHotelCount: minCandidates.length,
+          recommendedMidHotelCount: midCandidates.length,
+          recommendedMaxHotelCount: maxCandidates.length,
+          visitSchedulesCount: visitSchedules.length,
         },
       },
     },
@@ -2188,4 +2209,291 @@ export const getDaySchedule = async (
     spotList: spotList.spotList,
   };
   return retValue;
+};
+
+/**
+ * google place/detail api 호출 후 결과값을 리턴하는 함수
+ */
+export const getPlaceDetail = async (params: {
+  placeId: string;
+}): Promise<GglPlaceDetailType> => {
+  try {
+    const { placeId } = params;
+    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
+      process.env.GCP_MAPS_APIKEY as string
+    }`;
+    const rawResponse = await axios.get(encodeURI(queryUrl));
+    const fetchedData = rawResponse.data as GetPlaceDetailRawData;
+    return fetchedData.result;
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `google place detail api 요청중 문제가 발생했습니다.`,
+    });
+  }
+};
+
+/**
+ * google 의 priceLevel 숫자 코드를 읽을 수 있는 문자로 변환하는 함수
+ */
+export const transPriceLevel = (
+  data: unknown,
+): keyof typeof GooglePriceLevel | null => {
+  const priceLevel = (data as { price_level?: number }).price_level;
+  if (priceLevel)
+    return GooglePriceLevel[priceLevel] as keyof typeof GooglePriceLevel;
+  return null;
+};
+
+/**
+ * 일정중 지정한 하나의 장소에 대한 상세 조회 요청 api
+ */
+export const getDetailSchedule = async (
+  param: GetDetailScheduleREQParam,
+  ctx: IBContext,
+): Promise<GetDetailScheduleRETParamPayload> => {
+  const { visitScheduleId } = param;
+  const { userTokenId } = ctx;
+
+  const visitSchedule = await prisma.visitSchedule.findUnique({
+    where: {
+      id: Number(visitScheduleId),
+    },
+    include: {
+      tourPlace: {
+        include: {
+          gl_photos: true,
+        },
+      },
+      queryParams: {
+        include: {
+          metaScheduleInfo: true,
+        },
+      },
+    },
+  });
+
+  if (!visitSchedule) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'visitScheduleId에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  if (visitSchedule.queryParams?.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '다른 유저의 visitSchedule 데이터입니다.',
+    });
+  }
+
+  const retValue =
+    await (async (): Promise<GetDetailScheduleRETParamPayload | null> => {
+      if (!visitSchedule.tourPlace)
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '저장된 Data의 논리적 결함이 있습니다.',
+        });
+      const tourPlaceType = visitSchedule.tourPlace?.tourPlaceType;
+      if (tourPlaceType.includes('BKC_HOTEL')) {
+        const { tourPlace: hotel } = visitSchedule;
+        const hotelPhotos = await (async () => {
+          const options = {
+            method: 'GET' as Method,
+            url: 'https://booking-com.p.rapidapi.com/v1/hotels/photos',
+            params: { locale: 'ko', hotel_id: hotel?.bkc_hotel_id },
+            headers: {
+              'X-RapidAPI-Key': `${process.env.RAPID_API_KEY as string}`,
+              'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
+            },
+          };
+          const rawResponse = await axios.request(options);
+          const hPhotos = rawResponse.data as {
+            ml_tags: {
+              confidence: number;
+              tag_id: number;
+              tag_type: string;
+              tag_name: string;
+              photo_id: number;
+            }[];
+            tags: {
+              tag: string;
+              id: number;
+            }[];
+            photo_id: number;
+            url_square60: string;
+            url_max: string;
+            url_1440: string;
+          }[];
+          return hPhotos;
+        })();
+
+        return {
+          id: visitSchedule.id.toString(),
+          dayCount: visitSchedule.dayNo,
+          orderCount: visitSchedule.orderNo,
+          planType: visitSchedule.planType,
+          spotType: tourPlaceType,
+          previewImg: hotel.bkc_main_photo_url ?? 'none',
+          spotName: hotel.bkc_hotel_name ?? 'none',
+          roomType: hotel.bkc_unit_configuration_label,
+          spotAddr: hotel.bkc_address,
+          hotelBookingUrl: hotel.bkc_url,
+          placeId: null,
+          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
+          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
+          night:
+            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
+          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
+          checkIn: hotel.bkc_checkin,
+          checkOut: hotel.bkc_checkout,
+          price: hotel.bkc_min_total_price
+            ? hotel.bkc_min_total_price.toString()
+            : null,
+          priceLevel: null,
+          rating: hotel.bkc_review_score ? hotel.bkc_review_score / 2.0 : null,
+          lat: hotel.bkc_latitude,
+          lng: hotel.bkc_longitude,
+          hotelClass: hotel.bkc_hotelClass,
+          website: hotel.bkc_url,
+          language: hotel.bkc_default_language,
+          cityNameEN: hotel.bkc_city_name_en,
+          imageList: [
+            ...hotelPhotos.map(v => {
+              return {
+                ...v,
+                url: v.url_max,
+              };
+            }),
+          ],
+          contact: null,
+          weekdayOpeningHours: null,
+          reviews: null,
+          takeout: null,
+          googlePlaceTypes: null,
+          url: null,
+          userRatingsTotal: null,
+          reviewScoreWord: hotel.bkc_review_score_word,
+        };
+      }
+      if (tourPlaceType.includes('GL_')) {
+        const { tourPlace: googlePlace } = visitSchedule;
+
+        const detailData: GglPlaceDetailType = await getPlaceDetail({
+          placeId: googlePlace.gl_place_id ?? '',
+        });
+
+        return {
+          id: visitSchedule.id.toString(),
+          dayCount: visitSchedule.dayNo,
+          orderCount: visitSchedule.orderNo,
+          planType: visitSchedule.planType,
+          spotType: tourPlaceType,
+          previewImg: (() => {
+            return googlePlace.gl_photos.length > 0 &&
+              googlePlace.gl_photos[0].url
+              ? googlePlace.gl_photos[0].url
+              : 'none';
+          })(),
+          spotName: (detailData as { name: string }).name,
+          roomType: null,
+          spotAddr: googlePlace.gl_vicinity,
+          // spotAddr: (detailData as { formatted_address: string })
+          //   .formatted_address,
+          hotelBookingUrl: null,
+          placeId: googlePlace.gl_place_id,
+          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
+          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
+          night:
+            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? null,
+          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
+          checkIn: null,
+          checkOut: null,
+          price: null,
+          priceLevel: transPriceLevel(detailData),
+          rating: googlePlace.gl_rating,
+          lat: googlePlace.gl_lat,
+          lng: googlePlace.gl_lng,
+          hotelClass: null,
+          reviewScoreWord: null,
+          language: null,
+          cityNameEN: null,
+          // imageList: await getPlacePhoto(detailData),
+          imageList: (
+            detailData as {
+              photos: {
+                height: number;
+                width: number;
+                html_attributions: string[];
+                photo_reference: string;
+              }[];
+            }
+          ).photos.map(v => {
+            return {
+              reference: v.photo_reference,
+            };
+          }),
+          contact: (detailData as { formatted_phone_number: string })
+            .formatted_phone_number,
+          weekdayOpeningHours: (detailData as { weekday_text: string[] })
+            .weekday_text,
+          reviews: (
+            detailData as {
+              reviews: GooglePlaceReview[];
+            }
+          ).reviews,
+          takeout: (detailData as { takeout: boolean }).takeout,
+          googlePlaceTypes: (detailData as { types: string[] }).types,
+          url: (detailData as { url: string }).url,
+          userRatingsTotal: (detailData as { user_ratings_total: number })
+            .user_ratings_total,
+          website: (detailData as { website: string }).website,
+        };
+      }
+
+      if (tourPlaceType.includes('VJ_')) {
+        const { tourPlace: visitJejuPlace } = visitSchedule;
+        return {
+          id: visitSchedule.id.toString(),
+          dayCount: visitSchedule.dayNo,
+          orderCount: visitSchedule.orderNo,
+          planType: visitSchedule.planType,
+          spotType: tourPlaceType,
+          previewImg: 'none',
+          spotName: visitJejuPlace.vj_title ?? 'none',
+          roomType: null,
+          spotAddr: visitJejuPlace.vj_address ?? 'none',
+          hotelBookingUrl: null,
+          placeId: visitJejuPlace.vj_contentsid ?? 'none',
+          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
+          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
+          night:
+            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
+          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
+          checkIn: null,
+          checkOut: null,
+          price: null,
+          priceLevel: null,
+          rating: null,
+          lat: visitJejuPlace.vj_latitude ?? -1,
+          lng: visitJejuPlace.vj_longitude ?? -1,
+          hotelClass: null,
+          website: null,
+          language: null,
+          cityNameEN: null,
+          imageList: [],
+          contact: null,
+          weekdayOpeningHours: null,
+          reviews: null,
+          takeout: null,
+          googlePlaceTypes: null,
+          url: null,
+          userRatingsTotal: null,
+          reviewScoreWord: null,
+        };
+      }
+      return null;
+    })();
+
+  return retValue as GetDetailScheduleRETParamPayload;
 };

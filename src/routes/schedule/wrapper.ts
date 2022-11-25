@@ -21,6 +21,8 @@ import {
   IBContext,
   GetDayScheduleREQParam,
   GetDayScheduleRETParam,
+  GetDetailScheduleREQParam,
+  GetDetailScheduleRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -32,6 +34,7 @@ import {
   getScheduleList,
   saveSchedule,
   getDaySchedule,
+  getDetailSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -415,6 +418,64 @@ export const getDayScheduleWrapper = asyncWrapper(
       const param = req.body;
 
       const scheduleResult = await getDaySchedule(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 일정중 지정한 하나의 장소에 대한 상세 조회 요청 함수인 getDetailSchedule을 호출할 wrapper 함수
+ *
+ */
+export const getDetailScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetDetailScheduleREQParam>,
+    res: Express.IBTypedResponse<GetDetailScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const ctx: IBContext = {
+        userTokenId,
+      };
+      const scheduleResult = await getDetailSchedule(param, ctx);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,

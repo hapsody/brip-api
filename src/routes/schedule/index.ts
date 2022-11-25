@@ -8,6 +8,7 @@ import scheduleRouter, {
   getScheduleListWrapper,
   saveScheduleWrapper,
   getDayScheduleWrapper,
+  getDetailScheduleWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -36,6 +37,12 @@ scheduleRouter.post(
   '/getDaySchedule',
   accessTokenValidCheck,
   getDayScheduleWrapper,
+);
+
+scheduleRouter.post(
+  '/getDetailSchedule',
+  accessTokenValidCheck,
+  getDetailScheduleWrapper,
 );
 /**
  * 내부 개발용
