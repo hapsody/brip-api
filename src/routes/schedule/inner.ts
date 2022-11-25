@@ -4,7 +4,7 @@ import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
-import { isNumber, isNil, isEmpty, isUndefined } from 'lodash';
+import { isNumber, isNil, isEmpty, isUndefined, omit } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParamPayload,
@@ -1827,7 +1827,7 @@ export const reqSchedule = async <H extends HotelOptType>(
     ],
   } as H;
 
-  const schd = await getRcmdList<H>(
+  const queryParams = await getRcmdList<H>(
     {
       ...param,
       hotelTransition: 1,
@@ -1837,9 +1837,9 @@ export const reqSchedule = async <H extends HotelOptType>(
     ctx,
   );
 
-  const minSchds = schd.visitSchedule.filter(v => v.planType === 'MIN');
-  const midSchds = schd.visitSchedule.filter(v => v.planType === 'MID');
-  const maxSchds = schd.visitSchedule.filter(v => v.planType === 'MAX');
+  const minSchds = queryParams.visitSchedule.filter(v => v.planType === 'MIN');
+  const midSchds = queryParams.visitSchedule.filter(v => v.planType === 'MID');
+  const maxSchds = queryParams.visitSchedule.filter(v => v.planType === 'MAX');
 
   const minRetValue = minSchds.reduce(
     visitScheduleToDayScheduleType,
@@ -1855,7 +1855,8 @@ export const reqSchedule = async <H extends HotelOptType>(
   );
 
   return {
-    queryParamsId: schd.id.toString(),
+    ...omit(queryParams, 'visitSchedule'),
+    // queryParamsId: queryParams.id.toString(),
     plan: [
       { planType: 'MIN', day: minRetValue },
       { planType: 'MID', day: midRetValue },
@@ -1918,7 +1919,8 @@ export const getSchedule = async (
   );
 
   return {
-    queryParamsId: queryParams.id.toString(),
+    ...omit(queryParams, 'visitSchedule'),
+    // queryParamsId: queryParams.id.toString(),
     plan: [
       { planType: 'MIN', day: minRetValue },
       { planType: 'MID', day: midRetValue },
@@ -1978,6 +1980,7 @@ export const getScheduleList = async (
         thumbnail: savedSchedule.thumbnail,
         // scheduleHash: savedSchedule.scheduleHash,
         planType: savedSchedule.planType.toLowerCase(),
+        queryParamsId: q.id.toString(),
       };
     })
     .filter(v => v) as GetScheduleListRETParamPayload[];
