@@ -1744,7 +1744,7 @@ const visitScheduleToDayScheduleType = (
                 return cur.tourPlace?.bkc_hotel_name ?? '';
               if (cur.tourPlace?.tourPlaceType.includes('GL_'))
                 return cur.tourPlace?.gl_name ?? '';
-              if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+              if (cur.tourPlace?.tourPlaceType.includes('VISITJEJU_'))
                 return cur.tourPlace?.vj_title ?? '';
               return 'none';
             })(),
@@ -1772,7 +1772,7 @@ const visitScheduleToDayScheduleType = (
             return cur.tourPlace?.bkc_hotel_name ?? '';
           if (cur.tourPlace?.tourPlaceType.includes('GL_'))
             return cur.tourPlace?.gl_name ?? '';
-          if (cur.tourPlace?.tourPlaceType.includes('VJ_'))
+          if (cur.tourPlace?.tourPlaceType.includes('VISITJEJU_'))
             return cur.tourPlace?.vj_title ?? '';
           return 'none';
         })(),
@@ -2180,7 +2180,7 @@ export const getDaySchedule = async (
         };
       }
 
-      if (vType.includes('VJ_')) {
+      if (vType.includes('VISITJEJU_')) {
         const visitJejuPlace = v.tourPlace;
         return {
           id: v.id.toString(),
@@ -2451,7 +2451,7 @@ export const getDetailSchedule = async (
         };
       }
 
-      if (tourPlaceType.includes('VJ_')) {
+      if (tourPlaceType.includes('VISITJEJU_')) {
         const { tourPlace: visitJejuPlace } = visitSchedule;
         return {
           id: visitSchedule.id.toString(),
