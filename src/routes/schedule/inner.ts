@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
-import { TourPlace, PlanType, VisitSchedule } from '@prisma/client';
+import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import { isNumber, isNil, isEmpty, isUndefined } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -41,6 +41,8 @@ import {
   SaveScheduleREQParam,
   SaveScheduleRETParamPayload,
   IBContext,
+  GetDayScheduleREQParam,
+  GetDayScheduleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -1488,14 +1490,13 @@ export const getRcmdList = async <H extends HotelOptType>(
           : dayNo / transitionTerm,
       );
 
-      if (orderNo === 0) {
-        const candidates = (() => {
-          if (planType === 'MIN') return minCandidates[transitionNo];
-          if (planType === 'MID')
-            return midCandidates[Math.floor(transitionNo)];
-          return maxCandidates[Math.floor(transitionNo)];
-        })();
+      const candidates = (() => {
+        if (planType === 'MIN') return minCandidates[transitionNo];
+        if (planType === 'MID') return midCandidates[Math.floor(transitionNo)];
+        return maxCandidates[Math.floor(transitionNo)];
+      })();
 
+      if (orderNo === 0) {
         ret = {
           ...ret,
           placeType: 'HOTEL',
@@ -1514,13 +1515,25 @@ export const getRcmdList = async <H extends HotelOptType>(
         ret = {
           ...ret,
           placeType: 'RESTAURANT',
+          transitionNo: candidates.transitionNo ?? {},
+          stayPeriod: candidates.stayPeriod ?? {},
+          checkin: candidates.checkin ?? {},
+          checkout: candidates.checkout ?? {},
           data: cpRestaurants.shift() ?? {},
         };
         nextMealOrder = mealOrder.getNextMealOrder();
         return ret;
       }
 
-      ret = { ...ret, placeType: 'SPOT', data: cpSpots.shift() ?? {} };
+      ret = {
+        ...ret,
+        placeType: 'SPOT',
+        transitionNo: candidates.transitionNo ?? {},
+        stayPeriod: candidates.stayPeriod ?? {},
+        checkin: candidates.checkin ?? {},
+        checkout: candidates.checkout ?? {},
+        data: cpSpots.shift() ?? {},
+      };
       return ret;
     };
   };
@@ -1978,8 +1991,10 @@ export const getScheduleList = async (
  */
 export const saveSchedule = async (
   param: SaveScheduleREQParam,
+  ctx?: IBContext,
 ): Promise<SaveScheduleRETParamPayload> => {
-  const { title, keyword, planType, queryParamsId, userTokenId } = param;
+  const { title, keyword, planType, queryParamsId } = param;
+  const userTokenId = ctx?.userTokenId ?? '';
 
   const queryParams = await prisma.queryParams.findFirst({
     where: {
@@ -2026,7 +2041,7 @@ export const saveSchedule = async (
           };
         }),
       },
-      userTokenId: userTokenId ?? '',
+      userTokenId,
       queryParams: {
         connect: {
           id: queryParams.id,
@@ -2035,4 +2050,140 @@ export const saveSchedule = async (
     },
   });
   return { queryParamsId: createResult.queryParamsId.toString() };
+};
+
+/**
+ * 생성된 스케쥴의 하루 일정 요청 api
+ * 스케쥴에서 지정된 날짜의 데일리 계획을 조회 요청한다.
+ */
+export const getDaySchedule = async (
+  param: GetDayScheduleREQParam,
+): Promise<GetDayScheduleRETParamPayload> => {
+  const { queryParamsId, day, planType } = param;
+
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    include: {
+      visitSchedule: {
+        where: {
+          dayNo: { equals: Number(day) },
+          planType: { equals: planType.toUpperCase() as PlanType },
+        },
+        include: {
+          tourPlace: {
+            include: {
+              gl_photos: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId 에 해당하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  const spotList: Pick<GetDayScheduleRETParamPayload, 'spotList'> = {
+    spotList: queryParams.visitSchedule.map(v => {
+      if (!v.tourPlace) return undefined;
+
+      const vType: PlaceType = v.tourPlace.tourPlaceType;
+      const night = v.stayPeriod ?? 0;
+      const days = v.stayPeriod ? night + 1 : 0;
+
+      if (vType.includes('BKC_HOTEL')) {
+        const hotel = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg: hotel.bkc_main_photo_url ?? 'none',
+          spotName: hotel.bkc_hotel_name ?? 'none',
+          roomType: hotel.bkc_unit_configuration_label ?? 'none',
+          spotAddr: hotel.bkc_address ?? 'none',
+          hotelBookingUrl: hotel.bkc_url ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          checkin: hotel.bkc_checkin,
+          checkout: hotel.bkc_checkout,
+          price: hotel.bkc_min_total_price?.toString(),
+          rating: hotel.bkc_review_score
+            ? hotel.bkc_review_score / 2.0
+            : undefined,
+          lat: hotel.bkc_latitude ?? -1,
+          lng: hotel.bkc_longitude ?? -1,
+          imageList: [
+            {
+              id: '1',
+              url: hotel.bkc_main_photo_url ?? undefined,
+            },
+          ],
+        };
+      }
+      if (vType.includes('GL_')) {
+        const googlePlace = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg:
+            googlePlace.gl_photos.length > 0 && googlePlace.gl_photos[0].url
+              ? googlePlace.gl_photos[0].url
+              : 'none',
+          spotName: googlePlace.gl_name ?? 'none',
+          spotAddr: googlePlace.gl_vicinity ?? 'none',
+          // contact: 'none',
+          placeId: googlePlace.gl_place_id ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          price: googlePlace.gl_price_level?.toString(),
+          rating: googlePlace.gl_rating ?? undefined,
+          lat: googlePlace.gl_lat ?? -1,
+          lng: googlePlace.gl_lng ?? -1,
+          imageList: googlePlace.gl_photos.map(p => {
+            return {
+              id: p.id.toString(),
+              photo_reference: p.photo_reference,
+            };
+          }),
+        };
+      }
+
+      if (vType.includes('VJ_')) {
+        const visitJejuPlace = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg: 'none',
+          spotName: visitJejuPlace.vj_title ?? 'none',
+          spotAddr: visitJejuPlace.vj_address ?? 'none',
+          // contact: 'none',
+          placeId: visitJejuPlace.vj_contentsid ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          lat: visitJejuPlace.vj_latitude ?? -1,
+          lng: visitJejuPlace.vj_longitude ?? -1,
+        };
+      }
+      return undefined;
+    }),
+  };
+
+  const retValue: GetDayScheduleRETParamPayload = {
+    id: queryParams.id.toString(),
+    dayCount: Number(day),
+    contentsCountAll: spotList.spotList.length,
+    spotList: spotList.spotList,
+  };
+  return retValue;
 };
