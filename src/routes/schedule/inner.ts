@@ -1705,12 +1705,11 @@ const visitScheduleToDayScheduleType = (
   if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
     const alreadyDayExist = acc.find(
       v =>
-        v.dayNo ===
-        (cur.dayNo === undefined ? 'error' : (cur.dayNo + 1).toString()),
+        v.dayNo === (cur.dayNo === undefined ? 'error' : cur.dayNo.toString()),
     );
     if (!alreadyDayExist) {
       acc.push({
-        dayNo: (cur.dayNo + 1).toString(),
+        dayNo: cur.dayNo.toString(),
         titleList: [
           {
             visitScheduleId: cur.id.toString(),
