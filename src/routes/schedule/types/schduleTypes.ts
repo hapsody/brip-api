@@ -449,7 +449,7 @@ export interface GetScheduleListRETParamPayload {
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
   // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
   planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
-  queryParamsId: string;
+  queryParamsId: string; /// scheduleHash값을 대신하여 생성한 일정의 고유값으로 queryParamsId가 쓰임
 }
 
 export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {

@@ -247,7 +247,7 @@ model QueryParams {
   // scheduleTitle             String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // schedulePlanType
-  scheduleHash     String?           @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  // scheduleHash     String?           @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   savedSchedule    ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
 }
 
