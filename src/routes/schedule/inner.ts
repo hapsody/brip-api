@@ -1482,13 +1482,18 @@ export const getRcmdList = async <H extends HotelOptType>(
       const orderNo = i % numOfADaySchedule;
       let ret: Partial<IVisitSchedule> = { dayNo, orderNo, planType };
 
+      const transitionNo = Math.floor(
+        dayNo === travelDays - 1
+          ? minCandidates.length - 1
+          : dayNo / transitionTerm,
+      );
+
       if (orderNo === 0) {
         const candidates = (() => {
-          if (planType === 'MIN')
-            return minCandidates[Math.floor(dayNo / transitionTerm)];
+          if (planType === 'MIN') return minCandidates[transitionNo];
           if (planType === 'MID')
-            return midCandidates[Math.floor(dayNo / transitionTerm)];
-          return maxCandidates[Math.floor(dayNo / transitionTerm)];
+            return midCandidates[Math.floor(transitionNo)];
+          return maxCandidates[Math.floor(transitionNo)];
         })();
 
         ret = {
