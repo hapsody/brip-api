@@ -25,6 +25,8 @@ import {
   GetDetailScheduleRETParam,
   GetCandidateScheduleREQParam,
   GetCandidateScheduleRETParam,
+  GetCandDetailSchdREQParam,
+  GetCandDetailSchdRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -38,6 +40,7 @@ import {
   getDaySchedule,
   getDetailSchedule,
   getCandidateSchedule,
+  getCandDetailSchd,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -538,6 +541,62 @@ export const getCandidateScheduleWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 스케쥴의 변경 후보 리스트중 1개 후보항목의 자세한 정보를 요청하는
+ *  getCandDetailSchd을 호출하는 wrapper 함수
+ *
+ */
+export const getCandDetailSchdWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetCandDetailSchdREQParam>,
+    res: Express.IBTypedResponse<GetCandDetailSchdRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await getCandDetailSchd(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult ?? {},
       });
     } catch (err) {
       if (err instanceof IBError) {

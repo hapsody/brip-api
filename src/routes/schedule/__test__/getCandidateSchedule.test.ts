@@ -18,9 +18,9 @@ import {
   ReqScheduleRETParamPayload,
   GetCandidateScheduleRETParamPayload,
 } from '../types/schduleTypes';
-import { params, travelNights } from './testData';
+import { params } from './testData';
 
-const travelDays = travelNights + 1;
+// const travelDays = travelNights + 1;
 
 jest.setTimeout(120000);
 
@@ -93,8 +93,8 @@ describe('Schedule Express Router E2E Test', () => {
         expect(cand.previewImg).toBeDefined();
         expect(cand.spotName).toBeDefined();
         expect(cand.spotAddr).toBeDefined();
-        expect(cand.night).toBe(travelNights);
-        expect(cand.days).toBe(travelDays);
+        // expect(cand.night).toBe(travelNights);
+        // expect(cand.days).toBe(travelDays);
       }
     });
   });

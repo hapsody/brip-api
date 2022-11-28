@@ -643,3 +643,20 @@ export interface GetCandidateScheduleRETParamPayload {
 export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetCandidateScheduleRETParamPayload | {};
 };
+
+/**
+ * getCandDetailSchd
+ */
+export interface GetCandDetailSchdREQParam {
+  candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
+  // candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+}
+
+export type GetCandDetailSchdRETParamPayload = Omit<
+  DetailScheduleType,
+  'dayCount' | 'orderCount' | 'planType'
+>;
+
+export type GetCandDetailSchdRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandDetailSchdRETParamPayload | {};
+};
