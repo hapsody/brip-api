@@ -55,6 +55,8 @@ import {
   BriefScheduleType,
   GetCandDetailSchdREQParam,
   GetCandDetailSchdRETParamPayload,
+  ModifyScheduleREQParam,
+  ModifyScheduleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -2901,4 +2903,41 @@ export const getCandDetailSchd = async (
     })();
 
   return retValue;
+};
+
+/**
+ * 생성된 스케쥴의 변경 후보 리스트중 1개 후보 항목의 자세한 정보(tourPlace) 요청
+ */
+export const modifySchedule = async (
+  param: ModifyScheduleREQParam,
+): Promise<ModifyScheduleRETParamPayload | null> => {
+  const { visitScheduleId, candidateId } = param;
+
+  const visitSchedule = await prisma.visitSchedule.findUnique({
+    where: {
+      id: Number(visitScheduleId),
+    },
+  });
+
+  if (!visitSchedule) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 visitSchedule 입니다.',
+    });
+  }
+
+  const updateRes: VisitSchedule = await prisma.visitSchedule.update({
+    where: {
+      id: Number(visitScheduleId),
+    },
+    data: {
+      // type: candidateSpotType.toUpperCase() as PlaceType,
+      tourPlaceId: Number(candidateId),
+    },
+    include: {
+      tourPlace: true,
+    },
+  });
+
+  return updateRes;
 };

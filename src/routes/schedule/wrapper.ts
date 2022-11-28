@@ -27,6 +27,8 @@ import {
   GetCandidateScheduleRETParam,
   GetCandDetailSchdREQParam,
   GetCandDetailSchdRETParam,
+  ModifyScheduleREQParam,
+  ModifyScheduleRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -41,6 +43,7 @@ import {
   getDetailSchedule,
   getCandidateSchedule,
   getCandDetailSchd,
+  modifySchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -398,8 +401,8 @@ export const saveScheduleWrapper = asyncWrapper(
 );
 
 /**
- * 생성된 일정중 유저가 저장하기를 요청할때 호출하는 api
- *
+ * 생성된 스케쥴의 하루 일정 요청인 getDaySchedule 호출을 요청하는 wrapper 함수
+ * 스케쥴에서 지정된 날짜의 데일리 계획을 조회 요청한다.
  */
 export const getDayScheduleWrapper = asyncWrapper(
   async (
@@ -594,6 +597,60 @@ export const getCandDetailSchdWrapper = asyncWrapper(
       const param = req.body;
 
       const scheduleResult = await getCandDetailSchd(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult ?? {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ *
+ */
+export const modifyScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyScheduleREQParam>,
+    res: Express.IBTypedResponse<ModifyScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await modifySchedule(param);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult ?? {},

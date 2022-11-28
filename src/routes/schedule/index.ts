@@ -11,6 +11,7 @@ import scheduleRouter, {
   getDetailScheduleWrapper,
   getCandidateScheduleWrapper,
   getCandDetailSchdWrapper,
+  modifyScheduleWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -57,6 +58,12 @@ scheduleRouter.post(
   '/getCandidateDetailSchedule',
   accessTokenValidCheck,
   getCandDetailSchdWrapper,
+);
+
+scheduleRouter.post(
+  '/modifySchedule',
+  accessTokenValidCheck,
+  modifyScheduleWrapper,
 );
 
 /**
