@@ -52,6 +52,7 @@ import {
   GetRcmdListHotelOpt,
   GetCandidateScheduleREQParam,
   GetCandidateScheduleRETParamPayload,
+  BriefScheduleType,
 } from './types/schduleTypes';
 
 /**
@@ -2540,10 +2541,10 @@ export const getDetailSchedule = async (
  */
 export const getCandidateSchedule = async (
   param: GetCandidateScheduleREQParam,
-): Promise<GetCandidateScheduleRETParamPayload[]> => {
+): Promise<GetCandidateScheduleRETParamPayload> => {
   const { queryParamsId, spotType = '' } = param;
 
-  const candidateSchedule = await (async () => {
+  const retValue: GetCandidateScheduleRETParamPayload = await (async () => {
     const queryParams = await prisma.queryParams.findUnique({
       where: {
         id: Number(queryParamsId),
@@ -2573,13 +2574,13 @@ export const getCandidateSchedule = async (
       },
     });
 
-    const retValue = queryParams?.tourPlace
+    const candidateList = queryParams?.tourPlace
       .map(tp => {
         if (!tp) return undefined;
 
         const vType: PlaceType = tp.tourPlaceType;
-        const night = queryParams.metaScheduleInfo?.travelDays ?? 0;
-        const days = queryParams.metaScheduleInfo?.travelNights ?? 0;
+        const night = queryParams.metaScheduleInfo?.travelNights ?? 0;
+        const days = queryParams.metaScheduleInfo?.travelDays ?? 0;
         if (vType.includes('BKC_HOTEL')) {
           const hotel = tp;
           return {
@@ -2672,9 +2673,14 @@ export const getCandidateSchedule = async (
         }
         return undefined;
       })
-      .filter(v => v !== undefined) as GetCandidateScheduleRETParamPayload[];
-    return retValue;
+      .filter(v => v !== undefined) as BriefScheduleType[];
+
+    return {
+      id: queryParams ? Number(queryParams.id) : 0,
+      contentsCountAll: candidateList.length,
+      candidateList,
+    };
   })();
 
-  return candidateSchedule;
+  return retValue;
 };

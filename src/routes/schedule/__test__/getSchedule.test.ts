@@ -46,7 +46,7 @@ beforeAll(async () => {
   expect(reqSchdRes).toHaveProperty('queryParamsId');
   queryParams = await prisma.queryParams.findUnique({
     where: {
-      id: Number(reqSchdRes.queryParamsId),
+      id: Number(reqSchdRes.id),
     },
     include: {
       visitSchedule: {
@@ -69,7 +69,7 @@ beforeAll(async () => {
   getSchdRes = getSchdRawResult.IBparams as ReqScheduleRETParamPayload;
   expect(getSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(getSchdRes.queryParamsId).toBe(queryParams?.id.toString());
+  expect(getSchdRes.id).toBe(queryParams?.id.toString());
 });
 
 describe('Schedule Express Router E2E Test', () => {

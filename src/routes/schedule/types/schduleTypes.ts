@@ -634,9 +634,12 @@ export interface GetCandidateScheduleREQParam {
   spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
 }
 
-export interface GetCandidateScheduleRETParamPayload
-  extends BriefScheduleType {}
+export interface GetCandidateScheduleRETParamPayload {
+  id: number; /// queryParamsId
+  contentsCountAll: number;
+  candidateList: BriefScheduleType[];
+}
 
 export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetCandidateScheduleRETParamPayload[] | {};
+  IBparams: GetCandidateScheduleRETParamPayload | {};
 };

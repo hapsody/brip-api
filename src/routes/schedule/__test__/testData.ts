@@ -85,4 +85,7 @@ export const params = {
   },
 
   reqScheduleReqOpt,
+  getCandSchdReqOpt: {
+    spotType: 'HOTEL',
+  },
 };
