@@ -23,6 +23,8 @@ import {
   GetDayScheduleRETParam,
   GetDetailScheduleREQParam,
   GetDetailScheduleRETParam,
+  GetCandidateScheduleREQParam,
+  GetCandidateScheduleRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -35,6 +37,7 @@ import {
   saveSchedule,
   getDaySchedule,
   getDetailSchedule,
+  getCandidateSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -476,6 +479,62 @@ export const getDetailScheduleWrapper = asyncWrapper(
         userTokenId,
       };
       const scheduleResult = await getDetailSchedule(param, ctx);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult ?? {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 스케쥴의 변경 후보 리스트를 요청하는 getCandidateSchedule을 호출하는 wrapper 함수
+ *
+ */
+export const getCandidateScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetCandidateScheduleREQParam>,
+    res: Express.IBTypedResponse<GetCandidateScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await getCandidateSchedule(param);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleResult,

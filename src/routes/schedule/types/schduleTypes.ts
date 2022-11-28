@@ -4,6 +4,7 @@ import {
   TourPlace,
   QueryParams,
   VisitSchedule,
+  PlaceType,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
@@ -481,74 +482,37 @@ export interface GetDayScheduleREQParam {
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
   planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
-export interface GetDayScheduleRETParamPayload {
-  id: string; /// ex) 1273712
-  dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
-  contentsCountAll: number; /// ex) 11
-  spotList: (
-    | {
-        id: string; /// ex) 22748
-        spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
-        previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
-        spotName: string; /// ex) 'Turtle Bay Resort'
-        roomType?: string; /// ex)
-        spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
-        // contact: string; /// ex) '+18089228111'
-        hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
-        placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
-        //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
-        startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
-        endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
-        night?: Number; /// 1박 ex)
-        days?: Number; /// 2일 ex)
-        checkIn?: String; /// ex) 15:00
-        checkOut?: String; ///  ex)  11:00
-        price?: String; ///  1박당? 전체?
-        rating?: number; /// ex) 8.7
-        lat?: number; /// ex) 33.47471823
-        lng?: number; /// ex) 126.17273718239
-        imageList?: {
-          id: string; /// ex) 18184
-          url?: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
-          photo_reference?: string;
-          // text: string; /// ex) ??
-        }[];
-      }
-    | undefined
-  )[];
+
+export interface BriefScheduleType {
+  id: string; /// ex) 22748
+  spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+  previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+  spotName: string; /// ex) 'Turtle Bay Resort'
+  roomType?: string; /// ex)
+  spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+  // contact: string; /// ex) '+18089228111'
+  hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+  placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+  //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+  startDate?: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+  endDate?: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+  night?: Number; /// 1박 ex)
+  days?: Number; /// 2일 ex)
+  checkIn?: String; /// ex) 15:00
+  checkOut?: String; ///  ex)  11:00
+  price?: String; ///  1박당? 전체?
+  rating?: number; /// ex) 8.7
+  lat?: number; /// ex) 33.47471823
+  lng?: number; /// ex) 126.17273718239
+  imageList?: {
+    id: string; /// ex) 18184
+    url?: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
+    photo_reference?: string;
+    // text: string; /// ex) ??
+  }[];
 }
 
-export type GetDayScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDayScheduleRETParamPayload | {};
-};
-
-/**
- * getDetailSchedule
- */
-export interface GetDetailScheduleREQParam {
-  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
-}
-
-export type GooglePlaceReview = {
-  author_name: string;
-  author_url: string;
-  language: string;
-  original_language: string;
-  profile_photo_url: string;
-  rating: number;
-  relative_time_description: string;
-  text: string;
-  time: number;
-  translated: boolean;
-};
-export enum GooglePriceLevel {
-  'Free',
-  'Moderate',
-  'Expensive',
-  'VeryExpensive',
-}
-
-export interface GetDetailScheduleRETParamPayload {
+export interface DetailScheduleType {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
@@ -610,6 +574,44 @@ export interface GetDetailScheduleRETParamPayload {
   website: string | null; /// Google Place Detail => 해당 장소에서 운영하는 자체 웹사이트 , hotel의 웹사이트로도 쓴다.
 }
 
+export interface GetDayScheduleRETParamPayload {
+  id: string; /// ex) 1273712
+  dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
+  contentsCountAll: number; /// ex) 11
+  spotList: (BriefScheduleType | undefined)[];
+}
+
+export type GetDayScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleRETParamPayload | {};
+};
+
+/**
+ * getDetailSchedule
+ */
+export interface GetDetailScheduleREQParam {
+  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
+}
+
+export type GooglePlaceReview = {
+  author_name: string;
+  author_url: string;
+  language: string;
+  original_language: string;
+  profile_photo_url: string;
+  rating: number;
+  relative_time_description: string;
+  text: string;
+  time: number;
+  translated: boolean;
+};
+export enum GooglePriceLevel {
+  'Free',
+  'Moderate',
+  'Expensive',
+  'VeryExpensive',
+}
+
+export interface GetDetailScheduleRETParamPayload extends DetailScheduleType {}
 export type GetDetailScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetDayScheduleRETParamPayload | {};
 };
@@ -620,4 +622,21 @@ export type GglPlaceDetailType = {
 
 export type GetPlaceDetailRawData = {
   result: GglPlaceDetailType[];
+};
+
+/**
+ * getCandidateSchedule
+ */
+export interface GetCandidateScheduleREQParam {
+  // scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash => queryParamsId로 대체됨
+  // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
+  queryParamsId: string; /// 생성일정의 고유 값으로 간주되는 queryParamsId, 해당 값으로 일정을 특정하여 해당 일정의 후보군을 응답한다.
+  spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+}
+
+export interface GetCandidateScheduleRETParamPayload
+  extends BriefScheduleType {}
+
+export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandidateScheduleRETParamPayload[] | {};
 };
