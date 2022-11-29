@@ -57,6 +57,8 @@ import {
   GetCandDetailSchdRETParamPayload,
   ModifyScheduleREQParam,
   ModifyScheduleRETParamPayload,
+  MakeScheduleREQParam,
+  MakeScheduleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -1924,6 +1926,29 @@ export const reqSchedule = async <H extends HotelOptType>(
       { planType: 'MAX', day: maxRetValue },
     ],
   };
+};
+
+/**
+ * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
+ */
+export const makeSchedule = async (
+  param: MakeScheduleREQParam,
+  // ctx?: IBContext,
+): Promise<MakeScheduleRETParamPayload> => {
+  // const {
+  //   isNow,
+  //   companion,
+  //   familyOpt,
+  //   numOfFriend,
+  //   period,
+  //   travelType,
+  //   destination,
+  //   travelHard,
+  // } = param;
+  console.log(param);
+  await prisma.user.findMany({});
+
+  return {};
 };
 
 /**

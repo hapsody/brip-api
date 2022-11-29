@@ -423,6 +423,32 @@ export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
+ * makeSchedule (reqSchedule 변경스펙)
+ */
+export interface MakeScheduleREQParam {
+  isNow: string;
+  companion: string[];
+  familyOpt: string[];
+  minFriend: string;
+  maxFriend: string;
+  period: string;
+  travelType: string[];
+  destination: string;
+  travelHard: string;
+}
+
+// export interface MakeScheduleRETParamPayload extends QueryParams {
+//   plan: {
+//     planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+//     day: DayScheduleType[];
+//   }[];
+// }
+export interface MakeScheduleRETParamPayload {}
+export type MakeScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: MakeScheduleRETParamPayload | {};
+};
+
+/**
  * getSchedule
  */
 export interface GetScheduleREQParam {
