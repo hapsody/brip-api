@@ -141,7 +141,7 @@ export type GetHotelDataFromBKCRETParam = Omit<IBResFormat, 'IBparams'> & {
  * GetPlaceDataFromGGL Type
  */
 export interface GglNearbySearchReqOpt {
-  keyword: string;
+  keyword?: string;
   location: {
     latitude: string; // 위도
     longitude: string; // 경도
@@ -181,6 +181,11 @@ export interface GetPlaceByGglTxtSrchREQParam extends GglTextSearchReqOpt {
     longitude?: number;
     radius?: number;
     keyword?: string;
+    ibType: {
+      typePath: string;
+      minDifficulty: number;
+      maxDifficulty: number;
+    };
   };
   // batchJobId?: number; // batchJob을 통해 호출되는 경우 data model들에 batchQueryParam이 전달받은 batchJobId 번째로 생성된다. 본 파라미터를 통해 batchJob 스크립트로 실행인지 일반 함수 호출인지를 판별한다.
   loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함

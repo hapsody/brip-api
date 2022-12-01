@@ -75,15 +75,17 @@ enum DataStageStatus {
 // 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
 // 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
-  id            Int             @id @default(autoincrement())
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @default(now())
-  tourPlaceType PlaceType
-  visitSchedule VisitSchedule[]
-  queryParams   QueryParams[]
-  status        DataStageStatus @default(NEW)
-  evalScore     Int             @default(0)
-
+  id                                    Int             @id @default(autoincrement())
+  createdAt                             DateTime        @default(now())
+  updatedAt                             DateTime        @default(now())
+  tourPlaceType                         PlaceType
+  visitSchedule                         VisitSchedule[]
+  queryParams                           QueryParams[]
+  status                                DataStageStatus @default(NEW)
+  evalScore                             Int             @default(0)
+  minDifficulty                         Int?
+  maxDifficulty                         Int?
+  ibTravelType                          IBTravelType[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   bkc_min_total_price                   Float? /// ex) 572.61373972
@@ -117,7 +119,7 @@ model TourPlace {
   bkc_zip                               String? /// ex) HI 96792
   bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
   bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  bkc_hotel_facilities                  String? @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // bkc_has_swimming_pool       Int /// ex) 1
 
   /// google place result format
@@ -474,4 +476,17 @@ model VisitJejuTag {
   updatedAt DateTime    @default(now())
   value     String      @unique ///ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,
   tourPlace TourPlace[]
+}
+
+/// idealbloom에서 자체 정의하는 여행타입. 
+model IBTravelType {
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now())
+  superId       Int? /// 해당 type이 속한 상위 타입 IBTravelType id, null은 최상위 root 타입이다.
+  leaf          Boolean /// 현재 타입이 말단 타입인지 나타내는 필드
+  value         String /// 타입 이름묘 ex) oceanActivity, beach, landActivity, climbing, rockClimbing, ...
+  minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
+  maxDifficulty Int?
+  tourPlace     TourPlace[]
 }

@@ -3,8 +3,14 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError } from '@src/utils';
 import axios, { Method } from 'axios';
-import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
-import { isNumber, isNil, isEmpty, isUndefined, omit } from 'lodash';
+import {
+  TourPlace,
+  PlanType,
+  VisitSchedule,
+  PlaceType,
+  IBTravelType,
+} from '@prisma/client';
+import { isNumber, isNil, isEmpty, isUndefined, omit, isNull } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParamPayload,
@@ -514,7 +520,11 @@ export const qryPlaceDataToGglNrby = async (
 export const qryPlaceDataToGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
-  const { pageToken, keyword } = param;
+  const { pageToken, batchJobCtx } = param;
+  const keyword = (() => {
+    if (batchJobCtx) return batchJobCtx.keyword;
+    return param.keyword;
+  })();
 
   console.log('google textSearch');
   const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
@@ -677,7 +687,6 @@ export const getPlaceByGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
   const placeSearchResult = await getAllPlaceByGglTxtSrch(param);
-
   /// store data to db
   if (param.store) {
     const { batchJobCtx } = param;
@@ -771,10 +780,10 @@ export const getPlaceByGglTxtSrch = async (
                     searchkeyword: {
                       connectOrCreate: {
                         where: {
-                          keyword: param.keyword ?? '',
+                          keyword: batchJobCtx.keyword ?? '',
                         },
                         create: {
-                          keyword: param.keyword ?? '',
+                          keyword: batchJobCtx.keyword ?? '',
                         },
                       },
                     },
@@ -784,13 +793,94 @@ export const getPlaceByGglTxtSrch = async (
               batchSearchKeyword: {
                 connectOrCreate: {
                   where: {
-                    keyword: param.keyword ?? '',
+                    keyword: batchJobCtx.keyword ?? '',
                   },
                   create: {
-                    keyword: param.keyword ?? '',
+                    keyword: batchJobCtx.keyword ?? '',
                   },
                 },
               },
+              ibTravelType: await (async () => {
+                const {
+                  ibType: { typePath, minDifficulty, maxDifficulty },
+                } = batchJobCtx;
+                const types = typePath.split('>');
+                const leafType = types[types.length - 1];
+                let superId: number | null = null;
+                // eslint-disable-next-line no-restricted-syntax
+                for await (const type of types) {
+                  const iBTType: IBTravelType[] =
+                    await prisma.iBTravelType.findMany({
+                      where: {
+                        value: type,
+                        superId,
+                      },
+                    });
+
+                  // ex) group > landActivity > sport > paraglide 일 경우
+                  // 타입이 db에 이미 존재하는지 확인했는데 없었다면 찾으려고 시도했던 것이 중간 부모 타입일 경우에는 에러 처리 (group, landActivity, sport가 없었다는 말과 동일한 경우)
+                  // 그렇지 않은 단 한가지 경우인 말단 타입일 경우(paraglide)
+                  /// 새로 추가해야할 타입이기 때문에 마지막으로 찾은 부모타입인 sport의 id를 superId로 반환한다.
+                  if (iBTType.length === 0 && type !== leafType) {
+                    // throw new IBError({
+                    //   type: 'INVALIDSTATUS',
+                    //   message:
+                    //     'IBTravelType의 부모 타입들중 존재하지 않는 타입이 있습니다.',
+                    // });
+                    const createdSuperType = await prisma.iBTravelType.create({
+                      data: {
+                        superId,
+                        value: type,
+                        leaf: false,
+                      },
+                    });
+                    superId = createdSuperType.id;
+                  }
+                  if (iBTType.length > 1)
+                    throw new IBError({
+                      type: 'INVALIDSTATUS',
+                      message:
+                        'IBTravelType의 같은 부모 타입 아래에 이름이 같은 타입이 두개이상 존재합니다.',
+                    });
+                  if (iBTType.length === 1 && type === leafType) {
+                    return {
+                      connect: {
+                        id: iBTType[0].id,
+                      },
+                    };
+                  }
+
+                  if (iBTType && iBTType[0]) superId = iBTType[0].id;
+                }
+
+                if (!isNull(superId))
+                  await prisma.iBTravelType.update({
+                    where: {
+                      id: superId,
+                    },
+                    data: {
+                      leaf: false,
+                      minDifficulty: null,
+                      maxDifficulty: null,
+                    },
+                  });
+
+                return {
+                  create: {
+                    superId,
+                    value: leafType,
+                    leaf: true,
+                    minDifficulty,
+                    maxDifficulty,
+                  },
+                };
+              })(),
+
+              // ibTravelType: {
+              //   connectOrCreate: {
+              //     where: {},
+              //   },
+              // },
             }),
         },
       });
