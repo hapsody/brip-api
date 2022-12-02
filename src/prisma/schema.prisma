@@ -480,13 +480,25 @@ model VisitJejuTag {
 
 /// idealbloom에서 자체 정의하는 여행타입. 
 model IBTravelType {
-  id            Int         @id @default(autoincrement())
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @default(now())
-  superId       Int? /// 해당 type이 속한 상위 타입 IBTravelType id, null은 최상위 root 타입이다.
-  leaf          Boolean /// 현재 타입이 말단 타입인지 나타내는 필드
-  value         String /// 타입 이름묘 ex) oceanActivity, beach, landActivity, climbing, rockClimbing, ...
+  id            Int                       @id @default(autoincrement())
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @default(now())
   minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
   maxDifficulty Int?
+  value         String                    @unique
+  related       RModelBetweenTravelType[]
   tourPlace     TourPlace[]
+}
+
+model RModelBetweenTravelType {
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  toId   Int
+  from   IBTravelType @relation(fields: [fromId], references: [id])
+  fromId Int
+
+  // id        Int          @id @default(autoincrement())
+  @@id([fromId, toId])
+  @@unique([fromId, toId])
 }

@@ -264,3 +264,127 @@ export default [
     },
   },
 ];
+
+// const locationTitle = 'jeju';
+// const textSearchReqParams: GglTextSearchReqOpt[] = [
+//   {
+//     /// 육지 액티비티 > 테마파크
+//     keyword: searchKeyword.themePark,
+//   },
+//   {
+//     /// 육지 액티비티 > 카트장
+//     keyword: searchKeyword.cart,
+//   },
+//   {
+//     /// 육지 액티비티 > 육지 레포츠
+//     keyword: `leisure in ${locationTitle}`,
+//   },
+//   // {
+//   //   /// 육지 액티비티 > 패러 글라이딩
+//   //   keyword: `paragliding in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 육지 액티비티 > 패러 글라이딩
+//   //   keyword: `paragliding in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 골프 > 골프 cc
+//   //   keyword: `golf cc in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 골프 > 골프 클럽
+//   //   keyword: `golfclub in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 휴양림
+//   //   keyword: `recreation forest in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 숲길
+//   //   keyword: `숲길 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 요트
+//   //   keyword: `yacht tour in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 오름
+//   //   keyword: `오름 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 자연경관
+//   //   keyword: `natural landscape in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 휴양 > 해안선
+//   //   keyword: `shoreline trail in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 바다 액티비티 > 해양 레포츠
+//   //   keyword: `해양 레포츠 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 바다 액티비티 > 서핑
+//   //   keyword: `surf in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 바다 액티비티 > 해양 스포츠
+//   //   keyword: `해양스포츠 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 바다 액티비티 > 보트
+//   //   keyword: `boat in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 그룹 액티비티 > 골프
+//   //   keyword: `golf in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 그룹 액티비티 > 체험
+//   //   keyword: `activity in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 그룹 액티비티 > 오름
+//   //   keyword: `oruem in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 그룹 액티비티 > 단체 체험
+//   //   keyword: `체험 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 제주 방문지
+//   //   keyword: `방문지 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 제주 관광명소
+//   //   keyword: `관광명소 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 제주 테마파크
+//   //   keyword: `theme park in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 제주 숲길
+//   //   keyword: `숲길 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 제주 오름
+//   //   keyword: `oruem in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 자연경관
+//   //   keyword: `natural landscape in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 방문 > 해안선
+//   //   keyword: `shoreline trail in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 명소 > 관광명소
+//   //   keyword: `관광명소 in ${locationTitle}`,
+//   // },
+//   // {
+//   //   /// 명소 > 관광명소
+//   //   keyword: `관광명소 in ${locationTitle}`,
+//   // },
+// ];
