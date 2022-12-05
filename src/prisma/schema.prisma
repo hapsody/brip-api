@@ -486,19 +486,19 @@ model IBTravelType {
   minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
   maxDifficulty Int?
   value         String                    @unique
-  related       RModelBetweenTravelType[]
+  related       RModelBetweenTravelType[] @relation("Sub")
+  noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelType 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
 }
 
 model RModelBetweenTravelType {
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now())
+  to        IBTravelType @relation(name: "Super", fields: [toId], references: [id])
+  toId      Int
+  from      IBTravelType @relation(name: "Sub", fields: [fromId], references: [id])
+  fromId    Int
 
-  toId   Int
-  from   IBTravelType @relation(fields: [fromId], references: [id])
-  fromId Int
-
-  // id        Int          @id @default(autoincrement())
   @@id([fromId, toId])
   @@unique([fromId, toId])
 }

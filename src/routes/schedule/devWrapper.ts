@@ -9,19 +9,12 @@ import {
   defaultBKCHotelReqParams,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParam,
-  GetHotelDataFromBKCREQParam,
   BKCSrchByCoordReqOpt,
   GetRcmdListREQParam,
   GetRcmdListRETParam,
 } from './types/schduleTypes';
 
-import {
-  getNDaysLater,
-  getPlaceDataFromVJ,
-  hotelLoopSrchByHotelTrans,
-  getTravelNights,
-  getRcmdList,
-} from './inner';
+import { getNDaysLater, getPlaceDataFromVJ, getRcmdList } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -213,20 +206,90 @@ export const getRcmdListWrapper = asyncWrapper(
 
 /**
  * 테스트용
+ * 파라미터로 넘긴 tag에 OR로 해당하는(IBTravelType) tourPlace를 반환한다.
  */
-export const prismaTestWrapper = asyncWrapper(
+export const getTourPlaceByTagWrapper = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetHotelDataFromBKCREQParam>,
+    req: Express.IBTypedReqBody<{ tags: string[] }>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
     const param = req.body;
-    const travelNights = getTravelNights(param.checkinDate, param.checkoutDate);
-    const hotelTransition = 1;
-    const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔
-    const result = await hotelLoopSrchByHotelTrans<BKCSrchByCoordReqOpt>({
-      hotelSrchOpt: param,
-      hotelTransition,
-      transitionTerm,
+
+    const { tags } = param;
+    const result = await prisma.tourPlace.findMany({
+      where: {
+        ibTravelType: {
+          some: {
+            value: { in: tags },
+          },
+        },
+      },
+      select: {
+        id: true,
+        gl_name: true,
+        vj_title: true,
+        ibTravelType: {
+          where: {
+            value: { in: tags },
+          },
+          select: {
+            id: true,
+            value: true,
+            related: {
+              include: {
+                to: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: result as object,
+    });
+  },
+);
+
+/**
+ * 테스트용
+ */
+export const prismaTestWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{ tags: string[] }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const param = req.body;
+
+    const { tags } = param;
+    const result = await prisma.tourPlace.findMany({
+      where: {
+        ibTravelType: {
+          some: {
+            value: { in: tags },
+          },
+        },
+      },
+      select: {
+        id: true,
+        gl_name: true,
+        vj_title: true,
+        ibTravelType: {
+          where: {
+            value: { in: tags },
+          },
+          select: {
+            id: true,
+            value: true,
+            related: {
+              include: {
+                to: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     res.json({

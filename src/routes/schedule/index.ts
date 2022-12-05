@@ -18,6 +18,7 @@ import {
   getPlaceDataFromVJWrapper,
   prismaTestWrapper,
   getRcmdListWrapper,
+  getTourPlaceByTagWrapper,
 } from './devWrapper';
 
 scheduleRouter.post('/searchHotel', getHotelDataFromBKCWrapper);
@@ -73,5 +74,6 @@ scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResourceWrapper);
 scheduleRouter.post('/getPlaceDataFromVJ', getPlaceDataFromVJWrapper);
 scheduleRouter.post('/prismaTest', prismaTestWrapper);
 scheduleRouter.post('/getRcmdList', getRcmdListWrapper);
+scheduleRouter.post('/getTourPlaceByTag', getTourPlaceByTagWrapper);
 
 export default scheduleRouter;
