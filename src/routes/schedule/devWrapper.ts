@@ -254,6 +254,109 @@ export const getTourPlaceByTagWrapper = asyncWrapper(
 
 /**
  * 테스트용
+ * 파라미터로 넘긴 tag와 관계된 tag의 트리 구조를 반환한다.
+ */
+export const getTagRelationWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{ tag: string; direction: 'up' | 'down' }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const param = req.body;
+
+    const { tag: startTag, direction } = param;
+    type SuperTagTree = {
+      tagName: string;
+      superTags: SuperTagTree[];
+    };
+    type SubTagTree = {
+      tagName: string;
+      subTags: SubTagTree[];
+    };
+    const upRecursiveFunc = async (tag: string): Promise<SuperTagTree> => {
+      const curTag = await prisma.iBTravelType.findUnique({
+        where: {
+          value: tag,
+        },
+        include: {
+          related: {
+            include: {
+              to: true,
+            },
+          },
+        },
+      });
+
+      if (curTag === null) {
+        return {
+          tagName: tag,
+          superTags: [],
+        };
+      }
+
+      const superTagPromises = curTag.related.map(v => {
+        return upRecursiveFunc(v.to.value);
+      });
+
+      const superTags = await Promise.all(superTagPromises);
+
+      return {
+        tagName: curTag.value,
+        superTags,
+      };
+    };
+
+    const downRecursiveFunc = async (tag: string): Promise<SubTagTree> => {
+      const curTag = await prisma.iBTravelType.findUnique({
+        where: {
+          value: tag,
+        },
+        include: {
+          noPtr: {
+            include: {
+              from: true,
+            },
+          },
+        },
+      });
+
+      if (curTag === null) {
+        return {
+          tagName: tag,
+          subTags: [],
+        };
+      }
+
+      const subTagPromises = curTag.noPtr.map(v => {
+        return downRecursiveFunc(v.from.value);
+      });
+
+      const subTags = await Promise.all(subTagPromises);
+
+      return {
+        tagName: curTag.value,
+        subTags,
+      };
+    };
+
+    const result = await (async () => {
+      if (direction === 'up') {
+        const ret = await upRecursiveFunc(startTag);
+        return ret;
+      }
+
+      const ret = await downRecursiveFunc(startTag);
+      return ret;
+    })();
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: result as object,
+    });
+  },
+);
+
+/**
+ * 테스트용
  */
 export const prismaTestWrapper = asyncWrapper(
   async (

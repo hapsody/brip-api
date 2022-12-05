@@ -19,6 +19,7 @@ import {
   prismaTestWrapper,
   getRcmdListWrapper,
   getTourPlaceByTagWrapper,
+  getTagRelationWrapper,
 } from './devWrapper';
 
 scheduleRouter.post('/searchHotel', getHotelDataFromBKCWrapper);
@@ -75,5 +76,6 @@ scheduleRouter.post('/getPlaceDataFromVJ', getPlaceDataFromVJWrapper);
 scheduleRouter.post('/prismaTest', prismaTestWrapper);
 scheduleRouter.post('/getRcmdList', getRcmdListWrapper);
 scheduleRouter.post('/getTourPlaceByTag', getTourPlaceByTagWrapper);
+scheduleRouter.post('/getTagRelation', getTagRelationWrapper);
 
 export default scheduleRouter;
