@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import moment from 'moment';
 import prisma from '@src/prisma';
-import { IBError, IBResFormat, asyncWrapper, ibDefs } from '@src/utils';
+import {
+  IBError,
+  IBResFormat,
+  asyncWrapper,
+  ibDefs,
+  getNDaysLater,
+} from '@src/utils';
 import axios, { Method } from 'axios';
 import { isNumber, isNil, isEmpty } from 'lodash';
 import {
@@ -12,9 +18,11 @@ import {
   BKCSrchByCoordReqOpt,
   GetRcmdListREQParam,
   GetRcmdListRETParam,
+  MakeScheduleREQParam,
+  gParamByTravelLevel,
 } from './types/schduleTypes';
 
-import { getNDaysLater, getPlaceDataFromVJ, getRcmdList } from './inner';
+import { getPlaceDataFromVJ, getRcmdList } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -360,44 +368,313 @@ export const getTagRelationWrapper = asyncWrapper(
  */
 export const prismaTestWrapper = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<{ tags: string[] }>,
+    req: Express.IBTypedReqBody<MakeScheduleREQParam>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const param = req.body;
+    // const param = req.body;
+    // const { tags } = param;
+    // const result = await prisma.tourPlace.findMany({
+    //   where: {
+    //     ibTravelType: {
+    //       some: {
+    //         value: { in: tags },
+    //       },
+    //     },
+    //   },
+    //   select: {
+    //     id: true,
+    //     gl_name: true,
+    //     vj_title: true,
+    //     ibTravelType: {
+    //       where: {
+    //         value: { in: tags },
+    //       },
+    //       select: {
+    //         id: true,
+    //         value: true,
+    //         related: {
+    //           include: {
+    //             to: true,
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // });
 
-    const { tags } = param;
-    const result = await prisma.tourPlace.findMany({
+    const {
+      // isNow,
+      companion,
+      familyOpt,
+      // minFriend,
+      maxFriend,
+      period,
+      travelType,
+      // destination,
+      travelHard,
+    } = req.body;
+
+    /// spot  search part
+    const calibUserLevel = (() => {
+      const uInputTypeLevel = travelType.reduce(
+        (acc, cur) => {
+          const type = cur.toUpperCase();
+          const typeDifficulty = { min: 9999, max: -1 };
+          switch (type) {
+            case 'REST':
+              typeDifficulty.min = 1;
+              typeDifficulty.max = 1;
+              break;
+            case 'HEALING':
+              typeDifficulty.min = 1;
+              typeDifficulty.max = 4;
+              break;
+            case 'NATUREEXPERIENCE':
+              typeDifficulty.min = 3;
+              typeDifficulty.max = 8;
+              break;
+            case 'LEARNINGEXPERIENCE':
+              typeDifficulty.min = 3;
+              typeDifficulty.max = 7;
+              break;
+            case 'SIGHT':
+              typeDifficulty.min = 3;
+              typeDifficulty.max = 7;
+              break;
+            case 'MEETING':
+              typeDifficulty.min = 2;
+              typeDifficulty.max = 6;
+              break;
+            case 'ACTIVITY':
+              typeDifficulty.min = 4;
+              typeDifficulty.max = 9;
+              break;
+            case 'LEARNING':
+              typeDifficulty.min = 1;
+              typeDifficulty.max = 3;
+              break;
+            case 'DELICIOUS':
+              typeDifficulty.min = 3;
+              typeDifficulty.max = 7;
+              break;
+            case 'EXPLORATION':
+              typeDifficulty.min = 5;
+              typeDifficulty.max = 10;
+              break;
+            default:
+              break;
+          }
+          if (acc.min > typeDifficulty.min) acc.min = typeDifficulty.min;
+          if (acc.max < typeDifficulty.max) acc.max = typeDifficulty.max;
+
+          return acc;
+        },
+        { min: 9999, max: -1 },
+      );
+
+      return Number(travelHard) <= uInputTypeLevel.max
+        ? {
+            ...uInputTypeLevel,
+            max: Number(travelHard),
+          }
+        : uInputTypeLevel;
+    })();
+
+    const tp = await prisma.tourPlace.findMany({
       where: {
         ibTravelType: {
           some: {
-            value: { in: tags },
+            AND: [
+              { minDifficulty: { gte: calibUserLevel.min } },
+              { maxDifficulty: { lte: calibUserLevel.max } },
+            ],
           },
         },
+        status: 'IN_USE',
+        tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
       },
       select: {
         id: true,
         gl_name: true,
         vj_title: true,
         ibTravelType: {
-          where: {
-            value: { in: tags },
-          },
           select: {
-            id: true,
             value: true,
-            related: {
-              include: {
-                to: true,
-              },
-            },
+            minDifficulty: true,
+            maxDifficulty: true,
           },
         },
+        gl_vicinity: true,
+        gl_formatted_address: true,
+        vj_address: true,
+        gl_lat: true,
+        gl_lng: true,
+        vj_latitude: true,
+        vj_longitude: true,
+        status: true,
+        gl_rating: true,
+      },
+      orderBy: {
+        gl_rating: 'desc',
       },
     });
 
+    const paramByAvgCalibLevel =
+      gParamByTravelLevel[
+        Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
+      ];
+    const spotPerDay =
+      Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
+
+    const numOfWholeTravelSpot = spotPerDay * Number(period);
+    const spots = [...tp].splice(0, numOfWholeTravelSpot);
+
+    /// spots clustering part
+    /// 1. 뽑힌 지점들의 중심점 구하기
+    const getLatLng = (spot: {
+      gl_lat: number | null;
+      gl_lng: number | null;
+      vj_latitude: number | null;
+      vj_longitude: number | null;
+    }) => {
+      if (spot.gl_lat && spot.gl_lng)
+        return {
+          lat: spot.gl_lat,
+          lng: spot.gl_lng,
+        };
+      if (spot.vj_latitude && spot.vj_longitude)
+        return {
+          lat: spot.vj_latitude,
+          lng: spot.vj_longitude,
+        };
+      return null;
+    };
+
+    const { lat: latSum, lng: lngSum } = spots.reduce(
+      (prevSum, curSpot) => {
+        const curLatLng = getLatLng(curSpot);
+
+        if (!curLatLng) return prevSum;
+        const curLatSum = prevSum.lat + curLatLng.lat;
+        const curLngSum = prevSum.lng + curLatLng.lng;
+
+        return {
+          lat: curLatSum,
+          lng: curLngSum,
+        };
+      },
+      { lat: 0, lng: 0 },
+    );
+    const centroid = {
+      lat: latSum / spots.length,
+      lng: lngSum / spots.length,
+    };
+
+    const farthestTop5FromCentroid = [...spots]
+      .sort((a, b) => {
+        const geoA = getLatLng(a);
+        const geoB = getLatLng(b);
+        if (!geoA || !geoB) return -1;
+        const distSqrA =
+          (centroid.lat - geoA.lat) ** 2 + (centroid.lng - geoA.lng) ** 2;
+
+        const distSqrB =
+          (centroid.lat - geoB.lat) ** 2 + (centroid.lng - geoB.lng) ** 2;
+
+        return distSqrB - distSqrA;
+      })
+      .splice(0, 5);
+
+    const r2 = paramByAvgCalibLevel.maxDist ** 2;
+
+    /// 전체 장소들의 평균 지점(무게중심)으로부터 가장 먼 5개 점을 뽑아서(s1, s2, ... s5)
+    /// 해당 점들로부터 여행강도가 허용하는 하루 이동거리(r) 이내의 거리의 장소들만의 평균 지점을(a11, a12, ... a15) 구한다.
+    /// 새로 구해진 5개 지점들로부터 r거리 이내의 거리의 점들의 평균지점을(a21, a22, ..., a25) 새로 구한다.
+    /// an1 ... an5 각 지점이 a(n-1)1, ... a(n-1)5 와 k 거리오차 이내이면 루프를 종료한다.
+    interface GeoFormat {
+      lat: number;
+      lng: number;
+    }
+    const getDistance = (a: GeoFormat, b: GeoFormat) => {
+      return Math.sqrt((a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2);
+    };
+
+    let centroids = [...farthestTop5FromCentroid].map(spot => getLatLng(spot));
+
+    const k = 0.01;
+    let keepDoing: boolean[] = Array.from(Array(5), () => false);
+    let i = 0;
+    do {
+      const nextCentroids = centroids.map(c => {
+        if (!c) return null;
+        const initCenterLatLng = c;
+        const center = spots.reduce(
+          (acc, curSpot, idx) => {
+            const spotLatLng = getLatLng(curSpot);
+            if (!spotLatLng) return acc;
+            const latDeviation2 = Math.abs(acc.lat - spotLatLng.lat) ** 2;
+            const lngDeviation2 = Math.abs(acc.lng - spotLatLng.lng) ** 2;
+            if (latDeviation2 + lngDeviation2 < r2) {
+              const curAvgLat = (acc.lat * idx + spotLatLng.lat) / (idx + 1);
+              const curAvgLng = (acc.lng * idx + spotLatLng.lng) / (idx + 1);
+              return {
+                lat: curAvgLat,
+                lng: curAvgLng,
+                numOfValidPoint: acc.numOfValidPoint + 1,
+              };
+            }
+            return acc;
+          },
+          {
+            lat: initCenterLatLng.lat,
+            lng: initCenterLatLng.lng,
+            numOfValidPoint: 0,
+          },
+        );
+        return center;
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-loop-func
+      keepDoing = nextCentroids.map((newCent, idx) => {
+        if (!newCent) return false;
+        const prevCent = centroids[idx];
+        if (!prevCent) return false;
+        const rDiff = getDistance(newCent, prevCent);
+        if (rDiff < k) return false;
+        return true;
+      }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
+      centroids = [...nextCentroids];
+      i += 1;
+      console.log(i, centroids[0]);
+    } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
+
+    const wholeSpotLatLngSum = {
+      lat: spots.reduce((acc, v) => {
+        const curLat = getLatLng(v);
+        if (!curLat) return acc;
+        return acc + curLat.lat;
+      }, 0),
+      lng: spots.reduce((acc, v) => {
+        const curLng = getLatLng(v);
+        if (!curLng) return acc;
+        return acc + curLng.lng;
+      }, 0),
+    };
+
+    const wholeSpotLatLngAvg = {
+      lat: wholeSpotLatLngSum.lat / spots.length,
+      lng: wholeSpotLatLngSum.lng / spots.length,
+      length: spots.length,
+    };
+
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: result as object,
+      IBparams: {
+        r: paramByAvgCalibLevel.maxDist,
+        maxPhase: i,
+        wholeSpotLatLngAvg,
+        centroids,
+      } as object,
     });
   },
 );

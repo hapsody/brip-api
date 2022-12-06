@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import moment from 'moment';
 import prisma from '@src/prisma';
-import { IBError } from '@src/utils';
+import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import { isNumber, isNil, isEmpty, isUndefined, omit } from 'lodash';
@@ -59,20 +59,13 @@ import {
   ModifyScheduleRETParamPayload,
   MakeScheduleREQParam,
   MakeScheduleRETParamPayload,
+  BKCSrchByCoordReqOpt,
+  gParamByTravelLevel,
 } from './types/schduleTypes';
 
 /**
  * inner utils
  *  */
-export const getToday = (): string => {
-  return moment().startOf('d').format();
-};
-export const getTomorrow = (): string => {
-  return moment().add(1, 'day').startOf('d').format();
-};
-export const getNDaysLater = (n: number): string => {
-  return moment().add(n, 'day').startOf('d').format();
-};
 
 export const getTravelNights = (
   checkinDate: string,
@@ -1995,83 +1988,103 @@ export const makeSchedule = async (
 ): Promise<MakeScheduleRETParamPayload> => {
   const {
     // isNow,
-    // companion,
-    // familyOpt,
-    // numOfFriend,
-    // period,
+    companion,
+    familyOpt,
+    // minFriend,
+    maxFriend,
+    period,
     travelType,
     // destination,
-    // travelHard,
+    travelHard,
   } = param;
 
-  const uInputTypeLevel = travelType.reduce(
-    (acc, cur) => {
-      const type = cur.toUpperCase();
-      const typeDifficulty = { min: 9999, max: -1 };
-      switch (type) {
-        case 'REST':
-          typeDifficulty.min = 1;
-          typeDifficulty.max = 1;
-          break;
-        case 'HEALING':
-          typeDifficulty.min = 1;
-          typeDifficulty.max = 4;
-          break;
-        case 'NATUREEXPERIENCE':
-          typeDifficulty.min = 3;
-          typeDifficulty.max = 8;
-          break;
-        case 'LEARNINGEXPERIENCE':
-          typeDifficulty.min = 3;
-          typeDifficulty.max = 7;
-          break;
-        case 'SIGHT':
-          typeDifficulty.min = 3;
-          typeDifficulty.max = 7;
-          break;
-        case 'MEETING':
-          typeDifficulty.min = 2;
-          typeDifficulty.max = 6;
-          break;
-        case 'ACTIVITY':
-          typeDifficulty.min = 4;
-          typeDifficulty.max = 9;
-          break;
-        case 'LEARNING':
-          typeDifficulty.min = 1;
-          typeDifficulty.max = 3;
-          break;
-        case 'DELICIOUS':
-          typeDifficulty.min = 3;
-          typeDifficulty.max = 7;
-          break;
-        case 'EXPLORATION':
-          typeDifficulty.min = 5;
-          typeDifficulty.max = 10;
-          break;
-        default:
-          break;
-      }
-      if (acc.min > typeDifficulty.min) acc.min = typeDifficulty.min;
-      if (acc.max < typeDifficulty.max) acc.max = typeDifficulty.max;
+  /// spot  search part
+  const calibUserLevel = (() => {
+    const uInputTypeLevel = travelType.reduce(
+      (acc, cur) => {
+        const type = cur.toUpperCase();
+        const typeDifficulty = { min: 9999, max: -1 };
+        switch (type) {
+          case 'REST':
+            typeDifficulty.min = 1;
+            typeDifficulty.max = 1;
+            break;
+          case 'HEALING':
+            typeDifficulty.min = 1;
+            typeDifficulty.max = 4;
+            break;
+          case 'NATUREEXPERIENCE':
+            typeDifficulty.min = 3;
+            typeDifficulty.max = 8;
+            break;
+          case 'LEARNINGEXPERIENCE':
+            typeDifficulty.min = 3;
+            typeDifficulty.max = 7;
+            break;
+          case 'SIGHT':
+            typeDifficulty.min = 3;
+            typeDifficulty.max = 7;
+            break;
+          case 'MEETING':
+            typeDifficulty.min = 2;
+            typeDifficulty.max = 6;
+            break;
+          case 'ACTIVITY':
+            typeDifficulty.min = 4;
+            typeDifficulty.max = 9;
+            break;
+          case 'LEARNING':
+            typeDifficulty.min = 1;
+            typeDifficulty.max = 3;
+            break;
+          case 'DELICIOUS':
+            typeDifficulty.min = 3;
+            typeDifficulty.max = 7;
+            break;
+          case 'EXPLORATION':
+            typeDifficulty.min = 5;
+            typeDifficulty.max = 10;
+            break;
+          default:
+            break;
+        }
+        if (acc.min > typeDifficulty.min) acc.min = typeDifficulty.min;
+        if (acc.max < typeDifficulty.max) acc.max = typeDifficulty.max;
 
-      return acc;
-    },
-    { min: 9999, max: -1 },
-  );
+        return acc;
+      },
+      { min: 9999, max: -1 },
+    );
 
-  console.log(param);
+    return Number(travelHard) <= uInputTypeLevel.max
+      ? {
+          ...uInputTypeLevel,
+          max: Number(travelHard),
+        }
+      : uInputTypeLevel;
+  })();
+
+  const paramByAvgCalibLevel =
+    gParamByTravelLevel[
+      Math.floor(calibUserLevel.min + calibUserLevel.max) / 2
+    ];
+  const spotPerDay =
+    Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
+  const mealPerDay = gMealPerDay;
+  const numOfADaySchedule = spotPerDay + mealPerDay + 1;
+
   const tp = await prisma.tourPlace.findMany({
     where: {
       ibTravelType: {
         some: {
           AND: [
-            { minDifficulty: { gte: uInputTypeLevel.min } },
-            { maxDifficulty: { lte: uInputTypeLevel.max } },
+            { minDifficulty: { gte: calibUserLevel.min } },
+            { maxDifficulty: { lte: calibUserLevel.max } },
           ],
         },
       },
       status: 'IN_USE',
+      tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
     },
     select: {
       id: true,
@@ -2084,13 +2097,221 @@ export const makeSchedule = async (
           maxDifficulty: true,
         },
       },
+      gl_vicinity: true,
+      gl_formatted_address: true,
+      vj_address: true,
+      gl_lat: true,
+      gl_lng: true,
+      vj_latitude: true,
+      vj_longitude: true,
       status: true,
+      gl_rating: true,
+    },
+    orderBy: {
+      gl_rating: 'desc',
     },
   });
 
+  const numOfWholeTravelSpot = spotPerDay * Number(period);
+  const spots = [...tp].splice(0, numOfWholeTravelSpot);
+  if (spots.length < numOfWholeTravelSpot)
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message:
+        '조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.',
+    });
+
+  /// spots clustering part
+  /// 1. 뽑힌 지점들의 중심점 구하기
+  const getLatLng = (spot: {
+    gl_lat: number | null;
+    gl_lng: number | null;
+    vj_latitude: number | null;
+    vj_longitude: number | null;
+  }) => {
+    if (spot.gl_lat && spot.gl_lng)
+      return {
+        lat: spot.gl_lat,
+        lng: spot.gl_lng,
+      };
+    if (spot.vj_latitude && spot.vj_longitude)
+      return {
+        lat: spot.vj_latitude,
+        lng: spot.vj_longitude,
+      };
+    return null;
+  };
+
+  const { lat: latSum, lng: lngSum } = spots.reduce(
+    (prevSum, curSpot) => {
+      const curLatLng = getLatLng(curSpot);
+
+      if (!curLatLng) return prevSum;
+      const curLatSum = prevSum.lat + curLatLng.lat;
+      const curLngSum = prevSum.lng + curLatLng.lng;
+
+      return {
+        lat: curLatSum,
+        lng: curLngSum,
+      };
+    },
+    { lat: 0, lng: 0 },
+  );
+  const centroid = {
+    lat: latSum / spots.length,
+    lng: lngSum / spots.length,
+  };
+
+  const farthestFromCentroid = [...spots]
+    .sort((a, b) => {
+      const geoA = getLatLng(a);
+      const geoB = getLatLng(b);
+      if (!geoA || !geoB) return -1;
+      const distSqrA =
+        (centroid.lat - geoA.lat) ** 2 + (centroid.lng - geoA.lng) ** 2;
+
+      const distSqrB =
+        (centroid.lat - geoB.lat) ** 2 + (centroid.lng - geoB.lng) ** 2;
+
+      return distSqrB - distSqrA;
+    })
+    .splice(0, 5);
+
+  const r2 = paramByAvgCalibLevel.maxDist ** 2;
+
+  farthestFromCentroid.map(c => {
+    const initCenterLatLng = getLatLng(c);
+    if (!initCenterLatLng) return null;
+    const center = spots.reduce(
+      (prevCentroid, curSpot, idx) => {
+        const spotLatLng = getLatLng(curSpot);
+        if (!spotLatLng) return prevCentroid;
+        const latDeviation2 = Math.abs(prevCentroid.lat - spotLatLng.lat) ** 2;
+        const lngDeviation2 = Math.abs(prevCentroid.lng - spotLatLng.lng) ** 2;
+        if (latDeviation2 + lngDeviation2 < r2) {
+          const curAvgLat =
+            (prevCentroid.lat * idx + spotLatLng.lat) / (idx + 1);
+          const curAvgLng =
+            (prevCentroid.lng * idx + spotLatLng.lng) / (idx + 1);
+          return {
+            lat: curAvgLat,
+            lng: curAvgLng,
+          };
+        }
+        return prevCentroid;
+      },
+      { lat: initCenterLatLng.lat, lng: initCenterLatLng.lng },
+    );
+    return center;
+  });
+
+  /// hotel search part
+  const child = familyOpt.find(v => v.toUpperCase().includes('CHILD')) ? 1 : 0;
+  const infant = familyOpt.find(v => v.toUpperCase().includes('INFANT'))
+    ? 1
+    : 0;
+  const childrenNumber = child + infant;
+
+  const childrenAges = childInfantToChildrenAges({
+    child: Number(child),
+    infant: Number(infant),
+  });
+
+  /// teenager는 성인 1로 친다.
+  /// default 2
+  const adultsNumber = (() => {
+    if (companion) {
+      const withPeople = companion.toUpperCase();
+      switch (withPeople) {
+        case 'ALONE':
+          return 1;
+        case 'FAMILY': {
+          const parent = 2;
+          const teenager = familyOpt.find(v =>
+            v.toUpperCase().includes('TEENAGER'),
+          )
+            ? 1
+            : 0;
+          return parent + teenager;
+        }
+        case 'FRIEND': {
+          const me = 1;
+          return me + Number(maxFriend);
+        }
+        case 'NOTYET':
+        default:
+          return 2;
+      }
+    }
+    return 2;
+  })();
+
+  const roomNumber = (() => {
+    const withPeople = companion.toUpperCase();
+    switch (withPeople) {
+      case 'FAMILY': {
+        const parent = 1;
+        const teenager = familyOpt.find(v =>
+          v.toUpperCase().includes('TEENAGER'),
+        )
+          ? 1
+          : 0;
+        return parent + teenager;
+      }
+      case 'FRIEND': {
+        if (!isEmpty(maxFriend)) return Math.ceil(Number(maxFriend) / 2);
+        return 1;
+      }
+      case 'ALONE':
+      case 'NOTYET':
+      default:
+        return 1;
+    }
+    return 1;
+  })();
+
+  const startDate = getNDaysLater(90);
+  const endDate = getNDaysLater(90 + Number(period));
+  const hotelTransition = 1;
+
+  const hotelSrchOpt = {
+    orderBy: 'review_score',
+    adultsNumber,
+    roomNumber,
+    checkinDate: startDate,
+    checkoutDate: endDate,
+    filterByCurrency: 'KRW',
+    latitude: '33.389464',
+    longitude: '126.554401',
+    pageNumber: 0,
+    includeAdjacency: true,
+    childrenAges,
+    childrenNumber,
+    categoriesFilterIds: ['property_type::204'],
+  } as BKCSrchByCoordReqOpt;
+
+  const travelNights = Number(period) - 1;
+
+  if (travelNights < hotelTransition)
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+    });
+  // const travelDays = Number(period);
+  const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
+
+  const hotels = await hotelLoopSrchByHotelTrans<BKCSrchByCoordReqOpt>({
+    hotelSrchOpt,
+    hotelTransition,
+    transitionTerm,
+    store: true,
+  });
+
   return {
-    uInputTypeLevel,
+    calibUserLevel,
     tourPlace: tp,
+    hotels,
   };
 };
 
