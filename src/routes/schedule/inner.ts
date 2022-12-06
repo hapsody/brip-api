@@ -1993,20 +1993,105 @@ export const makeSchedule = async (
   param: MakeScheduleREQParam,
   // ctx?: IBContext,
 ): Promise<MakeScheduleRETParamPayload> => {
-  // const {
-  //   isNow,
-  //   companion,
-  //   familyOpt,
-  //   numOfFriend,
-  //   period,
-  //   travelType,
-  //   destination,
-  //   travelHard,
-  // } = param;
-  console.log(param);
-  await prisma.user.findMany({});
+  const {
+    // isNow,
+    // companion,
+    // familyOpt,
+    // numOfFriend,
+    // period,
+    travelType,
+    // destination,
+    // travelHard,
+  } = param;
 
-  return {};
+  const uInputTypeLevel = travelType.reduce(
+    (acc, cur) => {
+      const type = cur.toUpperCase();
+      const typeDifficulty = { min: 9999, max: -1 };
+      switch (type) {
+        case 'REST':
+          typeDifficulty.min = 1;
+          typeDifficulty.max = 1;
+          break;
+        case 'HEALING':
+          typeDifficulty.min = 1;
+          typeDifficulty.max = 4;
+          break;
+        case 'NATUREEXPERIENCE':
+          typeDifficulty.min = 3;
+          typeDifficulty.max = 8;
+          break;
+        case 'LEARNINGEXPERIENCE':
+          typeDifficulty.min = 3;
+          typeDifficulty.max = 7;
+          break;
+        case 'SIGHT':
+          typeDifficulty.min = 3;
+          typeDifficulty.max = 7;
+          break;
+        case 'MEETING':
+          typeDifficulty.min = 2;
+          typeDifficulty.max = 6;
+          break;
+        case 'ACTIVITY':
+          typeDifficulty.min = 4;
+          typeDifficulty.max = 9;
+          break;
+        case 'LEARNING':
+          typeDifficulty.min = 1;
+          typeDifficulty.max = 3;
+          break;
+        case 'DELICIOUS':
+          typeDifficulty.min = 3;
+          typeDifficulty.max = 7;
+          break;
+        case 'EXPLORATION':
+          typeDifficulty.min = 5;
+          typeDifficulty.max = 10;
+          break;
+        default:
+          break;
+      }
+      if (acc.min > typeDifficulty.min) acc.min = typeDifficulty.min;
+      if (acc.max < typeDifficulty.max) acc.max = typeDifficulty.max;
+
+      return acc;
+    },
+    { min: 9999, max: -1 },
+  );
+
+  console.log(param);
+  const tp = await prisma.tourPlace.findMany({
+    where: {
+      ibTravelType: {
+        some: {
+          AND: [
+            { minDifficulty: { gte: uInputTypeLevel.min } },
+            { maxDifficulty: { lte: uInputTypeLevel.max } },
+          ],
+        },
+      },
+      status: 'IN_USE',
+    },
+    select: {
+      id: true,
+      gl_name: true,
+      vj_title: true,
+      ibTravelType: {
+        select: {
+          value: true,
+          minDifficulty: true,
+          maxDifficulty: true,
+        },
+      },
+      status: true,
+    },
+  });
+
+  return {
+    uInputTypeLevel,
+    tourPlace: tp,
+  };
 };
 
 /**
