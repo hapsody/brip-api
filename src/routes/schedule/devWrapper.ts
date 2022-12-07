@@ -423,17 +423,7 @@ export const prismaTestWrapper = asyncWrapper(
     //   },
     // });
 
-    const {
-      // isNow,
-      companion,
-      familyOpt,
-      // minFriend,
-      maxFriend,
-      period,
-      travelType,
-      // destination,
-      travelHard,
-    } = req.body;
+    const { period, travelType, travelHard } = req.body;
 
     /// spot  search part
     const calibUserLevel = (() => {
@@ -586,7 +576,7 @@ export const prismaTestWrapper = asyncWrapper(
       },
       { lat: 0, lng: 0 },
     );
-    const centroid = {
+    const allSpotCent = {
       lat: latSum / spots.length,
       lng: lngSum / spots.length,
     };
@@ -597,10 +587,10 @@ export const prismaTestWrapper = asyncWrapper(
         const geoB = getLatLng(b);
         if (!geoA || !geoB) return -1;
         const distSqrA =
-          (centroid.lat - geoA.lat) ** 2 + (centroid.lng - geoA.lng) ** 2;
+          (allSpotCent.lat - geoA.lat) ** 2 + (allSpotCent.lng - geoA.lng) ** 2;
 
         const distSqrB =
-          (centroid.lat - geoB.lat) ** 2 + (centroid.lng - geoB.lng) ** 2;
+          (allSpotCent.lat - geoB.lat) ** 2 + (allSpotCent.lng - geoB.lng) ** 2;
 
         return distSqrB - distSqrA;
       })
@@ -609,6 +599,7 @@ export const prismaTestWrapper = asyncWrapper(
     const r = paramByAvgCalibLevel.maxDist;
     // const r2 = r ** 2;
 
+    /// based on Mean-Shift clustering algorithm
     /// 전체 장소들의 평균 지점(무게중심)으로부터 가장 먼 5개 점을 뽑아서(s1, s2, ... s5)
     /// 해당 점들로부터 여행강도가 허용하는 하루 이동거리(r) 이내의 거리의 장소들만의 평균 지점을(a11, a12, ... a15) 구한다.
     /// 새로 구해진 5개 지점들로부터 r거리 이내의 거리의 점들의 평균지점을(a21, a22, ..., a25) 새로 구한다.
@@ -623,6 +614,15 @@ export const prismaTestWrapper = asyncWrapper(
 
     let centroids = [...farthestTop5FromCentroid].map(spot => getLatLng(spot));
 
+    const centHistoryByStage: {
+      stageNo: number;
+      centroids: (GeoFormat | null)[];
+    }[] = [
+      {
+        stageNo: 0,
+        centroids,
+      },
+    ];
     const k = 0.01;
     let keepDoing: boolean[] = Array.from(Array(5), () => false);
     let i = 0;
@@ -635,9 +635,6 @@ export const prismaTestWrapper = asyncWrapper(
           (acc, curSpot, idx) => {
             const spotLatLng = getLatLng(curSpot);
             if (!spotLatLng) return acc;
-            // const latDeviation2 = Math.abs(acc.lat - spotLatLng.lat) ** 2;
-            // const lngDeviation2 = Math.abs(acc.lng - spotLatLng.lng) ** 2;
-            // if (latDeviation2 + lngDeviation2 < r2) {
             if (
               degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) <
               r
@@ -672,6 +669,10 @@ export const prismaTestWrapper = asyncWrapper(
         return true;
       }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
       centroids = [...nextCentroids];
+      centHistoryByStage.push({
+        stageNo: centHistoryByStage.length,
+        centroids,
+      });
       i += 1;
       console.log(i, centroids[0]);
     } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
@@ -701,10 +702,19 @@ export const prismaTestWrapper = asyncWrapper(
         r,
         maxPhase: i,
         wholeSpotLatLngAvg,
+        centHistoryByStage,
         centroids: centroids.map((v, idx) => {
           return {
             ...v,
             histories: histories[idx],
+          };
+        }),
+        spotsGeoLocation: tp.map(v => {
+          return {
+            id: v.id,
+            name: v.gl_name,
+            lat: v.gl_lat,
+            lng: v.gl_lng,
           };
         }),
       } as object,

@@ -1,81 +1,275 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>국가공간정보포털 OpenAPI</title>
+    <title>클러스터링 시각화 테스트</title>
     <meta charset="utf-8" />
     <!-- 오픈API -->
-    <script
-      type="text/javaScript"
-      src="http://www.nsdi.go.kr/lxportal/zcms/nsdi/platform/sdkGeoView.js.html?authkey=인증키"
-    ></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-  </head>
-  <body>
-    <div
-      id="sampleMap"
-      style="height: 800px; width: 100%; border: solid 1px"
-    ></div>
-
-    <!--차트가 생성될 태그-->
-    <div id="sampleChart" style="height: 250px; width: 433px"></div>
-
-    <!-- 그리드가 생성될 태그 -->
-    <table id="sampleGrid" style="height: 272px; width: 433px"></table>
-
     <script>
-      // 지도생성
-      var map = new pf.GeoView('sampleMap', 'vworld', true, true);
+      let canvas, ctx;
+      let gSpots, gCentroids, gRadius;
+      let gMaxX, gMinX, gMaxY, gMinY;
+      let spotPointSize = 2;
+      let centPointSize = 5;
+      let radiusCircleSize = 0;
+      const canvasWidth = 4800.0;
+      const canvasHeight = 4800.0;
 
-      //데이터 요청(OpenAPI)
+      const palette = ['brown', 'yellow', 'purple', 'darkgreen', 'cyan'];
+
       $.ajax({
-        type: 'POST',
-        data: {
-          apitype: 'data',
-          resulttype: 'geojson',
-          datasets: '12845',
-          bbox: '833650.614474257,1943286.5512082838,970380.2826180774,1961733.2057452637',
-          authkey: '인증키',
+        type: 'post',
+        url: 'http://localhost:3000/schedule/prismaTest',
+        async: true,
+        headers: {
+          'Content-Type': 'application/json',
         },
-        dataType: 'json',
-        async: false,
-        traditional: true,
-        url: 'http://www.nsdi.go.kr/lxportal/zcms/nsdi/platform/openapi.html',
-        success: function (response) {
-          data = response;
+        data: JSON.stringify({
+          ingNow: 'ing',
+          companion: 'alone',
+          period: '30',
+          travelType: ['rest', 'healing', 'exploration'],
+          destination: 'recommend',
+          travelHard: '5',
+        }),
+        success: async function (result) {
+          // console.log(result);
+          payload = result;
+          const data = result.IBparams;
+
+          const { spotsGeoLocation, centroids, centHistoryByStage, r } = data;
+          gSpots = spotsGeoLocation;
+          gCentroids = centroids;
+          gHistories = centHistoryByStage;
+          gRadius = r;
+
+          const { maxX, minX, maxY, minY } = await gSpots.reduce(
+            (result, spot) => {
+              const x = spot.lng;
+              const y = spot.lat;
+              const newRes = { ...result };
+              if (x >= newRes.maxX) newRes.maxX = x;
+              if (x < newRes.minX) newRes.minX = x;
+              if (y >= newRes.maxY) newRes.maxY = y;
+              if (y < newRes.minY) newRes.minY = y;
+              return newRes;
+            },
+            {
+              maxX: -9999,
+              minX: 9999,
+              maxY: -9999,
+              minY: 9999,
+            },
+          );
+          console.log(
+            `maxX:${maxX}, maxY:${maxY} \nminX:${minX}, minY:${minY}`,
+          );
+          gMaxX = maxX;
+          gMinX = minX;
+          gMaxY = maxY;
+          gMinY = minY;
+        },
+        error: function (request, status, error) {
+          console.log(error);
         },
       });
+    </script>
 
-      //시각화설정
-      map.addMapViLayer(
-        data,
-        'geojson',
-        'layer',
-        'legend',
-        'SGG_OID',
-        null,
-        '샘플 데이터',
-        'EPSG:5179',
-      );
+    <script>
+      function degreeToMeter(lon1, lat1, lon2, lat2) {
+        // generally used geo measurement function
+        const R = 6378.137; // Radius of earth in KM
+        const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;
+        const dLon = (lon2 * Math.PI) / 180 - (lon1 * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c;
+        return d * 1000; // meters
+      }
 
-      //차트설정
-      map.setChart(
-        'sampleChart',
-        'line',
-        'layer',
-        'SGG_OID',
-        '차트',
-        'VALUE',
-        'EMD_NM',
-      );
+      async function estGeoLocFromMeter(targetMeter) {
+        let estMeter = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
+        let estX = gMaxX;
+        let deltaMeter = estMeter;
+        let deltaX = gMaxX - gMinX;
+        let down = 0;
+        let up = 0;
 
-      //그리드설정
-      map.setGrid(
-        'sampleGrid',
-        'layer',
-        ['GID', '값'],
-        ['GID', 'SGG_OID'],
-        '데이터 테이블',
-      );
+        const pro = new Promise(resolve => {
+          while (Math.abs(targetMeter - estMeter) > 0.1) {
+            if (estMeter > targetMeter) {
+              // 반절로 만듦
+              deltaMeter /= 2;
+              deltaX /= 2;
+              // deltaX = (deltaX + gMinX) / 2 - gMinX;
+
+              estMeter = estMeter - deltaMeter;
+              estX = estX - deltaX;
+              down++;
+              // console.log(
+              //   `[down(${down})] estMeter:${estMeter}, deltaMeter: ${deltaMeter}, deltaX: ${deltaX}, estX: ${estX}: [down]`,
+              // );
+            } else {
+              deltaMeter /= 2;
+              deltaX /= 2;
+              // deltaX = (deltaX + gMaxX) / 2 - gMinX;
+
+              estMeter = estMeter + deltaMeter;
+              estX = estX + deltaX;
+              up++;
+              // console.log(
+              //   `[  up(${up})] estMeter:${estMeter}, deltaMeter: ${deltaMeter}, deltaX: ${deltaX}, estX:${estX}: [up]`,
+              // );
+            }
+          }
+          console.log(`down ${down}, up:${up}`);
+          resolve(true);
+        });
+
+        await pro;
+
+        return {
+          lng: estX,
+          lat: gMinY,
+        };
+      }
+
+      function geoLocToCoord(geo) {
+        const { lng, lat } = geo;
+        const geoWidth = gMaxX;
+        const geoHeight = gMaxY;
+        const transToCanvasX = ((lng - gMinX) * canvasWidth) / (gMaxX - gMinX);
+        const transToCanvasY =
+          canvasHeight - ((lat - gMinY) * canvasHeight) / (gMaxY - gMinY);
+        return { x: transToCanvasX, y: transToCanvasY };
+      }
+
+      const drawItems = (type, stageNo) => {
+        return (item, i) => {
+          const { size, color } = (() => {
+            switch (type) {
+              case 'spot':
+              default:
+                return { size: spotPointSize, color: 'gray' };
+              case 'centroid':
+                return { size: centPointSize, color: 'red' };
+              case 'history':
+                return {
+                  size: centPointSize - 1,
+                  color: palette[i],
+                };
+            }
+          })();
+          const p = new Promise(resolve => {
+            const { x, y } = geoLocToCoord(item);
+            /// 반경 표시 써클
+            if (type === 'history') {
+              historyCtx.beginPath();
+
+              historyCtx.arc(x, y, size, 0, 2 * Math.PI);
+              historyCtx.stroke();
+              historyCtx.fillStyle = color;
+              historyCtx.fill();
+              historyCtx.font = '30px Comic Sans MS';
+              historyCtx.fillText(
+                `${stageNo}`,
+                x + 5 - Math.floor(5 * Math.random()),
+                y + 5 - Math.floor(5 * Math.random()),
+              );
+              historyCtx.closePath();
+
+              historyCtx.beginPath();
+
+              historyCtx.arc(x, y, radiusCircleSize, 0, 2 * Math.PI);
+
+              historyCtx.globalAlpha = 0.5;
+              historyCtx.strokeStyle = color;
+              historyCtx.stroke();
+
+              historyCtx.closePath();
+              historyCtx.globalAlpha = 1;
+            } else {
+              ctx.beginPath();
+
+              ctx.arc(x, y, size, 0, 2 * Math.PI);
+              ctx.stroke();
+              ctx.strokeStyle = 'black';
+              ctx.fillStyle = color;
+              ctx.fill();
+              ctx.closePath();
+            }
+
+            // console.log(`[${i}]: x:${x}, y:${y}`);
+            resolve(true);
+          });
+          return p;
+        };
+      };
+
+      async function load() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        console.log(`radius:${gRadius}`);
+        const geo = await estGeoLocFromMeter(gRadius);
+        const { x, y } = geoLocToCoord(geo);
+        console.log(`geo:${JSON.stringify(geo)}`);
+        console.log(`x:${x}, y:${y}`);
+        console.log(`estMeter: ${degreeToMeter(gMinX, gMinY, geo.lng, gMinY)}`);
+
+        /// tourPlace spot canvas에 표시
+        ctx.beginPath();
+        ctx.moveTo(0, canvasHeight);
+
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const spotsPromises = gSpots.map(drawItems('spot'));
+        const centroidPromises = gCentroids.map(drawItems('centroid'));
+        await Promise.all([...spotsPromises, ...centroidPromises]);
+      }
+
+      async function play() {
+        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        const geo = await estGeoLocFromMeter(gRadius);
+        const { x } = geoLocToCoord(geo);
+        radiusCircleSize = x;
+        for await (const stage of gHistories) {
+          const pro = new Promise(resolve => {
+            setTimeout(async () => {
+              const { stageNo, centroids } = stage;
+              const promises = centroids.map(drawItems('history', stageNo));
+              await Promise.all(promises);
+              resolve(true);
+            }, 1000);
+          });
+          await pro;
+        }
+      }
+    </script>
+  </head>
+  <body style="margin: 0">
+    <canvas id="spotCanvas" width="4800" height="4800" margin> </canvas>
+    <canvas
+      id="historyCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+    >
+    </canvas>
+    <script>
+      spotCanvas = document.getElementById('spotCanvas');
+      historyCanvas = document.getElementById('historyCanvas');
+      ctx = spotCanvas.getContext('2d');
+      historyCtx = historyCanvas.getContext('2d');
+      console.log(canvas);
     </script>
   </body>
 </html>

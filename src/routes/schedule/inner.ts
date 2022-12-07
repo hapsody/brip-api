@@ -2070,8 +2070,8 @@ export const makeSchedule = async (
     ];
   const spotPerDay =
     Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
-  const mealPerDay = gMealPerDay;
-  const numOfADaySchedule = spotPerDay + mealPerDay + 1;
+  // const mealPerDay = gMealPerDay;
+  // const numOfADaySchedule = spotPerDay + mealPerDay + 1;
 
   const tp = await prisma.tourPlace.findMany({
     where: {
