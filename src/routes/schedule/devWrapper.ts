@@ -24,6 +24,27 @@ import {
 
 import { getPlaceDataFromVJ, getRcmdList } from './inner';
 
+const degreeToMeter = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+) => {
+  // generally used geo measurement function
+  const R = 6378.137; // Radius of earth in KM
+  const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;
+  const dLon = (lon2 * Math.PI) / 180 - (lon1 * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c;
+  return d * 1000; // meters
+};
+
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<AddMockBKCHotelResourceREQParam>,
@@ -585,7 +606,8 @@ export const prismaTestWrapper = asyncWrapper(
       })
       .splice(0, 5);
 
-    const r2 = paramByAvgCalibLevel.maxDist ** 2;
+    const r = paramByAvgCalibLevel.maxDist;
+    // const r2 = r ** 2;
 
     /// 전체 장소들의 평균 지점(무게중심)으로부터 가장 먼 5개 점을 뽑아서(s1, s2, ... s5)
     /// 해당 점들로부터 여행강도가 허용하는 하루 이동거리(r) 이내의 거리의 장소들만의 평균 지점을(a11, a12, ... a15) 구한다.
@@ -604,23 +626,28 @@ export const prismaTestWrapper = asyncWrapper(
     const k = 0.01;
     let keepDoing: boolean[] = Array.from(Array(5), () => false);
     let i = 0;
+    const histories = Array.from(Array(5), () => 'start');
     do {
-      const nextCentroids = centroids.map(c => {
+      const nextCentroids = centroids.map((c, index) => {
         if (!c) return null;
         const initCenterLatLng = c;
         const center = spots.reduce(
           (acc, curSpot, idx) => {
             const spotLatLng = getLatLng(curSpot);
             if (!spotLatLng) return acc;
-            const latDeviation2 = Math.abs(acc.lat - spotLatLng.lat) ** 2;
-            const lngDeviation2 = Math.abs(acc.lng - spotLatLng.lng) ** 2;
-            if (latDeviation2 + lngDeviation2 < r2) {
+            // const latDeviation2 = Math.abs(acc.lat - spotLatLng.lat) ** 2;
+            // const lngDeviation2 = Math.abs(acc.lng - spotLatLng.lng) ** 2;
+            // if (latDeviation2 + lngDeviation2 < r2) {
+            if (
+              degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) <
+              r
+            ) {
               const curAvgLat = (acc.lat * idx + spotLatLng.lat) / (idx + 1);
               const curAvgLng = (acc.lng * idx + spotLatLng.lng) / (idx + 1);
               return {
                 lat: curAvgLat,
                 lng: curAvgLng,
-                numOfValidPoint: acc.numOfValidPoint + 1,
+                numOfPointLessThanR: acc.numOfPointLessThanR + 1,
               };
             }
             return acc;
@@ -628,9 +655,10 @@ export const prismaTestWrapper = asyncWrapper(
           {
             lat: initCenterLatLng.lat,
             lng: initCenterLatLng.lng,
-            numOfValidPoint: 0,
+            numOfPointLessThanR: 0,
           },
         );
+        histories[index] = `${histories[index]}-${center.numOfPointLessThanR}`;
         return center;
       });
 
@@ -670,10 +698,15 @@ export const prismaTestWrapper = asyncWrapper(
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: {
-        r: paramByAvgCalibLevel.maxDist,
+        r,
         maxPhase: i,
         wholeSpotLatLngAvg,
-        centroids,
+        centroids: centroids.map((v, idx) => {
+          return {
+            ...v,
+            histories: histories[idx],
+          };
+        }),
       } as object,
     });
   },

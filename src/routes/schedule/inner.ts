@@ -2066,7 +2066,7 @@ export const makeSchedule = async (
 
   const paramByAvgCalibLevel =
     gParamByTravelLevel[
-      Math.floor(calibUserLevel.min + calibUserLevel.max) / 2
+      Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
     ];
   const spotPerDay =
     Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);

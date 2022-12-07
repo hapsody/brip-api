@@ -34,37 +34,37 @@ export const gParamByTravelLevel = [
   {
     level: 3,
     actMultiplier: 2.2,
-    minDist: 1200, // 단위 m
-    maxDist: 1700,
+    minDist: 12000, // 단위 m
+    maxDist: 17000,
   },
   {
     level: 4,
     actMultiplier: 2,
-    minDist: 1700, // 단위 m
-    maxDist: 2500,
+    minDist: 17000, // 단위 m
+    maxDist: 25000,
   },
   {
     level: 5,
     actMultiplier: 1,
-    minDist: 2500, // 단위 m
-    maxDist: 5000,
+    minDist: 25000, // 단위 m
+    maxDist: 50000,
   },
   {
     level: 6,
     actMultiplier: 0.8,
-    minDist: 5000, // 단위 m
-    maxDist: 8000,
+    minDist: 50000, // 단위 m
+    maxDist: 80000,
   },
   {
     level: 7,
     actMultiplier: 0.5,
-    minDist: 8000, // 단위 m
-    maxDist: 15000,
+    minDist: 80000, // 단위 m
+    maxDist: 150000,
   },
   {
     level: 8,
     actMultiplier: 0,
-    minDist: 15000, // 단위 m
+    minDist: 150000, // 단위 m
     maxDist: 999999,
   },
   {
