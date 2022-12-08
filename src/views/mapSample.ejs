@@ -12,6 +12,8 @@
       let spotPointSize = 2;
       let centPointSize = 5;
       let radiusCircleSize = 0;
+      const blankMultiplier = 10; // 높을수록 캔버스 여백 비율이 작아진다.
+      let blankSizeX, blankSizeY;
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
 
@@ -64,10 +66,13 @@
           console.log(
             `maxX:${maxX}, maxY:${maxY} \nminX:${minX}, minY:${minY}`,
           );
-          gMaxX = maxX;
-          gMinX = minX;
-          gMaxY = maxY;
-          gMinY = minY;
+
+          blankSizeX = (maxX - minX) / blankMultiplier;
+          blankSizeY = (maxY - minY) / blankMultiplier;
+          gMaxX = maxX + blankSizeX;
+          gMinX = minX - blankSizeX;
+          gMaxY = maxY + blankSizeY;
+          gMinY = minY - blankSizeY;
         },
         error: function (request, status, error) {
           console.log(error);
@@ -141,8 +146,6 @@
 
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
-        const geoWidth = gMaxX;
-        const geoHeight = gMaxY;
         const transToCanvasX = ((lng - gMinX) * canvasWidth) / (gMaxX - gMinX);
         const transToCanvasY =
           canvasHeight - ((lat - gMinY) * canvasHeight) / (gMaxY - gMinY);
@@ -216,18 +219,19 @@
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         console.log(`radius:${gRadius}`);
         const geo = await estGeoLocFromMeter(gRadius);
-        const { x, y } = geoLocToCoord(geo);
+        const { x: rulerX, y: rulerY } = geoLocToCoord(geo);
         console.log(`geo:${JSON.stringify(geo)}`);
-        console.log(`x:${x}, y:${y}`);
+        console.log(`rulerX:${rulerX}, rulerY:${rulerY}`);
         console.log(`estMeter: ${degreeToMeter(gMinX, gMinY, geo.lng, gMinY)}`);
 
-        /// tourPlace spot canvas에 표시
+        /// mean-Shift 알고리즘 연산반경(radius) 축척 표시
         ctx.beginPath();
-        ctx.moveTo(0, canvasHeight);
-
-        ctx.lineTo(x, y);
+        ctx.moveTo(50, canvasHeight - 50);
+        ctx.lineTo(rulerX + 50, rulerY - 50);
         ctx.strokeStyle = 'green';
         ctx.lineWidth = 2;
+        ctx.font = '30px Comic Sans MS';
+        ctx.fillText(`radius: ${gRadius}m`, 50, canvasHeight - 15);
         ctx.stroke();
 
         const spotsPromises = gSpots.map(drawItems('spot'));
