@@ -561,40 +561,40 @@ export const prismaTestWrapper = asyncWrapper(
       return null;
     };
 
-    const { lat: latSum, lng: lngSum } = spots.reduce(
-      (prevSum, curSpot) => {
-        const curLatLng = getLatLng(curSpot);
+    // const { lat: latSum, lng: lngSum } = spots.reduce(
+    //   (prevSum, curSpot) => {
+    //     const curLatLng = getLatLng(curSpot);
 
-        if (!curLatLng) return prevSum;
-        const curLatSum = prevSum.lat + curLatLng.lat;
-        const curLngSum = prevSum.lng + curLatLng.lng;
+    //     if (!curLatLng) return prevSum;
+    //     const curLatSum = prevSum.lat + curLatLng.lat;
+    //     const curLngSum = prevSum.lng + curLatLng.lng;
 
-        return {
-          lat: curLatSum,
-          lng: curLngSum,
-        };
-      },
-      { lat: 0, lng: 0 },
-    );
-    const allSpotCent = {
-      lat: latSum / spots.length,
-      lng: lngSum / spots.length,
-    };
+    //     return {
+    //       lat: curLatSum,
+    //       lng: curLngSum,
+    //     };
+    //   },
+    //   { lat: 0, lng: 0 },
+    // );
+    // const allSpotCent = {
+    //   lat: latSum / spots.length,
+    //   lng: lngSum / spots.length,
+    // };
 
-    const farthestTop5FromCentroid = [...spots]
-      .sort((a, b) => {
-        const geoA = getLatLng(a);
-        const geoB = getLatLng(b);
-        if (!geoA || !geoB) return -1;
-        const distSqrA =
-          (allSpotCent.lat - geoA.lat) ** 2 + (allSpotCent.lng - geoA.lng) ** 2;
+    // const farthestTop5FromCentroid = [...spots]
+    //   .sort((a, b) => {
+    //     const geoA = getLatLng(a);
+    //     const geoB = getLatLng(b);
+    //     if (!geoA || !geoB) return -1;
+    //     const distSqrA =
+    //       (allSpotCent.lat - geoA.lat) ** 2 + (allSpotCent.lng - geoA.lng) ** 2;
 
-        const distSqrB =
-          (allSpotCent.lat - geoB.lat) ** 2 + (allSpotCent.lng - geoB.lng) ** 2;
+    //     const distSqrB =
+    //       (allSpotCent.lat - geoB.lat) ** 2 + (allSpotCent.lng - geoB.lng) ** 2;
 
-        return distSqrB - distSqrA;
-      })
-      .splice(0, 5);
+    //     return distSqrB - distSqrA;
+    //   })
+    //   .splice(0, 5);
 
     const r = paramByAvgCalibLevel.maxDist;
     // const r2 = r ** 2;
@@ -612,7 +612,8 @@ export const prismaTestWrapper = asyncWrapper(
       return Math.sqrt((a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2);
     };
 
-    let centroids = [...farthestTop5FromCentroid].map(spot => getLatLng(spot));
+    // let centroids = [...farthestTop5FromCentroid].map(spot => getLatLng(spot));
+    let centroids = [...spots].map(spot => getLatLng(spot));
 
     const centHistoryByStage: {
       stageNo: number;
@@ -709,7 +710,7 @@ export const prismaTestWrapper = asyncWrapper(
             histories: histories[idx],
           };
         }),
-        spotsGeoLocation: tp.map(v => {
+        spotsGeoLocation: spots.map(v => {
           return {
             id: v.id,
             name: v.gl_name,

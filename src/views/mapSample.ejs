@@ -9,7 +9,7 @@
       let canvas, ctx;
       let gSpots, gCentroids, gRadius;
       let gMaxX, gMinX, gMaxY, gMinY;
-      let spotPointSize = 2;
+      let spotPointSize = 4;
       let centPointSize = 5;
       let radiusCircleSize = 0;
       const blankMultiplier = 10; // 높을수록 캔버스 여백 비율이 작아진다.
@@ -17,7 +17,14 @@
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
 
-      const palette = ['brown', 'yellow', 'purple', 'darkgreen', 'cyan'];
+      const palette = [
+        'brown',
+        'yellow',
+        'purple',
+        'darkgreen',
+        'aqua',
+        'gray',
+      ];
 
       $.ajax({
         type: 'post',
@@ -152,7 +159,7 @@
         return { x: transToCanvasX, y: transToCanvasY };
       }
 
-      const drawItems = (type, stageNo) => {
+      const drawItems = (type, stageNo, historyLength) => {
         return (item, i) => {
           const { size, color } = (() => {
             switch (type) {
@@ -190,9 +197,15 @@
 
               historyCtx.arc(x, y, radiusCircleSize, 0, 2 * Math.PI);
 
-              historyCtx.globalAlpha = 0.5;
+              historyCtx.globalAlpha = 0.6;
               historyCtx.strokeStyle = color;
-              historyCtx.stroke();
+
+              if (stageNo < historyLength - 1) {
+                historyCtx.stroke();
+              } else {
+                historyCtx.globalAlpha = 0.1;
+                historyCtx.fill();
+              }
 
               historyCtx.closePath();
               historyCtx.globalAlpha = 1;
@@ -249,7 +262,9 @@
           const pro = new Promise(resolve => {
             setTimeout(async () => {
               const { stageNo, centroids } = stage;
-              const promises = centroids.map(drawItems('history', stageNo));
+              const promises = centroids.map(
+                drawItems('history', stageNo, gHistories.length),
+              );
               await Promise.all(promises);
               resolve(true);
             }, 1000);
