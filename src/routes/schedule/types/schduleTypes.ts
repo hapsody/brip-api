@@ -772,10 +772,33 @@ export type ModifyScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 /**
  * makeCluster
  */
-export interface MakeClusterREQParam {}
+export interface GeoFormat {
+  lat: number;
+  lng: number;
+}
 
-export interface MakeClusterRETParamPayload {}
+export interface MakeClusterRETParam {
+  r: number;
+  maxPhase: number;
+  wholeSpotLatLngAvg: GeoFormat & {
+    length: number;
+  };
+  nonDupCentroids: (GeoFormat & {
+    idx: number;
+    numOfPointLessThanR: number;
+  })[];
+  centHistoryByStage: {
+    stageNo: number;
+    centroids: GeoFormat[];
+  }[];
 
-export type MakeClusterRETParam = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: MakeClusterRETParamPayload | {};
-};
+  centroids: GeoFormat & {
+    numOfPointLesSThanR: number;
+    histories: string;
+  };
+
+  spotsGeoLocation: GeoFormat & {
+    id: number;
+    name: string;
+  };
+}

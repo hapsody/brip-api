@@ -61,8 +61,8 @@ import {
   MakeScheduleRETParamPayload,
   BKCSrchByCoordReqOpt,
   gParamByTravelLevel,
-  // MakeClusterREQParam,
-  // MakeClusterRETParamPayload,
+  MakeClusterRETParam,
+  GeoFormat,
 } from './types/schduleTypes';
 
 /**
@@ -2006,12 +2006,10 @@ export const degreeToMeter = (
  * makeSchedule에서 일정 데이터를 고르기위해 뽑힌 spot DB 데이터들 값을 기반으로
  * 군집화(cluster) 및 군집화 과정 데이터를 요청한다.
  */
-export interface GeoFormat {
-  lat: number;
-  lng: number;
-}
 
-export const makeCluster = (ctx: ContextMakeSchedule): object => {
+export const makeCluster = (
+  ctx: ContextMakeSchedule,
+): MakeClusterRETParam | {} => {
   const { spots, paramByAvgCalibLevel } = ctx;
 
   if (!spots || !paramByAvgCalibLevel) return {};
@@ -2168,7 +2166,7 @@ export const makeCluster = (ctx: ContextMakeSchedule): object => {
         lng: v.gl_lng,
       };
     }),
-  } as object;
+  };
 };
 
 /**
@@ -2411,7 +2409,7 @@ export const makeSchedule = async (
     latitude: '33.389464',
     longitude: '126.554401',
     pageNumber: 0,
-    includeAdjacency: true,
+    includeAdjacency: false,
     childrenAges,
     childrenNumber,
     categoriesFilterIds: ['property_type::204'],
