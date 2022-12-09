@@ -7,7 +7,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script>
       let canvas, ctx;
-      let gSpots, gCentroids, gRadius;
+      let gSpots, gCentroids, gRadius, gNonDupCentroids;
       let gMaxX, gMinX, gMaxY, gMinY;
       let spotPointSize = 4;
       let centPointSize = 5;
@@ -46,10 +46,17 @@
           payload = result;
           const data = result.IBparams;
 
-          const { spotsGeoLocation, centroids, centHistoryByStage, r } = data;
+          const {
+            spotsGeoLocation,
+            centroids,
+            centHistoryByStage,
+            r,
+            nonDupCentroids,
+          } = data;
           gSpots = spotsGeoLocation;
           gCentroids = centroids;
           gHistories = centHistoryByStage;
+          gNonDupCentroids = nonDupCentroids;
           gRadius = r;
 
           const { maxX, minX, maxY, minY } = await gSpots.reduce(
@@ -159,7 +166,11 @@
         return { x: transToCanvasX, y: transToCanvasY };
       }
 
-      const drawItems = (type, stageNo, historyLength) => {
+      const drawItems = (type, option) => {
+        const stageNo = option?.stageNo;
+        const historyLength = option?.historyLength;
+        const onlyNonDupRes = option?.onlyNonDupRes ?? false;
+
         return (item, i) => {
           const { size, color } = (() => {
             switch (type) {
@@ -178,7 +189,11 @@
           const p = new Promise(resolve => {
             const { x, y } = geoLocToCoord(item);
             /// 반경 표시 써클
-            if (type === 'history') {
+            if (
+              type === 'history' &&
+              (gNonDupCentroids.find(v => v.idx === i) ||
+                onlyNonDupRes === false)
+            ) {
               historyCtx.beginPath();
 
               historyCtx.arc(x, y, size, 0, 2 * Math.PI);
@@ -252,18 +267,23 @@
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
-      async function play() {
+      async function play(onlyNonDupRes) {
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
         const geo = await estGeoLocFromMeter(gRadius);
         const { x } = geoLocToCoord(geo);
         radiusCircleSize = x;
+
         for await (const stage of gHistories) {
           const pro = new Promise(resolve => {
             setTimeout(async () => {
               const { stageNo, centroids } = stage;
               const promises = centroids.map(
-                drawItems('history', stageNo, gHistories.length),
+                drawItems('history', {
+                  stageNo,
+                  historyLength: gHistories.length,
+                  onlyNonDupRes: onlyNonDupRes === 'nonDup' ? true : false,
+                }),
               );
               await Promise.all(promises);
               resolve(true);

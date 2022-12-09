@@ -625,9 +625,9 @@ export const prismaTestWrapper = asyncWrapper(
       },
     ];
     const k = 0.01;
-    let keepDoing: boolean[] = Array.from(Array(5), () => false);
+    let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
     let i = 0;
-    const histories = Array.from(Array(5), () => 'start');
+    const histories = Array.from(Array(spots.length), () => 'start');
     do {
       const nextCentroids = centroids.map((c, index) => {
         if (!c) return null;
@@ -697,12 +697,31 @@ export const prismaTestWrapper = asyncWrapper(
       length: spots.length,
     };
 
+    const nonDupCentroids = centroids.reduce(
+      (
+        nonDupBuf: (GeoFormat & { idx: number })[],
+        cur: GeoFormat | null,
+        idx,
+      ) => {
+        if (!cur) return nonDupBuf;
+        const isDup = nonDupBuf.find(
+          d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
+        );
+
+        if (isDup) return nonDupBuf;
+        nonDupBuf.push({ idx, ...cur });
+        return nonDupBuf;
+      },
+      [],
+    );
+
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: {
         r,
         maxPhase: i,
         wholeSpotLatLngAvg,
+        nonDupCentroids,
         centHistoryByStage,
         centroids: centroids.map((v, idx) => {
           return {
