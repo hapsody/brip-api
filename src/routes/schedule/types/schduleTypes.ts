@@ -792,13 +792,13 @@ export interface MakeClusterRETParam {
     centroids: GeoFormat[];
   }[];
 
-  centroids: GeoFormat & {
-    numOfPointLesSThanR: number;
+  centroids: (GeoFormat & {
+    numOfPointLessThanR: number;
     histories: string;
-  };
+  })[];
 
-  spotsGeoLocation: GeoFormat & {
+  spotsGeoLocation: (GeoFormat & {
     id: number;
     name: string;
-  };
+  })[];
 }
