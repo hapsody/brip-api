@@ -385,44 +385,14 @@ export const getTagRelationWrapper = asyncWrapper(
 );
 
 /**
- * 테스트용
+ * makeSchedule에서 일정 데이터를 고르기위해 뽑힌 spot DB 데이터들 값을 기반으로
+ * 군집화(cluster) 및 군집화 과정 데이터를 요청한다.(개발용))
  */
-export const prismaTestWrapper = asyncWrapper(
+export const makeClusterWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<MakeScheduleREQParam>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    // const param = req.body;
-    // const { tags } = param;
-    // const result = await prisma.tourPlace.findMany({
-    //   where: {
-    //     ibTravelType: {
-    //       some: {
-    //         value: { in: tags },
-    //       },
-    //     },
-    //   },
-    //   select: {
-    //     id: true,
-    //     gl_name: true,
-    //     vj_title: true,
-    //     ibTravelType: {
-    //       where: {
-    //         value: { in: tags },
-    //       },
-    //       select: {
-    //         id: true,
-    //         value: true,
-    //         related: {
-    //           include: {
-    //             to: true,
-    //           },
-    //         },
-    //       },
-    //     },
-    //   },
-    // });
-
     const { period, travelType, travelHard } = req.body;
 
     /// spot  search part
@@ -541,7 +511,6 @@ export const prismaTestWrapper = asyncWrapper(
     const spots = [...tp].splice(0, numOfWholeTravelSpot);
 
     /// spots clustering part
-    /// 1. 뽑힌 지점들의 중심점 구하기
     const getLatLng = (spot: {
       gl_lat: number | null;
       gl_lng: number | null;
@@ -597,7 +566,6 @@ export const prismaTestWrapper = asyncWrapper(
     //   .splice(0, 5);
 
     const r = paramByAvgCalibLevel.maxDist;
-    // const r2 = r ** 2;
 
     /// based on Mean-Shift clustering algorithm
     /// 전체 장소들의 평균 지점(무게중심)으로부터 가장 먼 5개 점을 뽑아서(s1, s2, ... s5)
@@ -628,6 +596,10 @@ export const prismaTestWrapper = asyncWrapper(
     let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
     let i = 0;
     const histories = Array.from(Array(spots.length), () => 'start');
+
+    /// histories와 centroids를 구하는 루프를 실행한다.
+    /// centroids: 최종적으로 수렴된 군집들의 대표값 배열
+    /// histories: 각 loop stage 별로 반경 r안에 위치한 spots들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
     do {
       const nextCentroids = centroids.map((c, index) => {
         if (!c) return null;
@@ -659,7 +631,6 @@ export const prismaTestWrapper = asyncWrapper(
         histories[index] = `${histories[index]}-${center.numOfPointLessThanR}`;
         return center;
       });
-
       // eslint-disable-next-line @typescript-eslint/no-loop-func
       keepDoing = nextCentroids.map((newCent, idx) => {
         if (!newCent) return false;
@@ -697,6 +668,9 @@ export const prismaTestWrapper = asyncWrapper(
       length: spots.length,
     };
 
+    /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
+    /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
+    /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
     const nonDupCentroids = centroids.reduce(
       (
         nonDupBuf: (GeoFormat & { idx: number })[],
@@ -738,6 +712,52 @@ export const prismaTestWrapper = asyncWrapper(
           };
         }),
       } as object,
+    });
+  },
+);
+
+/**
+ * 테스트용
+ */
+export const prismaTestWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<{ tags: string[] }>,
+    res: Express.IBTypedResponse<IBResFormat>,
+  ) => {
+    const param = req.body;
+    const { tags } = param;
+    const result = await prisma.tourPlace.findMany({
+      where: {
+        ibTravelType: {
+          some: {
+            value: { in: tags },
+          },
+        },
+      },
+      select: {
+        id: true,
+        gl_name: true,
+        vj_title: true,
+        ibTravelType: {
+          where: {
+            value: { in: tags },
+          },
+          select: {
+            id: true,
+            value: true,
+            related: {
+              include: {
+                to: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      ...ibDefs.SUCCESS,
+      IBparams: result,
     });
   },
 );

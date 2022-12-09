@@ -28,7 +28,7 @@
 
       $.ajax({
         type: 'post',
-        url: 'http://localhost:3000/schedule/prismaTest',
+        url: 'http://localhost:3000/schedule/makeCluster',
         async: true,
         headers: {
           'Content-Type': 'application/json',
@@ -267,6 +267,8 @@
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
+      /// ex) play() <--- 전체 centroids 들의 stage 별 변화 play
+      /// ex) play('nonDup') <--- 중복되지 않는 centroids 결과값만 보여줌
       async function play(onlyNonDupRes) {
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 

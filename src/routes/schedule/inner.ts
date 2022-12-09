@@ -2122,7 +2122,6 @@ export const makeSchedule = async (
     });
 
   /// spots clustering part
-  /// 1. 뽑힌 지점들의 중심점 구하기
   const getLatLng = (spot: {
     gl_lat: number | null;
     gl_lng: number | null;
@@ -2142,6 +2141,7 @@ export const makeSchedule = async (
     return null;
   };
 
+  /// 1. 뽑힌 지점들의 중심점 구하기
   const { lat: latSum, lng: lngSum } = spots.reduce(
     (prevSum, curSpot) => {
       const curLatLng = getLatLng(curSpot);

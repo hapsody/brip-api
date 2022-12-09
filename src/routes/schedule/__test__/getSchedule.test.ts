@@ -43,7 +43,7 @@ beforeAll(async () => {
   const reqSchdRes = reqSchdRawResult.IBparams as ReqScheduleRETParamPayload;
   expect(reqSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(reqSchdRes).toHaveProperty('queryParamsId');
+  expect(reqSchdRes).toHaveProperty('id');
   queryParams = await prisma.queryParams.findUnique({
     where: {
       id: Number(reqSchdRes.id),
@@ -69,7 +69,7 @@ beforeAll(async () => {
   getSchdRes = getSchdRawResult.IBparams as ReqScheduleRETParamPayload;
   expect(getSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(getSchdRes.id).toBe(queryParams?.id.toString());
+  expect(getSchdRes.id).toBe(queryParams?.id);
 });
 
 describe('Schedule Express Router E2E Test', () => {
@@ -80,7 +80,7 @@ describe('Schedule Express Router E2E Test', () => {
        * 2. plan은 min, mid, max로 세개를 갖는가
        * 3. 각 plan별로 여행일수 (travelDays)에 해당하는 추천 일정들을 갖고 잇는가
        */
-      expect(getSchdRes).toHaveProperty('queryParamsId');
+      expect(getSchdRes).toHaveProperty('id');
       expect(getSchdRes).toHaveProperty('plan');
       expect(getSchdRes.plan.length).toBe(3);
       expect(getSchdRes.plan[0].planType).toBe('MIN');
