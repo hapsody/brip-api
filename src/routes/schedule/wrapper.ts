@@ -47,6 +47,7 @@ import {
   getCandDetailSchd,
   modifySchedule,
   makeSchedule,
+  ContextMakeSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -259,9 +260,9 @@ export const makeScheduleWrapper = asyncWrapper(
         });
       }
 
-      // const ctx: IBContext = {
-      //   userTokenId,
-      // };
+      const ctx: ContextMakeSchedule = {
+        userTokenId,
+      };
       const param = req.body;
       const scheduleResult = await makeSchedule(
         {
@@ -270,7 +271,7 @@ export const makeScheduleWrapper = asyncWrapper(
           minFriend: param.minFriend ?? '0',
           maxFriend: param.maxFriend ?? '0',
         },
-        // ctx,
+        ctx,
       );
       res.json({
         ...ibDefs.SUCCESS,

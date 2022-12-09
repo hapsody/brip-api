@@ -768,3 +768,14 @@ export interface ModifyScheduleRETParamPayload extends VisitSchedule {}
 export type ModifyScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ModifyScheduleRETParamPayload | {};
 };
+
+/**
+ * makeCluster
+ */
+export interface MakeClusterREQParam {}
+
+export interface MakeClusterRETParamPayload {}
+
+export type MakeClusterRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: MakeClusterRETParamPayload | {};
+};

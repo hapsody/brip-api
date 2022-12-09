@@ -61,6 +61,8 @@ import {
   MakeScheduleRETParamPayload,
   BKCSrchByCoordReqOpt,
   gParamByTravelLevel,
+  // MakeClusterREQParam,
+  // MakeClusterRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -1979,12 +1981,215 @@ export const reqSchedule = async <H extends HotelOptType>(
   };
 };
 
+export const degreeToMeter = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number => {
+  // generally used geo measurement function
+  const R = 6378.137; // Radius of earth in KM
+  const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;
+  const dLon = (lon2 * Math.PI) / 180 - (lon1 * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c;
+  return d * 1000; // meters
+};
+
+/**
+ * makeSchedule에서 일정 데이터를 고르기위해 뽑힌 spot DB 데이터들 값을 기반으로
+ * 군집화(cluster) 및 군집화 과정 데이터를 요청한다.
+ */
+export interface GeoFormat {
+  lat: number;
+  lng: number;
+}
+
+export const makeCluster = (ctx: ContextMakeSchedule): object => {
+  const { spots, paramByAvgCalibLevel } = ctx;
+
+  if (!spots || !paramByAvgCalibLevel) return {};
+
+  const getLatLng = (spot: {
+    gl_lat: number | null;
+    gl_lng: number | null;
+    vj_latitude: number | null;
+    vj_longitude: number | null;
+  }) => {
+    if (spot.gl_lat && spot.gl_lng)
+      return {
+        lat: spot.gl_lat,
+        lng: spot.gl_lng,
+      };
+    if (spot.vj_latitude && spot.vj_longitude)
+      return {
+        lat: spot.vj_latitude,
+        lng: spot.vj_longitude,
+      };
+    return null;
+  };
+
+  /// 뽑힌 지점들 그룹화
+  const r = paramByAvgCalibLevel.maxDist;
+
+  const getDistance = (a: GeoFormat, b: GeoFormat) => {
+    return Math.sqrt((a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2);
+  };
+
+  let centroids = [...spots].map(spot => getLatLng(spot));
+  const centHistoryByStage: {
+    stageNo: number;
+    centroids: (GeoFormat | null)[];
+  }[] = [
+    {
+      stageNo: 0,
+      centroids,
+    },
+  ];
+  const k = 0.01;
+  let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
+  let i = 0;
+  const histories = Array.from(Array(spots.length), () => 'start');
+
+  /// histories와 centroids를 구하는 루프를 실행한다.
+  /// centroids: 최종적으로 수렴된 군집들의 대표값 배열
+  /// histories: 각 loop stage 별로 반경 r안에 위치한 spots들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
+  do {
+    const nextCentroids = centroids.map((c, index) => {
+      if (!c) return null;
+      const initCenterLatLng = c;
+      const center = spots.reduce(
+        (acc, curSpot, idx) => {
+          const spotLatLng = getLatLng(curSpot);
+          if (!spotLatLng) return acc;
+          if (
+            degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) < r
+          ) {
+            const curAvgLat = (acc.lat * idx + spotLatLng.lat) / (idx + 1);
+            const curAvgLng = (acc.lng * idx + spotLatLng.lng) / (idx + 1);
+            return {
+              lat: curAvgLat,
+              lng: curAvgLng,
+              numOfPointLessThanR: acc.numOfPointLessThanR + 1,
+            };
+          }
+          return acc;
+        },
+        {
+          lat: initCenterLatLng.lat,
+          lng: initCenterLatLng.lng,
+          numOfPointLessThanR: 0,
+        },
+      );
+      histories[index] = `${histories[index]}-${center.numOfPointLessThanR}`;
+      return center;
+    });
+    // eslint-disable-next-line @typescript-eslint/no-loop-func
+    keepDoing = nextCentroids.map((newCent, idx) => {
+      if (!newCent) return false;
+      const prevCent = centroids[idx];
+      if (!prevCent) return false;
+      const rDiff = getDistance(newCent, prevCent);
+      if (rDiff < k) return false;
+      return true;
+    }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
+    centroids = [...nextCentroids];
+    centHistoryByStage.push({
+      stageNo: centHistoryByStage.length,
+      centroids,
+    });
+    i += 1;
+    console.log(i, centroids[0]);
+  } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
+
+  const wholeSpotLatLngSum = {
+    lat: spots.reduce((acc, v) => {
+      const curLat = getLatLng(v);
+      if (!curLat) return acc;
+      return acc + curLat.lat;
+    }, 0),
+    lng: spots.reduce((acc, v) => {
+      const curLng = getLatLng(v);
+      if (!curLng) return acc;
+      return acc + curLng.lng;
+    }, 0),
+  };
+
+  const wholeSpotLatLngAvg = {
+    lat: wholeSpotLatLngSum.lat / spots.length,
+    lng: wholeSpotLatLngSum.lng / spots.length,
+    length: spots.length,
+  };
+
+  /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
+  /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
+  /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
+  const nonDupCentroids = centroids.reduce(
+    (
+      nonDupBuf: (GeoFormat & { idx: number })[],
+      cur: GeoFormat | null,
+      idx,
+    ) => {
+      if (!cur) return nonDupBuf;
+      const isDup = nonDupBuf.find(
+        d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
+      );
+
+      if (isDup) return nonDupBuf;
+      nonDupBuf.push({ idx, ...cur });
+      return nonDupBuf;
+    },
+    [],
+  );
+
+  return {
+    r,
+    maxPhase: i,
+    wholeSpotLatLngAvg,
+    nonDupCentroids,
+    centHistoryByStage,
+    centroids: centroids.map((v, idx) => {
+      return {
+        ...v,
+        histories: histories[idx],
+      };
+    }),
+    spotsGeoLocation: spots.map(v => {
+      return {
+        id: v.id,
+        name: v.gl_name,
+        lat: v.gl_lat,
+        lng: v.gl_lng,
+      };
+    }),
+  } as object;
+};
+
 /**
  * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
  */
+export type TourPlaceGeoLoc = Omit<
+  Partial<TourPlace>,
+  'gl_lat | gl_lng | vj_latitude | vj_longitude'
+> & {
+  gl_lat: number | null;
+  gl_lng: number | null;
+  vj_latitude: number | null;
+  vj_longitude: number | null;
+};
+export interface ContextMakeSchedule extends IBContext {
+  spots?: TourPlaceGeoLoc[];
+  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number];
+}
 export const makeSchedule = async (
   param: MakeScheduleREQParam,
-  // ctx?: IBContext,
+  ctx: ContextMakeSchedule,
 ): Promise<MakeScheduleRETParamPayload> => {
   const {
     // isNow,
@@ -2122,88 +2327,11 @@ export const makeSchedule = async (
     });
 
   /// spots clustering part
-  const getLatLng = (spot: {
-    gl_lat: number | null;
-    gl_lng: number | null;
-    vj_latitude: number | null;
-    vj_longitude: number | null;
-  }) => {
-    if (spot.gl_lat && spot.gl_lng)
-      return {
-        lat: spot.gl_lat,
-        lng: spot.gl_lng,
-      };
-    if (spot.vj_latitude && spot.vj_longitude)
-      return {
-        lat: spot.vj_latitude,
-        lng: spot.vj_longitude,
-      };
-    return null;
-  };
 
-  /// 1. 뽑힌 지점들의 중심점 구하기
-  const { lat: latSum, lng: lngSum } = spots.reduce(
-    (prevSum, curSpot) => {
-      const curLatLng = getLatLng(curSpot);
+  ctx.spots = spots;
+  ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
-      if (!curLatLng) return prevSum;
-      const curLatSum = prevSum.lat + curLatLng.lat;
-      const curLngSum = prevSum.lng + curLatLng.lng;
-
-      return {
-        lat: curLatSum,
-        lng: curLngSum,
-      };
-    },
-    { lat: 0, lng: 0 },
-  );
-  const centroid = {
-    lat: latSum / spots.length,
-    lng: lngSum / spots.length,
-  };
-
-  const farthestFromCentroid = [...spots]
-    .sort((a, b) => {
-      const geoA = getLatLng(a);
-      const geoB = getLatLng(b);
-      if (!geoA || !geoB) return -1;
-      const distSqrA =
-        (centroid.lat - geoA.lat) ** 2 + (centroid.lng - geoA.lng) ** 2;
-
-      const distSqrB =
-        (centroid.lat - geoB.lat) ** 2 + (centroid.lng - geoB.lng) ** 2;
-
-      return distSqrB - distSqrA;
-    })
-    .splice(0, 5);
-
-  const r2 = paramByAvgCalibLevel.maxDist ** 2;
-
-  farthestFromCentroid.map(c => {
-    const initCenterLatLng = getLatLng(c);
-    if (!initCenterLatLng) return null;
-    const center = spots.reduce(
-      (prevCentroid, curSpot, idx) => {
-        const spotLatLng = getLatLng(curSpot);
-        if (!spotLatLng) return prevCentroid;
-        const latDeviation2 = Math.abs(prevCentroid.lat - spotLatLng.lat) ** 2;
-        const lngDeviation2 = Math.abs(prevCentroid.lng - spotLatLng.lng) ** 2;
-        if (latDeviation2 + lngDeviation2 < r2) {
-          const curAvgLat =
-            (prevCentroid.lat * idx + spotLatLng.lat) / (idx + 1);
-          const curAvgLng =
-            (prevCentroid.lng * idx + spotLatLng.lng) / (idx + 1);
-          return {
-            lat: curAvgLat,
-            lng: curAvgLng,
-          };
-        }
-        return prevCentroid;
-      },
-      { lat: initCenterLatLng.lat, lng: initCenterLatLng.lng },
-    );
-    return center;
-  });
+  const clusterRes = makeCluster(ctx);
 
   /// hotel search part
   const child = familyOpt.find(v => v.toUpperCase().includes('CHILD')) ? 1 : 0;
@@ -2267,7 +2395,6 @@ export const makeSchedule = async (
       default:
         return 1;
     }
-    return 1;
   })();
 
   const startDate = getNDaysLater(90);
@@ -2310,6 +2437,7 @@ export const makeSchedule = async (
 
   return {
     calibUserLevel,
+    clusterRes,
     tourPlace: tp,
     hotels,
   };
