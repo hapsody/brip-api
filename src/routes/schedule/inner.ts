@@ -2408,9 +2408,9 @@ export const makeSchedule = async (
 
   const startDate = getNDaysLater(90);
   const endDate = getNDaysLater(90 + Number(period));
-  let validCentroids =
+  let validCentroids = // validCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validCentroids 의 위치를 바탕으로 숙소를 검색한다.
     clusterRes?.nonDupCentroids.filter(
-      v => v.numOfPointLessThanR > spotPerDay,
+      v => v.numOfPointLessThanR > spotPerDay * 2,
     ) ?? [];
   const hotelTransition = validCentroids.length - 1;
 
@@ -2494,10 +2494,12 @@ export const makeSchedule = async (
   const hotels = await Promise.all(hotelPromises);
 
   return {
+    spotPerDay,
     calibUserLevel,
     clusterRes,
-    tourPlace: tp,
+    validCentroids,
     hotels,
+    tourPlace: tp,
   };
 };
 
