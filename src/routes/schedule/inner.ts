@@ -2325,14 +2325,14 @@ export const makeSchedule = async (
     },
   });
 
-  const numOfWholeTravelSpot = spotPerDay * Number(period);
-  const spots = [...tp].splice(0, numOfWholeTravelSpot);
-  if (spots.length < numOfWholeTravelSpot)
+  const numOfWholeTravelSpot = Math.ceil(spotPerDay * Number(period));
+  if (tp.length < numOfWholeTravelSpot)
     throw new IBError({
       type: 'NOTEXISTDATA',
       message:
         '조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.',
     });
+  const spots = [...tp].splice(0, numOfWholeTravelSpot);
 
   /// spots clustering part
 
@@ -2408,54 +2408,90 @@ export const makeSchedule = async (
 
   const startDate = getNDaysLater(90);
   const endDate = getNDaysLater(90 + Number(period));
-  const hotelTransition = 0;
-
-  const hotelGeoOpt = ctx.clusterRes?.nonDupCentroids
-    .map(v => {
-      if (v.numOfPointLessThanR > spotPerDay)
-        return {
-          lat: v.lat,
-          lng: v.lng,
-        };
-      return null;
-    })
-    .filter((v): v is GeoFormat => {
-      return v !== null;
-    }) ?? [getLatLng(spots[0])];
-
-  const hotelSrchOpt = {
-    orderBy: 'review_score',
-    adultsNumber,
-    roomNumber,
-    checkinDate: startDate,
-    checkoutDate: endDate,
-    filterByCurrency: 'KRW',
-    latitude: hotelGeoOpt[0].lat.toString(),
-    longitude: hotelGeoOpt[0].lng.toString(),
-    pageNumber: 0,
-    includeAdjacency: false,
-    childrenAges,
-    childrenNumber,
-    categoriesFilterIds: ['property_type::204'],
-  } as BKCSrchByCoordReqOpt;
+  let validCentroids =
+    clusterRes?.nonDupCentroids.filter(
+      v => v.numOfPointLessThanR > spotPerDay,
+    ) ?? [];
+  const hotelTransition = validCentroids.length - 1;
 
   const travelNights = Number(period) - 1;
 
-  if (travelNights < hotelTransition)
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message:
-        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+  if (travelNights < hotelTransition) {
+    // throw new IBError({
+    //   type: 'INVALIDPARAMS',
+    //   message:
+    //     "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
+    // });
+    validCentroids = validCentroids.splice(0, travelNights);
+  }
+
+  const hotelGeoOpt = validCentroids
+    .map(v => {
+      return {
+        lat: v.lat,
+        lng: v.lng,
+      };
+    })
+    .filter((v): v is GeoFormat => {
+      return v !== null;
     });
+
+  const hotelSrchOpts = hotelGeoOpt.map(hotelGeo => {
+    return {
+      orderBy: 'review_score',
+      adultsNumber,
+      roomNumber,
+      checkinDate: startDate,
+      checkoutDate: endDate,
+      filterByCurrency: 'KRW',
+      latitude: hotelGeo.lat.toString(),
+      longitude: hotelGeo.lng.toString(),
+      pageNumber: 0,
+      includeAdjacency: false,
+      childrenAges,
+      childrenNumber,
+      categoriesFilterIds: ['property_type::204'],
+    } as BKCSrchByCoordReqOpt;
+  });
+
   // const travelDays = Number(period);
   const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
 
-  const hotels = await hotelLoopSrchByHotelTrans<BKCSrchByCoordReqOpt>({
-    hotelSrchOpt,
-    hotelTransition,
-    transitionTerm,
-    store: true,
+  const hotelPromises = hotelSrchOpts.map(async (hotelSrchOpt, curLoopCnt) => {
+    // return hotelLoopSrchByHotelTrans<BKCSrchByCoordReqOpt>({
+    //   hotelSrchOpt,
+    //   hotelTransition,
+    //   transitionTerm,
+    //   store: true,
+    // });
+
+    const curCheckin = moment(
+      moment(hotelSrchOpt.checkinDate).add(transitionTerm * curLoopCnt, 'd'),
+    ).toISOString();
+    let curCheckout = moment(
+      moment(curCheckin).add(transitionTerm, 'd'),
+    ).toISOString();
+
+    if (moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0)
+      curCheckout = hotelSrchOpt.checkoutDate;
+
+    const curHotels = await getHotelDataFromBKC({
+      ...hotelSrchOpt,
+      checkinDate: curCheckin,
+      checkoutDate: curCheckout,
+      store: true,
+    });
+
+    return {
+      transitionNo: curLoopCnt,
+      stayPeriod: moment(curCheckout).diff(curCheckin, 'd'),
+      checkin: curCheckin,
+      checkout: curCheckout,
+      hotels: curHotels,
+    };
   });
+
+  const hotels = await Promise.all(hotelPromises);
 
   return {
     calibUserLevel,
@@ -2544,8 +2580,8 @@ export const getScheduleList = async (
   const userTokenId = ctx?.userTokenId;
 
   const queryParams = await prisma.queryParams.findMany({
-    skip: Number(skip),
-    take: Number(take),
+    // skip: Number(skip),
+    // take: Number(take),
     where: {
       userTokenId,
       savedSchedule: {
@@ -2583,7 +2619,9 @@ export const getScheduleList = async (
         queryParamsId: q.id.toString(),
       };
     })
-    .filter(v => v) as GetScheduleListRETParamPayload[];
+    .filter(v => v)
+    .filter(v => v)
+    .splice(Number(skip), Number(take)) as GetScheduleListRETParamPayload[];
 
   return retValue;
 };
@@ -2736,8 +2774,9 @@ export const getDaySchedule = async (
           id: v.id.toString(),
           spotType: vType as string,
           previewImg:
-            googlePlace.gl_photos.length > 0 && googlePlace.gl_photos[0].url
-              ? googlePlace.gl_photos[0].url
+            googlePlace.gl_photos.length > 0 &&
+            googlePlace.gl_photos[0].photo_reference
+              ? googlePlace.gl_photos[0].photo_reference
               : 'none',
           spotName: googlePlace.gl_name ?? 'none',
           spotAddr: googlePlace.gl_vicinity ?? 'none',

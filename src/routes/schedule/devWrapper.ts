@@ -673,6 +673,7 @@ export const makeClusterWrapper = asyncWrapper(
       IBparams: {
         r,
         maxPhase: i,
+        spotPerDay,
         wholeSpotLatLngAvg,
         nonDupCentroids,
         centHistoryByStage,
