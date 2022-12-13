@@ -33,13 +33,21 @@
         headers: {
           'Content-Type': 'application/json',
         },
+        // data: JSON.stringify({
+        //   ingNow: 'ing',
+        //   companion: 'alone',
+        //   period: '30',
+        //   travelType: ['rest', 'healing', 'exploration'],
+        //   destination: 'recommend',
+        //   travelHard: '5',
+        // }),
         data: JSON.stringify({
           ingNow: 'ing',
           companion: 'alone',
-          period: '30',
-          travelType: ['rest', 'healing', 'exploration'],
+          period: '5',
+          travelType: ['rest', 'healing'],
           destination: 'recommend',
-          travelHard: '5',
+          travelHard: '2',
         }),
         success: async function (result) {
           // console.log(result);

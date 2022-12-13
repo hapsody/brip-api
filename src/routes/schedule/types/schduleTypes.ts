@@ -413,7 +413,8 @@ export interface IVisitSchedule {
   checkout: string;
   placeType: VisitPlaceType;
   planType: PlanType;
-  data: Partial<TourPlace>;
+  // data: Partial<TourPlace>;
+  data: any;
 }
 // export interface GetRcmdListRETParamPayload extends QueryParams {
 //   // export interface GetRcmdListRETParamPayload {
