@@ -3126,7 +3126,7 @@ export const getDetailSchedule = async (
 export const getCandidateSchedule = async (
   param: GetCandidateScheduleREQParam,
 ): Promise<GetCandidateScheduleRETParamPayload> => {
-  const { queryParamsId, spotType = '' } = param;
+  const { queryParamsId, spotType = '', skip = 0, take = 10 } = param;
 
   const retValue: GetCandidateScheduleRETParamPayload = await (async () => {
     const queryParams = await prisma.queryParams.findUnique({
@@ -3258,11 +3258,15 @@ export const getCandidateSchedule = async (
         return undefined;
       })
       .filter(v => v !== undefined) as BriefScheduleType[];
+    const takedList =
+      candidateList.length > skip + take
+        ? candidateList.splice(skip, take)
+        : candidateList;
 
     return {
       id: queryParams ? Number(queryParams.id) : 0,
       contentsCountAll: candidateList.length,
-      candidateList,
+      candidateList: takedList,
     };
   })();
 

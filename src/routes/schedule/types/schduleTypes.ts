@@ -725,6 +725,8 @@ export interface GetCandidateScheduleREQParam {
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
   queryParamsId: string; /// 생성일정의 고유 값으로 간주되는 queryParamsId, 해당 값으로 일정을 특정하여 해당 일정의 후보군을 응답한다.
   spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  skip: number;
+  take: number;
 }
 
 export interface GetCandidateScheduleRETParamPayload {
