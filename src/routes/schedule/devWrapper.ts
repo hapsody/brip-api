@@ -214,7 +214,7 @@ export const getRcmdListWrapper = asyncWrapper(
 
 /**
  * 테스트용
- * 파라미터로 넘긴 tag에 OR로 해당하는(IBTravelType) tourPlace를 반환한다.
+ * 파라미터로 넘긴 tag에 OR로 해당하는(ibTravelTag) tourPlace를 반환한다.
  */
 export const getTourPlaceByTagWrapper = asyncWrapper(
   async (
@@ -226,7 +226,7 @@ export const getTourPlaceByTagWrapper = asyncWrapper(
     const { tags } = param;
     const result = await prisma.tourPlace.findMany({
       where: {
-        ibTravelType: {
+        ibTravelTag: {
           some: {
             value: { in: tags },
           },
@@ -236,7 +236,7 @@ export const getTourPlaceByTagWrapper = asyncWrapper(
         id: true,
         gl_name: true,
         vj_title: true,
-        ibTravelType: {
+        ibTravelTag: {
           where: {
             value: { in: tags },
           },
@@ -281,7 +281,7 @@ export const getTagRelationWrapper = asyncWrapper(
       subTags: SubTagTree[];
     };
     const upRecursiveFunc = async (tag: string): Promise<SuperTagTree> => {
-      const curTag = await prisma.iBTravelType.findUnique({
+      const curTag = await prisma.iBTravelTag.findUnique({
         where: {
           value: tag,
         },
@@ -314,7 +314,7 @@ export const getTagRelationWrapper = asyncWrapper(
     };
 
     const downRecursiveFunc = async (tag: string): Promise<SubTagTree> => {
-      const curTag = await prisma.iBTravelType.findUnique({
+      const curTag = await prisma.iBTravelTag.findUnique({
         where: {
           value: tag,
         },
@@ -440,9 +440,9 @@ export const makeClusterWrapper = asyncWrapper(
         : uInputTypeLevel;
     })();
 
-    const tp = await prisma.tourPlace.findMany({
+    const spots = await prisma.tourPlace.findMany({
       where: {
-        ibTravelType: {
+        ibTravelTag: {
           some: {
             AND: [
               { minDifficulty: { gte: calibUserLevel.min } },
@@ -457,7 +457,7 @@ export const makeClusterWrapper = asyncWrapper(
         id: true,
         gl_name: true,
         vj_title: true,
-        ibTravelType: {
+        ibTravelTag: {
           select: {
             value: true,
             minDifficulty: true,
@@ -486,8 +486,8 @@ export const makeClusterWrapper = asyncWrapper(
     const spotPerDay =
       Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
 
-    const numOfWholeTravelSpot = spotPerDay * Number(period);
-    const spots = [...tp].splice(0, numOfWholeTravelSpot);
+    // const numOfWholeTravelSpot = spotPerDay * Number(period);
+    // const spots = [...tp].splice(0, numOfWholeTravelSpot);
 
     /// spots clustering part
     const getLatLng = (spot: {
@@ -708,7 +708,7 @@ export const prismaTestWrapper = asyncWrapper(
     const { tags } = param;
     const result = await prisma.tourPlace.findMany({
       where: {
-        ibTravelType: {
+        ibTravelTag: {
           some: {
             value: { in: tags },
           },
@@ -718,7 +718,7 @@ export const prismaTestWrapper = asyncWrapper(
         id: true,
         gl_name: true,
         vj_title: true,
-        ibTravelType: {
+        ibTravelTag: {
           where: {
             value: { in: tags },
           },

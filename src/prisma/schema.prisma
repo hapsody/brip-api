@@ -85,7 +85,7 @@ model TourPlace {
   evalScore                             Int             @default(0)
   minDifficulty                         Int?
   maxDifficulty                         Int?
-  ibTravelType                          IBTravelType[]
+  ibTravelTag                           IBTravelTag[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   bkc_min_total_price                   Float? /// ex) 572.61373972
@@ -205,42 +205,43 @@ model BatchSearchKeyword {
   tourPlace        TourPlace[]
 }
 
-/// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
-// queryParams는 일정 생성이 요청되면 생성된다.
-// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
-// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
-// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
-// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
-// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
+// enum Companion {
+//   ALONE
+//   FAMILY
+//   FRIEND
+//   NOTYET
+// }
+
+// enum FamilyOpt {
+//   INFANT
+//   CHILDREN
+//   TEENAGER
+// }
+
+/// 유저가 일정 생성을 요청했을때 입력한 값을 갖는 모델
 model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  minMoney   Int?
-  maxMoney   Int?
-  startDate  DateTime?
-  endDate    DateTime?
-  adult      Int?
-  child      Int?
-  travelHard Int?
-  // keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
-  // latitude  Float /// -90 ~ 90
-  // longitude Float /// -180 ~ 180 
-  // radius    Float? /// unit: km, ex) 20
+  minMoney  Int?
+  maxMoney  Int?
+  startDate DateTime?
+  endDate   DateTime?
+  adult     Int?
+  child     Int?
+  // travelHard Int?
 
-  // // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
-  // hotelOrderBy             String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
-  // hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
-  // hotelUnits               String? /// metric | imperial ex) metric
-  // hotelRoomNumber          Int? ///  Number of rooms ex) 1
-  // hotelCheckinDate         DateTime? /// 유저가 입력한 여행 시작일 '2022-09-30';
-  // hotelCheckoutDate        DateTime? ///  유저가 입력한 여행 종료일 '2022-10-01';
-  // hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
-  // hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
-  // hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
-  // hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
-  // hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
+  ingNow    String? /// 현재 여행중인지 여부 ex) "ing", "preStep"
+  companion String? ///  일행이 있는지 여부 ex) 'alone', 'family', 'friend', 'notYet'
+  familyOpt String? ///  가족 동반자 타입 ex) ['infant', 'children', 'teenager'] # infant : 5세 미만 또는 어린이 포함, # children: 초등학생 포함, # teenager: 중/고생 포함
+  minFriend Int? ///  친구 동반자 최소인원 ex) "5"
+  maxFriend Int? /// 친구 동반자 최대 인원 ex) "7"
+
+  period      Int? /// 여행기간 ex) '3'
+  travelType  String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
+  destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
+  travelHard  Int? /// 여행강도 ex) "5"
 
   tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
   metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
@@ -479,7 +480,7 @@ model VisitJejuTag {
 }
 
 /// idealbloom에서 자체 정의하는 여행타입. 
-model IBTravelType {
+model IBTravelTag {
   id            Int                       @id @default(autoincrement())
   createdAt     DateTime                  @default(now())
   updatedAt     DateTime                  @default(now())
@@ -487,16 +488,16 @@ model IBTravelType {
   maxDifficulty Int?
   value         String                    @unique
   related       RModelBetweenTravelType[] @relation("Sub")
-  noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelType 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
+  noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
 }
 
 model RModelBetweenTravelType {
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @default(now())
-  to        IBTravelType @relation(name: "Super", fields: [toId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now())
+  to        IBTravelTag @relation(name: "Super", fields: [toId], references: [id])
   toId      Int
-  from      IBTravelType @relation(name: "Sub", fields: [fromId], references: [id])
+  from      IBTravelTag @relation(name: "Sub", fields: [fromId], references: [id])
   fromId    Int
 
   @@id([fromId, toId])

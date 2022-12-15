@@ -4,7 +4,14 @@ import prisma from '@src/prisma';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
-import { isNumber, isNil, isEmpty, isUndefined, omit } from 'lodash';
+import {
+  isNumber,
+  isNil,
+  isEmpty,
+  isUndefined,
+  omit,
+  flattenDeep,
+} from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParamPayload,
@@ -789,7 +796,7 @@ export const getPlaceByGglTxtSrch = async (
                   },
                 },
               },
-              ibTravelType: await (async () => {
+              ibTravelTag: await (async () => {
                 const {
                   ibType: { typePath, minDifficulty, maxDifficulty },
                 } = batchJobCtx;
@@ -799,13 +806,13 @@ export const getPlaceByGglTxtSrch = async (
                 let superTypeId: number = -1;
                 // eslint-disable-next-line no-restricted-syntax
                 for await (const type of types) {
-                  let curIBTType = await prisma.iBTravelType.findUnique({
+                  let curIBTType = await prisma.iBTravelTag.findUnique({
                     where: {
                       value: type,
                     },
                   });
                   if (!curIBTType) {
-                    curIBTType = await prisma.iBTravelType.create({
+                    curIBTType = await prisma.iBTravelTag.create({
                       data: {
                         value: type,
                         minDifficulty,
@@ -814,7 +821,7 @@ export const getPlaceByGglTxtSrch = async (
                     });
                   }
                   if (superTypeId > -1) {
-                    curIBTType = await prisma.iBTravelType.update({
+                    curIBTType = await prisma.iBTravelTag.update({
                       where: {
                         id: curIBTType.id,
                       },
@@ -2231,14 +2238,14 @@ export const makeSchedule = async (
   ctx: ContextMakeSchedule,
 ): Promise<MakeScheduleRETParamPayload> => {
   const {
-    // isNow,
+    isNow,
     companion,
     familyOpt,
-    // minFriend,
+    minFriend,
     maxFriend,
     period,
     travelType,
-    // destination,
+    destination,
     travelHard,
   } = param;
 
@@ -2322,7 +2329,7 @@ export const makeSchedule = async (
 
   const spots = await prisma.tourPlace.findMany({
     where: {
-      ibTravelType: {
+      ibTravelTag: {
         some: {
           AND: [
             { minDifficulty: { gte: calibUserLevel.min } },
@@ -2337,7 +2344,7 @@ export const makeSchedule = async (
       id: true,
       gl_name: true,
       vj_title: true,
-      ibTravelType: {
+      ibTravelTag: {
         select: {
           value: true,
           minDifficulty: true,
@@ -2375,7 +2382,7 @@ export const makeSchedule = async (
       id: true,
       gl_name: true,
       vj_title: true,
-      ibTravelType: {
+      ibTravelTag: {
         select: {
           value: true,
           minDifficulty: true,
@@ -2415,7 +2422,7 @@ export const makeSchedule = async (
       message: '여행일수에 필요한만큼 충분한 수의 관광 restaurant이 없습니다.',
     });
 
-  ctx.spots = spots;
+  ctx.spots = [...spots];
   ctx.foods = foods;
   ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
@@ -2497,11 +2504,6 @@ export const makeSchedule = async (
     ctx.hotelTransition = validCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
-      // throw new IBError({
-      //   type: 'INVALIDPARAMS',
-      //   message:
-      //     "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
-      // });
       validCentroids = validCentroids.splice(0, ctx.travelNights);
     }
 
@@ -2615,7 +2617,7 @@ export const makeSchedule = async (
     });
 
     const hotels = await Promise.all(hotelPromises);
-    ctx.hotels = hotels;
+    ctx.hotels = [...hotels];
 
     ctx.validCentNResources = validCentNResources.map((v, idx) => {
       const clusteredHotel = [...ctx.hotels!][idx];
@@ -2634,8 +2636,8 @@ export const makeSchedule = async (
     });
   } /// end of hotel srch part
 
-  /// 여행일수에 따른 배열 생성
-  const dayArr = (() => {
+  /// 여행일수에 따른 visitSchedule 배열 생성
+  const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
 
     let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
@@ -2763,6 +2765,118 @@ export const makeSchedule = async (
       });
   })();
 
+  /// QueryParams, tourPlace, visitSchedule DB 생성
+  await prisma.queryParams.create({
+    data: {
+      ingNow: isNow,
+      companion,
+      familyOpt: familyOpt.toString(),
+      minFriend: Number(minFriend),
+      maxFriend: Number(maxFriend),
+      travelType: travelType.toString(),
+      destination,
+      travelHard: Number(travelHard),
+      tourPlace: {
+        connect: [
+          ...(() => {
+            const result = ctx.hotels
+              .map(c => {
+                const hotelIds = c.hotels.hotelSearchResult
+                  .map(h => {
+                    if (h.id)
+                      return {
+                        id: h.id,
+                      };
+                    return undefined;
+                  })
+                  .filter((x): x is { id: number } => x !== undefined);
+                return hotelIds;
+              })
+              .flat();
+            return result;
+          })(),
+          ...ctx.foods.map(v => {
+            return { id: v.id };
+          }),
+          ...ctx.spots.map(v => {
+            return { id: v.id };
+          }),
+        ],
+      },
+      userTokenId: ctx.userTokenId,
+      visitSchedule: {
+        createMany: {
+          data: flattenDeep(
+            visitSchedules.map(v => {
+              return v.titleList.map(t => {
+                return {
+                  dayNo: v.dayNo,
+                  orderNo: t.orderNo!,
+                  planType: t.planType!,
+                  placeType: t.placeType!,
+                  transitionNo: t.transitionNo,
+                  stayPeriod: t.stayPeriod,
+                  checkin: t.checkin,
+                  checkout: t.checkout,
+                  tourPlaceId: (t.data as TourPlaceGeoLoc).id,
+                  // queryParamsId
+                };
+              });
+            }),
+          ),
+        },
+      },
+      //   metaScheduleInfo: {
+      //     create: {
+      //       totalHotelSearchCount: hotels.length,
+      //       totalRestaurantSearchCount: restaurants.length,
+      //       totalSpotSearchCount: spots.length,
+      //       spotPerDay: gSpotPerDay,
+      //       mealPerDay: gMealPerDay,
+      //       mealSchedule: new MealOrder().mealOrder.toString(),
+      //       travelNights,
+      //       travelDays,
+      //       hotelTransition,
+      //       transitionTerm,
+      //       recommendedMinHotelCount: minCandidates.length,
+      //       recommendedMidHotelCount: midCandidates.length,
+      //       recommendedMaxHotelCount: maxCandidates.length,
+      //       visitSchedulesCount: visitSchedules.length,
+      //     },
+      //   },
+      // },
+    },
+    include: {
+      visitSchedule: {
+        include: {
+          tourPlace: true,
+        },
+      },
+    },
+  });
+
+  /// visitSchedule DB 생성
+  // await prisma.visitSchedule.createMany({
+  //   data: flattenDeep(
+  //     dayArr.map(v => {
+  //       return v.titleList.map(t => {
+  //         return {
+  //           dayNo: v.dayNo,
+  //           orderNo: t.orderNo!,
+  //           planType: t.planType!,
+  //           placeType: t.placeType!,
+  //           transitionNo: t.transitionNo,
+  //           stayPeriod: t.stayPeriod,
+  //           checkin: t.checkin,
+  //           checkout: t.checkout,
+  //           tourPlaceId: (t.data as TourPlaceGeoLoc).id,
+  //           // queryParamsId
+  //         };
+  //       });
+  //     }),
+  //   ),
+  // });
+
   // const visitScheduleLength =
   //   (gMealPerDay + /// 식당 방문 수
   //     2) * /// 아침/저녁 숙소
@@ -2792,7 +2906,7 @@ export const makeSchedule = async (
     validCentroids: ctx.validCentNResources,
     // hotels,
     spots,
-    visitSchedule: dayArr,
+    visitSchedules,
   };
 };
 
