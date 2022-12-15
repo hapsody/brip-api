@@ -3074,7 +3074,10 @@ export const getDaySchedule = async (
               ? googlePlace.gl_photos[0].photo_reference
               : 'none',
           spotName: googlePlace.gl_name ?? 'none',
-          spotAddr: googlePlace.gl_vicinity ?? 'none',
+          spotAddr:
+            googlePlace.gl_vicinity ??
+            googlePlace.gl_formatted_address ??
+            'none',
           // contact: 'none',
           placeId: googlePlace.gl_place_id ?? 'none',
           startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
@@ -3311,7 +3314,8 @@ export const getDetailSchedule = async (
           })(),
           spotName: (detailData as { name: string }).name,
           roomType: null,
-          spotAddr: googlePlace.gl_vicinity,
+          spotAddr:
+            googlePlace.gl_vicinity ?? googlePlace.gl_formatted_address ?? null,
           // spotAddr: (detailData as { formatted_address: string })
           //   .formatted_address,
           hotelBookingUrl: null,
@@ -3502,7 +3506,10 @@ export const getCandidateSchedule = async (
                 ? googlePlace.gl_photos[0].url
                 : 'none',
             spotName: googlePlace.gl_name ?? 'none',
-            spotAddr: googlePlace.gl_vicinity ?? 'none',
+            spotAddr:
+              googlePlace.gl_vicinity ??
+              googlePlace.gl_formatted_address ??
+              'none',
             // contact: 'none',
             placeId: googlePlace.gl_place_id ?? 'none',
             // startDate: tp.checkin
@@ -3686,7 +3693,10 @@ export const getCandDetailSchd = async (
           })(),
           spotName: (detailData as { name: string }).name,
           roomType: null,
-          spotAddr: googlePlace.gl_vicinity,
+          spotAddr:
+            googlePlace.gl_vicinity ??
+            googlePlace.gl_formatted_address ??
+            'none',
           // spotAddr: (detailData as { formatted_address: string })
           //   .formatted_address,
           hotelBookingUrl: null,
