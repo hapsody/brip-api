@@ -1,6 +1,9 @@
 /*
   Warnings:
 
+  - You are about to drop the column `visitSchedulesCount` on the `MetaScheduleInfo` table. All the data in the column will be lost.
+  - You are about to alter the column `spotPerDay` on the `MetaScheduleInfo` table. The data in that column could be lost. The data in that column will be cast from `Int` to `Double`.
+  - You are about to alter the column `mealPerDay` on the `MetaScheduleInfo` table. The data in that column could be lost. The data in that column will be cast from `Int` to `Double`.
   - You are about to drop the `IBTravelType` table. If the table is not empty, all the data it contains will be lost.
   - You are about to drop the `_IBTravelTypeToTourPlace` table. If the table is not empty, all the data it contains will be lost.
 
@@ -16,6 +19,22 @@ ALTER TABLE `_IBTravelTypeToTourPlace` DROP FOREIGN KEY `_IBTravelTypeToTourPlac
 
 -- DropForeignKey
 ALTER TABLE `_IBTravelTypeToTourPlace` DROP FOREIGN KEY `_IBTravelTypeToTourPlace_B_fkey`;
+
+-- AlterTable
+ALTER TABLE `MetaScheduleInfo` DROP COLUMN `visitSchedulesCount`,
+    MODIFY `totalHotelSearchCount` INTEGER NULL,
+    MODIFY `totalRestaurantSearchCount` INTEGER NULL,
+    MODIFY `totalSpotSearchCount` INTEGER NULL,
+    MODIFY `spotPerDay` DOUBLE NULL,
+    MODIFY `mealPerDay` DOUBLE NULL,
+    MODIFY `mealSchedule` VARCHAR(191) NULL,
+    MODIFY `travelNights` INTEGER NULL,
+    MODIFY `travelDays` INTEGER NULL,
+    MODIFY `hotelTransition` INTEGER NULL,
+    MODIFY `transitionTerm` VARCHAR(191) NULL,
+    MODIFY `recommendedMinHotelCount` INTEGER NULL,
+    MODIFY `recommendedMidHotelCount` INTEGER NULL,
+    MODIFY `recommendedMaxHotelCount` INTEGER NULL;
 
 -- AlterTable
 ALTER TABLE `QueryParams` ADD COLUMN `companion` VARCHAR(191) NULL,

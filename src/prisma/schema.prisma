@@ -349,22 +349,22 @@ model MetaScheduleInfo {
   id                         Int      @id @default(autoincrement())
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @default(now())
-  totalHotelSearchCount      Int /// 검색된 호텔들의 수
-  totalRestaurantSearchCount Int /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
-  totalSpotSearchCount       Int /// 검색된 관광지의 수
-  spotPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 관광지 수
-  mealPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 식당 수
-  mealSchedule               String /// 식사 일정,  ex) -1,0,2 
+  totalHotelSearchCount      Int? /// 검색된 호텔들의 수
+  totalRestaurantSearchCount Int? /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
+  totalSpotSearchCount       Int? /// 검색된 관광지의 수
+  spotPerDay                 Float? /// 스케쥴 생성에 설정된 하루에 방문할 관광지 수
+  mealPerDay                 Float? /// 스케쥴 생성에 설정된 하루에 방문할 식당 수
+  mealSchedule               String? /// 식사 일정,  ex) -1,0,2 
   // -1,0,2 => { breakfast: -1, lunch: 0, dinner: 2 }  라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함. 추가사항은 MealOrder 클래스 코멘트 참조.
 
-  travelNights             Int /// 여행'박' 수, ex) 1박 2일에서 1를 의미
-  travelDays               Int /// 여행'일' 수, ex) 1박 2일에서 2를 의미
-  hotelTransition          Int /// 여행중 숙소를 몇번 변경할것인지
-  transitionTerm           Int /// 여행중 숙소를 몇일마다 바꿀것인지 
-  recommendedMinHotelCount Int /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMidHotelCount Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMaxHotelCount Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
+  travelNights             Int? /// 여행'박' 수, ex) 1박 2일에서 1를 의미
+  travelDays               Int? /// 여행'일' 수, ex) 1박 2일에서 2를 의미
+  hotelTransition          Int? /// 여행중 숙소를 몇번 변경할것인지
+  transitionTerm           String? /// 여행중 숙소를 몇일마다 바꿀것인지 ex) 5,2 <= 5일머무르고 숙소 이동 후 2일 머무름
+  recommendedMinHotelCount Int? /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMidHotelCount Int? /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMaxHotelCount Int? /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  // visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
   queryParams              QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId            Int         @unique
 }
