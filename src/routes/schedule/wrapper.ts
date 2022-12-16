@@ -9,9 +9,6 @@ import {
   GetPlaceByGglTxtSrchRETParam,
   GetPlaceByGglNrbyREQParam,
   GetPlaceByGglNrbyRETParam,
-  ReqScheduleREQParam,
-  ReqScheduleRETParam,
-  BKCSrchByCoordReqOpt,
   GetScheduleREQParam,
   GetScheduleRETParam,
   GetScheduleListREQParam,
@@ -31,13 +28,13 @@ import {
   ModifyScheduleRETParam,
   MakeScheduleREQParam,
   MakeScheduleRETParam,
+  ContextMakeSchedule,
 } from './types/schduleTypes';
 
 import {
   getHotelDataFromBKC,
   getPlaceByGglTxtSrch,
   getPlaceByGglNrby,
-  reqSchedule,
   getSchedule,
   getScheduleList,
   saveSchedule,
@@ -47,7 +44,6 @@ import {
   getCandDetailSchd,
   modifySchedule,
   makeSchedule,
-  ContextMakeSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -149,67 +145,6 @@ export const getPlaceByGglNrbyWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: placeResult,
-      });
-    } catch (err) {
-      if (err instanceof IBError) {
-        if (err.type === 'INVALIDPARAMS') {
-          res.status(400).json({
-            ...ibDefs.INVALIDPARAMS,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-        if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
-            ...ibDefs.NOTEXISTDATA,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-      }
-      throw err;
-    }
-  },
-);
-
-/**
- * 일정 생성 요청을 하는 함수를 호출하는 api endpoint
- *
- */
-export const reqScheduleWrapper = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<ReqScheduleREQParam<BKCSrchByCoordReqOpt>>,
-    res: Express.IBTypedResponse<ReqScheduleRETParam>,
-  ) => {
-    try {
-      // const watchStart = moment();
-      const { locals } = req;
-      const userTokenId = (() => {
-        if (locals && locals?.grade === 'member')
-          return locals?.user?.userTokenId;
-        return locals?.tokenId;
-      })();
-
-      if (!userTokenId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
-
-      const ctx: IBContext = {
-        userTokenId,
-      };
-      const param = req.body;
-      const scheduleResult = await reqSchedule<BKCSrchByCoordReqOpt>(
-        param,
-        ctx,
-      );
-      res.json({
-        ...ibDefs.SUCCESS,
-        IBparams: scheduleResult,
       });
     } catch (err) {
       if (err instanceof IBError) {

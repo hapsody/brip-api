@@ -404,25 +404,17 @@ export interface FavoriteAccommodationLocation {
 export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 
 /// 일별 추천 일정 타입
-export interface IVisitSchedule {
-  dayNo: number;
-  orderNo: number;
-  transitionNo: number;
-  stayPeriod: number;
-  checkin: string;
-  checkout: string;
+export interface IVisitOneSchedule {
+  visitScheduleId: string; // ex)  171273
+  orderNo: number; // x일차 y번째 일정인지 표기 1,2,3,4,..
   placeType: VisitPlaceType;
-  planType: PlanType;
-  // data: Partial<TourPlace>;
-  data: any;
+  title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+  transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+  stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
+  checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
+  checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
 }
-// export interface GetRcmdListRETParamPayload extends QueryParams {
-//   // export interface GetRcmdListRETParamPayload {
-//   // metaInfo: MetaScheduleInfo;
-//   visitSchedulesCount: number;
-//   visitSchedules: Partial<VisitSchedule>[];
-//   // queryParamId: number;
-// }
 
 export type GetRcmdListRETParamPayload = QueryParams & {
   visitSchedule: (VisitSchedule & {
@@ -511,7 +503,83 @@ export interface MakeScheduleREQParam {
 //     day: DayScheduleType[];
 //   }[];
 // }
-export interface MakeScheduleRETParamPayload {}
+export type TourPlaceGeoLoc = Omit<
+  Partial<TourPlace>,
+  'gl_lat | gl_lng | vj_latitude | vj_longitude'
+> & {
+  gl_lat: number | null;
+  gl_lng: number | null;
+  vj_latitude: number | null;
+  vj_longitude: number | null;
+};
+
+export interface IValidCentResources {
+  centroidNHotel: {
+    /// 군집정보와 해당 군집군내 호텔 검색 결과
+    transitionNo?: number;
+    stayPeriod?: number;
+    checkin?: string;
+    checkout?: string;
+    ratio?: number;
+    hotels?: GetHotelDataFromBKCRETParamPayload;
+    cent?: GeoFormat & {
+      idx: number;
+      numOfPointLessThanR: number;
+    };
+  };
+  nearbySpots: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 여행지
+  nearbyFoods: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 식당
+}
+
+export interface IHotelInMakeSchedule {
+  transitionNo: number; /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
+  stayPeriod: number; /// 검색한 숙소에서 며칠을 머무를지
+  checkin: string; /// 검색한 숙소에 체크인할 날짜
+  checkout: string; /// 검색한 숙소에 체크아웃할 날짜
+  ratio: number; /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
+  hotels: GetHotelDataFromBKCRETParamPayload; /// 해당 클러스터에서 검색된 후보 숙소들
+}
+export interface IVisitDaySchedule {
+  planType: PlanType;
+  dayNo: number;
+  titleList: Partial<IVisitOneSchedule>[];
+}
+export interface ContextMakeSchedule extends IBContext {
+  /// 검색된 클러스터별 호텔들
+  hotels?: IHotelInMakeSchedule[];
+  spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
+  foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
+  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
+  clusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+
+  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
+  validCentNResources?: IValidCentResources[];
+  numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
+  spotPerDay?: number; /// 하루 평균 방문 여행지 수
+  mealPerDay?: number; /// 하루 평균 방문할 식당수
+  travelNights?: number; /// 여행 일정중 '일'수
+  travelDays?: number; /// 여행 일정중 '박'수
+  hotelTransition?: number; /// 여행일정중 숙소 변경횟수
+  visitSchedules?: IVisitDaySchedule[];
+}
+
+export interface MakeScheduleRETParamPayload {
+  spotPerDay?: number;
+  calibUserLevel?: {
+    min: number;
+    max: number;
+  };
+  clusterRes?: MakeClusterRETParam;
+  validCentroids?: IValidCentResources[];
+  hotels?: IHotelInMakeSchedule[];
+  spots?: TourPlaceGeoLoc[];
+  foods?: TourPlaceGeoLoc[];
+  visitSchedules: {
+    planType: PlanType;
+    dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
+    titleList: Partial<IVisitOneSchedule>[];
+  }[];
+}
 export type MakeScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: MakeScheduleRETParamPayload | {};
 };

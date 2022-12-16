@@ -15,14 +15,14 @@ import {
   defaultBKCHotelReqParams,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParam,
-  BKCSrchByCoordReqOpt,
-  GetRcmdListREQParam,
-  GetRcmdListRETParam,
+  // BKCSrchByCoordReqOpt,
+  // GetRcmdListREQParam,
+  // GetRcmdListRETParam,
   MakeScheduleREQParam,
   gParamByTravelLevel,
 } from './types/schduleTypes';
 
-import { getPlaceDataFromVJ, getRcmdList, degreeToMeter } from './inner';
+import { getPlaceDataFromVJ, degreeToMeter } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -145,47 +145,6 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: jejuRes,
-      });
-      return;
-    } catch (err) {
-      if (err instanceof IBError) {
-        if (err.type === 'INVALIDPARAMS') {
-          res.status(400).json({
-            ...ibDefs.INVALIDPARAMS,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-        if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
-            ...ibDefs.NOTEXISTDATA,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-      }
-      throw err;
-    }
-  },
-);
-
-/**
- * inner 함수인 getRcmdList 확인용
- */
-export const getRcmdListWrapper = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<GetRcmdListREQParam<BKCSrchByCoordReqOpt>>,
-    res: Express.IBTypedResponse<GetRcmdListRETParam>,
-  ) => {
-    try {
-      const param = req.body;
-      const ret = await getRcmdList(param);
-
-      res.json({
-        ...ibDefs.SUCCESS,
-        IBparams: ret,
       });
       return;
     } catch (err) {

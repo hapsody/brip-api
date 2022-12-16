@@ -25,21 +25,21 @@ import {
   GglPlaceResultRawData,
   GetPlaceDataFromVJREQParam,
   GetPlaceDataFromVJRETParamPayload,
-  GetRcmdListREQParam,
-  GetRcmdListRETParamPayload,
-  gHotelTransition,
+  // GetRcmdListREQParam,
+  // GetRcmdListRETParamPayload,
+  // gHotelTransition,
   HotelOptType,
   gMinHotelMoneyPortion,
   gMidHotelMoneyPortion,
   gMaxHotelMoneyPortion,
   gFlexPortionLimit,
   gMealPerDay,
-  gSpotPerDay,
+  // gSpotPerDay,
   MealOrder,
-  IVisitSchedule,
+  IVisitOneSchedule,
   FavoriteTravelType,
-  ReqScheduleREQParam,
-  ReqScheduleRETParamPayload,
+  // ReqScheduleREQParam,
+  // ReqScheduleRETParamPayload,
   GetScheduleREQParam,
   GetScheduleRETParamPayload,
   DayScheduleType,
@@ -56,7 +56,7 @@ import {
   GetPlaceDetailRawData,
   GooglePriceLevel,
   GooglePlaceReview,
-  GetRcmdListHotelOpt,
+  // GetRcmdListHotelOpt,
   GetCandidateScheduleREQParam,
   GetCandidateScheduleRETParamPayload,
   BriefScheduleType,
@@ -69,6 +69,9 @@ import {
   BKCSrchByCoordReqOpt,
   gParamByTravelLevel,
   MakeClusterRETParam,
+  TourPlaceGeoLoc,
+  IHotelInMakeSchedule,
+  ContextMakeSchedule,
   GeoFormat,
 } from './types/schduleTypes';
 
@@ -1426,400 +1429,6 @@ export const moneyFilterForHotel = (param: {
   };
 };
 
-/**
- * 일정을 만들기위한 데이터 검색 후 반환하는 함수 (호텔, 식당, 관광지)
- */
-const searchData = async <H extends HotelOptType>(param: {
-  hotelSrchOpt: GetRcmdListHotelOpt<H>;
-  hotelTransition: number;
-  transitionTerm: number;
-  store?: boolean; /// 호텔 검색할때 검색 결과를 TourPlace로 저장할지
-}) => {
-  const hotels = await (async () => {
-    if (param) {
-      const { hotelSrchOpt, hotelTransition, transitionTerm, store } = param;
-
-      const ret = await hotelLoopSrchByHotelTrans<H>({
-        hotelSrchOpt,
-        hotelTransition,
-        transitionTerm,
-        store,
-      });
-      return ret;
-    }
-    return [];
-  })();
-
-  const spots = await prisma.tourPlace.findMany({
-    where: {
-      AND: [
-        { status: 'IN_USE' },
-        {
-          OR: [
-            { tourPlaceType: 'GL_SPOT' },
-            { tourPlaceType: 'VISITJEJU_SPOT' },
-          ],
-        },
-      ],
-    },
-    orderBy: [{ evalScore: 'desc' }],
-  });
-  const restaurants = await prisma.tourPlace.findMany({
-    where: {
-      AND: [
-        { status: 'IN_USE' },
-        {
-          OR: [
-            { tourPlaceType: 'GL_RESTAURANT' },
-            { tourPlaceType: 'VISITJEJU_RESTAURANT' },
-          ],
-        },
-      ],
-    },
-    orderBy: [{ evalScore: 'desc' }],
-  });
-  return {
-    hotels,
-    restaurants,
-    spots,
-  };
-};
-
-/**
- * 호텔 검색 옵션과 장소 및 식장 검색 옵션 파라미터를 전달받아 추천 일정 리스트를 반환하는 함수
- * (구) getRecommendListWithLatLNgtInnerFn, getRecommendListFromDBInnerFn
- */
-export const getRcmdList = async <H extends HotelOptType>(
-  param: GetRcmdListREQParam<H>,
-  ctx?: IBContext,
-): Promise<GetRcmdListRETParamPayload> => {
-  const {
-    minMoney = 0, // 여행 전체일정중 최소비용
-    maxMoney = 0, // 여행 전체 일정중 최대 비용
-    // currency,
-    // travelType,
-    travelHard,
-    startDate, // 여행 시작일
-    endDate, // 여행 종료일
-    adult,
-    child,
-    hotelTransition = gHotelTransition, // 호텔 바꾸는 횟수
-    hotelSrchOpt,
-    // placeSrchOpt,
-    store = true,
-  } = param;
-
-  const userTokenId = ctx?.userTokenId;
-
-  const { latitude: hotelLat, longitude: hotelLngt } = hotelSrchOpt;
-
-  if (minMoney === 0 || maxMoney === 0) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message: 'minMoney, maxMoney는 모두 0이상의 값이 제공되어야 합니다.',
-    });
-  }
-
-  if (isEmpty(hotelLat) || isEmpty(hotelLngt)) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message:
-        '전달된 파라미터중 searchHotelReqParams의 latitude, longitude 값이 없거나 string으로 제공되지 않았습니다.',
-    });
-  }
-
-  if (
-    isEmpty(startDate) ||
-    isEmpty(endDate) ||
-    !(new Date(startDate) instanceof Date) ||
-    !(new Date(endDate) instanceof Date)
-  ) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message:
-        'startDate, endDate 값은 모두 Date의 ISO string 형태로 제공되어야 합니다.',
-    });
-  }
-
-  const travelNights = getTravelNights(startDate, endDate);
-  if (travelNights < 1) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message: '여행 시작일과 종료일의 차이가 1미만입니다.',
-    });
-  }
-
-  if (travelNights < hotelTransition)
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message:
-        "hotelTransation 값은 전체 여행중 숙소에 머무를 '박'수를 넘을수 없습니다.",
-    });
-  const travelDays = travelNights + 1;
-  const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
-
-  /// data searching part (hotel, restaurant, spot)
-  const { hotels, restaurants, spots } = await searchData<H>({
-    hotelSrchOpt,
-    hotelTransition,
-    transitionTerm,
-    store,
-  });
-
-  const {
-    min: minCandidates,
-    mid: midCandidates,
-    max: maxCandidates,
-  } = moneyFilterForHotel({
-    candidates: hotels,
-    inputCtx: {
-      minMoney,
-      maxMoney,
-      travelNights,
-    },
-  });
-
-  const makeVisitSchedule = (planType: PlanType) => {
-    const cpSpots = [...spots];
-    const cpRestaurants = [...restaurants];
-
-    const numOfADaySchedule = gMealPerDay + gSpotPerDay + 1;
-    // const totalScheduleLength = visitScheduleLength * 3; /// min,  mid, max 세개
-    let mealOrder: MealOrder;
-    let nextMealOrder: number;
-
-    return (x: unknown, i: number) => {
-      const dayNo = Math.floor(i / numOfADaySchedule);
-      const orderNo = i % numOfADaySchedule;
-      let ret: Partial<IVisitSchedule> = { dayNo, orderNo, planType };
-
-      const transitionNo = Math.floor(
-        dayNo === travelDays - 1
-          ? minCandidates.length - 1
-          : dayNo / transitionTerm,
-      );
-
-      const candidates = (() => {
-        if (planType === 'MIN') return minCandidates[transitionNo];
-        if (planType === 'MID') return midCandidates[Math.floor(transitionNo)];
-        return maxCandidates[Math.floor(transitionNo)];
-      })();
-
-      if (orderNo === 0) {
-        ret = {
-          ...ret,
-          placeType: 'HOTEL',
-          transitionNo: candidates.transitionNo ?? {},
-          stayPeriod: candidates.stayPeriod ?? {},
-          checkin: candidates.checkin ?? {},
-          checkout: candidates.checkout ?? {},
-          data: candidates.hotels[0] ?? {},
-        };
-        mealOrder = new MealOrder();
-        nextMealOrder = mealOrder.getNextMealOrder();
-        return ret;
-      }
-
-      if (nextMealOrder === orderNo) {
-        ret = {
-          ...ret,
-          placeType: 'RESTAURANT',
-          transitionNo: candidates.transitionNo ?? {},
-          stayPeriod: candidates.stayPeriod ?? {},
-          checkin: candidates.checkin ?? {},
-          checkout: candidates.checkout ?? {},
-          data: cpRestaurants.shift() ?? {},
-        };
-        nextMealOrder = mealOrder.getNextMealOrder();
-        return ret;
-      }
-
-      ret = {
-        ...ret,
-        placeType: 'SPOT',
-        transitionNo: candidates.transitionNo ?? {},
-        stayPeriod: candidates.stayPeriod ?? {},
-        checkin: candidates.checkin ?? {},
-        checkout: candidates.checkout ?? {},
-        data: cpSpots.shift() ?? {},
-      };
-      return ret;
-    };
-  };
-
-  const numOfADaySchedule = gMealPerDay + gSpotPerDay + 1;
-  const visitScheduleLength = travelDays * numOfADaySchedule;
-  const tmpArr = Array.from(Array(visitScheduleLength));
-  const minVisitSchedules = tmpArr.map(makeVisitSchedule('MIN'));
-  const midVisitSchedules = tmpArr.map(makeVisitSchedule('MID'));
-  const maxVisitSchedules = tmpArr.map(makeVisitSchedule('MAX'));
-
-  const visitSchedules = [
-    ...minVisitSchedules,
-    ...midVisitSchedules,
-    ...maxVisitSchedules,
-  ];
-
-  /// legacy code day, order 2중 루프
-  // const visitSchedulePromises = Array.from(Array(travelDays)).map(
-  //   async (x, day) => {
-  //     const mealOrder = new MealOrder();
-  //     let nextMealOrder = mealOrder.getNextMealOrder();
-
-  //     const dayArr = Array.from(Array(gMealPerDay + gSpotPerDay + 1));
-
-  //     const makeVisitSchedule = (type: 'min' | 'mid' | 'max') => {
-  //       return async (v: unknown, i: number) => {
-  //         const promise: Promise<VisitOrder> = new Promise(resolve => {
-  //           if (i === 0) {
-  //             resolve({
-  //               type: 'HOTEL',
-  //               data: ((): Partial<TourPlace> => {
-  //                 if (type === 'min') {
-  //                   return (
-  //                     minCandidates[Math.floor(day / transitionTerm)]
-  //                       .hotels[0] ?? {}
-  //                   );
-  //                 }
-
-  //                 if (type === 'mid') {
-  //                   return (
-  //                     midCandidates[Math.floor(day / transitionTerm)]
-  //                       .hotels[0] ?? {}
-  //                   );
-  //                 }
-
-  //                 return (
-  //                   maxCandidates[Math.floor(day / transitionTerm)].hotels[0] ??
-  //                   {}
-  //                 );
-  //               })(),
-  //             });
-  //           }
-  //           if (nextMealOrder === i) {
-  //             nextMealOrder = mealOrder.getNextMealOrder();
-  //             resolve({
-  //               type: 'RESTAURANT',
-  //               data: restaurants.shift() ?? {},
-  //             });
-  //           }
-  //           resolve({
-  //             type: 'SPOT',
-  //             data: spots.shift() ?? {},
-  //           });
-  //         });
-  //         const result = await promise;
-  //         return result;
-  //       };
-  //     };
-
-  //     const min = await Promise.all(dayArr.map(makeVisitSchedule('min')));
-  //     const mid = await Promise.all(dayArr.map(makeVisitSchedule('mid')));
-  //     const max = await Promise.all(dayArr.map(makeVisitSchedule('max')));
-
-  //     return {
-  //       visitOrder: {
-  //         min,
-  //         mid,
-  //         max,
-  //       },
-  //     };
-  //   },
-  // );
-
-  // const visitSchedules = await Promise.all(visitSchedulePromises);
-
-  const queryParams = await prisma.queryParams.create({
-    data: {
-      minMoney: minMoney ? Number(minMoney) : undefined,
-      maxMoney: maxMoney ? Number(maxMoney) : undefined,
-      startDate: moment(moment(startDate).startOf('d')).toISOString(),
-      endDate: moment(moment(endDate).startOf('d')).toISOString(),
-      // startDate,
-      // endDate,
-      travelHard: travelHard ? Number(travelHard) : travelHard,
-      adult: adult ? Number(adult) : undefined,
-      child: child ? Number(child) : undefined,
-      tourPlace: {
-        connect: [
-          ...(() => {
-            const result = hotels
-              .map(c => {
-                const hotelIds = c.hotels
-                  .map(h => {
-                    if (h.id)
-                      return {
-                        id: h.id,
-                      };
-                    return undefined;
-                  })
-                  .filter(x => x) as unknown[] as {
-                  id: number;
-                }[];
-                return hotelIds;
-              })
-              .flat();
-            return result;
-          })(),
-          ...restaurants.map(v => {
-            return { id: v.id };
-          }),
-          ...spots.map(v => {
-            return { id: v.id };
-          }),
-        ],
-      },
-      userTokenId,
-      visitSchedule: {
-        createMany: {
-          data: visitSchedules.map(v => {
-            return {
-              dayNo: v.dayNo ?? -1,
-              orderNo: v.orderNo ?? -1,
-              planType: v.planType ?? 'MIN',
-              placeType: v.placeType ?? null,
-              tourPlaceId: v.data?.id,
-              transitionNo: v.transitionNo,
-              stayPeriod: v.stayPeriod,
-              checkin: v.checkin,
-              checkout: v.checkout,
-            };
-          }),
-        },
-      },
-      metaScheduleInfo: {
-        create: {
-          totalHotelSearchCount: hotels.length,
-          totalRestaurantSearchCount: restaurants.length,
-          totalSpotSearchCount: spots.length,
-          spotPerDay: gSpotPerDay,
-          mealPerDay: gMealPerDay,
-          mealSchedule: new MealOrder().mealOrder.toString(),
-          travelNights,
-          travelDays,
-          hotelTransition,
-          transitionTerm: transitionTerm.toString(),
-          recommendedMinHotelCount: minCandidates.length,
-          recommendedMidHotelCount: midCandidates.length,
-          recommendedMaxHotelCount: maxCandidates.length,
-          // visitSchedulesCount: visitSchedules.length,
-        },
-      },
-    },
-    include: {
-      visitSchedule: {
-        include: {
-          tourPlace: true,
-        },
-      },
-    },
-  });
-
-  return {
-    ...queryParams,
-  };
-};
-
 const visitScheduleToDayScheduleType = (
   acc: DayScheduleType[],
   cur: VisitSchedule & {
@@ -1894,98 +1503,6 @@ const visitScheduleToDayScheduleType = (
     }
   }
   return acc;
-};
-
-/**
- * 일정 생성 요청을 하는 reqSchedule 구현부 함수.
- * 내부적으로 getRcmdList를 호출하여 타입 변환 후 프론트로 전달한다.
- */
-export const reqSchedule = async <H extends HotelOptType>(
-  param: ReqScheduleREQParam<H>,
-  ctx?: IBContext,
-): Promise<ReqScheduleRETParamPayload> => {
-  // const watchStart = moment();
-
-  const {
-    startDate,
-    endDate,
-    adult,
-    child,
-    infant,
-    // favoriteTravelType,
-    // favoriteAccommodation,
-    // favoriteAccommodationLocation,
-    hotelSrchOpt: inputHotelSrchOpt,
-  } = param;
-
-  // const scheduleHash = uuidv4();
-
-  // const travelType: FavoriteTravelType =
-  //   arrTravelTypeToObj(favoriteTravelType);
-  // const accommodationType: FavoriteAccommodationLocation =
-  //   arrAccommodationTypeToObj(favoriteAccommodation);
-  // const accommodationLocationType: FavoriteAccommodationLocation =
-  //   arrAccommodationLocationToObj(favoriteAccommodationLocation);
-
-  const childrenAges = childInfantToChildrenAges({
-    child: Number(child),
-    infant: Number(infant),
-  });
-
-  const hotelSrchOpt = {
-    orderBy: 'review_score',
-    adultsNumber: adult ? Number(adult) : 2,
-    roomNumber: 1,
-    checkinDate: startDate,
-    checkoutDate: endDate,
-    filterByCurrency: 'KRW',
-    latitude: '33.389464',
-    longitude: '126.554401',
-    pageNumber: 0,
-    includeAdjacency: true,
-    childrenAges,
-    childrenNumber: (infant ? Number(infant) : 0) + (child ? Number(child) : 0),
-    categoriesFilterIds: inputHotelSrchOpt?.categoriesFilterIds ?? [
-      'property_type::204',
-    ],
-  } as H;
-
-  const queryParams = await getRcmdList<H>(
-    {
-      ...param,
-      hotelTransition: 1,
-      hotelSrchOpt,
-      store: true,
-    },
-    ctx,
-  );
-
-  const minSchds = queryParams.visitSchedule.filter(v => v.planType === 'MIN');
-  const midSchds = queryParams.visitSchedule.filter(v => v.planType === 'MID');
-  const maxSchds = queryParams.visitSchedule.filter(v => v.planType === 'MAX');
-
-  const minRetValue = minSchds.reduce(
-    visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
-  );
-  const midRetValue = midSchds.reduce(
-    visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
-  );
-  const maxRetValue = maxSchds.reduce(
-    visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
-  );
-
-  return {
-    ...omit(queryParams, 'visitSchedule'),
-    // queryParamsId: queryParams.id.toString(),
-    plan: [
-      { planType: 'MIN', day: minRetValue },
-      { planType: 'MID', day: midRetValue },
-      { planType: 'MAX', day: maxRetValue },
-    ],
-  };
 };
 
 export const degreeToMeter = (
@@ -2187,56 +1704,7 @@ export const makeCluster = (
 /**
  * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
  */
-export type TourPlaceGeoLoc = Omit<
-  Partial<TourPlace>,
-  'gl_lat | gl_lng | vj_latitude | vj_longitude'
-> & {
-  gl_lat: number | null;
-  gl_lng: number | null;
-  vj_latitude: number | null;
-  vj_longitude: number | null;
-};
-export interface ContextMakeSchedule extends IBContext {
-  /// 검색된 클러스터별 호텔들
-  hotels?: {
-    transitionNo: number; /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
-    stayPeriod: number; /// 검색한 숙소에서 며칠을 머무를지
-    checkin: string; /// 검색한 숙소에 체크인할 날짜
-    checkout: string; /// 검색한 숙소에 체크아웃할 날짜
-    ratio: number; /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
-    hotels: GetHotelDataFromBKCRETParamPayload; /// 해당 클러스터에서 검색된 후보 숙소들
-  }[];
-  spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
-  foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
-  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
-  clusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
-  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
-  validCentNResources?: {
-    centroidNHotel: {
-      /// 군집정보와 해당 군집군내 호텔 검색 결과
-      transitionNo?: number;
-      stayPeriod?: number;
-      checkin?: string;
-      checkout?: string;
-      ratio?: number;
-      hotels?: GetHotelDataFromBKCRETParamPayload;
-      cent?: GeoFormat & {
-        idx: number;
-        numOfPointLessThanR: number;
-      };
-    };
-    nearbySpots: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 여행지
-    nearbyFoods: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 식당
-  }[];
-  numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
-  spotPerDay?: number; /// 하루 평균 방문 여행지 수
-  mealPerDay?: number; /// 하루 평균 방문할 식당수
-  travelNights?: number; /// 여행 일정중 '일'수
-  travelDays?: number; /// 여행 일정중 '박'수
-  hotelTransition?: number; /// 여행일정중 숙소 변경횟수
-  visitSchedules?: any; /// DB 일정 생성 직전의 일정리스트
-}
 export const makeSchedule = async (
   param: MakeScheduleREQParam,
   ctx: ContextMakeSchedule,
@@ -2617,7 +2085,7 @@ export const makeSchedule = async (
         checkout: curCheckout,
         ratio,
         hotels: curHotels,
-      };
+      } as IHotelInMakeSchedule;
     });
 
     const hotels = await Promise.all(hotelPromises);
@@ -2684,6 +2152,7 @@ export const makeSchedule = async (
         const tmpArr = Array(ctx.mealPerDay! + 1 + numOfTodaySpot).fill(null);
 
         return {
+          planType: 'MIN' as PlanType,
           dayNo,
           titleList: tmpArr
             .map((v, orderNo) => {
@@ -2691,10 +2160,8 @@ export const makeSchedule = async (
 
               const { nearbySpots, nearbyFoods } = curResources;
 
-              let ret: Partial<IVisitSchedule> = {
-                dayNo,
+              let ret: Partial<IVisitOneSchedule> = {
                 orderNo,
-                planType: 'MIN',
                 transitionNo: curResources.centroidNHotel.transitionNo,
                 stayPeriod: curResources.centroidNHotel.stayPeriod,
                 checkin: curResources.centroidNHotel.checkin,
@@ -2706,15 +2173,16 @@ export const makeSchedule = async (
                 orderNo === 0
                 // || orderNo === tmpArr.length - 1
               ) {
-                const data = curResources.centroidNHotel.cent;
+                const centNHotel = curResources.centroidNHotel;
                 ret = {
                   ...ret,
                   placeType: 'HOTEL',
-                  data, /// 호텔은 정해지지 않았으므로 검색한 중심점을 데이터로 넣는다.
+                  data: centNHotel.hotels!.hotelSearchResult, /// 호텔은 정해지지 않았으므로 검색한 중심점을 데이터로 넣는다.
                 };
+
                 prevGeoLoc = {
-                  lat: data!.lat,
-                  lng: data!.lng,
+                  lat: centNHotel.cent!.lat,
+                  lng: centNHotel.cent!.lng,
                 };
 
                 mealOrder = new MealOrder();
@@ -2730,7 +2198,7 @@ export const makeSchedule = async (
                 ret = {
                   ...ret,
                   placeType: 'RESTAURANT',
-                  data: data ?? {},
+                  data: data ? [data] : ([] as TourPlaceGeoLoc[]),
                 };
                 prevGeoLoc = data ? getLatLng(data) : prevGeoLoc;
                 nextMealOrder = mealOrder.getNextMealOrder();
@@ -2759,7 +2227,7 @@ export const makeSchedule = async (
                 ret = {
                   ...ret,
                   placeType: 'SPOT',
-                  data: data!,
+                  data: data ? [data] : ([] as TourPlaceGeoLoc[]),
                 };
                 prevGeoLoc = getLatLng(data!);
                 numOfTodaySpot -= 1;
@@ -2767,7 +2235,7 @@ export const makeSchedule = async (
               }
               return null;
             })
-            .filter((v): v is Partial<IVisitSchedule> => v !== null),
+            .filter((v): v is Partial<IVisitOneSchedule> => v !== null),
         };
       });
   })();
@@ -2820,13 +2288,14 @@ export const makeSchedule = async (
                 return {
                   dayNo: v.dayNo,
                   orderNo: t.orderNo!,
-                  planType: t.planType!,
+                  planType: v.planType,
                   placeType: t.placeType!,
                   transitionNo: t.transitionNo,
                   stayPeriod: t.stayPeriod,
                   checkin: t.checkin,
                   checkout: t.checkout,
-                  tourPlaceId: (t.data as TourPlaceGeoLoc).id,
+                  tourPlaceId:
+                    !t.data || t.data.length > 1 ? undefined : t.data[0].id,
                   // queryParamsId
                 };
               });
@@ -2884,8 +2353,9 @@ export const makeSchedule = async (
     calibUserLevel,
     clusterRes: ctx.clusterRes,
     validCentroids: ctx.validCentNResources,
-    // hotels,
-    spots,
+    hotels: ctx.hotels,
+    spots: ctx.spots,
+    foods: ctx.foods,
     visitSchedules,
   };
 };

@@ -3,7 +3,6 @@ import scheduleRouter, {
   getHotelDataFromBKCWrapper,
   getPlaceByGglNrbyWrapper,
   getPlaceByGglTxtSrchWrapper,
-  reqScheduleWrapper,
   getScheduleWrapper,
   getScheduleListWrapper,
   saveScheduleWrapper,
@@ -18,7 +17,6 @@ import {
   addMockBKCHotelResourceWrapper,
   getPlaceDataFromVJWrapper,
   prismaTestWrapper,
-  getRcmdListWrapper,
   getTourPlaceByTagWrapper,
   getTagRelationWrapper,
   makeClusterWrapper,
@@ -27,7 +25,6 @@ import {
 scheduleRouter.post('/searchHotel', getHotelDataFromBKCWrapper);
 scheduleRouter.post('/getPlaceByGglNrby', getPlaceByGglNrbyWrapper);
 scheduleRouter.post('/getPlaceByGglTxtSrch', getPlaceByGglTxtSrchWrapper);
-scheduleRouter.post('/reqSchedule', accessTokenValidCheck, reqScheduleWrapper);
 scheduleRouter.post('/getSchedule', accessTokenValidCheck, getScheduleWrapper);
 scheduleRouter.post(
   '/getScheduleList',
@@ -82,7 +79,6 @@ scheduleRouter.post(
 scheduleRouter.post('/addMockBKCHotelResource', addMockBKCHotelResourceWrapper);
 scheduleRouter.post('/getPlaceDataFromVJ', getPlaceDataFromVJWrapper);
 scheduleRouter.post('/prismaTest', prismaTestWrapper);
-scheduleRouter.post('/getRcmdList', getRcmdListWrapper);
 scheduleRouter.post('/getTourPlaceByTag', getTourPlaceByTagWrapper);
 scheduleRouter.post('/getTagRelation', getTagRelationWrapper);
 scheduleRouter.post('/makeCluster', makeClusterWrapper);
