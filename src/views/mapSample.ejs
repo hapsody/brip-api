@@ -44,10 +44,10 @@
         data: JSON.stringify({
           ingNow: 'ing',
           companion: 'alone',
-          period: '5',
-          travelType: ['rest', 'healing'],
+          period: '3',
+          travelType: ['learning', 'exploration'],
           destination: 'recommend',
-          travelHard: '2',
+          travelHard: '7',
         }),
         success: async function (result) {
           // console.log(result);
@@ -61,7 +61,9 @@
             r,
             nonDupCentroids,
           } = data;
+
           gSpots = spotsGeoLocation;
+          console.log(gSpots);
           gCentroids = centroids;
           gHistories = centHistoryByStage;
           gNonDupCentroids = nonDupCentroids;
@@ -91,10 +93,14 @@
 
           blankSizeX = (maxX - minX) / blankMultiplier;
           blankSizeY = (maxY - minY) / blankMultiplier;
-          gMaxX = maxX + blankSizeX;
-          gMinX = minX - blankSizeX;
-          gMaxY = maxY + blankSizeY;
-          gMinY = minY - blankSizeY;
+          gMaxX = maxX;
+          gMinX = minX;
+          gMaxY = maxY;
+          gMinY = minY;
+          // gMaxX = maxX + blankSizeX;
+          // gMinX = minX - blankSizeX;
+          // gMaxY = maxY + blankSizeY;
+          // gMinY = minY - blankSizeY;
         },
         error: function (request, status, error) {
           console.log(error);
@@ -121,38 +127,33 @@
 
       async function estGeoLocFromMeter(targetMeter) {
         let estMeter = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
-        let estX = gMaxX;
-        let deltaMeter = estMeter;
-        let deltaX = gMaxX - gMinX;
+        let rightX = gMaxX - gMinX;
+        let estX = rightX;
+        let deltaMeter;
+        let delta;
+
         let down = 0;
         let up = 0;
-
+        let cnt = 0;
         const pro = new Promise(resolve => {
-          while (Math.abs(targetMeter - estMeter) > 0.1) {
+          while (Math.abs(targetMeter - estMeter) > 0.1 && cnt < 1000) {
+            cnt++;
+            console.log(
+              `[${cnt}] target:${targetMeter}, estMeter:${estMeter}, deltaMeter: ${deltaMeter}, delta: ${delta},  estX: ${estX} `,
+            );
+            delta = rightX / 2;
+            deltaMeter = degreeToMeter(0, gMinY, delta, gMinY);
             if (estMeter > targetMeter) {
-              // 반절로 만듦
-              deltaMeter /= 2;
-              deltaX /= 2;
-              // deltaX = (deltaX + gMinX) / 2 - gMinX;
-
-              estMeter = estMeter - deltaMeter;
-              estX = estX - deltaX;
+              estX -= delta;
               down++;
-              // console.log(
-              //   `[down(${down})] estMeter:${estMeter}, deltaMeter: ${deltaMeter}, deltaX: ${deltaX}, estX: ${estX}: [down]`,
-              // );
+              console.log(`[${cnt}][down(${down})]`);
             } else {
-              deltaMeter /= 2;
-              deltaX /= 2;
-              // deltaX = (deltaX + gMaxX) / 2 - gMinX;
-
-              estMeter = estMeter + deltaMeter;
-              estX = estX + deltaX;
+              estX += delta;
               up++;
-              // console.log(
-              //   `[  up(${up})] estMeter:${estMeter}, deltaMeter: ${deltaMeter}, deltaX: ${deltaX}, estX:${estX}: [up]`,
-              // );
+              console.log(`[${cnt}  up(${up})] `);
             }
+            estMeter = degreeToMeter(0, gMinY, estX, gMinY);
+            rightX /= 2;
           }
           console.log(`down ${down}, up:${up}`);
           resolve(true);
@@ -161,16 +162,33 @@
         await pro;
 
         return {
-          lng: estX,
+          lng: estX + gMinX,
           lat: gMinY,
         };
       }
 
+      // function estGeoLocFromMeter(targetMeter) {
+      //   const longestDist = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
+      //   const targetX = ((gMaxX - gMinX) * targetMeter) / longestDist + gMinX;
+      //   return {
+      //     lng: targetX,
+      //     lat: gMinY,
+      //   };
+      // }
+
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
-        const transToCanvasX = ((lng - gMinX) * canvasWidth) / (gMaxX - gMinX);
+        let distributionThickness = 0;
+        if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
+          distributionThickness = gMaxX - gMinX;
+        } else {
+          distributionThickness = gMaxY - gMinY;
+        }
+
+        const transToCanvasX =
+          ((lng - gMinX) * canvasWidth) / distributionThickness;
         const transToCanvasY =
-          canvasHeight - ((lat - gMinY) * canvasHeight) / (gMaxY - gMinY);
+          canvasHeight - ((lat - gMinY) * canvasHeight) / distributionThickness;
         return { x: transToCanvasX, y: transToCanvasY };
       }
 
@@ -235,6 +253,33 @@
             } else {
               ctx.beginPath();
 
+              if (
+                // item &&
+                // item.name &&
+                item.name.includes('화순곶자왈') ||
+                item.name.includes('궷물오름') ||
+                item.name.includes('해방촌') ||
+                item.name.includes('와이키키') ||
+                item.name.includes('독도전망대케이블카') ||
+                item.name.includes('요세미티') ||
+                item.name.includes('먼디') ||
+                item.name.includes('프리스코 페닌슐라 휴양지') ||
+                item.name.includes('Marinalia.es') ||
+                item.name.includes('Cape Maeda') ||
+                item.name.includes(
+                  'Al Masyhur International Travel & Tours Sdn Bhd (AMI Travel)',
+                ) ||
+                item.name.includes('Pulau Payar Marine Park')
+              ) {
+                console.log(item);
+                ctx.font = '60px Comic Sans MS';
+                ctx.fillText(
+                  `${item.name}`,
+                  x + 5 - Math.floor(5 * Math.random()),
+                  y + 5 - Math.floor(5 * Math.random()),
+                );
+              }
+
               ctx.arc(x, y, size, 0, 2 * Math.PI);
               ctx.stroke();
               ctx.strokeStyle = 'black';
@@ -261,6 +306,15 @@
         console.log(`estMeter: ${degreeToMeter(gMinX, gMinY, geo.lng, gMinY)}`);
 
         /// mean-Shift 알고리즘 연산반경(radius) 축척 표시
+        ctx.beginPath();
+        ctx.moveTo(0, canvasHeight);
+        ctx.lineTo(rulerX, rulerY);
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 2;
+        ctx.font = '30px Comic Sans MS';
+        ctx.fillText(`radius: ${gRadius}m`, 50, canvasHeight - 15);
+        ctx.stroke();
+
         ctx.beginPath();
         ctx.moveTo(50, canvasHeight - 50);
         ctx.lineTo(rulerX + 50, rulerY - 50);
