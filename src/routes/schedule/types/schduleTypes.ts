@@ -520,6 +520,7 @@ export interface IValidCentResources {
     stayPeriod?: number;
     checkin?: string;
     checkout?: string;
+    numOfVisitSpotInCluster?: number;
     ratio?: number;
     hotels?: GetHotelDataFromBKCRETParamPayload;
     cent?: GeoFormat & {
@@ -536,6 +537,7 @@ export interface IHotelInMakeSchedule {
   stayPeriod: number; /// 검색한 숙소에서 며칠을 머무를지
   checkin: string; /// 검색한 숙소에 체크인할 날짜
   checkout: string; /// 검색한 숙소에 체크아웃할 날짜
+  numOfVisitSpotInCluster: number; /// 해당 클러스터에서 체류 기간중 방문해야할 여행지 수
   ratio: number; /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
   hotels: GetHotelDataFromBKCRETParamPayload; /// 해당 클러스터에서 검색된 후보 숙소들
 }

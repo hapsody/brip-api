@@ -8,6 +8,7 @@ import {
   isNumber,
   isNil,
   isEmpty,
+  isNaN,
   isUndefined,
   omit,
   flattenDeep,
@@ -73,6 +74,7 @@ import {
   IHotelInMakeSchedule,
   ContextMakeSchedule,
   GeoFormat,
+  IValidCentResources,
 } from './types/schduleTypes';
 
 /**
@@ -1797,7 +1799,7 @@ export const makeSchedule = async (
   // const mealPerDay = gMealPerDay;
   // const numOfADaySchedule = spotPerDay + mealPerDay + 1;
 
-  ctx.numOfWholeTravelSpot = Math.ceil(ctx.spotPerDay * Number(period));
+  ctx.numOfWholeTravelSpot = Math.ceil(ctx.spotPerDay * Number(period)); /// 전체 방문해야할 목표 여행지 수
 
   const spots = await prisma.tourPlace.findMany({
     where: {
@@ -1842,7 +1844,7 @@ export const makeSchedule = async (
         gl_rating: 'desc',
       },
     ],
-    take: ctx.numOfWholeTravelSpot,
+    // take: ctx.numOfWholeTravelSpot,
   });
 
   const foods = await prisma.tourPlace.findMany({
@@ -1895,7 +1897,7 @@ export const makeSchedule = async (
     });
 
   ctx.spots = [...spots];
-  ctx.foods = foods;
+  ctx.foods = [...foods];
   ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
   /// spots clustering part
@@ -1973,40 +1975,18 @@ export const makeSchedule = async (
       ctx.clusterRes?.nonDupCentroids.filter(
         v => v.numOfPointLessThanR > ctx.spotPerDay! * 2,
       ) ?? [];
+
+    if (validCentroids.length === 0) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
+      });
+    }
     ctx.hotelTransition = validCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
       validCentroids = validCentroids.splice(0, ctx.travelNights);
     }
-
-    const hotelGeoOpt = validCentroids
-      .map(v => {
-        return {
-          lat: v.lat,
-          lng: v.lng,
-        };
-      })
-      .filter((v): v is GeoFormat => {
-        return v !== null;
-      });
-
-    const hotelSrchOpts = hotelGeoOpt.map(hotelGeo => {
-      return {
-        orderBy: 'review_score',
-        adultsNumber,
-        roomNumber,
-        checkinDate: startDate,
-        checkoutDate: endDate,
-        filterByCurrency: 'KRW',
-        latitude: hotelGeo.lat.toString(),
-        longitude: hotelGeo.lng.toString(),
-        pageNumber: 0,
-        includeAdjacency: false,
-        childrenAges,
-        childrenNumber,
-        categoriesFilterIds: ['property_type::204'],
-      } as BKCSrchByCoordReqOpt;
-    });
 
     ctx.travelDays = Number(period);
     // const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
@@ -2050,72 +2030,160 @@ export const makeSchedule = async (
       return ret;
     })();
 
-    let prevCheckout = '';
-    const hotelPromises = hotelSrchOpts.map(async (hotelSrchOpt, clusterNo) => {
-      const numOfNrbySpot = validCentNResources[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
-      const ratio = numOfNrbySpot / ctx.numOfWholeTravelSpot!; /// 여행 전체 방문할 여행지 대비 해당 군집의 여행지 수가 차지하는 비율
-      const transitionTerm = /// 특정 여행지역 클러스터에서 머무를 일수 = 전체 여행일수 * ratio 올림 or 내림
-        clusterNo % 2
-          ? Math.floor(Number(period) * ratio)
-          : Math.ceil(Number(period) * ratio);
+    const numOfValidSpot = validCentNResources.reduce((acc, cur) => {
+      return acc + cur.nearbySpots.length;
+    }, 0);
 
-      const curCheckin = isEmpty(prevCheckout)
-        ? moment(hotelSrchOpt.checkinDate).toISOString()
-        : prevCheckout;
+    const hotelSrchOpts = validCentroids.map(centGeo => {
+      return {
+        orderBy: 'review_score',
+        adultsNumber,
+        roomNumber,
+        checkinDate: startDate,
+        checkoutDate: endDate,
+        filterByCurrency: 'KRW',
+        latitude: centGeo.lat.toString(),
+        longitude: centGeo.lng.toString(),
+        pageNumber: 0,
+        includeAdjacency: false,
+        childrenAges,
+        childrenNumber,
+        categoriesFilterIds: ['property_type::204'],
+      } as BKCSrchByCoordReqOpt;
+    });
 
-      let curCheckout = moment(
-        moment(curCheckin).add(transitionTerm, 'd'),
-      ).toISOString();
-      prevCheckout = curCheckout;
-
-      if (moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0)
-        curCheckout = hotelSrchOpt.checkoutDate;
-
-      const curHotels = await getHotelDataFromBKC({
-        ...hotelSrchOpt,
-        checkinDate: curCheckin,
-        checkoutDate: curCheckout,
-        store: true,
+    const hotelPromises = (() => {
+      let prevCheckout = '';
+      let transitionNo = -1;
+      let restSpot = ctx.numOfWholeTravelSpot;
+      const tmpArr = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
+        const numOfNrbySpot = validCentNResources[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
+        const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 여행 전체 방문 가능한 여행지 대비 해당 군집의 여행지 수가 차지하는 비율
+        return {
+          hotelSrchOpt,
+          ratio,
+          numOfNrbySpot,
+        };
       });
 
-      return {
-        transitionNo: clusterNo,
-        stayPeriod: moment(curCheckout).diff(curCheckin, 'd'),
-        checkin: curCheckin,
-        checkout: curCheckout,
-        ratio,
-        hotels: curHotels,
-      } as IHotelInMakeSchedule;
-    });
+      let restSumOfRatio = tmpArr.reduce((acc, cur) => {
+        return acc + cur.ratio;
+      }, 0); /// 처리된 클러스터의 비율을 제한 클러스터들이 차지한 비율의 총합 <= 초기값은 전체 클러스터 비율의 총합이므로 100%다.
 
-    const hotels = await Promise.all(hotelPromises);
+      const tmpArr2 = tmpArr.map(v => {
+        const { ratio, numOfNrbySpot, hotelSrchOpt } = v;
+
+        const numOfVisitSpotInCluster = Math.round(
+          (restSpot * ratio) / restSumOfRatio,
+        ); /// 해당 클러스터에서 방문해야할 여행지 수
+        restSumOfRatio -= ratio;
+        restSpot -= numOfVisitSpotInCluster;
+        return {
+          hotelSrchOpt,
+          numOfNrbySpot,
+          ratio,
+          numOfVisitSpotInCluster,
+        };
+      });
+
+      let restSumOfVisitSpot = tmpArr2.reduce((acc, cur) => {
+        return acc + cur.numOfVisitSpotInCluster;
+      }, 0); /// (초기)남은 방문해야할 여행지 수 = 클러스터별로 방문해야할 여행지의 총합 = 전체기간중 방문해야할 목표 여행지 총수
+
+      let restPeriod = Number(period); /// 전체 여행일정중 앞 클러스터에서 사용한 일정을 제한 나머지 일정
+
+      return tmpArr2.map(async v => {
+        const { ratio, numOfVisitSpotInCluster, hotelSrchOpt } = v;
+        const stayPeriod = Math.round(
+          (restPeriod * numOfVisitSpotInCluster) / restSumOfVisitSpot,
+        );
+        restSumOfVisitSpot -= numOfVisitSpotInCluster;
+        restPeriod -= stayPeriod;
+
+        if (stayPeriod === 0 || isNaN(stayPeriod)) {
+          return null;
+        }
+
+        const curCheckin = isEmpty(prevCheckout)
+          ? moment(hotelSrchOpt.checkinDate).toISOString()
+          : prevCheckout;
+
+        let curCheckout = moment(
+          moment(curCheckin).add(stayPeriod, 'd'),
+        ).toISOString();
+        prevCheckout = curCheckout;
+
+        if (
+          moment(curCheckout).diff(moment(hotelSrchOpt.checkoutDate), 'd') > 0
+        )
+          curCheckout = hotelSrchOpt.checkoutDate;
+
+        // const curHotels = await getHotelDataFromBKC({
+        //   ...hotelSrchOpt,
+        //   checkinDate: curCheckin,
+        //   checkoutDate: curCheckout,
+        //   store: true,
+        // });
+
+        await new Promise(resolve => {
+          resolve(true);
+        });
+        transitionNo += 1;
+
+        return {
+          transitionNo,
+          stayPeriod: moment(curCheckout).diff(curCheckin, 'd'),
+          checkin: curCheckin,
+          checkout: curCheckout,
+          numOfVisitSpotInCluster,
+          ratio,
+          // hotels: curHotels,
+        } as IHotelInMakeSchedule;
+      });
+    })();
+
+    const hotels = (await Promise.all(hotelPromises)).filter(
+      (v): v is IHotelInMakeSchedule => {
+        return v !== null;
+      },
+    );
     ctx.hotels = [...hotels];
 
-    ctx.validCentNResources = validCentNResources.map((v, idx) => {
-      const clusteredHotel = [...ctx.hotels!][idx];
-      return {
-        ...v,
-        centroidNHotel: {
-          ...v.centroidNHotel,
-          transitionNo: clusteredHotel.transitionNo,
-          stayPeriod: clusteredHotel.stayPeriod,
-          checkin: clusteredHotel.checkin,
-          checkout: clusteredHotel.checkout,
-          ratio: clusteredHotel.ratio,
-          hotels: clusteredHotel.hotels,
-        },
-      };
-    });
+    ctx.validCentNResources = validCentNResources
+      .map((v, idx) => {
+        const clusteredHotel = [...ctx.hotels!][idx];
+
+        if (isUndefined(clusteredHotel)) return null;
+        return {
+          ...v,
+          centroidNHotel: {
+            ...v.centroidNHotel,
+            transitionNo: clusteredHotel.transitionNo,
+            stayPeriod: clusteredHotel.stayPeriod,
+            checkin: clusteredHotel.checkin,
+            checkout: clusteredHotel.checkout,
+            numOfVisitSpotInCluster: clusteredHotel.numOfVisitSpotInCluster,
+            ratio: clusteredHotel.ratio,
+            // hotels: clusteredHotel.hotels,
+          },
+        };
+      })
+      .filter(v => {
+        return v !== null;
+      }) as IValidCentResources[];
   } /// end of hotel srch part
 
   /// 여행일수에 따른 visitSchedule 배열 생성
   const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
 
-    let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
+    // let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
-    let { stayPeriod: acc } = ctx.validCentNResources[0].centroidNHotel; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
-
+    // let { stayPeriod: acc } = ctx.validCentNResources[0].centroidNHotel; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
+    let acc = ctx.validCentNResources[0].centroidNHotel.stayPeriod!;
+    let curRestSpot =
+      ctx.validCentNResources[0].centroidNHotel.numOfVisitSpotInCluster!;
+    let curRestDay = ctx.validCentNResources[0].centroidNHotel.stayPeriod!;
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -2123,13 +2191,15 @@ export const makeSchedule = async (
         let nextMealOrder: number;
         let prevGeoLoc: GeoFormat; /// 직전에 방문했던 곳 위경도값
 
-        if (dayNo + 1 > acc!) {
+        if (dayNo + 1 > acc) {
           /// dayNo와 비교하여 ac보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
           /// acc: 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값
           clusterNo += 1;
-          const { stayPeriod } =
+          const { stayPeriod, numOfVisitSpotInCluster } =
             ctx.validCentNResources![clusterNo].centroidNHotel;
-          acc! += stayPeriod!;
+          acc += stayPeriod!;
+          curRestSpot = numOfVisitSpotInCluster!;
+          curRestDay = stayPeriod!;
         }
 
         /// 직전 방문했던곳으로부터 거리기준 오름차순 정렬 함수
@@ -2141,13 +2211,12 @@ export const makeSchedule = async (
           return distWithA - distWithB;
         };
 
-        visitMeasure += ctx.spotPerDay!;
-
         /// spotPerDay가 소수점일 경우 어떤날은 n개 방문
         /// 또 다른 어떤 날은 n+a 개의 여행지를 방문해야한다.
         /// 이를 계산한것이 numOfTodaySpot
-        let numOfTodaySpot = Math.floor(visitMeasure);
-        if (numOfTodaySpot >= 1) visitMeasure -= numOfTodaySpot;
+        let numOfTodaySpot = Math.round(curRestSpot / curRestDay);
+        if (numOfTodaySpot >= 1) curRestSpot -= numOfTodaySpot;
+        curRestDay -= 1;
 
         const tmpArr = Array(ctx.mealPerDay! + 1 + numOfTodaySpot).fill(null);
 
@@ -2177,7 +2246,7 @@ export const makeSchedule = async (
                 ret = {
                   ...ret,
                   placeType: 'HOTEL',
-                  data: centNHotel.hotels!.hotelSearchResult, /// 호텔은 정해지지 않았으므로 검색한 중심점을 데이터로 넣는다.
+                  data: centNHotel.hotels?.hotelSearchResult, /// 호텔은 정해지지 않았으므로 검색한 중심점을 데이터로 넣는다.
                 };
 
                 prevGeoLoc = {
@@ -2254,23 +2323,23 @@ export const makeSchedule = async (
       travelHard: Number(travelHard),
       tourPlace: {
         connect: [
-          ...(() => {
-            const result = ctx.hotels
-              .map(c => {
-                const hotelIds = c.hotels.hotelSearchResult
-                  .map(h => {
-                    if (h.id)
-                      return {
-                        id: h.id,
-                      };
-                    return undefined;
-                  })
-                  .filter((x): x is { id: number } => x !== undefined);
-                return hotelIds;
-              })
-              .flat();
-            return result;
-          })(),
+          // ...(() => {
+          //   const result = ctx.hotels
+          //     .map(c => {
+          //       const hotelIds = c.hotels.hotelSearchResult
+          //         .map(h => {
+          //           if (h.id)
+          //             return {
+          //               id: h.id,
+          //             };
+          //           return undefined;
+          //         })
+          //         .filter((x): x is { id: number } => x !== undefined);
+          //       return hotelIds;
+          //     })
+          //     .flat();
+          //   return result;
+          // })(),
           ...ctx.foods.map(v => {
             return { id: v.id };
           }),
@@ -2285,7 +2354,9 @@ export const makeSchedule = async (
           data: flattenDeep(
             visitSchedules.map(v => {
               return v.titleList.map(t => {
-                return {
+                const tmp =
+                  !t.data || isEmpty(t.data) ? undefined : t.data[0].id;
+                const ret = {
                   dayNo: v.dayNo,
                   orderNo: t.orderNo!,
                   planType: v.planType,
@@ -2294,10 +2365,11 @@ export const makeSchedule = async (
                   stayPeriod: t.stayPeriod,
                   checkin: t.checkin,
                   checkout: t.checkout,
-                  tourPlaceId:
-                    !t.data || t.data.length > 1 ? undefined : t.data[0].id,
+                  tourPlaceId: tmp,
                   // queryParamsId
                 };
+
+                return ret;
               });
             }),
           ),
@@ -2305,7 +2377,8 @@ export const makeSchedule = async (
       },
       metaScheduleInfo: {
         create: {
-          totalHotelSearchCount: ctx.hotels[0]!.hotels.hotelSearchResult.length,
+          totalHotelSearchCount:
+            ctx.hotels[0]!.hotels?.hotelSearchResult.length,
           totalRestaurantSearchCount: ctx.foods.length,
           totalSpotSearchCount: ctx.spots.length,
           spotPerDay: ctx.spotPerDay,
