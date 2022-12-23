@@ -1972,9 +1972,9 @@ export const makeSchedule = async (
     const startDate = getNDaysLater(90);
     const endDate = getNDaysLater(90 + Number(period));
     let validCentroids = // validCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validCentroids 의 위치를 바탕으로 숙소를 검색한다.
-      ctx.clusterRes?.nonDupCentroids.filter(
-        v => v.numOfPointLessThanR > ctx.spotPerDay! * 2,
-      ) ?? [];
+      ctx.clusterRes?.nonDupCentroids
+        .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+        .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
 
     if (validCentroids.length === 0) {
       throw new IBError({
@@ -1982,6 +1982,7 @@ export const makeSchedule = async (
         message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
       });
     }
+
     ctx.hotelTransition = validCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
@@ -1989,11 +1990,7 @@ export const makeSchedule = async (
     }
 
     ctx.travelDays = Number(period);
-    // const transitionTerm = Math.ceil(travelNights / (hotelTransition + 1)); // 호텔 이동할 주기 (단위: 일)
 
-    validCentroids.sort(
-      (a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR,
-    ); /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
     const validCentNResources = (() => {
       /// 각 validCentroids 에 범위에 속하는 spot들을 모아 clusteredSpots에 담는다.
       const ret = validCentroids.map(cent => {
@@ -2086,9 +2083,10 @@ export const makeSchedule = async (
         };
       });
 
-      let restSumOfVisitSpot = tmpArr2.reduce((acc, cur) => {
-        return acc + cur.numOfVisitSpotInCluster;
-      }, 0); /// (초기)남은 방문해야할 여행지 수 = 클러스터별로 방문해야할 여행지의 총합 = 전체기간중 방문해야할 목표 여행지 총수
+      let restSumOfVisitSpot = /// (초기)남은 방문해야할 여행지 수 = 클러스터별로 방문해야할 여행지의 총합 = 전체기간중 방문해야할 목표 여행지 총수
+        tmpArr2.reduce((acc, cur) => {
+          return acc + cur.numOfVisitSpotInCluster;
+        }, 0);
 
       let restPeriod = Number(period); /// 전체 여행일정중 앞 클러스터에서 사용한 일정을 제한 나머지 일정
 
