@@ -333,7 +333,7 @@ export const makeClusterWrapper = asyncWrapper(
     req: Express.IBTypedReqBody<MakeScheduleREQParam>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const { period, travelType, travelHard } = req.body;
+    const { travelType, travelHard } = req.body;
 
     /// spot  search part
     const calibUserLevel = (() => {
@@ -444,8 +444,7 @@ export const makeClusterWrapper = asyncWrapper(
       gParamByTravelLevel[
         Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
       ];
-    const spotPerDay =
-      Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
+    const spotPerDay = 2 / paramByAvgCalibLevel.actMultiplier;
 
     // const numOfWholeTravelSpot = spotPerDay * Number(period);
     // const spots = [...tp].splice(0, numOfWholeTravelSpot);

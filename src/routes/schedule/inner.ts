@@ -1793,8 +1793,7 @@ export const makeSchedule = async (
     gParamByTravelLevel[
       Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
     ];
-  ctx.spotPerDay =
-    Number(period) / (Number(period) * paramByAvgCalibLevel.actMultiplier);
+  ctx.spotPerDay = 2 / paramByAvgCalibLevel.actMultiplier;
   ctx.mealPerDay = gMealPerDay;
   // const mealPerDay = gMealPerDay;
   // const numOfADaySchedule = spotPerDay + mealPerDay + 1;
@@ -2443,11 +2442,13 @@ export const makeSchedule = async (
               })(),
               title: (() => {
                 if (
-                  t.placeType!.includes('RESTAURANT') ||
-                  t.placeType!.includes('SPOT')
+                  (t.placeType!.includes('RESTAURANT') ||
+                    t.placeType!.includes('SPOT')) &&
+                  t.data &&
+                  t.data.length > 0
                 ) {
-                  if (t.data![0].gl_name) return t.data![0].gl_name;
-                  if (t.data![0].vj_title) return t.data![0].vj_title;
+                  if (t.data[0].gl_name) return t.data[0].gl_name;
+                  if (t.data[0].vj_title) return t.data[0].vj_title;
                 }
                 return '';
               })(),
