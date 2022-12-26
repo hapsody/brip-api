@@ -405,8 +405,9 @@ export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 
 /// 일별 추천 일정 타입
 export interface IVisitOneSchedule {
-  visitScheduleId: string; // ex)  171273
+  visitScheduleId: number; // ex)  171273
   orderNo: number; // x일차 y번째 일정인지 표기 1,2,3,4,..
+  dayNo: number;
   placeType: VisitPlaceType;
   title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
   transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
@@ -566,6 +567,7 @@ export interface ContextMakeSchedule extends IBContext {
 }
 
 export interface MakeScheduleRETParamPayload {
+  queryParamsId: number;
   spotPerDay?: number;
   calibUserLevel?: {
     min: number;
@@ -581,6 +583,11 @@ export interface MakeScheduleRETParamPayload {
     dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
     titleList: Partial<IVisitOneSchedule>[];
   }[];
+  queryParams: QueryParams & {
+    visitSchedule: (VisitSchedule & {
+      tourPlace: TourPlace | null;
+    })[];
+  };
 }
 export type MakeScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: MakeScheduleRETParamPayload | {};

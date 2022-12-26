@@ -20,9 +20,11 @@ import {
   // GetRcmdListRETParam,
   MakeScheduleREQParam,
   gParamByTravelLevel,
+  MakeScheduleRETParam,
+  ContextMakeSchedule,
 } from './types/schduleTypes';
 
-import { getPlaceDataFromVJ, degreeToMeter } from './inner';
+import { getPlaceDataFromVJ, degreeToMeter, makeSchedule } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -652,6 +654,72 @@ export const makeClusterWrapper = asyncWrapper(
         }),
       } as object,
     });
+  },
+);
+
+/**
+ *  일정 생성 요청을 하는 함수를 호출하는 api endpoint(개발확인용)
+ *
+ */
+export const makeScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<MakeScheduleREQParam>,
+    res: Express.IBTypedResponse<MakeScheduleRETParam>,
+  ) => {
+    try {
+      // const watchStart = moment();
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const ctx: ContextMakeSchedule = {
+        userTokenId,
+      };
+      const param = req.body;
+      const scheduleResult = await makeSchedule(
+        {
+          ...param,
+          familyOpt: param.familyOpt ?? [],
+          minFriend: param.minFriend ?? '0',
+          maxFriend: param.maxFriend ?? '0',
+        },
+        ctx,
+      );
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
   },
 );
 

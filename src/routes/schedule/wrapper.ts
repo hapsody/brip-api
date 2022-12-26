@@ -174,7 +174,7 @@ export const getPlaceByGglNrbyWrapper = asyncWrapper(
  * 일정 생성 요청을 하는 함수를 호출하는 api endpoint(변경 스펙)
  *
  */
-export const makeScheduleWrapper = asyncWrapper(
+export const reqScheduleWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<MakeScheduleREQParam>,
     res: Express.IBTypedResponse<MakeScheduleRETParam>,
@@ -208,9 +208,13 @@ export const makeScheduleWrapper = asyncWrapper(
         },
         ctx,
       );
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: scheduleResult,
+        IBparams: {
+          queryParamsId: scheduleResult.queryParamsId,
+          plan: scheduleResult.visitSchedules,
+        },
       });
     } catch (err) {
       if (err instanceof IBError) {

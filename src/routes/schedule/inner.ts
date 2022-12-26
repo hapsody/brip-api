@@ -2229,6 +2229,7 @@ export const makeSchedule = async (
 
               let ret: Partial<IVisitOneSchedule> = {
                 orderNo,
+                dayNo,
                 transitionNo: curResources.centroidNHotel.transitionNo,
                 stayPeriod: curResources.centroidNHotel.stayPeriod,
                 checkin: curResources.centroidNHotel.checkin,
@@ -2309,7 +2310,7 @@ export const makeSchedule = async (
   ctx.visitSchedules = visitSchedules;
 
   /// QueryParams, tourPlace, visitSchedule DB 생성
-  await prisma.queryParams.create({
+  const queryParams = await prisma.queryParams.create({
     data: {
       ingNow: isNow,
       companion,
@@ -2420,14 +2421,44 @@ export const makeSchedule = async (
   // });
 
   return {
+    queryParamsId: queryParams.id,
     spotPerDay: ctx.spotPerDay,
     calibUserLevel,
     clusterRes: ctx.clusterRes,
     validCentroids: ctx.validCentNResources,
-    hotels: ctx.hotels,
-    spots: ctx.spots,
-    foods: ctx.foods,
-    visitSchedules,
+    // hotels: ctx.hotels,
+    // spots: ctx.spots,
+    // foods: ctx.foods,
+    visitSchedules: (() => {
+      let cnt = 0;
+      return visitSchedules.map(v => {
+        const retDayArr = {
+          ...v,
+          titleList: v.titleList.map(t => {
+            return {
+              visitScheduleId: (() => {
+                const visitScheduleId = queryParams.visitSchedule.at(cnt)?.id;
+                if (visitScheduleId) cnt += 1;
+                return visitScheduleId;
+              })(),
+              title: (() => {
+                if (
+                  t.placeType!.includes('RESTAURANT') ||
+                  t.placeType!.includes('SPOT')
+                ) {
+                  if (t.data![0].gl_name) return t.data![0].gl_name;
+                  if (t.data![0].vj_title) return t.data![0].vj_title;
+                }
+                return '';
+              })(),
+              ...t,
+            };
+          }),
+        };
+        return retDayArr;
+      });
+    })(),
+    queryParams,
   };
 };
 
