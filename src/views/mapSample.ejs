@@ -130,10 +130,10 @@
 
           blankSizeX = (maxX - minX) / blankMultiplier;
           blankSizeY = (maxY - minY) / blankMultiplier;
-          gMaxX = maxX;
-          gMinX = minX;
-          gMaxY = maxY;
-          gMinY = minY;
+          gMaxX = maxX + (maxX - minX) / 20;
+          gMinX = minX - (maxX - minX) / 20;
+          gMaxY = maxY + (maxY - minY) / 20;
+          gMinY = minY - (maxY - minY) / 20;
           // gMaxX = maxX + blankSizeX;
           // gMinX = minX - blankSizeX;
           // gMaxY = maxY + blankSizeY;
@@ -175,24 +175,24 @@
         const pro = new Promise(resolve => {
           while (Math.abs(targetMeter - estMeter) > 0.1 && cnt < 1000) {
             cnt++;
-            console.log(
-              `[${cnt}] target:${targetMeter}, estMeter:${estMeter}, deltaMeter: ${deltaMeter}, delta: ${delta},  estX: ${estX} `,
-            );
+            // console.log(
+            //   `[${cnt}] target:${targetMeter}, estMeter:${estMeter}, deltaMeter: ${deltaMeter}, delta: ${delta},  estX: ${estX} `,
+            // );
             delta = rightX / 2;
             deltaMeter = degreeToMeter(0, gMinY, delta, gMinY);
             if (estMeter > targetMeter) {
               estX -= delta;
               down++;
-              console.log(`[${cnt}][down(${down})]`);
+              // console.log(`[${cnt}][down(${down})]`);
             } else {
               estX += delta;
               up++;
-              console.log(`[${cnt}  up(${up})] `);
+              // console.log(`[${cnt}  up(${up})] `);
             }
             estMeter = degreeToMeter(0, gMinY, estX, gMinY);
             rightX /= 2;
           }
-          console.log(`down ${down}, up:${up}`);
+          // console.log(`down ${down}, up:${up}`);
           resolve(true);
         });
 
@@ -442,6 +442,22 @@
             return true;
           });
           return diffNum.length >= n;
+        });
+      }
+
+      function decreasedCaseCentoirds() {
+        return gCentroids.filter(v => {
+          const arr = v.histories.split('-');
+          let prevNumber = 'start';
+          const diffNum = arr.filter(c => {
+            if (prevNumber === 'start' || Number(prevNumber) <= Number(c)) {
+              prevNumber = c;
+              return false;
+            }
+            prevNumber = c;
+            return true;
+          });
+          return diffNum.length >= 1;
         });
       }
     </script>
