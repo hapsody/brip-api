@@ -22,9 +22,10 @@ import {
   gParamByTravelLevel,
   MakeScheduleRETParam,
   ContextMakeSchedule,
+  gMealPerDay,
 } from './types/schduleTypes';
 
-import { getPlaceDataFromVJ, degreeToMeter, makeSchedule } from './inner';
+import { getPlaceDataFromVJ, makeSchedule, makeCluster } from './inner';
 
 export const addMockBKCHotelResourceWrapper = asyncWrapper(
   async (
@@ -333,7 +334,18 @@ export const makeClusterWrapper = asyncWrapper(
     req: Express.IBTypedReqBody<MakeScheduleREQParam>,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
-    const { travelType, travelHard } = req.body;
+    const {
+      // isNow,
+      // companion,
+      // familyOpt,
+      // minFriend,
+      // maxFriend,
+      period,
+      travelType,
+      // destination,
+      travelHard,
+    } = req.body;
+    const ctx: ContextMakeSchedule = {};
 
     /// spot  search part
     const calibUserLevel = (() => {
@@ -401,6 +413,17 @@ export const makeClusterWrapper = asyncWrapper(
         : uInputTypeLevel;
     })();
 
+    const paramByAvgCalibLevel =
+      gParamByTravelLevel[
+        Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
+      ];
+    ctx.spotPerDay = 2 / paramByAvgCalibLevel.actMultiplier;
+    ctx.mealPerDay = gMealPerDay;
+    // const mealPerDay = gMealPerDay;
+    // const numOfADaySchedule = spotPerDay + mealPerDay + 1;
+
+    ctx.numOfWholeTravelSpot = Math.ceil(ctx.spotPerDay * Number(period)); /// 전체 방문해야할 목표 여행지 수
+
     const spots = await prisma.tourPlace.findMany({
       where: {
         ibTravelTag: {
@@ -434,224 +457,78 @@ export const makeClusterWrapper = asyncWrapper(
         vj_longitude: true,
         status: true,
         gl_rating: true,
+        gl_user_ratings_total: true,
       },
-      orderBy: {
-        gl_rating: 'desc',
-      },
+      orderBy: [
+        {
+          gl_user_ratings_total: 'desc',
+        },
+        {
+          gl_rating: 'desc',
+        },
+      ],
+      // take: ctx.numOfWholeTravelSpot,
     });
 
-    const paramByAvgCalibLevel =
-      gParamByTravelLevel[
-        Math.floor((calibUserLevel.min + calibUserLevel.max) / 2)
-      ];
-    const spotPerDay = 2 / paramByAvgCalibLevel.actMultiplier;
+    const foods = await prisma.tourPlace.findMany({
+      where: {
+        status: 'IN_USE',
+        tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'GL_RESTAURANT'] },
+      },
+      select: {
+        id: true,
+        gl_name: true,
+        vj_title: true,
+        ibTravelTag: {
+          select: {
+            value: true,
+            minDifficulty: true,
+            maxDifficulty: true,
+          },
+        },
+        gl_vicinity: true,
+        gl_formatted_address: true,
+        vj_address: true,
+        gl_lat: true,
+        gl_lng: true,
+        vj_latitude: true,
+        vj_longitude: true,
+        status: true,
+        gl_rating: true,
+      },
+      orderBy: [
+        {
+          gl_user_ratings_total: 'desc',
+        },
+        {
+          gl_rating: 'desc',
+        },
+      ],
+    });
 
-    // const numOfWholeTravelSpot = spotPerDay * Number(period);
-    // const spots = [...tp].splice(0, numOfWholeTravelSpot);
+    if (spots.length < ctx.numOfWholeTravelSpot)
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: `조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.
+          (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length})`,
+      });
+
+    if (foods.length < Number(period) * 2)
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message:
+          '여행일수에 필요한만큼 충분한 수의 관광 restaurant이 없습니다.',
+      });
+
+    ctx.spots = [...spots];
+    ctx.foods = [...foods];
+    ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
     /// spots clustering part
-    const getLatLng = (spot: {
-      gl_lat: number | null;
-      gl_lng: number | null;
-      vj_latitude: number | null;
-      vj_longitude: number | null;
-    }) => {
-      if (spot.gl_lat && spot.gl_lng)
-        return {
-          lat: spot.gl_lat,
-          lng: spot.gl_lng,
-        };
-      if (spot.vj_latitude && spot.vj_longitude)
-        return {
-          lat: spot.vj_latitude,
-          lng: spot.vj_longitude,
-        };
-      return null;
-    };
-
-    // const { lat: latSum, lng: lngSum } = spots.reduce(
-    //   (prevSum, curSpot) => {
-    //     const curLatLng = getLatLng(curSpot);
-
-    //     if (!curLatLng) return prevSum;
-    //     const curLatSum = prevSum.lat + curLatLng.lat;
-    //     const curLngSum = prevSum.lng + curLatLng.lng;
-
-    //     return {
-    //       lat: curLatSum,
-    //       lng: curLngSum,
-    //     };
-    //   },
-    //   { lat: 0, lng: 0 },
-    // );
-    // const allSpotCent = {
-    //   lat: latSum / spots.length,
-    //   lng: lngSum / spots.length,
-    // };
-
-    // const farthestTop5FromCentroid = [...spots]
-    //   .sort((a, b) => {
-    //     const geoA = getLatLng(a);
-    //     const geoB = getLatLng(b);
-    //     if (!geoA || !geoB) return -1;
-    //     const distSqrA =
-    //       (allSpotCent.lat - geoA.lat) ** 2 + (allSpotCent.lng - geoA.lng) ** 2;
-
-    //     const distSqrB =
-    //       (allSpotCent.lat - geoB.lat) ** 2 + (allSpotCent.lng - geoB.lng) ** 2;
-
-    //     return distSqrB - distSqrA;
-    //   })
-    //   .splice(0, 5);
-
-    const r = paramByAvgCalibLevel.maxDist;
-
-    /// based on Mean-Shift clustering algorithm
-    /// 전체 장소들의 평균 지점(무게중심)으로부터 가장 먼 5개 점을 뽑아서(s1, s2, ... s5)
-    /// 해당 점들로부터 여행강도가 허용하는 하루 이동거리(r) 이내의 거리의 장소들만의 평균 지점을(a11, a12, ... a15) 구한다.
-    /// 새로 구해진 5개 지점들로부터 r거리 이내의 거리의 점들의 평균지점을(a21, a22, ..., a25) 새로 구한다.
-    /// an1 ... an5 각 지점이 a(n-1)1, ... a(n-1)5 와 k 거리오차 이내이면 루프를 종료한다.
-    interface GeoFormat {
-      lat: number;
-      lng: number;
-    }
-    const getDistance = (a: GeoFormat, b: GeoFormat) => {
-      return Math.sqrt((a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2);
-    };
-
-    // let centroids = [...farthestTop5FromCentroid].map(spot => getLatLng(spot));
-    let centroids = [...spots].map(spot => getLatLng(spot));
-
-    const centHistoryByStage: {
-      stageNo: number;
-      centroids: (GeoFormat | null)[];
-    }[] = [
-      {
-        stageNo: 0,
-        centroids,
-      },
-    ];
-    const k = 0.01;
-    let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
-    let i = 0;
-    const histories = Array.from(Array(spots.length), () => 'start');
-
-    /// histories와 centroids를 구하는 루프를 실행한다.
-    /// centroids: 최종적으로 수렴된 군집들의 대표값 배열
-    /// histories: 각 loop stage 별로 반경 r안에 위치한 spots들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
-    do {
-      const nextCentroids = centroids.map((c, index) => {
-        if (!c) return null;
-        const initCenterLatLng = c;
-        const center = spots.reduce(
-          (acc, curSpot, idx) => {
-            const spotLatLng = getLatLng(curSpot);
-            if (!spotLatLng) return acc;
-            if (
-              degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) <
-              r
-            ) {
-              const curAvgLat = (acc.lat * idx + spotLatLng.lat) / (idx + 1);
-              const curAvgLng = (acc.lng * idx + spotLatLng.lng) / (idx + 1);
-              return {
-                lat: curAvgLat,
-                lng: curAvgLng,
-                numOfPointLessThanR: acc.numOfPointLessThanR + 1,
-              };
-            }
-            return acc;
-          },
-          {
-            lat: initCenterLatLng.lat,
-            lng: initCenterLatLng.lng,
-            numOfPointLessThanR: 0,
-          },
-        );
-        histories[index] = `${histories[index]}-${center.numOfPointLessThanR}`;
-        return center;
-      });
-      // eslint-disable-next-line @typescript-eslint/no-loop-func
-      keepDoing = nextCentroids.map((newCent, idx) => {
-        if (!newCent) return false;
-        const prevCent = centroids[idx];
-        if (!prevCent) return false;
-        const rDiff = getDistance(newCent, prevCent);
-        if (rDiff < k) return false;
-        return true;
-      }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
-      centroids = [...nextCentroids];
-      centHistoryByStage.push({
-        stageNo: centHistoryByStage.length,
-        centroids,
-      });
-      i += 1;
-      console.log(i, centroids[0]);
-    } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
-
-    const wholeSpotLatLngSum = {
-      lat: spots.reduce((acc, v) => {
-        const curLat = getLatLng(v);
-        if (!curLat) return acc;
-        return acc + curLat.lat;
-      }, 0),
-      lng: spots.reduce((acc, v) => {
-        const curLng = getLatLng(v);
-        if (!curLng) return acc;
-        return acc + curLng.lng;
-      }, 0),
-    };
-
-    const wholeSpotLatLngAvg = {
-      lat: wholeSpotLatLngSum.lat / spots.length,
-      lng: wholeSpotLatLngSum.lng / spots.length,
-      length: spots.length,
-    };
-
-    /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
-    /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
-    /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
-    const nonDupCentroids = centroids.reduce(
-      (
-        nonDupBuf: (GeoFormat & { idx: number })[],
-        cur: GeoFormat | null,
-        idx,
-      ) => {
-        if (!cur) return nonDupBuf;
-        const isDup = nonDupBuf.find(
-          d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
-        );
-
-        if (isDup) return nonDupBuf;
-        nonDupBuf.push({ idx, ...cur });
-        return nonDupBuf;
-      },
-      [],
-    );
-
+    ctx.clusterRes = makeCluster(ctx);
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: {
-        r,
-        maxPhase: i,
-        spotPerDay,
-        wholeSpotLatLngAvg,
-        nonDupCentroids,
-        centHistoryByStage,
-        centroids: centroids.map((v, idx) => {
-          return {
-            ...v,
-            histories: histories[idx],
-          };
-        }),
-        spotsGeoLocation: spots.map(v => {
-          return {
-            id: v.id,
-            name: v.gl_name,
-            lat: v.gl_lat,
-            lng: v.gl_lng,
-          };
-        }),
-      } as object,
+      IBparams: ctx.clusterRes!,
     });
   },
 );
