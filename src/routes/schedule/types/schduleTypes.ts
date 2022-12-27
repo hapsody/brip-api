@@ -1,38 +1,114 @@
+import { isUndefined } from 'lodash';
 import {
-  SearchHotelRes,
-  GglNearbySearchRes,
-  QueryParams,
-  Prisma,
-  Gglgeometry,
   PlanType,
+  TourPlace,
+  QueryParams,
+  VisitSchedule,
   PlaceType,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
-import moment from 'moment';
-import { isUndefined } from 'lodash';
 
-export const mealPerDay = 2;
-export const spotPerDay = 2;
-export const minHotelBudgetPortion = 0.5;
-export const midHotelBudgetPortion = 0.6;
-export const maxHotelBudgetPortion = 0.7;
-export const flexPortionLimit = 1.3;
+export const gMealPerDay = 2;
+export const gSpotPerDay = 2;
+export const gHotelTransition = 0;
+export const gRadius = 4000;
+export const gCurrency = 'KRW';
+export const gMinHotelMoneyPortion = 0.5;
+export const gMidHotelMoneyPortion = 0.6;
+export const gMaxHotelMoneyPortion = 0.7;
+export const gFlexPortionLimit = 1.3;
+export const gLanguage = 'ko';
+export const gParamByTravelLevel = [
+  {
+    level: 1,
+    actMultiplier: 3,
+    minDist: 0, // 단위 m
+    maxDist: 7000,
+  },
+  {
+    level: 2,
+    actMultiplier: 2.5,
+    minDist: 7000, // 단위 m
+    maxDist: 12000,
+  },
+  {
+    level: 3,
+    actMultiplier: 2.2,
+    minDist: 12000, // 단위 m
+    maxDist: 17000,
+  },
+  {
+    level: 4,
+    actMultiplier: 2,
+    minDist: 17000, // 단위 m
+    maxDist: 25000,
+  },
+  {
+    level: 5,
+    actMultiplier: 1,
+    minDist: 25000, // 단위 m
+    maxDist: 50000,
+  },
+  {
+    level: 6,
+    actMultiplier: 0.8,
+    minDist: 50000, // 단위 m
+    maxDist: 80000,
+  },
+  {
+    level: 7,
+    actMultiplier: 0.5,
+    minDist: 80000, // 단위 m
+    maxDist: 150000,
+  },
+  {
+    level: 8,
+    actMultiplier: 0,
+    minDist: 150000, // 단위 m
+    maxDist: 999999,
+  },
+  {
+    level: 9,
+    actMultiplier: 0,
+    minDist: 999999, // 단위 m
+    maxDist: 999999,
+  },
+  {
+    level: 10,
+    actMultiplier: 0,
+    minDist: 999999, // 단위 m
+    maxDist: 999999,
+  },
+];
 // const hotelPerDay = 1;
 
-export interface NearBySearchReqParams {
-  keyword: string;
-  location: {
-    latitude: string; // 위도
-    longitude: string; // 경도
+export class MealOrder {
+  mealOrder = [-1, 1, 3];
+
+  getNextMealOrder = (): number => {
+    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+    let nextMealOrder: number | undefined;
+    do {
+      nextMealOrder = this.mealOrder.shift();
+      if (isUndefined(nextMealOrder)) return -2;
+    } while (nextMealOrder === -1);
+
+    return nextMealOrder;
   };
-  radius: number;
-  pageToken?: string;
-  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
 }
-
-export type TextSearchReqParams = Partial<NearBySearchReqParams>;
-export type Currency = 'USD' | 'KRW';
-
+/**
+ * 함수-함수 전달시 함수간 전달해야할 내부 변수들
+ */
+export interface IBContext {
+  queryParamsId?: string;
+  userTokenId?: string;
+}
+/**
+ * GetHotelDataFromBKC Type
+ */
 export type BookingComOrderBy =
   | 'popularity'
   | 'class_ascending'
@@ -41,8 +117,8 @@ export type BookingComOrderBy =
   | 'upsort_bh'
   | 'review_score'
   | 'price';
-
-export interface SearchHotelReqParams {
+export type Currency = 'USD' | 'KRW';
+export interface BKCSrchByCoordReqOpt {
   orderBy: BookingComOrderBy; // default popularity
   adultsNumber: number;
   // units: 'metric';
@@ -58,8 +134,231 @@ export interface SearchHotelReqParams {
   childrenNumber?: number;
   childrenAges?: number[];
   categoriesFilterIds?: string[];
-  mock?: boolean; // default true
 }
+export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
+  // mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다. => mock 옵션이 없어도 기본적용되도록 수정함
+  // loadAll?: boolean; // default false, true 일 경우 전체 페이지를 로드하는 로직을 수행하도록 한다.
+  store?: boolean;
+}
+/// rapid api booking.com search hotels by coordinates 검색 결과
+export interface BKCHotelRawData {
+  unit_configuration_label: string;
+  min_total_price: number;
+  countrycode: string;
+  default_language: string;
+  address: string;
+  city: string;
+  city_name_en: string;
+  class: number;
+  distance: string;
+  composite_price_breakdown: {
+    product_price_breakdowns: {
+      gross_amount: {
+        value: number;
+      };
+    }[];
+    included_taxes_and_charges_amount: {
+      value: number;
+    };
+    net_amount: {
+      value: number;
+    };
+    gross_amount_per_night: {
+      value: number;
+    };
+  };
+  checkin: {
+    from: string;
+  };
+  checkout: {
+    until: string;
+  };
+  review_score_word: string;
+  review_score: number;
+  currencycode: string;
+  timezone: string;
+  urgency_message?: string;
+  hotel_id: number;
+  hotel_name: string;
+  latitude: number;
+  longitude: number;
+  url: string;
+  accommodation_type_name: string;
+  zip: string;
+  main_photo_url: string;
+  max_photo_url?: string;
+  hotel_facilities?: string;
+  has_swimming_pool?: number;
+}
+export interface GetHotelDataFromBKCRETParamPayload {
+  hotelSearchCount: number;
+  // hotelSearchResult: BKCHotelRawData[];
+  hotelSearchResult: Partial<TourPlace>[];
+}
+export type GetHotelDataFromBKCRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetHotelDataFromBKCRETParamPayload | {};
+};
+
+/**
+ * GetPlaceDataFromGGL Type
+ */
+export interface GglNearbySearchReqOpt {
+  keyword?: string;
+  location: {
+    latitude: string; // 위도
+    longitude: string; // 경도
+  };
+  radius: number;
+  pageToken?: string;
+}
+export type GglTextSearchReqOpt = Pick<
+  GglNearbySearchReqOpt,
+  'keyword' | 'pageToken'
+>;
+export type GglPlaceResultRawData = google.maps.places.IBPlaceResult;
+export interface GetPlaceByGglNrbyREQParam extends GglNearbySearchReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+  };
+  // batchJobId?: number; // batchJob을 통해 호출되는 경우 data model들에 batchQueryParam이 전달받은 batchJobId 번째로 생성된다. 본 파라미터를 통해 batchJob 스크립트로 실행인지 일반 함수 호출인지를 판별한다.
+  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
+  store?: boolean; // true면 검색결과를 DB에 저장한다.
+}
+export interface GetPlaceByGglNrbyRETParamPayload {
+  placeSearchCount: number;
+  placeSearchResult: GglPlaceResultRawData[];
+  nextPageToken?: string;
+}
+export type GetPlaceByGglNrbyRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceByGglNrbyRETParamPayload | {};
+};
+export interface GetPlaceByGglTxtSrchREQParam extends GglTextSearchReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+    ibType: {
+      typePath: string;
+      minDifficulty: number;
+      maxDifficulty: number;
+    };
+  };
+  // batchJobId?: number; // batchJob을 통해 호출되는 경우 data model들에 batchQueryParam이 전달받은 batchJobId 번째로 생성된다. 본 파라미터를 통해 batchJob 스크립트로 실행인지 일반 함수 호출인지를 판별한다.
+  loadAll?: boolean; // 뒤에 있는 모든 페이지를 구글에 반복해서 쿼리하도록 요청함
+  store?: boolean; // true면 검색결과를 DB에 저장한다.
+}
+export interface GetPlaceByGglTxtSrchRETParamPayload {
+  placeSearchCount: number;
+  placeSearchResult: GglPlaceResultRawData[];
+  nextPageToken?: string;
+}
+export type GetPlaceByGglTxtSrchRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceByGglTxtSrchRETParamPayload | {};
+};
+
+/**
+ * AddMockHotelResource
+ */
+export interface AddMockBKCHotelResourceREQParam extends BKCSrchByCoordReqOpt {
+  mock?: boolean;
+}
+export const defaultBKCHotelReqParams: AddMockBKCHotelResourceREQParam = {
+  orderBy: 'popularity',
+  adultsNumber: 2,
+  roomNumber: 1,
+  checkinDate: getToday(),
+  checkoutDate: getTomorrow(),
+  filterByCurrency: 'USD',
+  latitude: '21.4286856',
+  longitude: '-158.1389763',
+  pageNumber: 0,
+  includeAdjacency: false,
+  childrenNumber: undefined,
+  childrenAges: undefined,
+  categoriesFilterIds: undefined,
+  mock: true,
+};
+
+/**
+ * GetPlaceDataFromVJ Type
+ */
+export interface VisitJejuReqOpt {
+  locale: string; /// 언어코드, ex) kr, en, jp, cn(중국간체), zh(중국번체), my(말레이)
+  page?: number; /// 페이지번호, ex) 1
+  cid?: string; /// 콘텐츠ID ex) CONT_000000000500513
+}
+export interface GetPlaceDataFromVJREQParam extends VisitJejuReqOpt {
+  batchJobCtx: {
+    batchQueryParamsId?: number;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    keyword?: string;
+  };
+  loadAll?: boolean;
+  store?: boolean;
+}
+export interface VisitJejuClassCode {
+  value: string;
+  /// 1. 콘텐츠 코드 값일 경우, ex) c1
+  /// 2. 1차 지역코드 값일 경우, ex) region2
+  /// 3. 2차 지역코드 값일 경우, ex) 17
+  label: string;
+  /// 1. 콘텐츠코드 라벨일 경우, ex) 관광지,
+  /// 2. 1차 지역코드 라벨일 경우, ex) 서귀포시
+  /// 3. 2차 지역코드 라벨일 경우, ex) 성산
+  refId: string;
+  /// 1. 콘텐츠코드 Reference ID, ex) contentscd>c1,
+  /// 2. 1차 지역코드 레퍼런스 ID 일 경우, ex) region>region2
+  /// 3. 2차 지역코드 레퍼런스 ID 일 경우, ex) region2>17
+}
+export interface VisitJejuResultRawData {
+  result?: string; /// 결과코드 ex) 00
+  resultMessage?: string; /// 결과메시지 ex) success
+  totalCount?: number; /// 전체 결과 개수 ex) 1152
+  resultCount?: number; /// 현재 결과 개수 ex) 100
+  pageSize?: number; /// 페이지당 결과 개수 ex) 100
+  pageCount?: number; /// 전체 페이지 ex) 12
+  currentPage?: number; /// 현재 페이지 ex) 1
+  items?: {
+    alltag?: string; /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
+    contentsid?: string; /// 콘텐츠 ID ex) CONT_000000000500349
+    contentscd?: VisitJejuClassCode; /// 콘텐츠 코드
+    title?: string; /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+    region1cd?: VisitJejuClassCode; /// 1차 지역코드
+    region2cd?: VisitJejuClassCode; /// 2차 지역코드
+    address?: string; /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+    roadaddress?: string; /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+    tag?: string; /// 태그 ex) 일출,오름,경관/포토,부모
+    introduction?: string; /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+    latitude?: number; /// 위도 ex) 33.462147
+    longitude?: number; /// 경도 ex) 126.936424
+    postcode?: string; /// 우편번호 ex) 63643
+    phoneno?: string; /// 전화번호 ex) 064-783-0959
+    reqPhoto?: {
+      /// 대표 등록사진
+      descseo?: string; /// 검색엔진 최적화 키워드, ex) 성산일출봉(UNESCO 세계자연유산)
+      photoid?: string; /// 사진 ID, ex) 2018052306801
+      imgpath?: string; /// 일반 이미지 경로, ex) https://api.cdn.visitjeju.net/photomng/imgpath/201810/17/c072ee1a-2a02-4be7-b0cd-62f4daf2f847.gif
+      thumbnailpath?: string; /// 썸네일 이미지경로, ex) https://api.cdn.visitjeju.net/photomng/thumbnailpath/201810/17/e798d53c-1c8a-4d44-a8ab-111beae96db4.gif
+    };
+  }[];
+}
+export interface GetPlaceDataFromVJRETParamPayload
+  extends VisitJejuResultRawData {}
+export type GetPlaceDataFromVJRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetPlaceDataFromVJRETParamPayload | {};
+};
+
+/**
+ * GetRecommendList Type
+ */
 
 export interface FavoriteTravelType {
   // default { noIdea: true }
@@ -102,687 +401,289 @@ export interface FavoriteAccommodationLocation {
   dontCare?: boolean; /// 상관없음
 }
 
-export interface QueryReqParams {
+export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
+
+/// 일별 추천 일정 타입
+export interface IVisitOneSchedule {
+  visitScheduleId: number; // ex)  171273
+  orderNo: number; // x일차 y번째 일정인지 표기 1,2,3,4,..
+  dayNo: number;
+  placeType: VisitPlaceType;
+  title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+  transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+  stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
+  checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
+  checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+}
+
+export type GetRcmdListRETParamPayload = QueryParams & {
+  visitSchedule: (VisitSchedule & {
+    tourPlace: TourPlace | null;
+  })[];
+};
+
+export type GetRcmdListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRcmdListRETParamPayload | {};
+};
+
+export type HotelOptType = BKCSrchByCoordReqOpt;
+export type PlaceOptType = GglNearbySearchReqOpt | VisitJejuReqOpt;
+export type GetRcmdListHotelOpt<T extends AddMockBKCHotelResourceREQParam> =
+  T & {
+    store?: boolean;
+  };
+export type GetRcmdListPlaceOpt<T extends PlaceOptType> = T;
+
+export interface QueryReqParams<H extends HotelOptType> {
   // searchLocation?: string; // ex) o'ahu ex) seoul
-  minBudget?: number; /// ex) 4000000,
-  maxBudget?: number; /// ex) 5000000,
+  minMoney?: number; /// ex) 4000000,
+  maxMoney?: number; /// ex) 5000000,
+  startDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
+  endDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
+  adult?: number;
+  child?: number;
+  infant?: number;
+  // travelType: FavoriteTravelType; ///
+  travelHard?: number; // 여행강도 0~10 ex) 6; default 5
   currency: Currency; /// "USD" | "KRW" default USD
-  travelType: FavoriteTravelType; ///
-  travelIntensity?: number; // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: string; // 여행일정 시작일 ex) '2022-09-30T00:00:00' default today;
-  travelEndDate: string; // 여행일정 종료일 ex) '2022-10-03T00:00:00' default today + 1;
   hotelTransition?: number; // 여행중 호텔을 바꾸는 횟수
-  searchHotelReqParams: SearchHotelReqParams;
-  nearbySearchReqParams: NearBySearchReqParams;
-  textSearchReqParams?: TextSearchReqParams;
+  hotelSrchOpt: GetRcmdListHotelOpt<H>;
+  // placeSrchOpt: GetRcmdListPlaceOpt<P>;
+  store?: boolean;
 }
 
-export type SearchedData = Omit<
-  SearchHotelRes,
-  | 'hotelClass'
-  | 'distance'
-  | 'gross_amount'
-  | 'included_taxes_and_charges_amount'
-  | 'net_amount'
-  | 'checkout'
-  | 'checkin'
-> & {
-  class: number;
-  distance: string;
-  composite_price_breakdown: {
-    product_price_breakdowns: {
-      gross_amount: {
-        value: number;
-      };
-    }[];
-    included_taxes_and_charges_amount: {
-      value: number;
-    };
-    net_amount: {
-      value: number;
-    };
-    gross_amount_per_night: {
-      value: number;
-    };
-  };
-  checkin: {
-    from: string;
-  };
-  checkout: {
-    until: string;
-  };
-};
+export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
 
-export type NearbySearchResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {
-    nearbySearchCount: number;
-    nearbySearchResult: google.maps.places.IBPlaceResult[];
-  };
-};
-
-export type TextSearchResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {
-    textSearchCount: number;
-    // textSearchResult: google.maps.places.IBPlaceResult[];
-    textSearchResult: (string | undefined)[];
-  };
-};
-
-export type SearchHotelResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {
-    hotelSearchCount: number;
-    hotelSearchResult: SearchedData[];
-  };
-};
-
-export interface NearbySearchInnerAsyncFnRes {
-  nearbySearchResult: google.maps.places.IBPlaceResult[];
-  queryParamId: number;
-  pageToken: string | undefined;
-}
-
-// export type OrderSortType = 'desc' | 'asc';
-// export interface GetListQueryParamsReqParams {
-//   id?: number;
-//   hotelSearch?: {
-//     orderBy?: {
-//       column: keyof SearchHotelRes;
-//       sort?: OrderSortType;
-//     }[];
-//     // select?: [keyof SearchHotelRes];
-//     select?: Record<keyof SearchHotelRes, boolean>;
-//   };
-//   nearbySearch?: {
-//     orderBy?: {
-//       column: keyof GglNearbySearchRes;
-//       sort?: OrderSortType;
-//     }[];
-//     // select?: [keyof NearBySearchReqParams];
-//     select?: Record<keyof GglNearbySearchRes, boolean>;
-//   };
-// }
-export type GetListQueryParamsReqParams = Prisma.QueryParamsFindManyArgs;
-
-export interface GetRecommendListReqParams {
-  searchCond: QueryReqParams & { searchLocation: string };
-  evalCond: GetListQueryParamsReqParams;
-}
-
-export interface GetRecommendListWithLatLngtReqParams {
-  searchCond: QueryReqParams;
-  // evalCond: GetListQueryParamsReqParams;
-}
-
-export interface SearchLocationsFromBookingComReqParams {
-  // locale: 'en-us';
-  name: string;
-  mock?: boolean;
-}
-export interface FiltersForSearchFromBookingComReqParams {
-  adultsNumber: number;
-  destType:
-    | 'city'
-    | 'region'
-    | 'landmark'
-    | 'district'
-    | 'hotel'
-    | 'country'
-    | 'airport'
-    | 'latlong';
-  orderBy: BookingComOrderBy; // #default popularity
-  checkoutDate: Date; // default today
-  checkinDate: Date; // default tomorrow
-  // locale: 'en-us' # default 'en-us'
-  // units: 'metric' | 'imperial'
-  filterByCurrency?: Currency;
-  destId: number;
-  roomNumber?: number;
-  categoriesFilterIds?: string[];
-  childrenNumber?: number;
-  includeAdjacency?: boolean;
-  pageNumber?: number;
-  childrenAges?: number[];
-}
-
-export type VisitPlaceType = 'hotel' | 'spot' | 'restaurant';
-export type VisitOrder = {
-  type: VisitPlaceType;
-  data: SearchHotelRes | GglNearbySearchResIncludedGeometry;
-};
-export type VisitSchedules = {
-  // spot: GglNearbySearchRes[];
-  // restaurant: GglNearbySearchRes[];
-  visitOrder: {
-    ordersFromMinHotel: VisitOrder[];
-    ordersFromMidHotel: VisitOrder[];
-    ordersFromMaxHotel: VisitOrder[];
-  };
-  spot: {
-    spotsFromMinHotel: GglNearbySearchResIncludedGeometry[];
-    spotsFromMidHotel: GglNearbySearchResIncludedGeometry[];
-    spotsFromMaxHotel: GglNearbySearchResIncludedGeometry[];
-  };
-  restaurant: {
-    restaurantsFromMinHotel: GglNearbySearchResIncludedGeometry[];
-    restaurantsFromMidHotel: GglNearbySearchResIncludedGeometry[];
-    restaurantsFromMaxHotel: GglNearbySearchResIncludedGeometry[];
-  };
-  hotel: {
-    minBudgetHotel: SearchHotelRes | undefined;
-    midBudgetHotel: SearchHotelRes | undefined;
-    maxBudgetHotel: SearchHotelRes | undefined;
-  };
-}[];
-
-export type GetRecommendListWithLatLngtInnerAsyncFnResponse = QueryParams & {
-  metaInfo: {
-    // totalNearbySearchCount: number;
-    totalHotelSearchCount: number;
-    totalRestaurantSearchCount: number;
-    totalSpotSearchCount: number;
-    spotPerDay: number;
-    mealPerDay: number;
-    mealSchedule: number[];
-    travelNights: number;
-    travelDays: number;
-    hotelTransition: number;
-    transitionTerm: number;
-    // recommendedNearbySearchCount: number;
-    // recommendedSpotCount: number;
-    // recommendedRestaurantCount: number;
-    recommendedMinHotelCount: number;
-    recommendedMidHotelCount: number;
-    recommendedMaxHotelCount: number;
-  };
-
-  visitSchedulesCount: number;
-  visitSchedules: VisitSchedules;
-  queryParamId: number;
-};
-export type GetRecommendListInnerAsyncFnResponse =
-  | (GetRecommendListWithLatLngtInnerAsyncFnResponse & {
-      searchLocation: string;
-    })
-  | void;
-
-export type GetRecommendListWithLatLngtResponse = Omit<
-  IBResFormat,
-  'IBparams'
-> & {
-  IBparams: GetRecommendListWithLatLngtInnerAsyncFnResponse | {};
-};
-
-export type GetRecommendListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetRecommendListInnerAsyncFnResponse | {};
-};
-
-export type CompositeSearchResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {
-    hotelSearchCount: number;
-    nearbySearchCount: number;
-    hotelSearchResult: SearchedData[];
-    nearbySearchResult: google.maps.places.IBPlaceResult[];
-  };
-};
-
-export type GetListQueryParamsInnerAsyncFnResponse = (QueryParams & {
-  gglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-  searchHotelRes: SearchHotelRes[];
-})[];
-
-export type GetListQueryParamsResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetListQueryParamsInnerAsyncFnResponse;
-};
-
-/* 
-GetListQueryParamsResponse ex) 
-    "latitude": 21.33301,
-    "country": "United States",
-    "rtl": 0,
-    "city_name": "",
-    "dest_id": "3185",
-    "lc": "en",
-    "cc1": "us",
-    "image_url": "https://cf.bstatic.com/xdata/images/region/150x150/25015.jpg?k=8c0d0a97b5e40cbb4f196a99c744dd2e169d9e57e8568e4a31457b60ac833a05&o=",
-    "b_max_los_data": {
-        "extended_los": 90,
-        "max_allowed_los": 90,
-        "is_fullon": 0,
-        "has_extended_los": 1,
-        "default_los": 45,
-        "experiment": "long_stays_android_extend_los_2"
-    },
-    "nr_hotels": 1444,
-    "dest_type": "region",
-    "name": "O'ahu",
-    "type": "re",
-    "label": "O'ahu, United States",
-    "longitude": -157.85654,
-    "region": "O'ahu",
-    "hotels": 1444,
-    "city_ufi": null
-*/
-
-export type SearchLocationsFromBookingComRawResponse = Partial<{
-  dest_id: string;
-  lattitude: string;
-  longitude: string;
-  dest_type: string;
-  region: string;
-  name: string;
-  country: string;
-  label: string;
-  lc: string;
-  cc1: string;
-}>;
-export type SearchLocationsFromBookingComResponse = Omit<
-  IBResFormat,
-  'IBparams'
-> & {
-  IBparams: SearchLocationsFromBookingComRawResponse[];
-};
-
-export type FiltersForSearchFromBookingComResponse = Omit<
-  IBResFormat,
-  'IBparams'
-> & {
-  IBparams: FiltersForSearchFromBookingComInnerAsyncFnResponse;
-};
-export type SearchLocationsFromBookingComInnerAsyncFnResponse =
-  SearchLocationsFromBookingComRawResponse;
-
-export type FiltersForSearchFromBookingComRawFilterOfResponse = {
-  id: string;
-  type: string;
-  title: string;
-  any_text: string;
-  is_group: string;
-  categories: {
-    selected: number;
-    name: string;
-    popular: string;
-    count: number;
-    id: string;
-    style_for_count: number;
-    popular_rank: string;
+/**
+ * reqSchedule
+ */
+export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
+export interface DayScheduleType {
+  dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
+  titleList: {
+    visitScheduleId: string; // ex)  171273
+    orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
+    title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
+    transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+    stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
+    checkin: string | null; // 호텔일경우 해당 호텔에 체크인하는 날짜
+    checkout: string | null; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+    tourPlaceData: TourPlace | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
-};
-export type FiltersForSearchFromBookingRawResponse = {
-  filter: FiltersForSearchFromBookingComRawFilterOfResponse[];
-  quick_filters_v2: string;
-  primary_count: string;
-  count: string;
-  extended_count: string;
-  unfiltered_primary_count: string;
-};
-export type FiltersForSearchFromBookingComInnerAsyncFnResponse =
-  | FiltersForSearchFromBookingComRawFilterOfResponse[];
-
-export const defaultNearbySearchReqParams = {
-  keyword: undefined,
-  radius: undefined,
-  location: {
-    latitude: undefined,
-    longitude: undefined,
-  },
-  loadAll: false,
-};
-
-export const defaultSearchHotelReqParams: SearchHotelReqParams = {
-  orderBy: 'popularity',
-  adultsNumber: 2,
-  roomNumber: 1,
-  checkinDate: getToday(),
-  checkoutDate: getTomorrow(),
-  filterByCurrency: 'USD',
-  latitude: '21.4286856',
-  longitude: '-158.1389763',
-  pageNumber: 0,
-  includeAdjacency: false,
-  childrenNumber: undefined,
-  childrenAges: undefined,
-  categoriesFilterIds: undefined,
-  mock: true,
-};
-
-export const defaultQueryParams = {
-  searchHotelReqParams: defaultSearchHotelReqParams,
-  nearbySearchReqParams: defaultNearbySearchReqParams,
-  currency: 'USD' as Currency, // "USD" | "KRW" default USD
-  travelType: {
-    // default { noIdea: true }
-    noIdea: true, // 모르겠음
-  },
-  travelIntensity: 5, // 여행강도 0~10 ex) 6; default 5
-  travelStartDate: moment(new Date()).startOf('day').format(), // 여행일정 시작일 ex) '2022-09-30T00:00:00';
-  travelEndDate: moment(new Date()).startOf('day').add(1, 'day').format(),
-  // 여행일정 종료일 ex) '2022-10-03T00:00:00';
-};
-
-export const bookingComFilterCategories = {
-  apartments: 'property_type::201',
-  hotels: 'property_type::204',
-  resorts: 'property_type::206',
-  vacationHome: 'property_type::220',
-  hostels: 'property_type::203',
-  bedAndBreakfasts: 'property_type::208',
-  villas: 'property_type::213',
-};
-
-export const getQueryParamsForRestaurant = (
-  queryParamId: number,
-): GetListQueryParamsReqParams => {
-  return {
-    where: { id: queryParamId },
-    include: {
-      gglNearbySearchRes: {
-        where: {
-          types: {
-            some: {
-              value: {
-                equals: 'restaurant',
-              },
-            },
-          },
-        },
-        include: {
-          geometry: true,
-        },
-        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
-      },
-      searchHotelRes: {
-        orderBy: [
-          {
-            review_score: 'desc',
-          },
-          {
-            distance: 'asc',
-          },
-        ],
-      },
-    },
-  };
-};
-
-export const getQueryParamsForTourSpot = (
-  queryParamId: number,
-): GetListQueryParamsReqParams => {
-  return {
-    where: { id: queryParamId },
-    include: {
-      gglNearbySearchRes: {
-        where: {
-          types: {
-            none: {
-              value: {
-                equals: 'restaurant',
-              },
-            },
-          },
-        },
-        include: {
-          geometry: true,
-        },
-        orderBy: [{ user_ratings_total: 'desc' }, { rating: 'desc' }],
-      },
-    },
-  };
-};
-
-export type LatLngt = { lat: number; lngt: number };
-// export type MetaDataForSpike = {
-//   distances: number[];
-//   delta: number[];
-//   deltaAvg: number[];
-//   deltaSepAvg: number[];
-//   seperatedIdxs: number[];
-// };
-// export type DistanceMap<
-//   Type extends SearchHotelRes | GglNearbySearchResIncludedGeometry,
-// > = {
-//   me: Type;
-//   withHotel: {
-//     data: SearchHotelRes[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-//   withRestaurant: {
-//     data: GglNearbySearchResIncludedGeometry[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-//   withSpot: {
-//     data: GglNearbySearchResIncludedGeometry[];
-//     metaDataForDistance: MetaDataForSpike;
-//   };
-// }[];
-
-// export interface EvalSeperatedPlacesReqParams {
-//   searchHotelRes: SearchHotelRes[];
-//   touringSpotGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-//   restaurantGglNearbySearchRes: GglNearbySearchResIncludedGeometry[];
-//   baseType?: 'hotel' | 'spot' | 'restaurant';
-// }
-
-export type DistanceMap = {
-  data: SearchHotelRes | GglNearbySearchResIncludedGeometry;
-  withHotels: {
-    data: SearchHotelRes;
-    distance: number;
-  }[];
-  withRestaurants: {
-    data: GglNearbySearchResIncludedGeometry;
-    distance: number;
-  }[];
-  withSpots: {
-    data: GglNearbySearchResIncludedGeometry;
-    distance: number;
-  }[];
-};
-
-export type GglNearbySearchResIncludedGeometry = GglNearbySearchRes & {
-  geometry: Gglgeometry;
-};
-
-export type ScheduleNodeList = {
-  hotel: SearchHotelRes[];
-  restaurant: GglNearbySearchResIncludedGeometry[];
-  spot: GglNearbySearchResIncludedGeometry[];
-};
-
-export class MealOrder {
-  mealOrder = [-1, 1, 3];
-
-  getNextMealOrder = (): number => {
-    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
-    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
-    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
-
-    let nextMealOrder: number | undefined;
-    do {
-      nextMealOrder = this.mealOrder.shift();
-      if (isUndefined(nextMealOrder)) return -2;
-    } while (nextMealOrder === -1);
-
-    return nextMealOrder;
-  };
 }
-
-export interface ReqScheduleParams {
-  minMoney: string;
-  maxMoney: string;
-  startDate: string;
-  endDate: string;
-  adult: string;
-  child: string;
-  infant: string;
-  travelHard: string;
-  favoriteTravelType: (keyof FavoriteTravelType)[];
-  favoriteAccommodation: (keyof FavoriteAccommodationType)[];
-  favoriteAccommodationLocation: (keyof FavoriteAccommodationLocation)[];
-  mock?: boolean;
-}
-
-export type ReqScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams:
-    | {
-        scheduleHash: string;
-      }
-    | {};
-};
-
-export interface GetScheduleParams {
-  scheduleHash: string;
-}
-
-export type GetScheduleResponsePayload = {
-  queryParamsId: string; // 일정 요청 DB ID
-  scheduleHash: string; // 일정 요청 고유번호
+export interface ReqScheduleRETParamPayload extends QueryParams {
+  // queryParamsId: string;
   plan: {
     planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: {
-      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-      titleList: {
-        visitScheduleId: string; // ex)  171273
-        dayNo?: string; // test code에서 확인용으로
-        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
-        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-      }[];
-    }[];
+    day: DayScheduleType[];
   }[];
+}
+export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqScheduleRETParamPayload | {};
 };
 
-export type GetScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetScheduleResponsePayload | {};
-};
-
-export interface GetScheduleListParams {
-  skip: number;
-  take: number;
+/**
+ * makeSchedule (reqSchedule 변경스펙)
+ */
+export interface MakeScheduleREQParam {
+  isNow: string;
+  companion: string;
+  familyOpt: string[];
+  minFriend: string;
+  maxFriend: string;
+  period: string;
+  travelType: string[];
+  destination: string;
+  travelHard: string;
 }
 
-export type GetScheduleListResponsePayload = {
-  // queryParamsId: string; // 일정 요청 DB ID
-  // scheduleHash: string; // 일정 요청 고유번호
-  // plan: {
-  //   planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-  //   day: {
-  //     dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-  //     titleList: {
-  //       visitScheduleId: string; // ex)  171273
-  //       dayNo?: string; // test code에서 확인용으로
-  //       orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
-  //       title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-  //     }[];
-  //   }[];
-  // }[];
-  id: string; /// ex) 112345
+// export interface MakeScheduleRETParamPayload extends QueryParams {
+//   plan: {
+//     planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+//     day: DayScheduleType[];
+//   }[];
+// }
+export type TourPlaceGeoLoc = Omit<
+  Partial<TourPlace>,
+  'gl_lat | gl_lng | vj_latitude | vj_longitude'
+> & {
+  gl_lat: number | null;
+  gl_lng: number | null;
+  vj_latitude: number | null;
+  vj_longitude: number | null;
+};
+
+export interface IValidCentResources {
+  centroidNHotel: {
+    /// 군집정보와 해당 군집군내 호텔 검색 결과
+    transitionNo?: number;
+    stayPeriod?: number;
+    checkin?: string;
+    checkout?: string;
+    numOfVisitSpotInCluster?: number;
+    ratio?: number;
+    hotels?: GetHotelDataFromBKCRETParamPayload;
+    cent?: GeoFormat & {
+      idx: number;
+      numOfPointLessThanR: number;
+    };
+  };
+  nearbySpots: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 여행지
+  nearbyFoods: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 식당
+}
+
+export interface IHotelInMakeSchedule {
+  transitionNo: number; /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
+  stayPeriod: number; /// 검색한 숙소에서 며칠을 머무를지
+  checkin: string; /// 검색한 숙소에 체크인할 날짜
+  checkout: string; /// 검색한 숙소에 체크아웃할 날짜
+  numOfVisitSpotInCluster: number; /// 해당 클러스터에서 체류 기간중 방문해야할 여행지 수
+  ratio: number; /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
+  hotels: GetHotelDataFromBKCRETParamPayload; /// 해당 클러스터에서 검색된 후보 숙소들
+}
+export interface IVisitDaySchedule {
+  planType: PlanType;
+  dayNo: number;
+  titleList: Partial<IVisitOneSchedule>[];
+}
+export interface ContextMakeSchedule extends IBContext {
+  /// 검색된 클러스터별 호텔들
+  hotels?: IHotelInMakeSchedule[];
+  spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
+  foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
+  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
+  clusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+
+  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
+  validCentNResources?: IValidCentResources[];
+  numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
+  spotPerDay?: number; /// 하루 평균 방문 여행지 수
+  mealPerDay?: number; /// 하루 평균 방문할 식당수
+  travelNights?: number; /// 여행 일정중 '일'수
+  travelDays?: number; /// 여행 일정중 '박'수
+  hotelTransition?: number; /// 여행일정중 숙소 변경횟수
+  visitSchedules?: IVisitDaySchedule[];
+}
+
+export interface MakeScheduleRETParamPayload {
+  queryParamsId: number;
+  spotPerDay?: number;
+  calibUserLevel?: {
+    min: number;
+    max: number;
+  };
+  clusterRes?: MakeClusterRETParam;
+  validCentroids?: IValidCentResources[];
+  hotels?: IHotelInMakeSchedule[];
+  spots?: TourPlaceGeoLoc[];
+  foods?: TourPlaceGeoLoc[];
+  visitSchedules: {
+    planType: PlanType;
+    dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
+    titleList: Partial<IVisitOneSchedule>[];
+  }[];
+  queryParams: QueryParams & {
+    visitSchedule: (VisitSchedule & {
+      tourPlace: TourPlace | null;
+    })[];
+  };
+}
+export type MakeScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: MakeScheduleRETParamPayload | {};
+};
+
+/**
+ * getSchedule
+ */
+export interface GetScheduleREQParam {
+  queryParamsId: string;
+}
+export interface GetScheduleRETParamPayload
+  extends ReqScheduleRETParamPayload {}
+
+export type GetScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleRETParamPayload | {};
+};
+
+/**
+ * getScheduleList
+ */
+export interface GetScheduleListREQParam {
+  skip: string;
+  take: string;
+}
+export interface GetScheduleListRETParamPayload {
+  id: string; /// scheduleBankId ex) 112345
   tag: string[]; ///  태그 ex) "가족여행", "한달살기"
   title: string; /// 타이틀 ex) "하와이 가족여행"
   createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
-  scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
+  // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
   planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
+  queryParamsId: string; /// scheduleHash값을 대신하여 생성한 일정의 고유값으로 queryParamsId가 쓰임
+}
+
+export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleListRETParamPayload[] | {};
 };
 
-export type GetScheduleListResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetScheduleListResponsePayload[] | {};
-};
-
-export interface SaveScheduleParams {
+/**
+ * saveSchedule
+ */
+export interface SaveScheduleREQParam {
   title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
   planType: PlanType;
-  scheduleHash: string; ///  저장할 schedule의 고유 hash ex) "1bgfjv1asdnn1gbbnaidi125nh5hb1fh"
+  queryParamsId: string; /// 저장할 schedule의 고유 Id
+}
+export interface SaveScheduleRETParamPayload {
+  queryParamsId: string;
 }
 
-export type SaveScheduleResponsePayload = {
-  queryParamsId: string; // 일정 요청 DB ID
-  scheduleHash: string; // 일정 요청 고유번호
-  plan: {
-    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: {
-      dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-      titleList: {
-        visitScheduleId: string; // ex)  171273
-        dayNo?: string; // test code에서 확인용으로
-        orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,...
-        title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-      }[];
-    }[];
-  }[];
+export type SaveScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleRETParamPayload | {};
 };
 
-export type SaveScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: SaveScheduleResponsePayload | {};
-};
-
-export interface GetDayScheduleParams {
-  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+/**
+ * getDaySchedule
+ */
+export interface GetDayScheduleREQParam {
+  queryParamsId: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 queryParamsId ex) "1"
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
   planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
 
-export type GetDayScheduleResponsePayload = {
-  id: string; /// ex) 1273712
-  dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
-  contentsCountAll: number; /// ex) 11
-  spotList: {
-    id: string; /// ex) 22748
-    spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
-    previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
-    spotName: string; /// ex) 'Turtle Bay Resort'
-    roomType?: string; /// ex)
-    spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
-    // contact: string; /// ex) '+18089228111'
-    hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
-    placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
-    //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
-    startDate: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
-    endDate: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
-    night?: Number; /// 1박 ex)
-    days?: Number; /// 2일 ex)
-    checkIn?: String; /// ex) 15:00
-    checkOut?: String; ///  ex)  11:00
-    price?: String; ///  1박당? 전체?
-    rating?: number; /// ex) 8.7
-    lat?: number; /// ex) 33.47471823
-    lng?: number; /// ex) 126.17273718239
-    imageList?: {
-      id: string; /// ex) 18184
-      url: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
-      text: string; /// ex) ??
-    }[];
+export interface BriefScheduleType {
+  id: string; /// ex) 22748
+  spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
+  previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
+  spotName: string; /// ex) 'Turtle Bay Resort'
+  roomType?: string; /// ex)
+  spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
+  // contact: string; /// ex) '+18089228111'
+  hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
+  placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+  //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
+  startDate?: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
+  endDate?: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
+  night?: Number; /// 1박 ex)
+  days?: Number; /// 2일 ex)
+  checkIn?: String; /// ex) 15:00
+  checkOut?: String; ///  ex)  11:00
+  price?: String; ///  1박당? 전체?
+  rating?: number; /// ex) 8.7
+  lat?: number; /// ex) 33.47471823
+  lng?: number; /// ex) 126.17273718239
+  imageList?: {
+    id: string; /// ex) 18184
+    url?: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
+    photo_reference?: string;
+    // text: string; /// ex) ??
   }[];
-};
-
-export type GetDayScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDayScheduleResponsePayload | {};
-};
-
-export interface GetDetailScheduleParams {
-  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
 }
 
-export type GooglePlaceReview = {
-  author_name: string;
-  author_url: string;
-  language: string;
-  original_language: string;
-  profile_photo_url: string;
-  rating: number;
-  relative_time_description: string;
-  text: string;
-  time: number;
-  translated: boolean;
-};
-
-export enum GooglePriceLevel {
-  'Free',
-  'Moderate',
-  'Expensive',
-  'VeryExpensive',
-}
-
-export type GetDetailScheduleResponsePayload = {
+export interface DetailScheduleType {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
@@ -842,57 +743,142 @@ export type GetDetailScheduleResponsePayload = {
   url: string | null; /// Google Place Detail => 구글맵 url ex) https://maps.google.com/?cid=18118321410210469991
   userRatingsTotal: number | null; /// Google Place Detail => 유저 평점 총 투표자 수
   website: string | null; /// Google Place Detail => 해당 장소에서 운영하는 자체 웹사이트 , hotel의 웹사이트로도 쓴다.
+}
+
+export interface GetDayScheduleRETParamPayload {
+  id: string; /// ex) 1273712
+  dayCount: number; /// 몇일째 정보인지 ex) 1, 2, 3
+  contentsCountAll: number; /// ex) 11
+  spotList: (BriefScheduleType | undefined)[];
+}
+
+export type GetDayScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleRETParamPayload | {};
 };
 
-export type GetDetailScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetDetailScheduleResponsePayload | {};
+/**
+ * getDetailSchedule
+ */
+export interface GetDetailScheduleREQParam {
+  visitScheduleId: string; /// 스케쥴중 특정 일정 하나를 지칭하는 고유 id. getDaySchedule을 통한 하루 일정 정보에서 특정 장소에 대한 id를 얻어 이를 파라미터로 제공한다. ex) "10"
+}
+
+export type GooglePlaceReview = {
+  author_name: string;
+  author_url: string;
+  language: string;
+  original_language: string;
+  profile_photo_url: string;
+  rating: number;
+  relative_time_description: string;
+  text: string;
+  time: number;
+  translated: boolean;
+};
+export enum GooglePriceLevel {
+  'Free',
+  'Moderate',
+  'Expensive',
+  'VeryExpensive',
+}
+
+export interface GetDetailScheduleRETParamPayload extends DetailScheduleType {}
+export type GetDetailScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetDayScheduleRETParamPayload | {};
 };
 
 export type GglPlaceDetailType = {
   /// google place detail types...
 };
-export type GetPlaceDetailResponse = {
+
+export type GetPlaceDetailRawData = {
   result: GglPlaceDetailType[];
 };
 
-export type GetCandidateScheduleParams = {
-  scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash ex)
+/**
+ * getCandidateSchedule
+ */
+export interface GetCandidateScheduleREQParam {
+  // scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash => queryParamsId로 대체됨
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
+  queryParamsId: string; /// 생성일정의 고유 값으로 간주되는 queryParamsId, 해당 값으로 일정을 특정하여 해당 일정의 후보군을 응답한다.
   spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
-};
-export type GetCandidateScheduleResponsePayload = {
-  result: GglPlaceDetailType[] | {};
+  skip: number;
+  take: number;
+}
+
+export interface GetCandidateScheduleRETParamPayload {
+  id: number; /// queryParamsId
+  contentsCountAll: number;
+  candidateList: BriefScheduleType[];
+}
+
+export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandidateScheduleRETParamPayload | {};
 };
 
-export type GetCandidateScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetCandidateScheduleResponsePayload | {};
-};
-
-export type ModifyScheduleParams = {
-  visitScheduleId: string; /// 변경전 생성되어 있던 추천 항목 ex) "4"
-  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
-  candidateId: string; /// 변경하고자 하는 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
-};
-export type ModifyScheduleResponsePayload = {
-  result: GglPlaceDetailType[] | {};
-};
-
-export type ModifyScheduleResponse = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: ModifyScheduleResponsePayload | {};
-};
-
-export type GetCandidateDetailScheduleParams = {
-  candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+/**
+ * getCandDetailSchd (getCandidateDetailSchedule )
+ */
+export interface GetCandDetailSchdREQParam {
   candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
-};
-export type GetCandidateDetailScheduleResponsePayload = Omit<
-  GetDetailScheduleResponsePayload,
+  // candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+}
+
+export type GetCandDetailSchdRETParamPayload = Omit<
+  DetailScheduleType,
   'dayCount' | 'orderCount' | 'planType'
 >;
 
-export type GetCandidateDetailScheduleResponse = Omit<
-  IBResFormat,
-  'IBparams'
-> & {
-  IBparams: GetCandidateDetailScheduleResponsePayload | {};
+export type GetCandDetailSchdRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetCandDetailSchdRETParamPayload | {};
 };
+
+/**
+ * modifySchedule
+ */
+export interface ModifyScheduleREQParam {
+  visitScheduleId: string; /// 변경전 생성되어 있던 추천 항목 ex) "4"
+  // candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  candidateId: string; /// 변경하고자 하는 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
+}
+
+export interface ModifyScheduleRETParamPayload extends VisitSchedule {}
+
+export type ModifyScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ModifyScheduleRETParamPayload | {};
+};
+
+/**
+ * makeCluster
+ */
+export interface GeoFormat {
+  lat: number;
+  lng: number;
+}
+
+export interface MakeClusterRETParam {
+  r: number;
+  maxPhase: number;
+  wholeSpotLatLngAvg: GeoFormat & {
+    length: number;
+  };
+  nonDupCentroids: (GeoFormat & {
+    idx: number;
+    numOfPointLessThanR: number;
+  })[];
+  centHistoryByStage: {
+    stageNo: number;
+    centroids: GeoFormat[];
+  }[];
+
+  centroids: (GeoFormat & {
+    numOfPointLessThanR: number;
+    histories: string;
+  })[];
+
+  spotsGeoLocation: (GeoFormat & {
+    id: number;
+    name: string;
+  })[];
+}

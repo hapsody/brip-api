@@ -27,7 +27,7 @@ model User {
   userTokenId            String                   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
   questionTicket         QuestionTicket[]
-  BusinessQuestionTicket BusinessQuestionTicket[]
+  businessQuestionTicket BusinessQuestionTicket[]
   tripCreator            TripCreator[]
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now())
@@ -42,133 +42,216 @@ model GglPhotos {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  height             Int?
-  width              Int?
-  html_attributuions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
-  photo_reference    String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
-  url                String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
-
-  gglNearbySearchRes GglNearbySearchRes[]
-}
-
-model GglPlusCode {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-
-  compund_code String
-  global_code  String
-
-  gglNearbySearchRes GglNearbySearchRes[]
-}
-
-model Gglgeometry {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-
-  location           String
-  viewport           String
-  GglNearbySearchRes GglNearbySearchRes[]
+  height            Int?
+  width             Int?
+  html_attributions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
+  photo_reference   String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
+  url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
+  TourPlace         TourPlace? @relation(fields: [tourPlaceId], references: [id])
+  tourPlaceId       Int?
 }
 
 model GglNearbySearchResType {
-  id                 Int                  @id @default(autoincrement())
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @default(now())
-  GglNearbySearchRes GglNearbySearchRes[]
-  value              String               @unique
+  id        Int         @id @default(autoincrement())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now())
+  value     String      @unique
+  tourPlace TourPlace[]
 }
 
-/// 구글 nearbySearch 검색 결과
-/// google document: https://developers.google.com/maps/documentation/places/web-service/search-nearby?hl=ko
-model GglNearbySearchRes {
-  id                    Int                      @id @default(autoincrement())
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @default(now())
-  geometry              Gglgeometry?             @relation(fields: [gglgeometryId], references: [id])
-  gglgeometryId         Int?
-  icon                  String?
-  icon_background_color String?
-  icon_mask_base_uri    String?
-  name                  String? /// 검색된 장소 이름 
-  opening_hours         Boolean /// 검색시각 기준으로 현재 영업 상태인지
+/// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
+enum DataStageStatus {
+  NEW /// 새로 수집된 데이터, 이후 사용승인이 나야 IN_USE 단계로 넘어갈수 있다.
+  APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
+  IN_USE ///  사용중인 데이터
+  ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+}
+
+/// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
+// tourPlace는 일정 생성이 요청되면(getRecommendList 수행중에 생성된다.)
+// 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)은 데이터 수집시에 생성되며, 일정 생성 요청이 들어오면 QueryParams 생성과 함께 요청 파라미터에 맞는 검색된 데이터 테이블들과의 TourPlace 관계가 생성되고 이 TourPlace들과 QueryParams가 연결된다.
+// 1. 즉 하나의 TourPlace는 다수의 QueryParams와 관계될수 없으며,
+// 2. QueryParams는 다수 검색된 결과를 가질수 있으므로 N개의 TourPlace와 관계될수 있다.
+// 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
+// 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
+model TourPlace {
+  id                                    Int             @id @default(autoincrement())
+  createdAt                             DateTime        @default(now())
+  updatedAt                             DateTime        @default(now())
+  tourPlaceType                         PlaceType
+  visitSchedule                         VisitSchedule[]
+  queryParams                           QueryParams[]
+  status                                DataStageStatus @default(NEW)
+  evalScore                             Int             @default(0)
+  minDifficulty                         Int?
+  maxDifficulty                         Int?
+  ibTravelTag                           IBTravelTag[]
+  /// booking.com hotel result
+  bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
+  bkc_min_total_price                   Float? /// ex) 572.61373972
+  bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
+  bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
+  bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
+  bkc_net_amount                        Float? /// 순액
+  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
+  bkc_hotelClass                        Int? /// 호텔 성급 ex) 3
+  bkc_countrycode                       String? /// ex) en
+  bkc_default_language                  String? /// ex) xu
+  bkc_address                           String? /// ex) 92-161 Waipahe Place
+  bkc_city                              String? /// ex) "Waianae",
+  bkc_city_name_en                      String? /// ex) "Waianae",
+  bkc_checkin                           String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_checkout                          String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_distance                          Float? /// search한 geo location으로부터 거리 ex) 5.62
+  bkc_review_score_word                 String? /// ex) Wonderful
+  bkc_review_score                      Float? /// ex) 8.2
+  // bkc_currency                String /// ex) USD
+  bkc_currency_code                     String? /// ex) USD
+  bkc_timezone                          String? /// ex) "Pacific/Honolulu",
+  bkc_urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
+  bkc_hotel_id                          Int? /// ex) 174704674
+  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
+  bkc_hotel_name                        String? ///  ex) Marriott's Ko Olina Beach Club
+  bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
+  bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
+  bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
+  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
+  bkc_zip                               String? /// ex) HI 96792
+  bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
+  bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
+  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  // bkc_has_swimming_pool       Int /// ex) 1
+
+  /// google place result format
+  gl_lat                   Float?
+  gl_lng                   Float?
+  gl_viewport_ne_lat       Float?
+  gl_viewport_ne_lng       Float?
+  gl_viewport_sw_lat       Float?
+  gl_viewport_sw_lng       Float?
+  gl_icon                  String?
+  gl_icon_background_color String?
+  gl_icon_mask_base_uri    String?
+  gl_name                  String? /// 검색된 장소 이름 
+  gl_opening_hours         Boolean? /// 검색시각 기준으로 현재 영업 상태인지
   // opening_periods       String? /// 오픈 클로즈 시간 ex)
   // weekday_text          String? /// 일주일 기준 영업일 ex) 
-  place_id              String? /// 구글이 부여한 place의 고유값
-  price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
-  rating                Float? /// 별점, 0-5 
-  types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
-  user_ratings_total    Int? /// 별점을 준 유저수
-  vicinity              String? /// nearbySearch 검색시에 주소
-  formatted_address     String? /// textSearch 검색시에 주소
-  plus_code             GglPlusCode?             @relation(fields: [plus_codeId], references: [id]) /// 위경도 기준으로 1/8000 도로 나누어 14m x 14m 범위로 쪼갠 character 주소 체계
-  plus_codeId           Int?
-  photos                GglPhotos[] /// 장소 사진 url
+  gl_place_id              String? /// 구글이 부여한 place의 고유값
+  gl_price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
+  gl_rating                Float? /// 별점, 0-5 
+  gl_types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
+  gl_user_ratings_total    Int? /// 별점을 준 유저수
+  gl_vicinity              String? /// nearbySearch 검색시에 주소
+  gl_formatted_address     String? /// textSearch 검색시에 주소
+  gl_photos                GglPhotos[] /// 장소 사진 url
 
-  QueryParams          QueryParams?        @relation(fields: [queryParamsId], references: [id])
-  queryParamsId        Int?
-  spotSchedule         VisitSchedule[]     @relation("Spot")
-  restaurantSchedule   VisitSchedule[]     @relation("Restaurant")
-  BatchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id])
+  /// visitJeju result format
+  // vj_alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
+  vj_contentsid      String? /// 콘텐츠 ID ex) CONT_000000000500349
+  // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
+  vj_contentscdValue String? /// 콘텐츠 코드 값, ex) c1
+  vj_contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지
+  vj_contentscdRefId String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
+  vj_title           String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+  // vj_region1cd   VisitJejuClassCode /// 1차 지역코드
+  vj_region1cdValue  String? /// 1차 지역코드 값, ex) region2
+  vj_region1cdLabel  String? /// 1차 지역코드 라벨, ex) 서귀포시
+  vj_region1cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
+  // vj_region2cd   VisitJejuClassCode /// 2차 지역코드
+  vj_region2cdValue  String? /// 1차 지역코드 값, ex) 17
+  vj_region2cdLabel  String? /// 1차 지역코드 라벨, ex) 성산
+  vj_region2cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
+  vj_address         String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+  vj_roadaddress     String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+  vj_tag             VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
+  vj_introduction    String?        @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+  vj_latitude        Float? /// 위도 ex) 33.462147
+  vj_longitude       Float? /// 경도 ex) 126.936424
+  vj_postcode        String? /// 우편번호 ex) 63643
+  vj_phoneno         String? /// 전화번호 ex) 064-783-0959
+
+  batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
-  BatchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id])
+  batchSearchKeyword   BatchSearchKeyword? @relation(fields: [batchSearchKeywordId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchSearchKeywordId Int?
+
+  @@index([gl_place_id, vj_contentsid])
 }
 
 model BatchQueryParams {
-  id                Int                  @id @default(autoincrement())
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @default(now())
-  latitude          Float?
-  longitude         Float?
-  radius            Float?
+  id            Int                  @id @default(autoincrement())
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @default(now())
+  latitude      Float?
+  longitude     Float?
+  radius        Float?
   // keyword           String?
-  searchkeyword     BatchSearchKeyword[]
-  gglPlaceSearchRes GglNearbySearchRes[]
+  searchkeyword BatchSearchKeyword[]
+  // gglNearbySearchRes GglNearbySearchRes[]
+  // visitJejuData      VisitJejuData[]
+  // searchHotelRes     SearchHotelRes[]
+  tourPlace     TourPlace[]
 }
 
 model BatchSearchKeyword {
-  id                Int                  @id @default(autoincrement())
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @default(now())
-  keyword           String               @unique
-  BatchQueryParams  BatchQueryParams[]
-  gglPlaceSearchRes GglNearbySearchRes[]
+  id               Int                @id @default(autoincrement())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now())
+  keyword          String             @unique
+  batchQueryParams BatchQueryParams[]
+  // gglNearbysearchRes GglNearbySearchRes[]
+  // visitJejuData      VisitJejuData[]
+  // searchHotelRes     SearchHotelRes[]
+  tourPlace        TourPlace[]
 }
 
-/// 프론트에서는 주변장소 검색과 호텔등의 여러 외부 api를 아울러 한번에 스케쥴을 요청하기 때문에 단일 요청에 단일 QueryParams로 대응시켜 구글 GglnearbySearchRes, SearchHotelRes 를 하나로 묶음.
+// enum Companion {
+//   ALONE
+//   FAMILY
+//   FRIEND
+//   NOTYET
+// }
+
+// enum FamilyOpt {
+//   INFANT
+//   CHILDREN
+//   TEENAGER
+// }
+
+/// 유저가 일정 생성을 요청했을때 입력한 값을 갖는 모델
 model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
-  keyword   String? /// searching keyword with or without latitude & longitude ex) hawaii, Matriott Hotel, surfing, best restaurant...
-  latitude  Float /// -90 ~ 90
-  longitude Float /// -180 ~ 180 
-  radius    Float? /// unit: km, ex) 20
 
-  // https://rapidapi.com/tipsters/api/booking-com/  => GET Search hotels by coordinates api
-  hotelOrderBy             String? /// Title: HotelsSearchOrderBy, Enum: popularity,class_ascending,class_descending,distance,upsort_bh,review_score,price, ex) popularity
-  hotelAdultsNumber        Int? /// Title: Adults Number, Maximum: 29, Minimum: 1 Description: Number of adults, ex) 2
-  hotelUnits               String? /// metric | imperial ex) metric
-  hotelRoomNumber          Int? ///  Number of rooms ex) 1
-  hotelCheckinDate         DateTime? /// 유저가 입력한 여행 시작일 '2022-09-30';
-  hotelCheckoutDate        DateTime? ///  유저가 입력한 여행 종료일 '2022-10-01';
-  hotelFilterByCurrency    String? /// default USD, 'USD' | 'KRW'; 
-  hotelChildrenAges        String? /// booking.com 기준 ex) 유아 연령 배열 '5,3'
-  hotelChildrenNumber      Int? /// booking.com 기준 ex) 유아 수 ex) 2
-  hotelCategoriesFilterIds String? /// booking.com 기준 호텔 검색시 필터 옵션 bookingComFilterCategories 참조 ex) "property_type::204, property_type::220, class::5, cancellation::1"
-  hotelIncludeAdjacency    Boolean? /// booking.com api 호출시에 호텔 검색 결과가 없을 경우 인접한 지역에 대한 결과를 추가할것인지에 대한 옵션 기록
-  searchHotelRes           SearchHotelRes[] /// 일정에 대응하는 호텔 후보지 검색 결과
-  gglNearbySearchRes       GglNearbySearchRes[] /// 일정에 대응하는 주변 관광지와 식당 후보지 검색 결과
-  metaScheduleInfo         MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
-  visitSchedule            VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
-  userTokenId              String? /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
+  minMoney  Int?
+  maxMoney  Int?
+  startDate DateTime?
+  endDate   DateTime?
+  adult     Int?
+  child     Int?
+  // travelHard Int?
+
+  ingNow    String? /// 현재 여행중인지 여부 ex) "ing", "preStep"
+  companion String? ///  일행이 있는지 여부 ex) 'alone', 'family', 'friend', 'notYet'
+  familyOpt String? ///  가족 동반자 타입 ex) ['infant', 'children', 'teenager'] # infant : 5세 미만 또는 어린이 포함, # children: 초등학생 포함, # teenager: 중/고생 포함
+  minFriend Int? ///  친구 동반자 최소인원 ex) "5"
+  maxFriend Int? /// 친구 동반자 최대 인원 ex) "7"
+
+  period      Int? /// 여행기간 ex) '3'
+  travelType  String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
+  destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
+  travelHard  Int? /// 여행강도 ex) "5"
+
+  tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
+  metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
+  visitSchedule    VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
+  userTokenId      String? /// 일정을 생성 요청한 유저의 고유 유저 토큰 아이디
   // scheduleTitle             String? /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // scheduleThumbnail           String? /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   // schedulePlanType
-  scheduleHash             String?              @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
-  savedSchedule            ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
+  // scheduleHash     String?           @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  savedSchedule    ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
 }
 
 /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
@@ -180,54 +263,10 @@ model ScheduleBank {
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   planType      PlanType
   hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
-  scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
+  // scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   userTokenId   String /// 생성된 일정을 저장한 유저의 고유 유저 토큰 아이디
-  queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id])
+  queryParams   QueryParams   @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId Int           @unique
-}
-
-model SearchHotelRes {
-  id                                Int      @id @default(autoincrement())
-  createdAt                         DateTime @default(now())
-  updatedAt                         DateTime @default(now())
-  unit_configuration_label          String /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
-  min_total_price                   Float /// ex) 572.61373972
-  gross_amount_per_night            Float    @default(-1) /// ex) 1박당 요금 = min_total_price / 여행박수
-  gross_amount                      Float /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
-  included_taxes_and_charges_amount Float /// 세금 포함한 금액
-  net_amount                        Float /// 순액
-  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  hotelClass                        Int      @default(-1) /// 호텔 성급 ex) 3
-  countrycode                       String /// ex) en
-  default_language                  String /// ex) xu
-  address                           String /// ex) 92-161 Waipahe Place
-  city                              String /// ex) "Waianae",
-  city_name_en                      String /// ex) "Waianae",
-  checkin                           String /// ex) {"until":"11:00","from":"10:00"}
-  checkout                          String /// ex) {"until":"11:00","from":"10:00"}
-  distance                          Float /// search한 geo location으로부터 거리 ex) 5.62
-  review_score_word                 String /// ex) Wonderful
-  review_score                      Float? /// ex) 8.2
-  // currency                String /// ex) USD
-  currency_code                     String /// ex) USD
-  timezone                          String /// ex) "Pacific/Honolulu",
-  urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
-  hotel_id                          Int /// ex) 174704674
-  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
-  hotel_name                        String ///  ex) Marriott's Ko Olina Beach Club
-  latitude                          Float /// 호텔 위도 ex) 21.3307348165897
-  longitude                         Float /// 호텔 경도 ex) -158.121508732438
-  url                               String /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
-  accommodation_type_name           String /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
-  zip                               String /// ex) HI 96792
-  main_photo_url                    String /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
-  max_photo_url                     String /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  hotel_facilities                  String   @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
-  // has_swimming_pool       Int /// ex) 1
-
-  QueryParams   QueryParams     @relation(fields: [queryParamsId], references: [id])
-  queryParamsId Int
-  visitSchedule VisitSchedule[]
 }
 
 /// 개발용 booking.com hotels mock data type 구분용
@@ -240,11 +279,23 @@ enum BookingComReqType {
 
 /// 개발용, booking.com hotel 검색 api 쿼리 비용을 줄이기 위해 mydb에 저장할수 있도록 model을 마련함
 model MockBookingDotComHotelResource {
-  id           Int               @id @default(autoincrement())
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @default(now())
-  reqType      BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
-  responseData String            @db.LongText
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now())
+  reqType             BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
+  orderBy             String?
+  adultsNumber        Int?
+  childrenNumber      Int?
+  childrenAges        String?
+  roomNumber          Int?
+  checkinDate         DateTime?
+  checkoutDate        DateTime?
+  latitude            Float?
+  longitude           Float?
+  pageNumber          Float?
+  includeAdjacency    Boolean?
+  categoriesFilterIds String?
+  responseData        String            @db.LongText
 }
 
 model NonMembersCount {
@@ -298,46 +349,44 @@ model MetaScheduleInfo {
   id                         Int      @id @default(autoincrement())
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @default(now())
-  totalHotelSearchCount      Int /// 검색된 호텔들의 수
-  totalRestaurantSearchCount Int /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
-  totalSpotSearchCount       Int /// 검색된 관광지의 수
-  spotPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 관광지 수
-  mealPerDay                 Int /// 스케쥴 생성에 설정된 하루에 방문할 식당 수
-  mealSchedule               String /// 식사 일정,  ex) -1,0,2 
+  totalHotelSearchCount      Int? /// 검색된 호텔들의 수
+  totalRestaurantSearchCount Int? /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
+  totalSpotSearchCount       Int? /// 검색된 관광지의 수
+  spotPerDay                 Float? /// 스케쥴 생성에 설정된 하루에 방문할 관광지 수
+  mealPerDay                 Float? /// 스케쥴 생성에 설정된 하루에 방문할 식당 수
+  mealSchedule               String? /// 식사 일정,  ex) -1,0,2 
   // -1,0,2 => { breakfast: -1, lunch: 0, dinner: 2 }  라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함. 추가사항은 MealOrder 클래스 코멘트 참조.
 
-  travelNights             Int /// 여행'박' 수, ex) 1박 2일에서 1를 의미
-  travelDays               Int /// 여행'일' 수, ex) 1박 2일에서 2를 의미
-  hotelTransition          Int /// 여행중 숙소를 몇번 변경할것인지
-  transitionTerm           Int /// 여행중 숙소를 몇일마다 바꿀것인지 
-  recommendedMinHotelCount Int /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMidHotelCount Int /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  recommendedMaxHotelCount Int /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
-  visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
-  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id])
+  travelNights             Int? /// 여행'박' 수, ex) 1박 2일에서 1를 의미
+  travelDays               Int? /// 여행'일' 수, ex) 1박 2일에서 2를 의미
+  hotelTransition          Int? /// 여행중 숙소를 몇번 변경할것인지
+  transitionTerm           String? /// 여행중 숙소를 몇일마다 바꿀것인지 ex) 5,2 <= 5일머무르고 숙소 이동 후 2일 머무름
+  recommendedMinHotelCount Int? /// 검색된 호텔들중 min 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMidHotelCount Int? /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  recommendedMaxHotelCount Int? /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
+  // visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
+  queryParams              QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId            Int         @unique
 }
 
 /// reqSchedule api로 요청되어 추천일정으로 잡힌 호텔 및 장소들 일람. 여기서 유저가 저장하면 scheduleBank에도 등록된다.
 model VisitSchedule {
-  id        Int       @id @default(autoincrement())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
-  dayNo     Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
-  orderNo   Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
-  from      PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
-  type      PlaceType /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
-  dataId    Int /// 장소 유형에 따라 dataId는 GglNearbySearchRes(SPOT, RESTAURANT)이거나, SearchHotelRes의 id 이다.
+  id           Int       @id @default(autoincrement())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now())
+  dayNo        Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
+  orderNo      Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
+  planType     PlanType /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
+  placeType    String? /// 이 장소가 어떤 유형인지 나타냄, HOTEL | RESTAURANT | SPOT
+  transitionNo Int? /// 해당 VisitSchedule이 호텔일 경우 몇번째 호텔 이동인지 나타낸다.
+  stayPeriod   Int? /// 해당 VisitSchedule이 호텔일 경우 해당 호텔에서 몇박을 체류하는지 나타낸다.
+  checkin      DateTime? /// 해당 VisitSchedule이 호텔일 경우 해당 호텔에 checkin 하는 날짜.
+  checkout     DateTime? /// 해당 VisitSchedule이 호텔일 경우 해당 호텔에 checkout 하는 날짜.
 
-  QueryParams   QueryParams? @relation(fields: [queryParamsId], references: [id])
+  tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tourPlaceId   Int?
+  queryParams   QueryParams? @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId Int?
-
-  spot         GglNearbySearchRes? @relation(name: "Spot", fields: [spotId], references: [id])
-  spotId       Int?
-  restaurant   GglNearbySearchRes? @relation(name: "Restaurant", fields: [restaurantId], references: [id])
-  restaurantId Int?
-  hotel        SearchHotelRes?     @relation(fields: [hotelId], references: [id])
-  hotelId      Int?
 }
 
 enum PlanType {
@@ -347,9 +396,11 @@ enum PlanType {
 }
 
 enum PlaceType {
-  HOTEL
-  RESTAURANT
-  SPOT
+  BKC_HOTEL
+  GL_RESTAURANT
+  GL_SPOT
+  VISITJEJU_RESTAURANT
+  VISITJEJU_SPOT
 }
 
 /// 문의사항
@@ -417,4 +468,38 @@ model TripCreator {
   domain    String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    Int
+}
+
+/// VisitJejuData에서 활용할 Tag 모델
+model VisitJejuTag {
+  id        Int         @id @default(autoincrement())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now())
+  value     String      @unique ///ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,
+  tourPlace TourPlace[]
+}
+
+/// idealbloom에서 자체 정의하는 여행타입. 
+model IBTravelTag {
+  id            Int                       @id @default(autoincrement())
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @default(now())
+  minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
+  maxDifficulty Int?
+  value         String                    @unique
+  related       RModelBetweenTravelType[] @relation("Sub")
+  noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
+  tourPlace     TourPlace[]
+}
+
+model RModelBetweenTravelType {
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now())
+  to        IBTravelTag @relation(name: "Super", fields: [toId], references: [id])
+  toId      Int
+  from      IBTravelTag @relation(name: "Sub", fields: [fromId], references: [id])
+  fromId    Int
+
+  @@id([fromId, toId])
+  @@unique([fromId, toId])
 }

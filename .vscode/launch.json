@@ -19,8 +19,15 @@
     },
 
     {
-      "command": "yarn test signUp",
-      "name": "test signUp",
+      "command": "yarn seed",
+      "name": "seed",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+
+    {
+      "command": "yarn batch",
+      "name": "test batch",
       "request": "launch",
       "type": "node-terminal"
     }

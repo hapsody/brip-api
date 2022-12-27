@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `TourPlace` ADD COLUMN `status` ENUM('NEW', 'APPROVED', 'IN_USE', 'ARCHIVED') NOT NULL DEFAULT 'NEW';

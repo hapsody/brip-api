@@ -25,12 +25,17 @@ export interface SaveScheduleResponsePayload {
   email: string;
 }
 
+export interface SignInRequest {
+  email: string;
+  password: string;
+}
+
 export type SignInResponse = Omit<IBResFormat, 'IBparams'> & {
   IBparams: SaveScheduleResponsePayload | {};
 };
 
 export const signIn = (
-  req: Express.IBTypedReqBody<{ email: string; password: string }>,
+  req: Express.IBTypedReqBody<SignInRequest>,
   res: Express.IBTypedResponse<SignInResponse>,
   next: NextFunction,
 ): void => {
