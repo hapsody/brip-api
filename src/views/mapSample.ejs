@@ -16,6 +16,10 @@
       let blankSizeX, blankSizeY;
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
+      const clipMinLat = 33.109684; // 제주 지역만 필터링
+      const clipMaxLat = 33.650946;
+      const clipMinLng = 126.032175;
+      const clipMaxLng = 127.048411;
 
       const palette = [
         'brown',
@@ -44,8 +48,8 @@
         data: JSON.stringify({
           ingNow: 'ing',
           companion: 'alone',
-          period: '3',
-          travelType: ['learning', 'exploration'],
+          period: '40',
+          travelType: ['rest', 'meeting', 'activity'],
           destination: 'recommend',
           travelHard: '7',
         }),
@@ -62,11 +66,44 @@
             nonDupCentroids,
           } = data;
 
-          gSpots = spotsGeoLocation;
+          // gSpots = spotsGeoLocation;
+          // console.log(gSpots);
+          // gCentroids = centroids;
+          // gHistories = centHistoryByStage;
+          // gNonDupCentroids = nonDupCentroids;
+
+          gSpots = spotsGeoLocation.filter(
+            v =>
+              v.lat >= clipMinLat &&
+              v.lat < clipMaxLat &&
+              v.lng >= clipMinLng &&
+              v.lng < clipMaxLng,
+          );
           console.log(gSpots);
           gCentroids = centroids;
           gHistories = centHistoryByStage;
           gNonDupCentroids = nonDupCentroids;
+          // gCentroids = centroids.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
+          // gHistories = centHistoryByStage.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
+          // gNonDupCentroids = nonDupCentroids.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
           gRadius = r;
 
           const { maxX, minX, maxY, minY } = await gSpots.reduce(
@@ -195,7 +232,7 @@
       const drawItems = (type, option) => {
         const stageNo = option?.stageNo;
         const historyLength = option?.historyLength;
-        const onlyNonDupRes = option?.onlyNonDupRes ?? false;
+        const onlyNonDup = option?.onlyNonDup ?? false;
 
         return (item, i) => {
           const { size, color } = (() => {
@@ -217,8 +254,7 @@
             /// 반경 표시 써클
             if (
               type === 'history' &&
-              (gNonDupCentroids.find(v => v.idx === i) ||
-                onlyNonDupRes === false)
+              (gNonDupCentroids.find(v => v.idx === i) || onlyNonDup === false)
             ) {
               historyCtx.beginPath();
 
@@ -253,32 +289,32 @@
             } else {
               ctx.beginPath();
 
-              if (
-                // item &&
-                // item.name &&
-                item.name.includes('화순곶자왈') ||
-                item.name.includes('궷물오름') ||
-                item.name.includes('해방촌') ||
-                item.name.includes('와이키키') ||
-                item.name.includes('독도전망대케이블카') ||
-                item.name.includes('요세미티') ||
-                item.name.includes('먼디') ||
-                item.name.includes('프리스코 페닌슐라 휴양지') ||
-                item.name.includes('Marinalia.es') ||
-                item.name.includes('Cape Maeda') ||
-                item.name.includes(
-                  'Al Masyhur International Travel & Tours Sdn Bhd (AMI Travel)',
-                ) ||
-                item.name.includes('Pulau Payar Marine Park')
-              ) {
-                console.log(item);
-                ctx.font = '60px Comic Sans MS';
-                ctx.fillText(
-                  `${item.name}`,
-                  x + 5 - Math.floor(5 * Math.random()),
-                  y + 5 - Math.floor(5 * Math.random()),
-                );
-              }
+              // if (
+              //   // item &&
+              //   // item.name &&
+              //   item.name.includes('화순곶자왈') ||
+              //   item.name.includes('궷물오름') ||
+              //   item.name.includes('해방촌') ||
+              //   item.name.includes('와이키키') ||
+              //   item.name.includes('독도전망대케이블카') ||
+              //   item.name.includes('요세미티') ||
+              //   item.name.includes('먼디') ||
+              //   item.name.includes('프리스코 페닌슐라 휴양지') ||
+              //   item.name.includes('Marinalia.es') ||
+              //   item.name.includes('Cape Maeda') ||
+              //   item.name.includes(
+              //     'Al Masyhur International Travel & Tours Sdn Bhd (AMI Travel)',
+              //   ) ||
+              //   item.name.includes('Pulau Payar Marine Park')
+              // ) {
+              //   console.log(item);
+              //   ctx.font = '60px Comic Sans MS';
+              //   ctx.fillText(
+              //     `${item.name}`,
+              //     x + 5 - Math.floor(5 * Math.random()),
+              //     y + 5 - Math.floor(5 * Math.random()),
+              //   );
+              // }
 
               ctx.arc(x, y, size, 0, 2 * Math.PI);
               ctx.stroke();
@@ -329,24 +365,54 @@
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
-      /// ex) play() <--- 전체 centroids 들의 stage 별 변화 play
-      /// ex) play('nonDup') <--- 중복되지 않는 centroids 결과값만 보여줌
-      async function play(onlyNonDupRes) {
+      /// ex) play() <---  전체 centroids 들의 stage 별 변화 play(default 옵션)
+      /// ex) play({onlyNonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
+      async function play(options) {
+        const { onlyNonDup, stageNo, centId } = (() => {
+          if (!options) {
+            return {
+              onlyNonDup: undefined,
+              stageNo: undefined,
+              centId: undefined,
+            };
+          }
+          const { onlyNonDup, stageNo, centId } = options;
+          return {
+            onlyNonDup,
+            stageNo,
+            centId,
+          };
+        })();
+
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
         const geo = await estGeoLocFromMeter(gRadius);
         const { x } = geoLocToCoord(geo);
         radiusCircleSize = x;
 
+        if (typeof stageNo === 'number') {
+          const { centroids } = gHistories[stageNo];
+          const promises = centroids.map(
+            drawItems('history', {
+              stageNo,
+              historyLength: stageNo,
+              onlyNonDup: false,
+            }),
+          );
+          await Promise.all(promises);
+          return;
+        }
         for await (const stage of gHistories) {
           const pro = new Promise(resolve => {
             setTimeout(async () => {
+              console.log(stage);
               const { stageNo, centroids } = stage;
+
               const promises = centroids.map(
                 drawItems('history', {
                   stageNo,
                   historyLength: gHistories.length,
-                  onlyNonDupRes: onlyNonDupRes === 'nonDup' ? true : false,
+                  onlyNonDup,
                 }),
               );
               await Promise.all(promises);
