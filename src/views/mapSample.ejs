@@ -48,10 +48,10 @@
         data: JSON.stringify({
           ingNow: 'ing',
           companion: 'alone',
-          period: '40',
+          period: '15',
           travelType: ['rest', 'meeting', 'activity'],
           destination: 'recommend',
-          travelHard: '7',
+          travelHard: '8',
         }),
         success: async function (result) {
           // console.log(result);
@@ -204,15 +204,6 @@
         };
       }
 
-      // function estGeoLocFromMeter(targetMeter) {
-      //   const longestDist = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
-      //   const targetX = ((gMaxX - gMinX) * targetMeter) / longestDist + gMinX;
-      //   return {
-      //     lng: targetX,
-      //     lat: gMinY,
-      //   };
-      // }
-
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
         let distributionThickness = 0;
@@ -265,8 +256,10 @@
               historyCtx.font = '30px Comic Sans MS';
               historyCtx.fillText(
                 `${stageNo}`,
-                x + 5 - Math.floor(5 * Math.random()),
-                y + 5 - Math.floor(5 * Math.random()),
+                x,
+                y,
+                // x + 5 - Math.floor(5 * Math.random()),
+                // y + 5 - Math.floor(5 * Math.random()),
               );
               historyCtx.closePath();
 
@@ -277,6 +270,7 @@
               historyCtx.globalAlpha = 0.6;
               historyCtx.strokeStyle = color;
 
+              /// 마지막 스테이지일 경우에는 반경에 색깔 채우기 효과
               if (stageNo < historyLength - 1) {
                 historyCtx.stroke();
               } else {
@@ -323,7 +317,6 @@
               ctx.fill();
               ctx.closePath();
             }
-
             // console.log(`[${i}]: x:${x}, y:${y}`);
             resolve(true);
           });
@@ -365,8 +358,10 @@
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
-      /// ex) play() <---  전체 centroids 들의 stage 별 변화 play(default 옵션)
-      /// ex) play({onlyNonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
+      /// ex) 전체 클러스터 형성과정 표시 => play() <---  전체 centroids 들의 stage 별 변화 play(default 옵션)
+      /// ex) 미중복 클러스터의 형성과정 표시 => play({onlyNonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
+      /// ex) 특정 클러스터의 형성과정 표시 => play({centId: 2})
+      /// ex) 특정 스테이지의 클러스터 상태만 표시 => play({stageNo: 22});
       async function play(options) {
         const { onlyNonDup, stageNo, centId } = (() => {
           if (!options) {
@@ -390,6 +385,7 @@
         const { x } = geoLocToCoord(geo);
         radiusCircleSize = x;
 
+        /// 특정 스테이지의 클러스터 상태만 표시
         if (typeof stageNo === 'number') {
           const { centroids } = gHistories[stageNo];
           const promises = centroids.map(
@@ -402,11 +398,20 @@
           await Promise.all(promises);
           return;
         }
+
         for await (const stage of gHistories) {
           const pro = new Promise(resolve => {
             setTimeout(async () => {
-              console.log(stage);
-              const { stageNo, centroids } = stage;
+              const { stageNo } = stage;
+              let centroids = stage.centroids;
+
+              /// centId가 있다면 centId에 해당하는 클러스터만 표시하도록 표본을 조정
+              if (typeof centId === 'number') {
+                console.log(`stageNo:${stageNo}`, centroids[centId]);
+                centroids = [centroids[centId]];
+              } else {
+                console.log(stage);
+              }
 
               const promises = centroids.map(
                 drawItems('history', {
@@ -421,6 +426,23 @@
           });
           await pro;
         }
+      }
+
+      /// 클러스터 형성과정중 n번 이상 포함하는 요소의 수가 변한 클러스터 배열을 리턴하는 테스트 함수
+      function manyChangedCentroids(n) {
+        return gCentroids.filter(v => {
+          const arr = v.histories.split('-');
+          let prevNumber = 'start';
+          const diffNum = arr.filter(c => {
+            if (prevNumber === 'start' || prevNumber === c) {
+              prevNumber = c;
+              return false;
+            }
+            prevNumber = c;
+            return true;
+          });
+          return diffNum.length >= n;
+        });
       }
     </script>
   </head>

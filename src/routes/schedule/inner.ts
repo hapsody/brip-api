@@ -1569,8 +1569,9 @@ export const makeCluster = (
   /// 뽑힌 지점들 그룹화
   const r = paramByAvgCalibLevel.maxDist;
 
-  let centroids = [...spots].map(spot => {
+  let centroids = [...spots].map((spot, idx) => {
     return {
+      idx,
       ...getLatLng(spot),
       numOfPointLessThanR: -1,
     } as GeoFormat & {
@@ -1586,7 +1587,7 @@ export const makeCluster = (
       centroids,
     },
   ];
-  const k = 0.01;
+  // const k = 0.001;
   let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
   let i = 0;
   const histories = Array.from(Array(spots.length), () => 'start');
@@ -1598,27 +1599,42 @@ export const makeCluster = (
     const nextCentroids = centroids.map((c, index) => {
       const initCenterLatLng = c;
       const center = spots.reduce(
-        (acc, curSpot, idx) => {
+        (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
           if (
             degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) < r
           ) {
-            const curAvgLat = (acc.lat * idx + spotLatLng.lat) / (idx + 1);
-            const curAvgLng = (acc.lng * idx + spotLatLng.lng) / (idx + 1);
+            const prevNumOfPoint = acc.numOfPointLessThanR;
+            const curAvgLat =
+              (acc.lat * prevNumOfPoint + spotLatLng.lat) /
+              (prevNumOfPoint + 1);
+            const curAvgLng =
+              (acc.lng * prevNumOfPoint + spotLatLng.lng) /
+              (prevNumOfPoint + 1);
             return {
+              ...acc,
               lat: curAvgLat,
               lng: curAvgLng,
-              numOfPointLessThanR: acc.numOfPointLessThanR + 1,
+              numOfPointLessThanR: prevNumOfPoint + 1,
+              // spotsLength: acc.spots.length + 1,
+              // spots: [...acc.spots, curSpot],
             };
           }
           return acc;
         },
         {
+          idx: index,
           lat: initCenterLatLng.lat,
           lng: initCenterLatLng.lng,
           numOfPointLessThanR: 0,
-        } as GeoFormat & { numOfPointLessThanR: number },
+          // spotsLength: 0,
+          // spots: [],
+        } as GeoFormat & {
+          numOfPointLessThanR: number;
+          // spotsLength: number;
+          // spots: TourPlaceGeoLoc[];
+        },
       );
       histories[index] = `${histories[index]}-${center.numOfPointLessThanR}`;
       return center;
@@ -1628,8 +1644,10 @@ export const makeCluster = (
       if (!newCent) return false;
       const prevCent = centroids[idx];
       if (!prevCent) return false;
-      const rDiff = getDistance(newCent, prevCent);
-      if (rDiff < k) return false;
+      if (prevCent.lng === newCent.lng && prevCent.lat === newCent.lat)
+        return false;
+      // const rDiff = Math.abs(getDistance(newCent, prevCent));
+      // if (rDiff < k) return false;
       return true;
     }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
     centroids = [...nextCentroids];
@@ -1638,7 +1656,7 @@ export const makeCluster = (
       centroids,
     });
     i += 1;
-    console.log(i, centroids[0]);
+    // console.log(i, centroids[0]);
   } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
 
   const wholeSpotLatLngSum = {
@@ -1669,8 +1687,13 @@ export const makeCluster = (
       idx,
     ) => {
       if (!cur) return nonDupBuf;
+      // const isDup = nonDupBuf.find(
+      //   d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
+      // );
+
       const isDup = nonDupBuf.find(
-        d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
+        /// 클러스터 중심간 거리가 50m 미만은 같은 클러스터로 간주한다.
+        d => d === null || degreeToMeter(d.lng, d.lat, cur.lng, cur.lat) < 50,
       );
 
       if (isDup) return nonDupBuf;
