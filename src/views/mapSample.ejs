@@ -9,10 +9,10 @@
       let canvas, ctx;
       let gData, gSpots, gCentroids, gRadius, gNonDupCentroids, gValidCentroids;
       let gMaxX, gMinX, gMaxY, gMinY;
-      let spotPointSize = 1;
-      let centPointSize = 1;
+      let spotPointSize = 2;
+      let centPointSize = spotPointSize * 2;
       let radiusCircleSize = 0;
-      const blankMultiplier = 10; // 높을수록 캔버스 여백 비율이 작아진다.
+      const blankMultiplier = 20; // 높을수록 캔버스 여백 비율이 작아진다.
       let blankSizeX, blankSizeY;
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
@@ -133,14 +133,11 @@
 
           blankSizeX = (maxX - minX) / blankMultiplier;
           blankSizeY = (maxY - minY) / blankMultiplier;
-          gMaxX = maxX + (maxX - minX) / 20;
-          gMinX = minX - (maxX - minX) / 20;
-          gMaxY = maxY + (maxY - minY) / 20;
-          gMinY = minY - (maxY - minY) / 20;
-          // gMaxX = maxX + blankSizeX;
-          // gMinX = minX - blankSizeX;
-          // gMaxY = maxY + blankSizeY;
-          // gMinY = minY - blankSizeY;
+
+          gMaxX = maxX + blankSizeX;
+          gMinX = minX - blankSizeX;
+          gMaxY = maxY + blankSizeY;
+          gMinY = minY - blankSizeY;
         },
         error: function (request, status, error) {
           console.log(error);
@@ -238,7 +235,7 @@
                 return { size: centPointSize, color: 'red' };
               case 'history':
                 return {
-                  size: centPointSize - 1,
+                  size: Math.round(spotPointSize * 1.5),
                   color: palette[i],
                 };
             }
@@ -462,6 +459,19 @@
           });
           return diffNum.length >= 1;
         });
+      }
+
+      function drawPoint({ lng, lat }) {
+        const { x, y } = geoLocToCoord({ lat, lng });
+        console.log(x, y);
+        ctx.beginPath();
+
+        ctx.arc(x, y, centPointSize, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.strokeStyle = 'black';
+        ctx.fillStyle = 'yellow';
+        ctx.fill();
+        ctx.closePath();
       }
     </script>
   </head>

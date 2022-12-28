@@ -1602,9 +1602,7 @@ export const makeCluster = (
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
-          if (
-            degreeToMeter(acc.lat, acc.lng, spotLatLng.lat, spotLatLng.lng) < r
-          ) {
+          if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
             const prevNumOfPoint = acc.numOfPointLessThanR;
             const curAvgLat =
               (acc.lat * prevNumOfPoint + spotLatLng.lat) /
