@@ -1587,7 +1587,7 @@ export const makeCluster = (
       centroids,
     },
   ];
-  const k = 0.001; /// 위경도 차이인데 적도기준에서 거리로 환산하면 약 111m(오차 최대치)
+  // const k = 0.001; /// 위경도 차이인데 적도기준에서 거리로 환산하면 약 111m(오차 최대치)
   let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
   let i = 0;
   const histories = Array.from(Array(spots.length), () => 'start');
@@ -1648,9 +1648,9 @@ export const makeCluster = (
       if (!prevCent) return false;
       if (prevCent.lng === newCent.lng && prevCent.lat === newCent.lat)
         return false;
-      const rDiff = Math.abs(getDistance(newCent, prevCent));
-      if (rDiff < k) return false;
-      // prevCent.numOfPointLessThanR = newCent.numOfPointLessThanR;
+      // const rDiff = Math.abs(getDistance(newCent, prevCent));
+      // if (rDiff < k) return false;
+      prevCent.numOfPointLessThanR = newCent.numOfPointLessThanR;
       return true;
     }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
     centroids = [...nextCentroids];
