@@ -238,13 +238,18 @@
                   size: Math.round(spotPointSize * 1.5),
                   color: palette[i],
                 };
+              case 'stageNo':
+                return {
+                  size: Math.round(spotPointSize * 1.5),
+                  color: palette[i % palette.length],
+                };
             }
           })();
           const p = new Promise(resolve => {
             const { x, y } = geoLocToCoord(item);
             /// 반경 표시 써클
             if (
-              type === 'history' &&
+              (type === 'history' || type === 'stageNo') &&
               (gNonDupCentroids.find(v => v.idx === i) || onlyNonDup === false)
             ) {
               historyCtx.beginPath();
@@ -255,7 +260,7 @@
               historyCtx.fill();
               historyCtx.font = '30px Comic Sans MS';
               historyCtx.fillText(
-                `${stageNo}`,
+                type === 'stageNo' ? `${i}` : `${stageNo}`,
                 x,
                 y,
                 // x + 5 - Math.floor(5 * Math.random()),
@@ -274,7 +279,8 @@
               if (stageNo < historyLength - 1) {
                 historyCtx.stroke();
               } else {
-                historyCtx.globalAlpha = 0.1;
+                historyCtx.stroke();
+                historyCtx.globalAlpha = 0.03;
                 historyCtx.fill();
               }
 
@@ -389,7 +395,7 @@
         if (typeof stageNo === 'number') {
           const { centroids } = gHistories[stageNo];
           const promises = centroids.map(
-            drawItems('history', {
+            drawItems('stageNo', {
               stageNo,
               historyLength: stageNo,
               onlyNonDup: false,

@@ -1693,8 +1693,10 @@ export const makeCluster = (
       // );
 
       const isDup = nonDupBuf.find(
-        /// 클러스터 중심간 거리가 50m 미만은 같은 클러스터로 간주한다.
-        d => d === null || degreeToMeter(d.lng, d.lat, cur.lng, cur.lat) < 50,
+        /// 클러스터 중심간 거리가 특정값 미만은 같은 클러스터로 간주한다.
+        nd =>
+          nd === null ||
+          degreeToMeter(nd.lng, nd.lat, cur.lng, cur.lat) < r / 2,
       );
 
       if (isDup) return nonDupBuf;
