@@ -7,10 +7,10 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script>
       let canvas, ctx;
-      let gSpots, gCentroids, gRadius, gNonDupCentroids;
+      let gData, gSpots, gCentroids, gRadius, gNonDupCentroids, gValidCentroids;
       let gMaxX, gMinX, gMaxY, gMinY;
-      let spotPointSize = 4;
-      let centPointSize = 5;
+      let spotPointSize = 1;
+      let centPointSize = 1;
       let radiusCircleSize = 0;
       const blankMultiplier = 10; // 높을수록 캔버스 여백 비율이 작아진다.
       let blankSizeX, blankSizeY;
@@ -32,10 +32,12 @@
 
       $.ajax({
         type: 'post',
-        url: 'http://localhost:3000/schedule/makeCluster',
+        url: 'http://localhost:3000/schedule/makeSchedule',
         async: true,
         headers: {
           'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im5vbk1lbWJlciIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjY0NTIwMzU4fQ.t_Bqt3yqDlInUZ29g6tFc3FVGcQ3pE6A47eqerPoJpw',
         },
         // data: JSON.stringify({
         //   ingNow: 'ing',
@@ -55,9 +57,9 @@
         }),
         success: async function (result) {
           // console.log(result);
-          payload = result;
-          const data = result.IBparams;
-
+          const data = result.IBparams.clusterRes;
+          gValidCentroids = [...result.IBparams.validCentroids];
+          console.log(gValidCentroids);
           const {
             spotsGeoLocation,
             centroids,
@@ -72,6 +74,7 @@
           // gHistories = centHistoryByStage;
           // gNonDupCentroids = nonDupCentroids;
 
+          gData = data;
           gSpots = spotsGeoLocation.filter(
             v =>
               v.lat >= clipMinLat &&
