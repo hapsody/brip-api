@@ -27,9 +27,10 @@
         history: false,
         stageNo: false,
         centId: false,
-        onlyNonDup: false,
+        nonDup: false,
       };
       let filteredRes = {};
+      let resetOpt = true;
 
       const palette = [
         'brown',
@@ -47,7 +48,7 @@
 
         clickCheckCtx.beginPath();
 
-        console.log(clickX, clickY, radiusCircleSize);
+        // console.log(clickX, clickY, radiusCircleSize);
         clickCheckCtx.arc(clickX, clickY, centPointSize, 0, 2 * Math.PI);
         clickCheckCtx.arc(clickX, clickY, radiusCircleSize, 0, 2 * Math.PI);
 
@@ -62,6 +63,19 @@
             searchedSpot: gSpots.filter(v => {
               return (
                 Math.sqrt((v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2) <
+                gRDistToPxLength
+              );
+            }),
+          };
+        }
+        if (gCurPrintType.centroid) {
+          centroids = [...gNonDupCentroids];
+          filteredRes = {
+            ...filteredRes,
+            searchedNonDupCent: centroids.filter(v => {
+              const { x, y } = geoLocToCoord(v);
+              return (
+                Math.sqrt((x - event.pageX) ** 2 + (y - event.pageY) ** 2) <
                 gRDistToPxLength
               );
             }),
@@ -89,7 +103,9 @@
         } else if (gCurPrintType.stageNo) {
           const stageNo = gCurPrintType.stageNo;
           const history = gHistories[stageNo];
-          const { centroids } = history;
+
+          let centroids = history.centroids;
+
           filteredRes = {
             ...filteredRes,
             searchedCluster: {
@@ -228,6 +244,7 @@
     </script>
 
     <script>
+      /// 두 위경도 값의 차이를 미터 단위로 환산하여 리턴하는 함수, 위도에 따른 지구 곡률 보정이 포함되어 있다.
       function degreeToMeter(lon1, lat1, lon2, lat2) {
         // generally used geo measurement function
         const R = 6378.137; // Radius of earth in KM
@@ -244,6 +261,7 @@
         return d * 1000; // meters
       }
 
+      /// 입력한 거리(실제 미터)에 대응하는 경도 값을 최소 경도값에서 떨어진 경도 위치로 반환한다.(축척 표시용))
       async function estGeoLocFromMeter(targetMeter) {
         let estMeter = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
         let rightX = gMaxX - gMinX;
@@ -286,6 +304,7 @@
         };
       }
 
+      /// 위경도를 캔버스 x,y좌표로 변환하는 함수
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
         let distributionThickness = 0;
@@ -295,6 +314,7 @@
           distributionThickness = gMaxY - gMinY;
         }
 
+        /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
         const transToCanvasX =
           ((lng - gMinX) * canvasWidth) / distributionThickness;
         const transToCanvasY =
@@ -302,10 +322,11 @@
         return { x: transToCanvasX, y: transToCanvasY };
       }
 
+      /// canvas에 표시하는 함수
       const drawItems = (type, option) => {
         const stageNo = option?.stageNo;
         const historyLength = option?.historyLength;
-        const onlyNonDup = option?.onlyNonDup ?? false;
+        const nonDup = option?.nonDup ?? false;
 
         return (item, i) => {
           const { size, color } = (() => {
@@ -334,7 +355,7 @@
             /// 반경 표시 써클
             if (
               (type === 'history' || type === 'stageNo') &&
-              (gNonDupCentroids.find(v => v.idx === i) || onlyNonDup === false)
+              (gNonDupCentroids.find(v => v.idx === i) || nonDup === false)
             ) {
               historyCtx.beginPath();
 
@@ -342,9 +363,10 @@
               historyCtx.stroke();
               historyCtx.fillStyle = color;
               historyCtx.fill();
-              historyCtx.font = '30px Comic Sans MS';
+              historyCtx.font = '25px Comic Sans MS';
               historyCtx.fillText(
-                type === 'stageNo' ? `${i}` : `${stageNo}`,
+                `${item.idx}[${stageNo}]`,
+                // type === 'stageNo' ? `${i}` : `${stageNo}`,
                 x,
                 y,
                 // x + 5 - Math.floor(5 * Math.random()),
@@ -383,6 +405,7 @@
         };
       };
 
+      /// 여행지와 마지막 클러스터 결과(중복 포함) 중심점 표시
       async function load() {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -423,29 +446,29 @@
           history: false,
           stageNo: false,
           centId: false,
-          onlyNonDup: false,
+          nonDup: false,
         };
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
+      /// 클러스터 표시 함수
       /// ex) 전체 클러스터 형성과정 표시 => play() <---  전체 centroids 들의 stage 별 변화 play(default 옵션)
-      /// ex) 미중복 클러스터의 형성과정 표시 => play({onlyNonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
+      /// ex) 미중복 클러스터의 형성과정 표시 => play({nonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
       /// ex) 특정 클러스터의 형성과정 표시 => play({centId: 2})
       /// ex) 특정 스테이지의 클러스터 상태만 표시 => play({stageNo: 22});
       /// ex) 미중복이자 특정 스테이지 클러스터상태만 보여줌 => play({nonDup: true, stageNo: 22})
-
       async function play(options) {
-        const { onlyNonDup, stageNo, centId } = (() => {
+        const { nonDup, stageNo, centId } = (() => {
           if (!options) {
             return {
-              onlyNonDup: undefined,
+              nonDup: undefined,
               stageNo: undefined,
               centId: undefined,
             };
           }
-          const { onlyNonDup, stageNo, centId } = options;
+          const { nonDup, stageNo, centId } = options;
           return {
-            onlyNonDup,
+            nonDup,
             stageNo,
             centId,
           };
@@ -454,11 +477,11 @@
           ...gCurPrintType,
           stageNo: false,
           history: false,
-          onlyNonDup: onlyNonDup ? true : false,
+          nonDup: nonDup ? true : false,
           centId: false,
         };
 
-        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        if (resetOpt) historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
         // const geo = await estGeoLocFromMeter(gRadius);
         // const { x } = geoLocToCoord(geo);
@@ -470,19 +493,29 @@
             ...gCurPrintType,
             stageNo,
           };
+          let { centroids } = gHistories[stageNo];
 
-          const { centroids } = gHistories[stageNo];
+          /// 특정 클러스터의 특정 스테이지만 표시
+          if (typeof centId === 'number') {
+            gCurPrintType = {
+              ...gCurPrintType,
+              centId,
+            };
+            centroids = [centroids[centId]];
+          }
+
           const promises = centroids.map(
             drawItems('stageNo', {
               stageNo,
               historyLength: stageNo,
-              onlyNonDup: false,
+              nonDup,
             }),
           );
           await Promise.all(promises);
           return;
         }
 
+        /// 모든 클러스터 형성과정 표시
         for await (const stage of gHistories) {
           const pro = new Promise(resolve => {
             setTimeout(async () => {
@@ -509,7 +542,7 @@
                 drawItems('history', {
                   stageNo,
                   historyLength: gHistories.length,
-                  onlyNonDup,
+                  nonDup,
                 }),
               );
               await Promise.all(promises);
@@ -537,6 +570,7 @@
         });
       }
 
+      /// 클러스터 형성과정중 여행지 요소 수가 감소한적이 있는 클러스터를 배열로 리턴
       function decreasedCaseCentoirds() {
         return gCentroids.filter(v => {
           const arr = v.histories.split('-');
@@ -553,6 +587,7 @@
         });
       }
 
+      /// 특정 위경도 점으로 표시
       function drawPoint({ lng, lat }) {
         const { x, y } = geoLocToCoord({ lat, lng });
         console.log(x, y);
@@ -564,6 +599,12 @@
         ctx.fillStyle = 'yellow';
         ctx.fill();
         ctx.closePath();
+      }
+
+      /// play() 실행할때 미리 그려진 클러스터들을 지우고 할것인지(resetOpt === true)
+      function changeResetOpt() {
+        resetOpt = !resetOpt;
+        console.log(resetOpt);
       }
     </script>
   </head>
