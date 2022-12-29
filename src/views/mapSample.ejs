@@ -20,6 +20,15 @@
       const clipMaxLat = 33.650946;
       const clipMinLng = 126.032175;
       const clipMaxLng = 127.048411;
+      let gRDistToPxLength;
+      let gCurPrintType = {
+        spot: false,
+        centroid: false,
+        history: false,
+        stageNo: false,
+        centId: false,
+        onlyNonDup: false,
+      };
 
       const palette = [
         'brown',
@@ -29,6 +38,52 @@
         'aqua',
         'gray',
       ];
+
+      function clickCanvas(event) {
+        clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        const clickX = event.pageX;
+        const clickY = event.pageY;
+
+        clickCheckCtx.beginPath();
+
+        console.log(clickX, clickY, radiusCircleSize);
+        clickCheckCtx.arc(clickX, clickY, centPointSize, 0, 2 * Math.PI);
+        clickCheckCtx.arc(clickX, clickY, radiusCircleSize, 0, 2 * Math.PI);
+
+        clickCheckCtx.globalAlpha = 0.6;
+        clickCheckCtx.strokeStyle = 'black';
+        clickCheckCtx.stroke();
+        clickCheckCtx.closePath();
+
+        if (gCurPrintType.centId) {
+          filteredRes = gHistories.map((history, i) => {
+            const { centroids } = history;
+
+            return {
+              stageNo: i,
+              centroids: centroids.filter(v => {
+                return v.idx === gCurPrintType.centId
+                  ? Math.sqrt(
+                      (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
+                    ) < gRDistToPxLength
+                  : false;
+              }),
+            };
+          });
+          console.log('반경내 클러스터링 형성 스테이지별 이력');
+          console.log(filteredRes);
+
+          // clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+          // clickCheckCtx.beginPath();
+
+          // clickCheckCtx.arc(clickX, clickY, radiusCircleSize, 0, 2 * Math.PI);
+
+          // clickCheckCtx.globalAlpha = 0.6;
+          // clickCheckCtx.strokeStyle = 'black';
+          // clickCheckCtx.stroke();
+        }
+        // console.log(`filtering... ${clickX}, ${clickY}`);
+      }
 
       $.ajax({
         type: 'post',
@@ -138,6 +193,10 @@
           gMinX = minX - blankSizeX;
           gMaxY = maxY + blankSizeY;
           gMinY = minY - blankSizeY;
+
+          const geo = await estGeoLocFromMeter(gRadius);
+          const { x } = geoLocToCoord(geo);
+          radiusCircleSize = x;
         },
         error: function (request, status, error) {
           console.log(error);
@@ -236,7 +295,7 @@
               case 'history':
                 return {
                   size: Math.round(spotPointSize * 1.5),
-                  color: palette[i],
+                  color: palette[i % palette.length],
                 };
               case 'stageNo':
                 return {
@@ -247,6 +306,8 @@
           })();
           const p = new Promise(resolve => {
             const { x, y } = geoLocToCoord(item);
+            item.x = x;
+            item.y = y;
             /// 반경 표시 써클
             if (
               (type === 'history' || type === 'stageNo') &&
@@ -269,9 +330,7 @@
               historyCtx.closePath();
 
               historyCtx.beginPath();
-
               historyCtx.arc(x, y, radiusCircleSize, 0, 2 * Math.PI);
-
               historyCtx.globalAlpha = 0.6;
               historyCtx.strokeStyle = color;
 
@@ -283,39 +342,10 @@
                 historyCtx.globalAlpha = 0.03;
                 historyCtx.fill();
               }
-
               historyCtx.closePath();
               historyCtx.globalAlpha = 1;
             } else {
               ctx.beginPath();
-
-              // if (
-              //   // item &&
-              //   // item.name &&
-              //   item.name.includes('화순곶자왈') ||
-              //   item.name.includes('궷물오름') ||
-              //   item.name.includes('해방촌') ||
-              //   item.name.includes('와이키키') ||
-              //   item.name.includes('독도전망대케이블카') ||
-              //   item.name.includes('요세미티') ||
-              //   item.name.includes('먼디') ||
-              //   item.name.includes('프리스코 페닌슐라 휴양지') ||
-              //   item.name.includes('Marinalia.es') ||
-              //   item.name.includes('Cape Maeda') ||
-              //   item.name.includes(
-              //     'Al Masyhur International Travel & Tours Sdn Bhd (AMI Travel)',
-              //   ) ||
-              //   item.name.includes('Pulau Payar Marine Park')
-              // ) {
-              //   console.log(item);
-              //   ctx.font = '60px Comic Sans MS';
-              //   ctx.fillText(
-              //     `${item.name}`,
-              //     x + 5 - Math.floor(5 * Math.random()),
-              //     y + 5 - Math.floor(5 * Math.random()),
-              //   );
-              // }
-
               ctx.arc(x, y, size, 0, 2 * Math.PI);
               ctx.stroke();
               ctx.strokeStyle = 'black';
@@ -333,9 +363,11 @@
       async function load() {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         console.log(`radius:${gRadius}`);
         const geo = await estGeoLocFromMeter(gRadius);
         const { x: rulerX, y: rulerY } = geoLocToCoord(geo);
+        gRDistToPxLength = rulerX;
         console.log(`geo:${JSON.stringify(geo)}`);
         console.log(`rulerX:${rulerX}, rulerY:${rulerY}`);
         console.log(`estMeter: ${degreeToMeter(gMinX, gMinY, geo.lng, gMinY)}`);
@@ -361,6 +393,15 @@
 
         const spotsPromises = gSpots.map(drawItems('spot'));
         const centroidPromises = gCentroids.map(drawItems('centroid'));
+
+        gCurPrintType = {
+          spot: true,
+          centroid: true,
+          history: false,
+          stageNo: false,
+          centId: false,
+          onlyNonDup: false,
+        };
         await Promise.all([...spotsPromises, ...centroidPromises]);
       }
 
@@ -384,15 +425,27 @@
             centId,
           };
         })();
+        gCurPrintType = {
+          ...gCurPrintType,
+          stageNo: false,
+          history: false,
+          onlyNonDup: onlyNonDup ? true : false,
+          centId: false,
+        };
 
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-        const geo = await estGeoLocFromMeter(gRadius);
-        const { x } = geoLocToCoord(geo);
-        radiusCircleSize = x;
+        // const geo = await estGeoLocFromMeter(gRadius);
+        // const { x } = geoLocToCoord(geo);
+        // radiusCircleSize = x;
 
         /// 특정 스테이지의 클러스터 상태만 표시
         if (typeof stageNo === 'number') {
+          gCurPrintType = {
+            ...gCurPrintType,
+            stageNo: true,
+          };
+
           const { centroids } = gHistories[stageNo];
           const promises = centroids.map(
             drawItems('stageNo', {
@@ -413,9 +466,17 @@
 
               /// centId가 있다면 centId에 해당하는 클러스터만 표시하도록 표본을 조정
               if (typeof centId === 'number') {
+                gCurPrintType = {
+                  ...gCurPrintType,
+                  centId,
+                };
                 console.log(`stageNo:${stageNo}`, centroids[centId]);
                 centroids = [centroids[centId]];
               } else {
+                gCurPrintType = {
+                  ...gCurPrintType,
+                  history: true,
+                };
                 console.log(stage);
               }
 
@@ -428,7 +489,7 @@
               );
               await Promise.all(promises);
               resolve(true);
-            }, 1000);
+            }, 200);
           });
           await pro;
         }
@@ -484,18 +545,29 @@
   <body style="margin: 0">
     <canvas id="spotCanvas" width="4800" height="4800" margin> </canvas>
     <canvas
-      id="historyCanvas"
+      id="clickCheckCanvas"
       width="4800"
       height="4800"
       style="position: absolute; top: 0; left: 0"
     >
     </canvas>
+    <canvas
+      id="historyCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+      onClick="clickCanvas(window.event)"
+    >
+    </canvas>
+
     <script>
       spotCanvas = document.getElementById('spotCanvas');
       historyCanvas = document.getElementById('historyCanvas');
+      clickCheckCanvas = document.getElementById('clickCheckCanvas');
       ctx = spotCanvas.getContext('2d');
       historyCtx = historyCanvas.getContext('2d');
-      console.log(canvas);
+      clickCheckCtx = clickCheckCanvas.getContext('2d');
+      console.log(clickCheckCtx);
     </script>
   </body>
 </html>
