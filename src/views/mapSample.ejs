@@ -29,6 +29,7 @@
         centId: false,
         onlyNonDup: false,
       };
+      let filteredRes = {};
 
       const palette = [
         'brown',
@@ -55,34 +56,56 @@
         clickCheckCtx.stroke();
         clickCheckCtx.closePath();
 
-        if (gCurPrintType.centId) {
-          filteredRes = gHistories.map((history, i) => {
-            const { centroids } = history;
-
-            return {
-              stageNo: i,
-              centroids: centroids.filter(v => {
-                return v.idx === gCurPrintType.centId
-                  ? Math.sqrt(
-                      (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
-                    ) < gRDistToPxLength
-                  : false;
-              }),
-            };
-          });
-          console.log('반경내 클러스터링 형성 스테이지별 이력');
-          console.log(filteredRes);
-
-          // clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
-          // clickCheckCtx.beginPath();
-
-          // clickCheckCtx.arc(clickX, clickY, radiusCircleSize, 0, 2 * Math.PI);
-
-          // clickCheckCtx.globalAlpha = 0.6;
-          // clickCheckCtx.strokeStyle = 'black';
-          // clickCheckCtx.stroke();
+        if (gCurPrintType.spot) {
+          filteredRes = {
+            ...filteredRes,
+            searchedSpot: gSpots.filter(v => {
+              return (
+                Math.sqrt((v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2) <
+                gRDistToPxLength
+              );
+            }),
+          };
         }
-        // console.log(`filtering... ${clickX}, ${clickY}`);
+
+        if (gCurPrintType.centId) {
+          filteredRes = {
+            ...filteredRes,
+            searchedCluster: gHistories.map((history, i) => {
+              const { centroids } = history;
+              return {
+                description: '반경에 포함되는 클러스터',
+                stageNo: i,
+                centroids: centroids.filter(v => {
+                  return v.idx === gCurPrintType.centId
+                    ? Math.sqrt(
+                        (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
+                      ) < gRDistToPxLength
+                    : false;
+                }),
+              };
+            }),
+          };
+        } else if (gCurPrintType.stageNo) {
+          const stageNo = gCurPrintType.stageNo;
+          const history = gHistories[stageNo];
+          const { centroids } = history;
+          filteredRes = {
+            ...filteredRes,
+            searchedCluster: {
+              description: `반경에 포함되는 클러스터들의 stage: ${stageNo}`,
+              stageNo,
+              centroids: centroids.filter(v => {
+                return (
+                  Math.sqrt(
+                    (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
+                  ) < gRDistToPxLength
+                );
+              }),
+            },
+          };
+        }
+        console.log(filteredRes);
       }
 
       $.ajax({
@@ -409,6 +432,8 @@
       /// ex) 미중복 클러스터의 형성과정 표시 => play({onlyNonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
       /// ex) 특정 클러스터의 형성과정 표시 => play({centId: 2})
       /// ex) 특정 스테이지의 클러스터 상태만 표시 => play({stageNo: 22});
+      /// ex) 미중복이자 특정 스테이지 클러스터상태만 보여줌 => play({nonDup: true, stageNo: 22})
+
       async function play(options) {
         const { onlyNonDup, stageNo, centId } = (() => {
           if (!options) {
@@ -443,7 +468,7 @@
         if (typeof stageNo === 'number') {
           gCurPrintType = {
             ...gCurPrintType,
-            stageNo: true,
+            stageNo,
           };
 
           const { centroids } = gHistories[stageNo];
