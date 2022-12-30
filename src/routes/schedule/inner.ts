@@ -1507,6 +1507,9 @@ const visitScheduleToDayScheduleType = (
   return acc;
 };
 
+/**
+ * 두 위경도 값의 차이를 미터 단위로 환산하여 리턴하는 함수, 위도에 따른 지구 곡률 보정이 포함되어 있다.
+ */
 export const degreeToMeter = (
   lat1: number,
   lon1: number,
@@ -1554,11 +1557,13 @@ const getLatLng = (spot: {
  * makeSchedule에서 일정 데이터를 고르기위해 뽑힌 spot DB 데이터들 값을 기반으로
  * 군집화(cluster) 및 군집화 과정 데이터를 요청한다.
  */
-
 const getDistance = (a: GeoFormat, b: GeoFormat) => {
   return Math.sqrt((a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2);
 };
 
+/**
+ * 입력되는 type의 spot 또는 food에 따라 데이터들간의 클러스터링을 수행한다.
+ */
 export const makeCluster = (
   ctx: ContextMakeSchedule,
   type: 'spot' | 'food',
@@ -1566,10 +1571,13 @@ export const makeCluster = (
   const { spots, foods, paramByAvgCalibLevel } = ctx;
 
   let items: TourPlaceGeoLoc[] | undefined;
+
   if (type === 'spot') {
+    /// spot일경우
     if (!spots || !paramByAvgCalibLevel) return undefined;
     items = spots;
   } else {
+    /// food일 경우
     if (!foods || !paramByAvgCalibLevel) return undefined;
     items = foods;
   }
@@ -1599,21 +1607,24 @@ export const makeCluster = (
   ];
   // const k = 0.001; /// 위경도 차이인데 적도기준에서 거리로 환산하면 약 111m(오차 최대치)
   let keepDoing: boolean[] = Array.from(Array(items.length), () => false);
-  let i = 0;
+  let maxPhase = 0;
   const histories = Array.from(Array(items.length), () => 'start');
 
   /// histories와 centroids를 구하는 루프를 실행한다.
-  /// centroids: 최종적으로 수렴된 군집들의 대표값 배열
+  /// centroids: 최종적으로 수렴된 군집들의 대표 중심값 배열
   /// histories: 각 loop stage 별로 반경 r안에 위치한 items들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
   do {
     const nextCentroids = centroids.map((c, index) => {
       const initCenterLatLng = c;
+
+      /// 각 스테이지(index)의 클러스터 중심과 요소들간 거리를 비교해서 반경안에 있는 요소수를 확인
       const center = items!.reduce(
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
           if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
             const prevNumOfPoint = acc.numOfPointLessThanR;
+            /// 새 요소가 추가되면서 이전까지 계산한 평균값에 새 값을 더해 평균값 재계산
             const curAvgLat =
               (acc.lat * prevNumOfPoint + spotLatLng.lat) /
               (prevNumOfPoint + 1);
@@ -1653,8 +1664,9 @@ export const makeCluster = (
       center.histories = histories[index];
       return center;
     });
+
     // eslint-disable-next-line @typescript-eslint/no-loop-func
-    keepDoing = nextCentroids.map((newCent, idx) => {
+    keepDoing = [...nextCentroids].map((newCent, idx) => {
       if (!newCent) return false;
       const prevCent = centroids[idx];
       if (!prevCent) return false;
@@ -1662,9 +1674,11 @@ export const makeCluster = (
         return false;
       // const rDiff = Math.abs(getDistance(newCent, prevCent));
       // if (rDiff < k) return false;
-      if (prevCent.numOfPointLessThanR > newCent.numOfPointLessThanR)
+      /// 이전 차수의 클러스터보다 새 스테이지 차수의 클러스터가 가지고 있는 요소수가 적어졌다면 그 클러스터는 다음차수부터는 진행하지 않고 거기서 멈춘다.
+      if (prevCent.numOfPointLessThanR > newCent.numOfPointLessThanR) {
+        nextCentroids[idx] = { ...prevCent };
         return false;
-
+      }
       prevCent.numOfPointLessThanR = newCent.numOfPointLessThanR;
       return true;
     }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
@@ -1673,8 +1687,7 @@ export const makeCluster = (
       stageNo: centHistoryByStage.length,
       centroids,
     });
-    i += 1;
-    // console.log(i, centroids[0]);
+    maxPhase += 1;
   } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
 
   const wholeSpotLatLngSum = {
@@ -1695,25 +1708,22 @@ export const makeCluster = (
     length: items.length,
   };
 
+  /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
   /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
   /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
   /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
   const rankCentroids = [...centroids].sort(
     (a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR,
   );
-
   const nonDupCentroids = rankCentroids.reduce(
     (
       nonDupBuf: (GeoFormat & { idx: number; numOfPointLessThanR: number })[],
       cur: (GeoFormat & { idx: number; numOfPointLessThanR: number }) | null,
     ) => {
       if (!cur) return nonDupBuf;
-      // const isDup = nonDupBuf.find(
-      //   d => d === null || (d.lat === cur.lat && d.lng === cur.lng),
-      // );
 
       const isDup = nonDupBuf.find(
-        /// 클러스터 중심간 거리가 특정값 미만은 같은 클러스터로 간주한다.
+        /// 클러스터 중심간 거리가 특정값 미만이면 같은 클러스터로 간주한다.
         nd =>
           nd === null || degreeToMeter(nd.lng, nd.lat, cur.lng, cur.lat) < r,
       );
@@ -1727,11 +1737,11 @@ export const makeCluster = (
 
   return {
     r,
-    maxPhase: i,
-    wholeSpotLatLngAvg,
-    nonDupCentroids,
-    centHistoryByStage,
-    centroids,
+    maxPhase, /// 클러스터링 형성시 가장 많이 진행된 루프 수
+    wholeSpotLatLngAvg, /// 검색된 전체 요소의 평균 중심점
+    nonDupCentroids, /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
+    centHistoryByStage, /// 각 클러스터들이 형성된 차수별 궤적 정보 (개발용 확인 정보)
+    centroids, /// 최종 전체 클러스터링 결과들
     ...(type === 'spot' && {
       spotsGeoLocation: items.map(v => {
         return {
