@@ -1575,7 +1575,9 @@ export const makeCluster = (
       ...getLatLng(spot),
       numOfPointLessThanR: -1,
     } as GeoFormat & {
+      idx: number;
       numOfPointLessThanR: number;
+      histories: string;
     };
   });
   const centHistoryByStage: {
@@ -1626,10 +1628,13 @@ export const makeCluster = (
           lat: initCenterLatLng.lat,
           lng: initCenterLatLng.lng,
           numOfPointLessThanR: 0,
+          histories: '',
           // spotsLength: 0,
           // spots: [],
         } as GeoFormat & {
+          idx: number;
           numOfPointLessThanR: number;
+          histories: string;
           // spotsLength: number;
           // spots: TourPlaceGeoLoc[];
         },
@@ -1637,6 +1642,7 @@ export const makeCluster = (
       histories[index] = `${
         histories[index] === 'start' ? '' : `${histories[index]}-`
       }${center.numOfPointLessThanR}`;
+      center.histories = histories[index];
       return center;
     });
     // eslint-disable-next-line @typescript-eslint/no-loop-func
@@ -1648,6 +1654,9 @@ export const makeCluster = (
         return false;
       // const rDiff = Math.abs(getDistance(newCent, prevCent));
       // if (rDiff < k) return false;
+      if (prevCent.numOfPointLessThanR > newCent.numOfPointLessThanR)
+        return false;
+
       prevCent.numOfPointLessThanR = newCent.numOfPointLessThanR;
       return true;
     }); /// keepDoing에 false가 있다면 해당 점은 더이상 진행하지 않아도 된다는 것이다.
@@ -1681,11 +1690,14 @@ export const makeCluster = (
   /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
   /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
   /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
-  const nonDupCentroids = centroids.reduce(
+  const rankCentroids = [...centroids].sort(
+    (a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR,
+  );
+
+  const nonDupCentroids = rankCentroids.reduce(
     (
       nonDupBuf: (GeoFormat & { idx: number; numOfPointLessThanR: number })[],
-      cur: (GeoFormat & { numOfPointLessThanR: number }) | null,
-      idx,
+      cur: (GeoFormat & { idx: number; numOfPointLessThanR: number }) | null,
     ) => {
       if (!cur) return nonDupBuf;
       // const isDup = nonDupBuf.find(
@@ -1695,12 +1707,11 @@ export const makeCluster = (
       const isDup = nonDupBuf.find(
         /// 클러스터 중심간 거리가 특정값 미만은 같은 클러스터로 간주한다.
         nd =>
-          nd === null ||
-          degreeToMeter(nd.lng, nd.lat, cur.lng, cur.lat) < r / 2,
+          nd === null || degreeToMeter(nd.lng, nd.lat, cur.lng, cur.lat) < r,
       );
 
       if (isDup) return nonDupBuf;
-      nonDupBuf.push({ idx, ...cur });
+      nonDupBuf.push({ ...cur });
       return nonDupBuf;
     },
     [],
@@ -1712,12 +1723,7 @@ export const makeCluster = (
     wholeSpotLatLngAvg,
     nonDupCentroids,
     centHistoryByStage,
-    centroids: centroids.map((v, idx) => {
-      return {
-        ...v,
-        histories: histories[idx],
-      };
-    }),
+    centroids,
     spotsGeoLocation: spots.map(v => {
       return {
         id: v.id ?? -1,

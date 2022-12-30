@@ -57,6 +57,10 @@
         clickCheckCtx.stroke();
         clickCheckCtx.closePath();
 
+        filteredRes = {
+          x: event.pageX,
+          y: event.pageY,
+        };
         if (gCurPrintType.spot) {
           filteredRes = {
             ...filteredRes,
@@ -69,15 +73,28 @@
           };
         }
         if (gCurPrintType.centroid) {
-          centroids = [...gNonDupCentroids];
           filteredRes = {
             ...filteredRes,
-            searchedNonDupCent: centroids.filter(v => {
+            searchedNonDupCent: gNonDupCentroids.filter(v => {
               const { x, y } = geoLocToCoord(v);
               return (
                 Math.sqrt((x - event.pageX) ** 2 + (y - event.pageY) ** 2) <
                 gRDistToPxLength
               );
+            }),
+            searchedCent: gHistories.map((history, i) => {
+              const { centroids } = history;
+              return {
+                description: '반경에 포함되는 클러스터',
+                stageNo: i,
+                centroids: centroids.filter(v => {
+                  return (
+                    Math.sqrt(
+                      (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
+                    ) < gRDistToPxLength
+                  );
+                }),
+              };
             }),
           };
         }
