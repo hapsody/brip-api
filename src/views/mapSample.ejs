@@ -15,6 +15,7 @@
       let gNonDupCentroids; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
       let gValidCentroids; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값위에 여행 일정이 짜여진다.
       /// spot data 들의 최소 최대 lat(=y), lng(=x) 를 찾아 넣는다.
+      let gSpotsGeoLocation, gFoodsGeoLocation;
       let gMaxX, gMinX, gMaxY, gMinY;
       /// 여행지 점 크기
       let spotPointSize = 2;
@@ -24,6 +25,7 @@
       /// 보여줄 항목 요소들 최소 최대값 바깥으로 캔버스 여백을 더해주기 위한 파라미터들
       const blankMultiplier = 20; // 높을수록 캔버스 여백 비율이 작아진다.
       let blankSizeX, blankSizeY;
+      let gDistributionThickness;
       /// 캔버스 크기
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
@@ -44,7 +46,7 @@
       };
       let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
       let gResetOpt = true;
-      let gResultMode = 'spot'; /// or 'food'
+      let gResultMode = 'food'; /// or 'food'
 
       const palette = [
         'brown',
@@ -70,33 +72,82 @@
         clickCheckCtx.stroke();
         clickCheckCtx.closePath();
 
+        const { lng, lat } = coordToGeoLoc({ x: clickX, y: clickY });
         gFilteredRes = {
-          x: event.pageX,
-          y: event.pageY,
+          x: clickX,
+          y: clickY,
+          lat,
+          lng,
         };
+
+        function sortByDistFromCenter(arr, gFilteredRes) {
+          return [...arr]
+            .map(v => {
+              return {
+                ...v,
+                pxFromCent: (() => {
+                  let ptx, pty;
+                  if (v.x === undefined || v.y === undefined) {
+                    const { x, y } = geoLocToCoord(v);
+                    ptx = x;
+                    pty = y;
+                  } else {
+                    ptx = v.x;
+                    pty = v.y;
+                  }
+
+                  return Math.sqrt(
+                    (ptx - gFilteredRes.x) ** 2 + (pty - gFilteredRes.y) ** 2,
+                  );
+                })(),
+                meterFromCent: Math.round(
+                  degreeToMeter(
+                    v.lng,
+                    v.lat,
+                    gFilteredRes.lng,
+                    gFilteredRes.lat,
+                  ),
+                ),
+              };
+            })
+            .sort((a, b) => a.pxFromCent - b.pxFromCent);
+        }
+
+        // function sortByDistFromCenter(arr, gFilteredRes) {
+        //   const v = this.valueOf();
+        //   return (v => {
+        //     return {
+        //       ...v,
+        //       pxFromCent: Math.sqrt(
+        //         (v.x - gFilteredRes.x) ** 2 + (v.y - gFilteredRes.y) ** 2,
+        //       ),
+        //       meterFromCent: Math.round(
+        //         degreeToMeter(v.lng, v.lat, gFilteredRes.lng, gFilteredRes.lat),
+        //       ),
+        //     };
+        //   }).sort((a, b) => a.pxFromCent - b.pxFromCent);
+        // }
 
         if (gPlayMode.spot) {
           /// 반경안에 속한 여행지를 찾아 gFilteredRes에 넣는다.
           gFilteredRes = {
             ...gFilteredRes,
-            searchedSpot: gSpots.filter(v => {
-              return (
-                Math.sqrt((v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2) <
-                gRDistToPxLength
-              );
-            }),
+            searchedSpot: sortByDistFromCenter(gSpots, gFilteredRes).filter(
+              v => {
+                return v.pxFromCent < gRDistToPxLength;
+              },
+            ),
           };
         }
         if (gPlayMode.centroid) {
           /// 반경안에 속한 클러스터를 찾아 gFilteredRes에 넣는다.
           gFilteredRes = {
             ...gFilteredRes,
-            searchedNonDupCent: gNonDupCentroids.filter(v => {
-              const { x, y } = geoLocToCoord(v);
-              return (
-                Math.sqrt((x - event.pageX) ** 2 + (y - event.pageY) ** 2) <
-                gRDistToPxLength
-              );
+            searchedNonDupCent: sortByDistFromCenter(
+              gNonDupCentroids,
+              gFilteredRes,
+            ).filter(v => {
+              return v.pxFromCent < gRDistToPxLength;
             }),
             /// 반경안에 속한 여행지를 찾아 gFilteredRes에 넣는다, 여기에서 배열 인덱스값은 해당 클러스터 형성의 스테이지이다.
             searchedCent: gHistories.map((history, i) => {
@@ -104,13 +155,11 @@
               return {
                 description: '반경에 포함되는 클러스터',
                 stageNo: i,
-                centroids: centroids.filter(v => {
-                  return (
-                    Math.sqrt(
-                      (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
-                    ) < gRDistToPxLength
-                  );
-                }),
+                centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                  v => {
+                    return v.pxFromCent < gRDistToPxLength;
+                  },
+                ),
               };
             }),
           };
@@ -125,13 +174,11 @@
               return {
                 description: '반경에 포함되는 클러스터',
                 stageNo: i,
-                centroids: centroids.filter(v => {
-                  return v.idx === gPlayMode.centId
-                    ? Math.sqrt(
-                        (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
-                      ) < gRDistToPxLength
-                    : false;
-                }),
+                centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                  v => {
+                    return v.pxFromCent < gRDistToPxLength;
+                  },
+                ),
               };
             }),
           };
@@ -147,13 +194,11 @@
             searchedCluster: {
               description: `반경에 포함되는 클러스터들의 stage: ${stageNo}`,
               stageNo,
-              centroids: centroids.filter(v => {
-                return (
-                  Math.sqrt(
-                    (v.x - event.pageX) ** 2 + (v.y - event.pageY) ** 2,
-                  ) < gRDistToPxLength
-                );
-              }),
+              centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                v => {
+                  return v.pxFromCent < gRDistToPxLength;
+                },
+              ),
             },
           };
         }
@@ -186,26 +231,31 @@
           travelHard: '8',
         }),
         success: async function (result) {
-          // console.log(result);
-          const data = result.IBparams.spotClusterRes;
-          gValidCentroids = [...data.validCentNSpots];
+          if (gResultMode === 'spot') {
+            gData = result.IBparams.spotClusterRes;
+          } else {
+            gData = result.IBparams.foodClusterRes;
+          }
+
           console.log(gValidCentroids);
           const {
             spotsGeoLocation,
+            foodsGeoLocation,
             centroids,
             centHistoryByStage,
             r,
             nonDupCentroids,
-          } = data;
+            validCentNSpots,
+          } = gData;
 
           // gSpots = spotsGeoLocation;
           // console.log(gSpots);
           // gCentroids = centroids;
           // gHistories = centHistoryByStage;
           // gNonDupCentroids = nonDupCentroids;
-
-          gData = data;
-          gSpots = spotsGeoLocation.filter(
+          gSpots = (
+            gResultMode === 'spot' ? spotsGeoLocation : foodsGeoLocation
+          ).filter(
             v =>
               v.lat >= clipMinLat &&
               v.lat < clipMaxLat &&
@@ -216,6 +266,10 @@
           gCentroids = centroids;
           gHistories = centHistoryByStage;
           gNonDupCentroids = nonDupCentroids;
+          gValidCentroids = validCentNSpots;
+          gSpotsGeoLocation = spotsGeoLocation;
+          gFoodsGeoLocation = foodsGeoLocation;
+
           // gCentroids = centroids.filter(
           //   v =>
           //     v.lat >= clipMinLat &&
@@ -269,8 +323,18 @@
           gMaxY = maxY + blankSizeY;
           gMinY = minY - blankSizeY;
 
+          gDistributionThickness = (() => {
+            /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
+            if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
+              return gMaxX - gMinX;
+            } else {
+              return gMaxY - gMinY;
+            }
+          })();
+
           const geo = await estGeoLocFromMeter(gRadius);
           const { x } = geoLocToCoord(geo);
+          console.log(x);
           radiusCircleSize = x;
         },
         error: function (request, status, error) {
@@ -311,19 +375,14 @@
         const pro = new Promise(resolve => {
           while (Math.abs(targetMeter - estMeter) > 0.1 && cnt < 1000) {
             cnt++;
-            // console.log(
-            //   `[${cnt}] target:${targetMeter}, estMeter:${estMeter}, deltaMeter: ${deltaMeter}, delta: ${delta},  estX: ${estX} `,
-            // );
             delta = rightX / 2;
             deltaMeter = degreeToMeter(0, gMinY, delta, gMinY);
             if (estMeter > targetMeter) {
               estX -= delta;
               down++;
-              // console.log(`[${cnt}][down(${down})]`);
             } else {
               estX += delta;
               up++;
-              // console.log(`[${cnt}  up(${up})] `);
             }
             estMeter = degreeToMeter(0, gMinY, estX, gMinY);
             rightX /= 2;
@@ -343,19 +402,22 @@
       /// 위경도를 캔버스 x,y좌표로 변환하는 함수
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
-        let distributionThickness = 0;
-        if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
-          distributionThickness = gMaxX - gMinX;
-        } else {
-          distributionThickness = gMaxY - gMinY;
-        }
 
         /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
         const transToCanvasX =
-          ((lng - gMinX) * canvasWidth) / distributionThickness;
+          ((lng - gMinX) * canvasWidth) / gDistributionThickness;
         const transToCanvasY =
-          canvasHeight - ((lat - gMinY) * canvasHeight) / distributionThickness;
+          canvasHeight -
+          ((lat - gMinY) * canvasHeight) / gDistributionThickness;
         return { x: transToCanvasX, y: transToCanvasY };
+      }
+
+      function coordToGeoLoc(coord) {
+        const { x, y } = coord;
+        const transToLng = (x * gDistributionThickness) / canvasWidth + gMinX;
+        const transToLat =
+          ((canvasHeight - y) * gDistributionThickness) / canvasHeight + gMinY;
+        return { lng: transToLng, lat: transToLat };
       }
 
       /// canvas에 표시하는 함수
@@ -642,9 +704,9 @@
     </canvas>
 
     <script>
-      spotCanvas = document.getElementById('spotCanvas');
-      historyCanvas = document.getElementById('historyCanvas');
-      clickCheckCanvas = document.getElementById('clickCheckCanvas');
+      spotCanvas = document.getElementById('spotCanvas'); /// 요소가 표시되는 캔버스
+      historyCanvas = document.getElementById('historyCanvas'); /// 클러스터 관련 캔버스
+      clickCheckCanvas = document.getElementById('clickCheckCanvas'); /// 마우스 클릭과 관련된 캔버스
       ctx = spotCanvas.getContext('2d');
       historyCtx = historyCanvas.getContext('2d');
       clickCheckCtx = clickCheckCanvas.getContext('2d');

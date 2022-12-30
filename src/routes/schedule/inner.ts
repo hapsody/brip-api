@@ -1583,7 +1583,7 @@ export const makeCluster = (
   }
 
   /// 뽑힌 지점들 그룹화
-  const r = paramByAvgCalibLevel.maxDist;
+  const r = (paramByAvgCalibLevel.maxDist * 3) / 5;
 
   let centroids = [...items].map((spot, idx) => {
     return {
@@ -2033,29 +2033,29 @@ export const makeSchedule = async (
 
     const startDate = getNDaysLater(90);
     const endDate = getNDaysLater(90 + Number(period));
-    let validCentroids = // validCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validCentroids 의 위치를 바탕으로 숙소를 검색한다.
+    let validSpotCentroids = // validSpotCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validSpotCentroids 의 위치를 바탕으로 숙소를 검색한다.
       ctx.spotClusterRes?.nonDupCentroids
         .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
 
-    if (validCentroids.length === 0) {
+    if (validSpotCentroids.length === 0) {
       throw new IBError({
         type: 'NOTEXISTDATA',
         message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
       });
     }
 
-    ctx.hotelTransition = validCentroids.length - 1;
+    ctx.hotelTransition = validSpotCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
-      validCentroids = validCentroids.splice(0, ctx.travelNights);
+      validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
     }
 
     ctx.travelDays = Number(period);
 
-    const validCentNResources = (() => {
-      /// 각 validCentroids 에 범위에 속하는 spot들을 모아 clusteredSpots에 담는다.
-      const ret = validCentroids.map(cent => {
+    const validCentNSpots = (() => {
+      /// 각 validSpotCentroids 에 범위에 속하는 spot들을 모아 clusteredSpots에 담는다.
+      const ret = validSpotCentroids.map(cent => {
         const rangedCond = (curSpot: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return false;
@@ -2089,11 +2089,11 @@ export const makeSchedule = async (
       return ret;
     })();
 
-    const numOfValidSpot = validCentNResources.reduce((acc, cur) => {
+    const numOfValidSpot = validCentNSpots.reduce((acc, cur) => {
       return acc + cur.nearbySpots.length;
     }, 0);
 
-    const hotelSrchOpts = validCentroids.map(centGeo => {
+    const hotelSrchOpts = validSpotCentroids.map(centGeo => {
       return {
         orderBy: 'review_score',
         adultsNumber,
@@ -2116,7 +2116,7 @@ export const makeSchedule = async (
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
       const tmpArr = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
-        const numOfNrbySpot = validCentNResources[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
+        const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
         const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 여행 전체 방문 가능한 여행지 대비 해당 군집의 여행지 수가 차지하는 비율
         return {
           hotelSrchOpt,
@@ -2209,8 +2209,8 @@ export const makeSchedule = async (
     );
     ctx.hotels = [...hotels];
 
-    // ctx.validCentNSpots = validCentNResources
-    ctx.spotClusterRes!.validCentNSpots = [...validCentNResources]
+    // ctx.validCentNSpots = validCentNSpots
+    ctx.spotClusterRes!.validCentNSpots = [...validCentNSpots]
       .map((v, idx) => {
         const clusteredHotel = [...ctx.hotels!][idx];
 
@@ -2240,7 +2240,7 @@ export const makeSchedule = async (
 
     // let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
-    // let { stayPeriod: acc } = ctx.validCentNResources[0].centroidNHotel; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
+    // let { stayPeriod: acc } = ctx.validCentNSpots[0].centroidNHotel; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
     let acc = ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
     let curRestSpot =
       ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel
