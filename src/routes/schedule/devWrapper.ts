@@ -525,10 +525,10 @@ export const makeClusterWrapper = asyncWrapper(
     ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
     /// spots clustering part
-    ctx.clusterRes = makeCluster(ctx);
+    ctx.spotClusterRes = makeCluster(ctx, 'spot');
     res.json({
       ...ibDefs.SUCCESS,
-      IBparams: ctx.clusterRes!,
+      IBparams: ctx.spotClusterRes!,
     });
   },
 );

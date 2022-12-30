@@ -553,10 +553,11 @@ export interface ContextMakeSchedule extends IBContext {
   spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
   foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
   paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
-  clusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+  spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+  foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
   /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
-  validCentNResources?: IValidCentResources[];
+  validCentNSpots?: IValidCentResources[];
   numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
   spotPerDay?: number; /// 하루 평균 방문 여행지 수
   mealPerDay?: number; /// 하루 평균 방문할 식당수
@@ -573,8 +574,9 @@ export interface MakeScheduleRETParamPayload {
     min: number;
     max: number;
   };
-  clusterRes?: MakeClusterRETParam;
-  validCentroids?: IValidCentResources[];
+  spotClusterRes?: MakeClusterRETParam;
+  foodClusterRes?: MakeClusterRETParam;
+  validCentNSpots?: IValidCentResources[];
   hotels?: IHotelInMakeSchedule[];
   spots?: TourPlaceGeoLoc[];
   foods?: TourPlaceGeoLoc[];
@@ -877,8 +879,14 @@ export interface MakeClusterRETParam {
     histories: string;
   })[];
 
-  spotsGeoLocation: (GeoFormat & {
+  spotsGeoLocation?: (GeoFormat & {
     id: number;
     name: string;
   })[];
+  foodsGeoLocation?: (GeoFormat & {
+    id: number;
+    name: string;
+  })[];
+  validCentNSpots?: IValidCentResources[];
+  validCentNFoods?: IValidCentResources[];
 }

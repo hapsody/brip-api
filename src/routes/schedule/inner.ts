@@ -1561,15 +1561,23 @@ const getDistance = (a: GeoFormat, b: GeoFormat) => {
 
 export const makeCluster = (
   ctx: ContextMakeSchedule,
+  type: 'spot' | 'food',
 ): MakeClusterRETParam | undefined => {
-  const { spots, paramByAvgCalibLevel } = ctx;
+  const { spots, foods, paramByAvgCalibLevel } = ctx;
 
-  if (!spots || !paramByAvgCalibLevel) return undefined;
+  let items: TourPlaceGeoLoc[] | undefined;
+  if (type === 'spot') {
+    if (!spots || !paramByAvgCalibLevel) return undefined;
+    items = spots;
+  } else {
+    if (!foods || !paramByAvgCalibLevel) return undefined;
+    items = foods;
+  }
 
   /// 뽑힌 지점들 그룹화
   const r = paramByAvgCalibLevel.maxDist;
 
-  let centroids = [...spots].map((spot, idx) => {
+  let centroids = [...items].map((spot, idx) => {
     return {
       idx,
       ...getLatLng(spot),
@@ -1590,17 +1598,17 @@ export const makeCluster = (
     },
   ];
   // const k = 0.001; /// 위경도 차이인데 적도기준에서 거리로 환산하면 약 111m(오차 최대치)
-  let keepDoing: boolean[] = Array.from(Array(spots.length), () => false);
+  let keepDoing: boolean[] = Array.from(Array(items.length), () => false);
   let i = 0;
-  const histories = Array.from(Array(spots.length), () => 'start');
+  const histories = Array.from(Array(items.length), () => 'start');
 
   /// histories와 centroids를 구하는 루프를 실행한다.
   /// centroids: 최종적으로 수렴된 군집들의 대표값 배열
-  /// histories: 각 loop stage 별로 반경 r안에 위치한 spots들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
+  /// histories: 각 loop stage 별로 반경 r안에 위치한 items들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
   do {
     const nextCentroids = centroids.map((c, index) => {
       const initCenterLatLng = c;
-      const center = spots.reduce(
+      const center = items!.reduce(
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
@@ -1617,8 +1625,8 @@ export const makeCluster = (
               lat: curAvgLat,
               lng: curAvgLng,
               numOfPointLessThanR: prevNumOfPoint + 1,
-              // spotsLength: acc.spots.length + 1,
-              // spots: [...acc.spots, curSpot],
+              // itemsLength: acc.items.length + 1,
+              // items: [...acc.items, curSpot],
             };
           }
           return acc;
@@ -1629,14 +1637,14 @@ export const makeCluster = (
           lng: initCenterLatLng.lng,
           numOfPointLessThanR: 0,
           histories: '',
-          // spotsLength: 0,
-          // spots: [],
+          // itemsLength: 0,
+          // items: [],
         } as GeoFormat & {
           idx: number;
           numOfPointLessThanR: number;
           histories: string;
-          // spotsLength: number;
-          // spots: TourPlaceGeoLoc[];
+          // itemsLength: number;
+          // items: TourPlaceGeoLoc[];
         },
       );
       histories[index] = `${
@@ -1670,21 +1678,21 @@ export const makeCluster = (
   } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
 
   const wholeSpotLatLngSum = {
-    lat: spots.reduce((acc, v) => {
+    lat: items.reduce((acc, v) => {
       const curLat = getLatLng(v);
       if (!curLat) return acc;
       return acc + curLat.lat;
     }, 0),
-    lng: spots.reduce((acc, v) => {
+    lng: items.reduce((acc, v) => {
       const curLng = getLatLng(v);
       if (!curLng) return acc;
       return acc + curLng.lng;
     }, 0),
   };
   const wholeSpotLatLngAvg = {
-    lat: wholeSpotLatLngSum.lat / spots.length,
-    lng: wholeSpotLatLngSum.lng / spots.length,
-    length: spots.length,
+    lat: wholeSpotLatLngSum.lat / items.length,
+    lng: wholeSpotLatLngSum.lng / items.length,
+    length: items.length,
   };
 
   /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
@@ -1724,13 +1732,25 @@ export const makeCluster = (
     nonDupCentroids,
     centHistoryByStage,
     centroids,
-    spotsGeoLocation: spots.map(v => {
-      return {
-        id: v.id ?? -1,
-        name: v.gl_name ?? v.vj_title ?? '',
-        lat: v.gl_lat ?? v.vj_latitude ?? -9999,
-        lng: v.gl_lng ?? v.vj_longitude ?? -9999,
-      };
+    ...(type === 'spot' && {
+      spotsGeoLocation: items.map(v => {
+        return {
+          id: v.id ?? -1,
+          name: v.gl_name ?? v.vj_title ?? '',
+          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
+          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+        };
+      }),
+    }),
+    ...(type === 'food' && {
+      foodsGeoLocation: items.map(v => {
+        return {
+          id: v.id ?? -1,
+          name: v.gl_name ?? v.vj_title ?? '',
+          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
+          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+        };
+      }),
     }),
   };
 };
@@ -1932,7 +1952,8 @@ export const makeSchedule = async (
   ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
   /// spots clustering part
-  ctx.clusterRes = makeCluster(ctx);
+  ctx.spotClusterRes = makeCluster(ctx, 'spot');
+  ctx.foodClusterRes = makeCluster(ctx, 'food');
 
   /// hotel search part
   {
@@ -2003,7 +2024,7 @@ export const makeSchedule = async (
     const startDate = getNDaysLater(90);
     const endDate = getNDaysLater(90 + Number(period));
     let validCentroids = // validCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validCentroids 의 위치를 바탕으로 숙소를 검색한다.
-      ctx.clusterRes?.nonDupCentroids
+      ctx.spotClusterRes?.nonDupCentroids
         .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
 
@@ -2034,7 +2055,7 @@ export const makeSchedule = async (
             cent.lat,
             cent.lng,
           );
-          if (dist > ctx.clusterRes!.r) return false;
+          if (dist > ctx.spotClusterRes!.r) return false;
           return true;
         };
 
@@ -2178,7 +2199,8 @@ export const makeSchedule = async (
     );
     ctx.hotels = [...hotels];
 
-    ctx.validCentNResources = validCentNResources
+    // ctx.validCentNSpots = validCentNResources
+    ctx.spotClusterRes!.validCentNSpots = [...validCentNResources]
       .map((v, idx) => {
         const clusteredHotel = [...ctx.hotels!][idx];
 
@@ -2209,10 +2231,12 @@ export const makeSchedule = async (
     // let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
     // let { stayPeriod: acc } = ctx.validCentNResources[0].centroidNHotel; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
-    let acc = ctx.validCentNResources[0].centroidNHotel.stayPeriod!;
+    let acc = ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
     let curRestSpot =
-      ctx.validCentNResources[0].centroidNHotel.numOfVisitSpotInCluster!;
-    let curRestDay = ctx.validCentNResources[0].centroidNHotel.stayPeriod!;
+      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel
+        .numOfVisitSpotInCluster!;
+    let curRestDay =
+      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -2225,7 +2249,7 @@ export const makeSchedule = async (
           /// acc: 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값
           clusterNo += 1;
           const { stayPeriod, numOfVisitSpotInCluster } =
-            ctx.validCentNResources![clusterNo].centroidNHotel;
+            ctx.spotClusterRes!.validCentNSpots![clusterNo].centroidNHotel;
           acc += stayPeriod!;
           curRestSpot = numOfVisitSpotInCluster!;
           curRestDay = stayPeriod!;
@@ -2254,7 +2278,8 @@ export const makeSchedule = async (
           dayNo,
           titleList: tmpArr
             .map((v, orderNo) => {
-              const curResources = ctx.validCentNResources![clusterNo];
+              const curResources =
+                ctx.spotClusterRes!.validCentNSpots![clusterNo];
 
               const { nearbySpots, nearbyFoods } = curResources;
 
@@ -2310,14 +2335,18 @@ export const makeSchedule = async (
                 let data = nearbySpots.shift();
 
                 if (isUndefined(data)) {
-                  if (isUndefined(ctx.validCentNResources![clusterNo + 1]))
+                  if (
+                    isUndefined(
+                      ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
+                    )
+                  )
                     return null;
 
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
                   data = ctx
-                    .validCentNResources![clusterNo].nearbySpots.sort(
+                    .validCentNSpots![clusterNo].nearbySpots.sort(
                       nearestWithPrevLoc,
                     )
                     .shift();
@@ -2417,8 +2446,10 @@ export const makeSchedule = async (
           travelNights: ctx.travelNights,
           travelDays: ctx.travelDays,
           hotelTransition: ctx.hotelTransition,
-          transitionTerm: ctx.validCentNResources
-            .map(v => v.centroidNHotel.stayPeriod!)
+          transitionTerm: ctx
+            .spotClusterRes!.validCentNSpots.map(
+              v => v.centroidNHotel.stayPeriod!,
+            )
             .toString(),
           // recommendedMinHotelCount: minCandidates.length,
           // recommendedMidHotelCount: midCandidates.length,
@@ -2455,8 +2486,9 @@ export const makeSchedule = async (
     queryParamsId: queryParams.id,
     spotPerDay: ctx.spotPerDay,
     calibUserLevel,
-    clusterRes: ctx.clusterRes,
-    validCentroids: ctx.validCentNResources,
+    spotClusterRes: ctx.spotClusterRes,
+    foodClusterRes: ctx.foodClusterRes,
+    // validCentNSpots: ctx.spotClusterRes!.validCentNSpots,
     // hotels: ctx.hotels,
     // spots: ctx.spots,
     // foods: ctx.foods,
