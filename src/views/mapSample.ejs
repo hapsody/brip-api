@@ -46,7 +46,7 @@
       };
       let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
       let gResetOpt = true;
-      let gResultMode = 'food'; /// or 'food'
+      let gResultMode = 'spot'; /// 'spot' or 'food'
 
       const palette = [
         'brown',
@@ -233,14 +233,13 @@
         success: async function (result) {
           if (gResultMode === 'spot') {
             gData = result.IBparams.spotClusterRes;
+            gSpotsGeoLocation = gData.spotsGeoLocation;
           } else {
             gData = result.IBparams.foodClusterRes;
+            gFoodsGeoLocation = gData.foodsGeoLocation;
           }
 
-          console.log(gValidCentroids);
           const {
-            spotsGeoLocation,
-            foodsGeoLocation,
             centroids,
             centHistoryByStage,
             r,
@@ -254,7 +253,7 @@
           // gHistories = centHistoryByStage;
           // gNonDupCentroids = nonDupCentroids;
           gSpots = (
-            gResultMode === 'spot' ? spotsGeoLocation : foodsGeoLocation
+            gResultMode === 'spot' ? gSpotsGeoLocation : gFoodsGeoLocation
           ).filter(
             v =>
               v.lat >= clipMinLat &&
@@ -267,8 +266,7 @@
           gHistories = centHistoryByStage;
           gNonDupCentroids = nonDupCentroids;
           gValidCentroids = validCentNSpots;
-          gSpotsGeoLocation = spotsGeoLocation;
-          gFoodsGeoLocation = foodsGeoLocation;
+          console.log(gValidCentroids);
 
           // gCentroids = centroids.filter(
           //   v =>

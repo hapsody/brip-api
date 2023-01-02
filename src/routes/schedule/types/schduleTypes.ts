@@ -556,8 +556,7 @@ export interface ContextMakeSchedule extends IBContext {
   spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
   foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
-  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
-  validCentNSpots?: IValidCentResources[];
+  // validCentNSpots?: IValidCentResources[];
   numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
   spotPerDay?: number; /// 하루 평균 방문 여행지 수
   mealPerDay?: number; /// 하루 평균 방문할 식당수
@@ -887,6 +886,7 @@ export interface MakeClusterRETParam {
     id: number;
     name: string;
   })[];
+  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
   validCentNSpots?: IValidCentResources[];
   validCentNFoods?: IValidCentResources[];
 }

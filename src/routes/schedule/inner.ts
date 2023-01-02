@@ -2037,8 +2037,19 @@ export const makeSchedule = async (
       ctx.spotClusterRes?.nonDupCentroids
         .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
+    const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
+      ctx.foodClusterRes?.nonDupCentroids
+        .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+        .filter(v => v.numOfPointLessThanR > 3) ?? [];
 
     if (validSpotCentroids.length === 0) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
+      });
+    }
+
+    if (validFoodCentroids.length === 0) {
       throw new IBError({
         type: 'NOTEXISTDATA',
         message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
@@ -2049,6 +2060,7 @@ export const makeSchedule = async (
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
       validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
+      // validFoodCentroids = validFoodCentroids.splice(0, ctx.travelNights);
     }
 
     ctx.travelDays = Number(period);
@@ -2056,7 +2068,7 @@ export const makeSchedule = async (
     const validCentNSpots = (() => {
       /// 각 validSpotCentroids 에 범위에 속하는 spot들을 모아 clusteredSpots에 담는다.
       const ret = validSpotCentroids.map(cent => {
-        const rangedCond = (curSpot: TourPlaceGeoLoc) => {
+        const rangedFromSpot = (curSpot: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return false;
           const dist = degreeToMeter(
@@ -2065,13 +2077,51 @@ export const makeSchedule = async (
             cent.lat,
             cent.lng,
           );
-          if (dist > ctx.spotClusterRes!.r) return false;
-          return true;
+          if (dist <= ctx.spotClusterRes!.r) return true;
+          return false;
         };
 
-        const clusteredSpot = [...ctx.spots!].filter(rangedCond); /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
-        const clusteredFood = [...ctx.foods!].filter(rangedCond);
         // const clusteredHotel = [...ctx.hotels!][centIdx];
+        const clusteredSpot = [...ctx.spots!].filter(rangedFromSpot); /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
+        // const clusteredFood = [...ctx.foods!].filter(rangedCond);
+
+        /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
+        const closestFoodCluster = validFoodCentroids
+          .map(fCent => {
+            /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
+            /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
+            const spotLatLng = { lat: fCent.lat, lng: fCent.lng };
+            const distWithSpotCent = degreeToMeter(
+              spotLatLng.lat,
+              spotLatLng.lng,
+              cent.lat,
+              cent.lng,
+            );
+            return {
+              ...fCent,
+              distWithSpotCent,
+            };
+          })
+          .sort((a, b) => {
+            /// 2. 식당 클러스터와 여행지 클러스터간 중심거리가 가까운순으로 정렬
+            return a.distWithSpotCent - b.distWithSpotCent;
+          })[0];
+
+        const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
+          const spotLatLng = getLatLng(curFood);
+          if (!spotLatLng) return false;
+          const dist = degreeToMeter(
+            spotLatLng.lat,
+            spotLatLng.lng,
+            closestFoodCluster.lat,
+            closestFoodCluster.lng,
+          );
+          if (dist <= ctx.spotClusterRes!.r) return true;
+          return false;
+        };
+
+        /// 가장 가까운 식당 클러스터 안에 속하는 식당들 리스트 구하기
+        const clusteredFood = [...ctx.foods!].filter(rangedFromFood);
 
         return {
           centroidNHotel: {
@@ -2255,7 +2305,7 @@ export const makeSchedule = async (
         let prevGeoLoc: GeoFormat; /// 직전에 방문했던 곳 위경도값
 
         if (dayNo + 1 > acc) {
-          /// dayNo와 비교하여 ac보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
+          /// dayNo와 비교하여 acc보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
           /// acc: 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값
           clusterNo += 1;
           const { stayPeriod, numOfVisitSpotInCluster } =
@@ -2302,7 +2352,7 @@ export const makeSchedule = async (
                 checkout: curResources.centroidNHotel.checkout,
               };
 
-              /// 하루일정중 첫번째와 마지막은 언제나 숙소이다.
+              /// 하루일정중 첫번째는 언제나 숙소이다.
               if (
                 orderNo === 0
                 // || orderNo === tmpArr.length - 1
@@ -2328,7 +2378,25 @@ export const makeSchedule = async (
               /// 레스토랑
               if (nextMealOrder === orderNo) {
                 nearbyFoods.sort(nearestWithPrevLoc);
-                const data = nearbyFoods.shift();
+                let data = nearbyFoods.shift();
+                if (isUndefined(data)) {
+                  if (
+                    isUndefined(
+                      ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
+                    )
+                  )
+                    return null;
+
+                  clusterNo += 1;
+                  /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
+                  /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
+                  data = ctx
+                    .foodClusterRes!.validCentNFoods![
+                      clusterNo
+                    ].nearbyFoods.sort(nearestWithPrevLoc)
+                    .shift();
+                }
+
                 ret = {
                   ...ret,
                   placeType: 'RESTAURANT',
@@ -2351,14 +2419,13 @@ export const makeSchedule = async (
                     )
                   )
                     return null;
-
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
                   data = ctx
-                    .validCentNSpots![clusterNo].nearbySpots.sort(
-                      nearestWithPrevLoc,
-                    )
+                    .spotClusterRes!.validCentNSpots![
+                      clusterNo
+                    ].nearbySpots.sort(nearestWithPrevLoc)
                     .shift();
                 }
 
