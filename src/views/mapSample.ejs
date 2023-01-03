@@ -9,6 +9,8 @@
       let canvas, ctx;
 
       let gData; /// makeSchedule 전체 결과값
+      let gIBparams; /// makeSchedule raw 결과값
+      let gVisitSchedules; /// 생성된 일정
       let gSpots; /// makeSchedule 결과 검색된 여행지 배열
       let gCentroids; /// 최종 전체 클러스터링 결과들
       let gRadius; /// 클러스터링 반경값, 여행강도와 여행타입에 따라 영향받아 결정된다.
@@ -46,7 +48,7 @@
       };
       let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
       let gResetOpt = true;
-      let gResultMode = 'spot'; /// 'spot' or 'food'
+      let gResultMode = 'food'; ///'spot' or 'food'
 
       const palette = [
         'brown',
@@ -169,7 +171,7 @@
         if (gPlayMode.centId) {
           gFilteredRes = {
             ...gFilteredRes,
-            searchedCluster: gHistories.map((history, i) => {
+            clusterResWithPrintMode: gHistories.map((history, i) => {
               const { centroids } = history;
               return {
                 description: '반경에 포함되는 클러스터',
@@ -191,7 +193,7 @@
 
           gFilteredRes = {
             ...gFilteredRes,
-            searchedCluster: {
+            clusterResWithPrintMode: {
               description: `반경에 포함되는 클러스터들의 stage: ${stageNo}`,
               stageNo,
               centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
@@ -231,6 +233,9 @@
           travelHard: '8',
         }),
         success: async function (result) {
+          gIBparams = result.IBparams;
+          gVisitSchedules = gIBparams.visitSchedules;
+          console.log(gResultMode);
           if (gResultMode === 'spot') {
             gData = result.IBparams.spotClusterRes;
             gSpotsGeoLocation = gData.spotsGeoLocation;
@@ -245,6 +250,7 @@
             r,
             nonDupCentroids,
             validCentNSpots,
+            visitSchedules,
           } = gData;
 
           // gSpots = spotsGeoLocation;
@@ -265,7 +271,7 @@
           gCentroids = centroids;
           gHistories = centHistoryByStage;
           gNonDupCentroids = nonDupCentroids;
-          gValidCentroids = validCentNSpots;
+          gValidCentroids = result.IBparams.spotClusterRes.validCentNSpots; /// foodClusterRes는 validCentNFoods가 없다.. validCent는 여행지를 기준으로만 한다. 호텔 검색이 여행지 기준이기 때문.
           console.log(gValidCentroids);
 
           // gCentroids = centroids.filter(
@@ -343,7 +349,7 @@
 
     <script>
       /// 두 위경도 값의 차이를 미터 단위로 환산하여 리턴하는 함수, 위도에 따른 지구 곡률 보정이 포함되어 있다.
-      function degreeToMeter(lon1, lat1, lon2, lat2) {
+      function degreeToMeter(lat1, lon1, lat2, lon2) {
         // generally used geo measurement function
         const R = 6378.137; // Radius of earth in KM
         const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;

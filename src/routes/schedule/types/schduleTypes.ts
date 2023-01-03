@@ -861,32 +861,32 @@ export interface GeoFormat {
 export interface MakeClusterRETParam {
   r: number;
   maxPhase: number;
-  wholeSpotLatLngAvg: GeoFormat & {
+  wholeSpotLatLngAvg?: GeoFormat & {
     length: number;
-  };
+  }; /// 검색된 여행지 데이터들의 평균 위경도 값. 관측하기 위해 만든 개발용 결과
   nonDupCentroids: (GeoFormat & {
     idx: number;
     numOfPointLessThanR: number;
-  })[];
-  centHistoryByStage: {
-    stageNo: number;
-    centroids: GeoFormat[];
-  }[];
+  })[]; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다. 이 결과를 기반으로 추가적인 필터를 거쳐(포함한 여행지 수 확인등) validCentroid 가 생성된다.
 
   centroids: (GeoFormat & {
     numOfPointLessThanR: number;
     histories: string;
-  })[];
+  })[]; /// 최종 전체 클러스터링 결과들
+  centHistoryByStage: {
+    stageNo: number;
+    centroids: GeoFormat[];
+  }[]; ///  최종 전체 클러스터링이 형성된 과정을 관측하기 위해 만든 개발용 결과
 
   spotsGeoLocation?: (GeoFormat & {
     id: number;
     name: string;
-  })[];
+  })[]; ///  makeSchedule 결과 검색된 여행지 배열
   foodsGeoLocation?: (GeoFormat & {
     id: number;
     name: string;
-  })[];
+  })[]; /// makeSchedule 결과 검색된 식당 배열
   /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
-  validCentNSpots?: IValidCentResources[];
+  validCentNSpots?: IValidCentResources[]; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값을 기반으로 여행 일정이 짜여진다.
   validCentNFoods?: IValidCentResources[];
 }

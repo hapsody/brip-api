@@ -1690,23 +1690,23 @@ export const makeCluster = (
     maxPhase += 1;
   } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
 
-  const wholeSpotLatLngSum = {
-    lat: items.reduce((acc, v) => {
-      const curLat = getLatLng(v);
-      if (!curLat) return acc;
-      return acc + curLat.lat;
-    }, 0),
-    lng: items.reduce((acc, v) => {
-      const curLng = getLatLng(v);
-      if (!curLng) return acc;
-      return acc + curLng.lng;
-    }, 0),
-  };
-  const wholeSpotLatLngAvg = {
-    lat: wholeSpotLatLngSum.lat / items.length,
-    lng: wholeSpotLatLngSum.lng / items.length,
-    length: items.length,
-  };
+  // const wholeSpotLatLngSum = {
+  //   lat: items.reduce((acc, v) => {
+  //     const curLat = getLatLng(v);
+  //     if (!curLat) return acc;
+  //     return acc + curLat.lat;
+  //   }, 0),
+  //   lng: items.reduce((acc, v) => {
+  //     const curLng = getLatLng(v);
+  //     if (!curLng) return acc;
+  //     return acc + curLng.lng;
+  //   }, 0),
+  // };
+  // const wholeSpotLatLngAvg = {
+  //   lat: wholeSpotLatLngSum.lat / items.length,
+  //   lng: wholeSpotLatLngSum.lng / items.length,
+  //   length: items.length,
+  // };
 
   /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
   /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
@@ -1738,7 +1738,7 @@ export const makeCluster = (
   return {
     r,
     maxPhase, /// 클러스터링 형성시 가장 많이 진행된 루프 수
-    wholeSpotLatLngAvg, /// 검색된 전체 요소의 평균 중심점
+    // wholeSpotLatLngAvg, /// 검색된 전체 요소의 평균 중심점
     nonDupCentroids, /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
     centHistoryByStage, /// 각 클러스터들이 형성된 차수별 궤적 정보 (개발용 확인 정보)
     centroids, /// 최종 전체 클러스터링 결과들
@@ -2090,10 +2090,10 @@ export const makeSchedule = async (
           .map(fCent => {
             /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
             /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
-            const spotLatLng = { lat: fCent.lat, lng: fCent.lng };
+            const foodLatLng = { lat: fCent.lat, lng: fCent.lng };
             const distWithSpotCent = degreeToMeter(
-              spotLatLng.lat,
-              spotLatLng.lng,
+              foodLatLng.lat,
+              foodLatLng.lng,
               cent.lat,
               cent.lng,
             );
@@ -2109,19 +2109,26 @@ export const makeSchedule = async (
 
         const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curFood);
-          if (!spotLatLng) return false;
+          if (!spotLatLng) return null;
           const dist = degreeToMeter(
             spotLatLng.lat,
             spotLatLng.lng,
             closestFoodCluster.lat,
             closestFoodCluster.lng,
           );
-          if (dist <= ctx.spotClusterRes!.r) return true;
-          return false;
+          if (dist <= ctx.spotClusterRes!.r)
+            return {
+              ...curFood,
+              distFromCent: dist,
+              validFoodCentroid: closestFoodCluster,
+            };
+          return null;
         };
 
         /// 가장 가까운 식당 클러스터 안에 속하는 식당들 리스트 구하기
-        const clusteredFood = [...ctx.foods!].filter(rangedFromFood);
+        const clusteredFood = [...ctx.foods!]
+          .map(rangedFromFood)
+          .filter(v => v);
 
         return {
           centroidNHotel: {
@@ -2391,7 +2398,7 @@ export const makeSchedule = async (
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
                   data = ctx
-                    .foodClusterRes!.validCentNFoods![
+                    .foodClusterRes!.validCentNSpots![
                       clusterNo
                     ].nearbyFoods.sort(nearestWithPrevLoc)
                     .shift();

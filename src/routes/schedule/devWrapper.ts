@@ -331,7 +331,9 @@ export const getTagRelationWrapper = asyncWrapper(
  */
 export const makeClusterWrapper = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<MakeScheduleREQParam>,
+    req: Express.IBTypedReqBody<
+      MakeScheduleREQParam & { runType: 'spot' | 'food' }
+    >,
     res: Express.IBTypedResponse<IBResFormat>,
   ) => {
     const {
@@ -344,6 +346,7 @@ export const makeClusterWrapper = asyncWrapper(
       travelType,
       // destination,
       travelHard,
+      runType,
     } = req.body;
     const ctx: ContextMakeSchedule = {};
 
@@ -525,7 +528,7 @@ export const makeClusterWrapper = asyncWrapper(
     ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
     /// spots clustering part
-    ctx.spotClusterRes = makeCluster(ctx, 'spot');
+    ctx.spotClusterRes = makeCluster(ctx, runType);
     res.json({
       ...ibDefs.SUCCESS,
       IBparams: ctx.spotClusterRes!,
