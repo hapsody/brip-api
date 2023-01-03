@@ -23,48 +23,48 @@ export const gParamByTravelLevel = [
     level: 1,
     actMultiplier: 3,
     minDist: 0, // 단위 m
-    maxDist: 7000,
+    maxDist: 700,
   },
   {
     level: 2,
     actMultiplier: 2.5,
-    minDist: 7000, // 단위 m
-    maxDist: 12000,
+    minDist: 700, // 단위 m
+    maxDist: 1200,
   },
   {
     level: 3,
     actMultiplier: 2.2,
-    minDist: 12000, // 단위 m
-    maxDist: 17000,
+    minDist: 1200, // 단위 m
+    maxDist: 1700,
   },
   {
     level: 4,
     actMultiplier: 2,
-    minDist: 17000, // 단위 m
-    maxDist: 25000,
+    minDist: 1700, // 단위 m
+    maxDist: 2500,
   },
   {
     level: 5,
     actMultiplier: 1,
-    minDist: 25000, // 단위 m
-    maxDist: 50000,
+    minDist: 2500, // 단위 m
+    maxDist: 5000,
   },
   {
     level: 6,
     actMultiplier: 0.8,
-    minDist: 50000, // 단위 m
-    maxDist: 80000,
+    minDist: 5000, // 단위 m
+    maxDist: 8000,
   },
   {
     level: 7,
     actMultiplier: 0.5,
-    minDist: 80000, // 단위 m
-    maxDist: 150000,
+    minDist: 8000, // 단위 m
+    maxDist: 15000,
   },
   {
     level: 8,
     actMultiplier: 0,
-    minDist: 150000, // 단위 m
+    minDist: 15000, // 단위 m
     maxDist: 999999,
   },
   {
@@ -553,10 +553,10 @@ export interface ContextMakeSchedule extends IBContext {
   spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
   foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
   paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
-  clusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+  spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
+  foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
-  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
-  validCentNResources?: IValidCentResources[];
+  // validCentNSpots?: IValidCentResources[];
   numOfWholeTravelSpot?: number; /// 여행일 전체에 걸쳐 방문할 여행지 수
   spotPerDay?: number; /// 하루 평균 방문 여행지 수
   mealPerDay?: number; /// 하루 평균 방문할 식당수
@@ -573,8 +573,9 @@ export interface MakeScheduleRETParamPayload {
     min: number;
     max: number;
   };
-  clusterRes?: MakeClusterRETParam;
-  validCentroids?: IValidCentResources[];
+  spotClusterRes?: MakeClusterRETParam;
+  foodClusterRes?: MakeClusterRETParam;
+  validCentNSpots?: IValidCentResources[];
   hotels?: IHotelInMakeSchedule[];
   spots?: TourPlaceGeoLoc[];
   foods?: TourPlaceGeoLoc[];
@@ -860,25 +861,32 @@ export interface GeoFormat {
 export interface MakeClusterRETParam {
   r: number;
   maxPhase: number;
-  wholeSpotLatLngAvg: GeoFormat & {
+  wholeSpotLatLngAvg?: GeoFormat & {
     length: number;
-  };
+  }; /// 검색된 여행지 데이터들의 평균 위경도 값. 관측하기 위해 만든 개발용 결과
   nonDupCentroids: (GeoFormat & {
     idx: number;
     numOfPointLessThanR: number;
-  })[];
-  centHistoryByStage: {
-    stageNo: number;
-    centroids: GeoFormat[];
-  }[];
+  })[]; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다. 이 결과를 기반으로 추가적인 필터를 거쳐(포함한 여행지 수 확인등) validCentroid 가 생성된다.
 
   centroids: (GeoFormat & {
     numOfPointLessThanR: number;
     histories: string;
-  })[];
+  })[]; /// 최종 전체 클러스터링 결과들
+  centHistoryByStage: {
+    stageNo: number;
+    centroids: GeoFormat[];
+  }[]; ///  최종 전체 클러스터링이 형성된 과정을 관측하기 위해 만든 개발용 결과
 
-  spotsGeoLocation: (GeoFormat & {
+  spotsGeoLocation?: (GeoFormat & {
     id: number;
     name: string;
-  })[];
+  })[]; ///  makeSchedule 결과 검색된 여행지 배열
+  foodsGeoLocation?: (GeoFormat & {
+    id: number;
+    name: string;
+  })[]; /// makeSchedule 결과 검색된 식당 배열
+  /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
+  validCentNSpots?: IValidCentResources[]; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값을 기반으로 여행 일정이 짜여진다.
+  validCentNFoods?: IValidCentResources[];
 }
