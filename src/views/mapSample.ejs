@@ -48,7 +48,7 @@
       };
       let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
       let gResetOpt = true;
-      let gResultMode = 'food'; ///'spot' or 'food'
+      let gResultMode = 'spot'; ///'spot' or 'food'
 
       const palette = [
         'brown',
@@ -207,6 +207,8 @@
         console.log(gFilteredRes);
       }
 
+      const startTime = new Date().getTime();
+      let endTime, diffTime;
       $.ajax({
         type: 'post',
         url: 'http://localhost:3000/schedule/makeSchedule',
@@ -233,6 +235,9 @@
           travelHard: '8',
         }),
         success: async function (result) {
+          endTime = new Date().getTime();
+          diffTime = endTime - startTime;
+          console.log(`time diff: ${diffTime / 1000}s`);
           gIBparams = result.IBparams;
           gVisitSchedules = gIBparams.visitSchedules;
           console.log(gResultMode);
@@ -669,17 +674,40 @@
       }
 
       /// 특정 위경도 점으로 표시
-      function drawPoint({ lng, lat }) {
+      async function drawPoint({ lng, lat }) {
         const { x, y } = geoLocToCoord({ lat, lng });
-        console.log(x, y);
-        ctx.beginPath();
+        console.log(`draw point (${x}, ${y})`);
+        let isMarked = false;
+        function mark() {
+          markPointCtx.beginPath();
 
-        ctx.arc(x, y, centPointSize, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.strokeStyle = 'black';
-        ctx.fillStyle = 'yellow';
-        ctx.fill();
-        ctx.closePath();
+          markPointCtx.arc(x, y, centPointSize * 5, 0, 2 * Math.PI);
+          markPointCtx.stroke();
+          markPointCtx.strokeStyle = 'black';
+          markPointCtx.fillStyle = 'yellow';
+          markPointCtx.fill();
+          markPointCtx.closePath();
+        }
+
+        function unmark() {
+          markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        }
+
+        let intervalId;
+        let intervalCnt = 0;
+        /// 깜박임
+        const promise = new Promise(resolve => {
+          intervalId = setInterval(() => {
+            if (intervalCnt > 8) resolve(true);
+            if (isMarked) unmark();
+            else mark();
+            isMarked = !isMarked;
+            intervalCnt++;
+          }, 500);
+        });
+        await promise;
+        unmark();
+        clearInterval(intervalId);
       }
 
       /// play() 실행할때 미리 그려진 클러스터들을 지우고 할것인지(gResetOpt === true)
@@ -699,6 +727,13 @@
     >
     </canvas>
     <canvas
+      id="markPointCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+    >
+    </canvas>
+    <canvas
       id="historyCanvas"
       width="4800"
       height="4800"
@@ -710,10 +745,12 @@
     <script>
       spotCanvas = document.getElementById('spotCanvas'); /// 요소가 표시되는 캔버스
       historyCanvas = document.getElementById('historyCanvas'); /// 클러스터 관련 캔버스
-      clickCheckCanvas = document.getElementById('clickCheckCanvas'); /// 마우스 클릭과 관련된 캔버스
+      clickCheckCanvas = document.getElementById('clickCheckCanvas'); /// 마우스
+      markPointCanvas = document.getElementById('markPointCanvas'); /// 마우스 클릭과 관련된 캔버스
       ctx = spotCanvas.getContext('2d');
       historyCtx = historyCanvas.getContext('2d');
       clickCheckCtx = clickCheckCanvas.getContext('2d');
+      markPointCtx = markPointCanvas.getContext('2d');
       console.log(clickCheckCtx);
     </script>
   </body>

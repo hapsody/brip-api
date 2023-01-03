@@ -1725,7 +1725,7 @@ export const makeCluster = (
       const isDup = nonDupBuf.find(
         /// 클러스터 중심간 거리가 특정값 미만이면 같은 클러스터로 간주한다.
         nd =>
-          nd === null || degreeToMeter(nd.lng, nd.lat, cur.lng, cur.lat) < r,
+          nd === null || degreeToMeter(nd.lat, nd.lng, cur.lat, cur.lng) < r,
       );
 
       if (isDup) return nonDupBuf;
@@ -2070,19 +2070,26 @@ export const makeSchedule = async (
       const ret = validSpotCentroids.map(cent => {
         const rangedFromSpot = (curSpot: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curSpot);
-          if (!spotLatLng) return false;
+          if (!spotLatLng) return null;
           const dist = degreeToMeter(
             spotLatLng.lat,
             spotLatLng.lng,
             cent.lat,
             cent.lng,
           );
-          if (dist <= ctx.spotClusterRes!.r) return true;
-          return false;
+          if (dist <= ctx.spotClusterRes!.r)
+            return {
+              distFromSpotCent: dist,
+              inSpotCentroid: cent,
+              ...curSpot,
+            };
+          return null;
         };
 
         // const clusteredHotel = [...ctx.hotels!][centIdx];
-        const clusteredSpot = [...ctx.spots!].filter(rangedFromSpot); /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
+        const clusteredSpot = [...ctx.spots!]
+          .map(rangedFromSpot)
+          .filter(v => v); /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
         // const clusteredFood = [...ctx.foods!].filter(rangedCond);
 
         /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
@@ -2118,9 +2125,9 @@ export const makeSchedule = async (
           );
           if (dist <= ctx.spotClusterRes!.r)
             return {
+              distFromSpotCent: dist,
+              inFoodCentroid: closestFoodCluster,
               ...curFood,
-              distFromCent: dist,
-              validFoodCentroid: closestFoodCluster,
             };
           return null;
         };
