@@ -1583,7 +1583,7 @@ export const makeCluster = (
   }
 
   /// 뽑힌 지점들 그룹화
-  const r = (paramByAvgCalibLevel.maxDist * 3) / 5;
+  const r = (paramByAvgCalibLevel.maxDist * 1.5) / 5;
 
   let centroids = [...items].map((spot, idx) => {
     return {
