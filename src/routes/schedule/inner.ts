@@ -2100,7 +2100,7 @@ export const makeSchedule = async (
         // const clusteredHotel = [...ctx.hotels!][centIdx];
         const clusteredSpot = [...ctx.spots!]
           .map(rangedFromSpot)
-          .filter(v => v); /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
+          .filter(v => v) as TourPlaceGeoLoc[]; /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
         // const clusteredFood = [...ctx.foods!].filter(rangedCond);
 
         /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
@@ -2146,7 +2146,7 @@ export const makeSchedule = async (
         /// 가장 가까운 식당 클러스터 안에 속하는 식당들 리스트 구하기
         const clusteredFood = [...ctx.foods!]
           .map(rangedFromFood)
-          .filter(v => v);
+          .filter(v => v) as TourPlaceGeoLoc[];
 
         return {
           centroidNHotel: {
@@ -2159,13 +2159,13 @@ export const makeSchedule = async (
           },
           nearbySpots: clusteredSpot,
           nearbyFoods: clusteredFood,
-        };
+        } as IValidCentResources | null;
       });
       return ret;
     })();
 
     const numOfValidSpot = validCentNSpots.reduce((acc, cur) => {
-      return acc + cur.nearbySpots.length;
+      return acc + cur!.nearbySpots.length;
     }, 0);
 
     const hotelSrchOpts = validSpotCentroids.map(centGeo => {
@@ -2191,8 +2191,8 @@ export const makeSchedule = async (
       let prevCheckout = '';
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
-      const tmpArr = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
-        const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
+      const clusters = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
+        const numOfNrbySpot = validCentNSpots[clusterNo]!.nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
         const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 생성된 모든 군집중 선택된 군집 전체의 방문 가능한 여행지(numOfValidSpoo) 대비 해당 군집의 여행지 수가 차지하는 비율
         return {
           hotelSrchOpt,
@@ -2202,11 +2202,11 @@ export const makeSchedule = async (
       });
       // .sort((a, b) => b.numOfNrbySpot - a.numOfNrbySpot);
 
-      let restSumOfRatio = tmpArr.reduce((acc, cur) => {
+      let restSumOfRatio = clusters.reduce((acc, cur) => {
         return acc + cur.ratio;
       }, 0); /// 처리된 클러스터의 비율을 제한 클러스터들이 차지한 비율의 총합 <= 초기값은 전체 클러스터 비율의 총합이므로 100%다.
 
-      const tmpArr2 = tmpArr.map(v => {
+      const clusters2 = clusters.map(v => {
         const { ratio, numOfNrbySpot, hotelSrchOpt } = v;
 
         const numOfVisitSpotInCluster = Math.round(
@@ -2223,15 +2223,15 @@ export const makeSchedule = async (
       });
 
       let restSumOfVisitSpot = /// (초기)남은 방문해야할 여행지 수 = 클러스터별로 방문해야할 여행지의 총합 = 전체기간중 방문해야할 목표 여행지 총수
-        tmpArr2.reduce((acc, cur) => {
+        clusters2.reduce((acc, cur) => {
           return acc + cur.numOfVisitSpotInCluster;
         }, 0);
 
       let restPeriod = Number(period); /// 전체 여행일정중 앞 클러스터에서 사용한 일정을 제한 나머지 일정
 
-      // tmpArr2.sort((a, b) => a.hotelSrchOpt.randNum - b.hotelSrchOpt.randNum); /// 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어준다.
+      // clusters2.sort((a, b) => a.hotelSrchOpt.randNum - b.hotelSrchOpt.randNum); /// 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어준다.
 
-      return tmpArr2.map(async v => {
+      return clusters2.map(async (v, i) => {
         const { ratio, numOfVisitSpotInCluster, hotelSrchOpt } = v;
         const stayPeriod = Math.round(
           (restPeriod * numOfVisitSpotInCluster) / restSumOfVisitSpot,
@@ -2240,6 +2240,7 @@ export const makeSchedule = async (
         restPeriod -= stayPeriod;
 
         if (stayPeriod === 0 || isNaN(stayPeriod)) {
+          validCentNSpots[i] = null;
           return null;
         }
 
@@ -2288,8 +2289,8 @@ export const makeSchedule = async (
     );
     ctx.hotels = [...hotels];
 
-    // ctx.validCentNSpots = validCentNSpots
-    ctx.spotClusterRes!.validCentNSpots = [...validCentNSpots]
+    ctx.spotClusterRes!.validCentNSpots = validCentNSpots
+      .filter((v): v is IValidCentResources => v !== null)
       .map((v, idx) => {
         const clusteredHotel = [...ctx.hotels!][idx];
 
