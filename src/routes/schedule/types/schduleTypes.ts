@@ -134,7 +134,6 @@ export interface BKCSrchByCoordReqOpt {
   childrenNumber?: number;
   childrenAges?: number[];
   categoriesFilterIds?: string[];
-  randNum: number;
 }
 export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
   // mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다. => mock 옵션이 없어도 기본적용되도록 수정함
@@ -283,7 +282,6 @@ export const defaultBKCHotelReqParams: AddMockBKCHotelResourceREQParam = {
   childrenNumber: undefined,
   childrenAges: undefined,
   categoriesFilterIds: undefined,
-  randNum: -1,
   mock: true,
 };
 

@@ -2183,7 +2183,7 @@ export const makeSchedule = async (
         childrenAges,
         childrenNumber,
         categoriesFilterIds: ['property_type::204'],
-        randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
+        // randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
       } as BKCSrchByCoordReqOpt;
     });
 
@@ -2191,17 +2191,16 @@ export const makeSchedule = async (
       let prevCheckout = '';
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
-      const tmpArr = hotelSrchOpts
-        .map((hotelSrchOpt, clusterNo) => {
-          const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
-          const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 생성된 모든 군집중 선택된 군집 전체의 방문 가능한 여행지(numOfValidSpoo) 대비 해당 군집의 여행지 수가 차지하는 비율
-          return {
-            hotelSrchOpt,
-            ratio,
-            numOfNrbySpot,
-          };
-        })
-        .sort((a, b) => b.numOfNrbySpot - a.numOfNrbySpot);
+      const tmpArr = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
+        const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
+        const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 생성된 모든 군집중 선택된 군집 전체의 방문 가능한 여행지(numOfValidSpoo) 대비 해당 군집의 여행지 수가 차지하는 비율
+        return {
+          hotelSrchOpt,
+          ratio,
+          numOfNrbySpot,
+        };
+      });
+      // .sort((a, b) => b.numOfNrbySpot - a.numOfNrbySpot);
 
       let restSumOfRatio = tmpArr.reduce((acc, cur) => {
         return acc + cur.ratio;
@@ -2230,7 +2229,7 @@ export const makeSchedule = async (
 
       let restPeriod = Number(period); /// 전체 여행일정중 앞 클러스터에서 사용한 일정을 제한 나머지 일정
 
-      tmpArr2.sort((a, b) => a.hotelSrchOpt.randNum - b.hotelSrchOpt.randNum); /// 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어준다.
+      // tmpArr2.sort((a, b) => a.hotelSrchOpt.randNum - b.hotelSrchOpt.randNum); /// 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어준다.
 
       return tmpArr2.map(async v => {
         const { ratio, numOfVisitSpotInCluster, hotelSrchOpt } = v;
