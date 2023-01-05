@@ -1594,6 +1594,7 @@ export const makeCluster = (
       idx: number;
       numOfPointLessThanR: number;
       histories: string;
+      randNum: number;
     };
   });
   const centHistoryByStage: {
@@ -1633,9 +1634,10 @@ export const makeCluster = (
               (prevNumOfPoint + 1);
             return {
               ...acc,
+              numOfPointLessThanR: prevNumOfPoint + 1,
               lat: curAvgLat,
               lng: curAvgLng,
-              numOfPointLessThanR: prevNumOfPoint + 1,
+              randNum: Math.random(),
               // itemsLength: acc.items.length + 1,
               // items: [...acc.items, curSpot],
             };
@@ -1647,6 +1649,7 @@ export const makeCluster = (
           lat: initCenterLatLng.lat,
           lng: initCenterLatLng.lng,
           numOfPointLessThanR: 0,
+          randNum: 0,
           histories: '',
           // itemsLength: 0,
           // items: [],
@@ -1654,6 +1657,7 @@ export const makeCluster = (
           idx: number;
           numOfPointLessThanR: number;
           histories: string;
+          randNum: number;
           // itemsLength: number;
           // items: TourPlaceGeoLoc[];
         },
@@ -1712,12 +1716,19 @@ export const makeCluster = (
   /// centroids의 중복을 제거하여 nonDupCentroids를 구한다.
   /// nonDupCentroids의 idx는 centroids의 인덱스값이다.
   /// 수렴된 centroids 값들중 하나만 남기고 나머지는 제거한다.
-  const rankCentroids = [...centroids].sort(
-    (a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR,
-  );
-  const nonDupCentroids = rankCentroids.reduce(
+  // const rankCentroids = [...centroids].sort(
+  //   (a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR,
+  // );
+  // const shuffledCentroids = [...centroids].sort(
+  //   (a, b) => a.randNum - b.randNum,
+  // );
+  const nonDupCentroids = [...centroids].reduce(
     (
-      nonDupBuf: (GeoFormat & { idx: number; numOfPointLessThanR: number })[],
+      nonDupBuf: (GeoFormat & {
+        idx: number;
+        numOfPointLessThanR: number;
+        randNum: number;
+      })[],
       cur: (GeoFormat & { idx: number; numOfPointLessThanR: number }) | null,
     ) => {
       if (!cur) return nonDupBuf;
@@ -1729,7 +1740,7 @@ export const makeCluster = (
       );
 
       if (isDup) return nonDupBuf;
-      nonDupBuf.push({ ...cur });
+      nonDupBuf.push({ ...cur, randNum: Math.random() });
       return nonDupBuf;
     },
     [],
@@ -1739,7 +1750,7 @@ export const makeCluster = (
     r,
     maxPhase, /// 클러스터링 형성시 가장 많이 진행된 루프 수
     // wholeSpotLatLngAvg, /// 검색된 전체 요소의 평균 중심점
-    nonDupCentroids, /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
+    nonDupCentroids: nonDupCentroids.sort((a, b) => a.randNum - b.randNum), /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
     centHistoryByStage, /// 각 클러스터들이 형성된 차수별 궤적 정보 (개발용 확인 정보)
     centroids, /// 최종 전체 클러스터링 결과들
     ...(type === 'spot' && {
@@ -2035,11 +2046,11 @@ export const makeSchedule = async (
     const endDate = getNDaysLater(90 + Number(period));
     let validSpotCentroids = // validSpotCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validSpotCentroids 의 위치를 바탕으로 숙소를 검색한다.
       ctx.spotClusterRes?.nonDupCentroids
-        .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+        // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
     const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
       ctx.foodClusterRes?.nonDupCentroids
-        .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+        // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > 3) ?? [];
 
     if (validSpotCentroids.length === 0) {
@@ -2172,6 +2183,7 @@ export const makeSchedule = async (
         childrenAges,
         childrenNumber,
         categoriesFilterIds: ['property_type::204'],
+        randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
       } as BKCSrchByCoordReqOpt;
     });
 
@@ -2179,15 +2191,17 @@ export const makeSchedule = async (
       let prevCheckout = '';
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
-      const tmpArr = hotelSrchOpts.map((hotelSrchOpt, clusterNo) => {
-        const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
-        const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 여행 전체 방문 가능한 여행지 대비 해당 군집의 여행지 수가 차지하는 비율
-        return {
-          hotelSrchOpt,
-          ratio,
-          numOfNrbySpot,
-        };
-      });
+      const tmpArr = hotelSrchOpts
+        .map((hotelSrchOpt, clusterNo) => {
+          const numOfNrbySpot = validCentNSpots[clusterNo].nearbySpots.length; /// 특정 군집내에 속한 관광지의 수
+          const ratio = numOfNrbySpot / numOfValidSpot; /// 해당 클러스터가 보유한 여행지 비율 = 생성된 모든 군집중 선택된 군집 전체의 방문 가능한 여행지(numOfValidSpoo) 대비 해당 군집의 여행지 수가 차지하는 비율
+          return {
+            hotelSrchOpt,
+            ratio,
+            numOfNrbySpot,
+          };
+        })
+        .sort((a, b) => b.numOfNrbySpot - a.numOfNrbySpot);
 
       let restSumOfRatio = tmpArr.reduce((acc, cur) => {
         return acc + cur.ratio;
@@ -2215,6 +2229,8 @@ export const makeSchedule = async (
         }, 0);
 
       let restPeriod = Number(period); /// 전체 여행일정중 앞 클러스터에서 사용한 일정을 제한 나머지 일정
+
+      tmpArr2.sort((a, b) => a.hotelSrchOpt.randNum - b.hotelSrchOpt.randNum); /// 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어준다.
 
       return tmpArr2.map(async v => {
         const { ratio, numOfVisitSpotInCluster, hotelSrchOpt } = v;

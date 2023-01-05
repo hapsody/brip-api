@@ -408,6 +408,7 @@
         return {
           lng: estX + gMinX,
           lat: gMinY,
+          cnt,
         };
       }
 
@@ -687,7 +688,7 @@
           markPointCtx.arc(x, y, centPointSize * 5, 0, 2 * Math.PI);
           markPointCtx.stroke();
           markPointCtx.strokeStyle = 'black';
-          markPointCtx.fillStyle = 'yellow';
+          markPointCtx.fillStyle = 'red';
           markPointCtx.fill();
           markPointCtx.closePath();
         }
@@ -701,7 +702,7 @@
         /// 깜박임
         const promise = new Promise(resolve => {
           intervalId = setInterval(() => {
-            if (intervalCnt > 8) resolve(true);
+            if (intervalCnt > 80) resolve(true);
             if (isMarked) unmark();
             else mark();
             isMarked = !isMarked;
@@ -717,6 +718,17 @@
       function changeResetOpt() {
         gResetOpt = !gResetOpt;
         console.log(gResetOpt);
+      }
+
+      async function markValidCentroids() {
+        const promises = gValidCentroids
+          .map(v => v.centroidNHotel.cent)
+          .map(v => {
+            const promise = new Promise(async resolve => {
+              await drawPoint(v);
+              resolve(true);
+            });
+          });
       }
     </script>
   </head>

@@ -134,6 +134,7 @@ export interface BKCSrchByCoordReqOpt {
   childrenNumber?: number;
   childrenAges?: number[];
   categoriesFilterIds?: string[];
+  randNum: number;
 }
 export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
   // mock?: boolean; // default true, true일 경우 개발중 빈번한 외부 api 호출을 막기위해 자체 mocking db에서 값을 가져다 쓴다. => mock 옵션이 없어도 기본적용되도록 수정함
@@ -282,6 +283,7 @@ export const defaultBKCHotelReqParams: AddMockBKCHotelResourceREQParam = {
   childrenNumber: undefined,
   childrenAges: undefined,
   categoriesFilterIds: undefined,
+  randNum: -1,
   mock: true,
 };
 
@@ -867,6 +869,7 @@ export interface MakeClusterRETParam {
   nonDupCentroids: (GeoFormat & {
     idx: number;
     numOfPointLessThanR: number;
+    randNum: number; /// 생성된 클러스터들을 랜덤하게 섞기 위해 참조할 랜덤 변수값
   })[]; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다. 이 결과를 기반으로 추가적인 필터를 거쳐(포함한 여행지 수 확인등) validCentroid 가 생성된다.
 
   centroids: (GeoFormat & {
