@@ -1954,6 +1954,7 @@ export const makeSchedule = async (
       },
     ],
   });
+  // const foods = [];
 
   if (spots.length < ctx.numOfWholeTravelSpot)
     throw new IBError({
@@ -1969,7 +1970,7 @@ export const makeSchedule = async (
     });
 
   ctx.spots = [...spots];
-  ctx.foods = [...foods];
+  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
   ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
   /// spots clustering part
@@ -2060,12 +2061,12 @@ export const makeSchedule = async (
       });
     }
 
-    if (validFoodCentroids.length === 0) {
-      throw new IBError({
-        type: 'NOTEXISTDATA',
-        message: '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
-      });
-    }
+    // if (validFoodCentroids.length === 0) {
+    //   throw new IBError({
+    //     type: 'NOTEXISTDATA',
+    //     message: '충분한 수의 식당 클러스터가 형성되지 못하였습니다.',
+    //   });
+    // }
 
     ctx.hotelTransition = validSpotCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
@@ -2104,8 +2105,8 @@ export const makeSchedule = async (
         // const clusteredFood = [...ctx.foods!].filter(rangedCond);
 
         /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
-        const closestFoodCluster = validFoodCentroids
-          .map(fCent => {
+        const closestFoodCluster = (() => {
+          const foodCluster = validFoodCentroids.map(fCent => {
             /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
             /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
             const foodLatLng = { lat: fCent.lat, lng: fCent.lng };
@@ -2119,11 +2120,23 @@ export const makeSchedule = async (
               ...fCent,
               distWithSpotCent,
             };
-          })
-          .sort((a, b) => {
-            /// 2. 식당 클러스터와 여행지 클러스터간 중심거리가 가까운순으로 정렬
-            return a.distWithSpotCent - b.distWithSpotCent;
-          })[0];
+          });
+          const closest =
+            foodCluster.length === 0
+              ? {
+                  distWithSpotCent: -99999,
+                  lat: -999,
+                  lng: -999,
+                  idx: -1,
+                  numOfPointLessThanR: 0,
+                  randNum: -1,
+                }
+              : foodCluster.sort((a, b) => {
+                  /// 2. 식당 클러스터와 여행지 클러스터간 중심거리가 가까운순으로 정렬
+                  return a.distWithSpotCent - b.distWithSpotCent;
+                })[0];
+          return closest;
+        })();
 
         const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curFood);
@@ -2413,6 +2426,10 @@ export const makeSchedule = async (
                   if (
                     isUndefined(
                       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
+                    ) ||
+                    isEmpty(
+                      ctx.spotClusterRes!.validCentNSpots![clusterNo + 1]
+                        .nearbyFoods,
                     )
                   )
                     return null;
