@@ -508,11 +508,84 @@
         };
       };
 
+      const getLatLng = spot => {
+        if (spot.gl_lat && spot.gl_lng)
+          return {
+            lat: spot.gl_lat,
+            lng: spot.gl_lng,
+          };
+        if (spot.vj_latitude && spot.vj_longitude)
+          return {
+            lat: spot.vj_latitude,
+            lng: spot.vj_longitude,
+          };
+        return {
+          lat: spot.vj_latitude,
+          lng: spot.vj_longitude,
+        };
+      };
+      let prevData;
+
+      const drawLinedItems = item => {
+        return new Promise(resolve => {
+          const dayNo = item.dayNo;
+          const orderNo = item.orderNo;
+          const data = item.data?.at(0);
+          const size = spotPointSize * gWinZoom + 5;
+          const color = palette[dayNo % palette.length];
+
+          if (data) {
+            const geo = getLatLng(data);
+            console.log(`[dayNo:${dayNo}:::orderNo:${orderNo}]`, data);
+            const { x, y } = geoLocToCoord(geo);
+
+            const { prevX, prevY } = (() => {
+              if (prevData) {
+                const prevGeo = getLatLng(prevData);
+                const { x: prevX, y: prevY } = geoLocToCoord(prevGeo);
+                return {
+                  prevX,
+                  prevY,
+                };
+              }
+              return {
+                prevX: undefined,
+                prevY: undefined,
+              };
+            })();
+
+            markPointCtx.beginPath();
+            markPointCtx.arc(x, y, size, 0, 2 * Math.PI);
+            markPointCtx.strokeStyle = color;
+            markPointCtx.lineWidth = size / 10 + 0.5;
+            markPointCtx.stroke();
+            markPointCtx.font = `${Math.floor(25)}px Comic Sans MS`;
+            markPointCtx.fillText(`${dayNo}[${orderNo}]`, x, y);
+            // markPointCtx.fillStyle = color;
+            // markPointCtx.fill();
+            markPointCtx.closePath();
+
+            if (prevX && prevY) {
+              markPointCtx.beginPath();
+              markPointCtx.moveTo(prevX, prevY);
+              markPointCtx.lineTo(x, y);
+              markPointCtx.stroke();
+              markPointCtx.closePath();
+            }
+            prevData = data;
+            console.log(prevX, prevY);
+          }
+          resolve(true);
+        });
+        /// hotel case
+      };
+
       /// 여행지와 마지막 클러스터 결과(중복 포함) 중심점 표시
       async function load() {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         console.log(`radius:${gRadius}`);
         const geo = await estGeoLocFromMeter(gRadius);
         const { x: rulerX, y: rulerY } = geoLocToCoord(geo);
@@ -730,6 +803,25 @@
             });
           });
       }
+
+      async function markVisitSchedule(options) {
+        const dayNo = options?.dayNo;
+        markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        prevData = undefined;
+        if (dayNo && dayNo >= 0) {
+          console.log(`***** dayNo: ${dayNo} *****`);
+          for await (const orderData of gVisitSchedules[dayNo].titleList) {
+            await drawLinedItems(orderData);
+          }
+        } else {
+          for await (const dayData of gVisitSchedules) {
+            console.log(`***** dayNo: ${dayData.dayNo} *****`);
+            for await (const orderData of dayData.titleList) {
+              await drawLinedItems(orderData);
+            }
+          }
+        }
+      }
     </script>
   </head>
   <body style="margin: 0">
@@ -811,6 +903,21 @@
       ex) play({stageNo: 9}) stageNo를 통한 실행일 경우는 해당 스테이지 클러스터중 클릭한곳 주변에 위치한것이 있는지를 찾는다.
   `,
       );
+    </script>
+
+    <script>
+      let gWinZoom;
+      window.addEventListener('resize', getSizes, false);
+      function getSizes() {
+        gWinZoom = (window.innerHeight / canvasHeight + 1) ** 7;
+        // console.log(
+        //   `ratio:: ${window.innerHeight / canvasHeight + 1}, size:: ${
+        //     gWinZoom * spotPointSize
+        //   }`,
+        // );
+      }
+
+      getSizes();
     </script>
   </body>
 </html>
