@@ -807,15 +807,20 @@
       async function markVisitSchedule(options) {
         const dayNo = options?.dayNo;
         markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        console.log(typeof dayNo, dayNo && dayNo >= 0);
         prevData = undefined;
-        if (dayNo && dayNo >= 0) {
+        if (dayNo !== undefined && dayNo >= 0) {
+          console.log(`***********************`);
           console.log(`***** dayNo: ${dayNo} *****`);
+          console.log(`***********************`);
           for await (const orderData of gVisitSchedules[dayNo].titleList) {
             await drawLinedItems(orderData);
           }
         } else {
           for await (const dayData of gVisitSchedules) {
+            console.log(`******************`);
             console.log(`***** dayNo: ${dayData.dayNo} *****`);
+            console.log(`******************`);
             for await (const orderData of dayData.titleList) {
               await drawLinedItems(orderData);
             }

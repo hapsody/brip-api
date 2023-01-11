@@ -1777,6 +1777,21 @@ export const makeCluster = (
 };
 
 /**
+ *  직전 방문했던곳으로부터(baseGeoLoc) 거리기준 오름차순 정렬 함수
+ * */
+export const nearestWithBaseLoc = (
+  baseGeoLoc: GeoFormat,
+): ((a: TourPlaceGeoLoc, b: TourPlaceGeoLoc) => number) => {
+  return (a: TourPlaceGeoLoc, b: TourPlaceGeoLoc) => {
+    const geoA = getLatLng(a);
+    const geoB = getLatLng(b);
+    const distWithA = getDistance(baseGeoLoc, geoA);
+    const distWithB = getDistance(baseGeoLoc, geoB);
+    return distWithA - distWithB;
+  };
+};
+
+/**
  * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
  */
 
@@ -2302,7 +2317,7 @@ export const makeSchedule = async (
     );
     ctx.hotels = [...hotels];
 
-    ctx.spotClusterRes!.validCentNSpots = validCentNSpots
+    let tempValidCents = validCentNSpots
       .filter((v): v is IValidCentResources => v !== null)
       .map((v, idx) => {
         const clusteredHotel = [...ctx.hotels!][idx];
@@ -2325,6 +2340,93 @@ export const makeSchedule = async (
       .filter(v => {
         return v !== null;
       }) as IValidCentResources[];
+
+    tempValidCents = (() => {
+      let distMap = /// 클러스터간 거리맵
+        tempValidCents
+          .map(v1 => {
+            const cent1 = v1.centroidNHotel.cent!;
+            return tempValidCents.map(v2 => {
+              const cent2 = v2.centroidNHotel.cent!;
+              let dist = degreeToMeter(
+                cent1.lat,
+                cent1.lng,
+                cent2.lat,
+                cent2.lng,
+              );
+              dist = dist === 0 ? Infinity : dist;
+              return {
+                startCentIdx: cent1.idx,
+                endCentIdx: cent2.idx,
+                dist,
+                visited: false,
+              };
+            });
+          })
+          .flat();
+
+      const firstCent = tempValidCents.sort(
+        (a, b) =>
+          b.centroidNHotel.cent!.numOfPointLessThanR -
+          a.centroidNHotel.cent!.numOfPointLessThanR,
+      )[0];
+
+      type DistBetweenClusters = {
+        startCentIdx: number;
+        endCentIdx: number;
+        dist: number;
+        visited: boolean;
+      };
+      let presentCent: DistBetweenClusters = {
+        startCentIdx: 0,
+        endCentIdx: firstCent.centroidNHotel.cent!.idx,
+        dist: 0,
+        visited: true,
+      };
+      let nextCent: DistBetweenClusters = { ...presentCent };
+      const ret = Array.from({ length: tempValidCents.length }).reduce(
+        (acc: IValidCentResources[], _, i) => {
+          const newOrderValidCent = tempValidCents.find(
+            v => v.centroidNHotel.cent!.idx === presentCent.endCentIdx,
+          ) as IValidCentResources;
+
+          acc.push({
+            ...newOrderValidCent,
+            centroidNHotel: {
+              ...newOrderValidCent.centroidNHotel,
+              transitionNo: i, /// 호텔 검색시에 생성했던 트랜지션 넘버가 순서가 바뀐다.
+            },
+          });
+
+          /// 거리맵중에서 현재 클러스터에서 다른 클러스터들간의 거리맵을 뽑는다.
+          const distMapByStart = distMap.filter(
+            v =>
+              v.visited === false && v.startCentIdx === presentCent.endCentIdx,
+          );
+          [nextCent] = distMapByStart.sort((a, b) => a.dist - b.dist); /// 이번 스테이지의 클러스터인 presentCent 의 idx로부터 가장 가까운 클러스터를 다음 클러스터로 정한다.
+
+          distMap = /// 방문해서 사용한 거리맵 삭제. A=>B로 움직였는데 B클러스터 입장에서도 가장 가까운거리가 A라면 A<=>B 만 무한 반복할것이다
+            distMap.map(v => {
+              if (
+                v.startCentIdx === nextCent.startCentIdx ||
+                v.endCentIdx === nextCent.startCentIdx
+              )
+                return {
+                  ...v,
+                  visited: true,
+                };
+              return v;
+            });
+
+          presentCent = nextCent;
+          return acc;
+        },
+        [],
+      ) as IValidCentResources[];
+      return ret;
+    })();
+
+    ctx.spotClusterRes!.validCentNSpots = tempValidCents;
   } /// end of hotel srch part
 
   /// 여행일수에 따른 visitSchedule 배열 생성
@@ -2357,15 +2459,6 @@ export const makeSchedule = async (
           curRestSpot = numOfVisitSpotInCluster!;
           curRestDay = stayPeriod!;
         }
-
-        /// 직전 방문했던곳으로부터 거리기준 오름차순 정렬 함수
-        const nearestWithPrevLoc = (a: TourPlaceGeoLoc, b: TourPlaceGeoLoc) => {
-          const geoA = getLatLng(a);
-          const geoB = getLatLng(b);
-          const distWithA = getDistance(prevGeoLoc, geoA);
-          const distWithB = getDistance(prevGeoLoc, geoB);
-          return distWithA - distWithB;
-        };
 
         /// spotPerDay가 소수점일 경우 어떤날은 n개 방문
         /// 또 다른 어떤 날은 n+a 개의 여행지를 방문해야한다.
@@ -2420,7 +2513,7 @@ export const makeSchedule = async (
 
               /// 레스토랑
               if (nextMealOrder === orderNo) {
-                nearbyFoods.sort(nearestWithPrevLoc);
+                nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc));
                 let data = nearbyFoods.shift();
                 if (isUndefined(data)) {
                   if (
@@ -2440,7 +2533,7 @@ export const makeSchedule = async (
                   data = ctx
                     .foodClusterRes!.validCentNSpots![
                       clusterNo
-                    ].nearbyFoods.sort(nearestWithPrevLoc)
+                    ].nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc))
                     .shift();
                 }
 
@@ -2456,7 +2549,7 @@ export const makeSchedule = async (
 
               /// 스팟(여행지)
               if (numOfTodaySpot > 0) {
-                nearbySpots.sort(nearestWithPrevLoc);
+                nearbySpots.sort(nearestWithBaseLoc(prevGeoLoc));
                 let data = nearbySpots.shift();
 
                 if (isUndefined(data)) {
@@ -2472,7 +2565,7 @@ export const makeSchedule = async (
                   data = ctx
                     .spotClusterRes!.validCentNSpots![
                       clusterNo
-                    ].nearbySpots.sort(nearestWithPrevLoc)
+                    ].nearbySpots.sort(nearestWithBaseLoc(prevGeoLoc))
                     .shift();
                 }
 
