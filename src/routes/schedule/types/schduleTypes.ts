@@ -461,7 +461,7 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
   dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-  titleList: {
+  scheduleItem: {
     visitScheduleId: string; // ex)  171273
     orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
     title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
@@ -474,10 +474,11 @@ export interface DayScheduleType {
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {
   // queryParamsId: string;
-  plan: {
-    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: DayScheduleType[];
-  }[];
+  // plan: {
+  //   planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+  //   day: DayScheduleType[];
+  // }[];
+  plan: DayScheduleType[];
 }
 export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqScheduleRETParamPayload | {};
@@ -867,6 +868,7 @@ export interface MakeClusterRETParam {
   nonDupCentroids: (GeoFormat & {
     idx: number;
     numOfPointLessThanR: number;
+    randNum: number; /// 생성된 클러스터들을 랜덤하게 섞기 위해 참조할 랜덤 변수값
   })[]; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다. 이 결과를 기반으로 추가적인 필터를 거쳐(포함한 여행지 수 확인등) validCentroid 가 생성된다.
 
   centroids: (GeoFormat & {

@@ -68,7 +68,8 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 app.get('/mapTest', (req: Request, res: Response) => {
-  res.render(`mapSample`);
+  const { type } = req.query;
+  res.render(`mapSample`, { type });
 });
 
 // app.get('/resJsonTest', (req: express.Request, res: express.Response) => {
