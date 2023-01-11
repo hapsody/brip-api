@@ -1445,7 +1445,7 @@ const visitScheduleToDayScheduleType = (
     if (!alreadyDayExist) {
       acc.push({
         dayNo: cur.dayNo.toString(),
-        titleList: [
+        scheduleItem: [
           {
             visitScheduleId: cur.id.toString(),
             orderNo: cur.orderNo.toString(),
@@ -1469,12 +1469,12 @@ const visitScheduleToDayScheduleType = (
       return acc;
     }
 
-    const alreadyOrderExist = alreadyDayExist.titleList.find(
+    const alreadyOrderExist = alreadyDayExist.scheduleItem.find(
       v => v.orderNo === cur.orderNo?.toString(),
     );
 
     if (!alreadyOrderExist) {
-      alreadyDayExist.titleList.push({
+      alreadyDayExist.scheduleItem.push({
         visitScheduleId: cur.id?.toString() ?? 'none',
         orderNo: cur.orderNo.toString(),
         transitionNo: cur.transitionNo,
@@ -1498,7 +1498,7 @@ const visitScheduleToDayScheduleType = (
           ...acc,
           {
             ...last,
-            titleList: alreadyDayExist.titleList,
+            scheduleItem: alreadyDayExist.scheduleItem,
           },
         ];
       }
@@ -1898,6 +1898,24 @@ export const makeSchedule = async (
           ],
         },
       },
+      // OR: [
+      //   {
+      //     AND: [
+      //       { vj_latitude: { gte: 37.483403 } },
+      //       { vj_latitude: { lt: 37.655385 } },
+      //       { vj_longitude: { gte: 126.796251 } },
+      //       { vj_longitude: { lt: 127.230211 } },
+      //     ],
+      //   },
+      //   {
+      //     AND: [
+      //       { gl_lat: { gte: 37.483403 } },
+      //       { gl_lat: { lt: 37.655385 } },
+      //       { gl_lng: { gte: 126.796251 } },
+      //       { gl_lng: { lt: 127.230211 } },
+      //     ],
+      //   },
+      // ],
       status: 'IN_USE',
       tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
     },
@@ -1938,6 +1956,24 @@ export const makeSchedule = async (
     where: {
       status: 'IN_USE',
       tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'GL_RESTAURANT'] },
+      // OR: [
+      //   {
+      //     AND: [
+      //       { vj_latitude: { gte: 37.483403 } },
+      //       { vj_latitude: { lt: 37.655385 } },
+      //       { vj_longitude: { gte: 126.796251 } },
+      //       { vj_longitude: { lt: 127.230211 } },
+      //     ],
+      //   },
+      //   {
+      //     AND: [
+      //       { gl_lat: { gte: 37.483403 } },
+      //       { gl_lat: { lt: 37.655385 } },
+      //       { gl_lng: { gte: 126.796251 } },
+      //       { gl_lng: { lt: 127.230211 } },
+      //     ],
+      //   },
+      // ],
     },
     select: {
       id: true,
@@ -1978,11 +2014,11 @@ export const makeSchedule = async (
         (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length})`,
     });
 
-  if (foods.length < Number(period) * 2)
-    throw new IBError({
-      type: 'NOTEXISTDATA',
-      message: '여행일수에 필요한만큼 충분한 수의 관광 restaurant이 없습니다.',
-    });
+  // if (foods.length < Number(period) * 2)
+  //   throw new IBError({
+  //     type: 'NOTEXISTDATA',
+  //     message: '여행일수에 필요한만큼 충분한 수의 관광 restaurant이 없습니다.',
+  //   });
 
   ctx.spots = [...spots];
   ctx.foods = foods && foods.length > 0 ? [...foods] : [];
@@ -2365,11 +2401,12 @@ export const makeSchedule = async (
           })
           .flat();
 
+      const rand = Math.floor(8 * Math.random()) % 3;
       const firstCent = tempValidCents.sort(
         (a, b) =>
           b.centroidNHotel.cent!.numOfPointLessThanR -
           a.centroidNHotel.cent!.numOfPointLessThanR,
-      )[0];
+      )[rand];
 
       type DistBetweenClusters = {
         startCentIdx: number;
@@ -2774,25 +2811,30 @@ export const getSchedule = async (
       message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
     });
 
-  const minVisitSchd = queryParams.visitSchedule.filter(
-    v => v.planType === 'MIN',
-  );
-  const midVisitSchd = queryParams.visitSchedule.filter(
-    v => v.planType === 'MID',
-  );
-  const maxVisitSchd = queryParams.visitSchedule.filter(
-    v => v.planType === 'MAX',
-  );
+  // const minVisitSchd = queryParams.visitSchedule.filter(
+  //   v => v.planType === 'MIN',
+  // );
+  // const midVisitSchd = queryParams.visitSchedule.filter(
+  //   v => v.planType === 'MID',
+  // );
+  // const maxVisitSchd = queryParams.visitSchedule.filter(
+  //   v => v.planType === 'MAX',
+  // );
 
-  const minRetValue = minVisitSchd.reduce(
-    visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
-  );
-  const midRetValue = midVisitSchd.reduce(
-    visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
-  );
-  const maxRetValue = maxVisitSchd.reduce(
+  // const minRetValue = minVisitSchd.reduce(
+  //   visitScheduleToDayScheduleType,
+  //   [] as DayScheduleType[],
+  // );
+  // const midRetValue = midVisitSchd.reduce(
+  //   visitScheduleToDayScheduleType,
+  //   [] as DayScheduleType[],
+  // );
+  // const maxRetValue = maxVisitSchd.reduce(
+  //   visitScheduleToDayScheduleType,
+  //   [] as DayScheduleType[],
+  // );
+
+  const retValue = queryParams.visitSchedule.reduce(
     visitScheduleToDayScheduleType,
     [] as DayScheduleType[],
   );
@@ -2800,11 +2842,12 @@ export const getSchedule = async (
   return {
     ...omit(queryParams, 'visitSchedule'),
     // queryParamsId: queryParams.id.toString(),
-    plan: [
-      { planType: 'MIN', day: minRetValue },
-      { planType: 'MID', day: midRetValue },
-      { planType: 'MAX', day: maxRetValue },
-    ],
+    plan: retValue,
+    // plan: [
+    //   { planType: 'MIN', day: minRetValue },
+    //   { planType: 'MID', day: midRetValue },
+    //   { planType: 'MAX', day: maxRetValue },
+    // ],
   };
 };
 

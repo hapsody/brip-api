@@ -461,7 +461,7 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
   dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-  titleList: {
+  scheduleItem: {
     visitScheduleId: string; // ex)  171273
     orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
     title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
@@ -474,10 +474,11 @@ export interface DayScheduleType {
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {
   // queryParamsId: string;
-  plan: {
-    planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
-    day: DayScheduleType[];
-  }[];
+  // plan: {
+  //   planType: PlanType; // 플랜 경비에 따른 분류 ex) MIN, MID, MAX
+  //   day: DayScheduleType[];
+  // }[];
+  plan: DayScheduleType[];
 }
 export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqScheduleRETParamPayload | {};

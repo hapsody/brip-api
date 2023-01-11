@@ -33,14 +33,14 @@
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
       /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
-      const clipMinLat = 33.109684; // 제주 지역만 필터링
-      const clipMaxLat = 33.650946;
-      const clipMinLng = 126.032175;
-      const clipMaxLng = 127.048411;
-      // const clipMinLat = 37.483403; // 서울 지역만 필터링
-      // const clipMaxLat = 37.655385;
-      // const clipMinLng = 126.796251;
-      // const clipMaxLng = 127.230211;
+      // const clipMinLat = 33.109684; // 제주 지역만 필터링
+      // const clipMaxLat = 33.650946;
+      // const clipMinLng = 126.032175;
+      // const clipMaxLng = 127.048411;
+      const clipMinLat = 37.483403; // 서울 지역만 필터링
+      const clipMaxLat = 37.655385;
+      const clipMinLng = 126.796251;
+      const clipMaxLng = 127.230211;
       let gRDistToPxLength;
       let gPlayMode = {
         /// 직전 load 또는 play 함수 실행할때 어떤 옵션으로 수행했었는가를 기록 이 값에 따라 clickCanvas 실행할때 결과값을 보고 있는 화면의 결과에 맞게 뿌려줌.
@@ -352,6 +352,7 @@
           const { x } = geoLocToCoord(geo);
           console.log(x);
           radiusCircleSize = x;
+          both();
         },
         error: function (request, status, error) {
           console.log(error);
@@ -558,23 +559,23 @@
               };
             })();
 
-            markPointCtx.beginPath();
-            markPointCtx.arc(x, y, size, 0, 2 * Math.PI);
-            markPointCtx.strokeStyle = color;
-            markPointCtx.lineWidth = size / 10 + 0.5;
-            markPointCtx.stroke();
-            markPointCtx.font = `${Math.floor(25)}px Comic Sans MS`;
-            markPointCtx.fillText(`${dayNo}[${orderNo}]`, x, y);
-            // markPointCtx.fillStyle = color;
-            // markPointCtx.fill();
-            markPointCtx.closePath();
+            historyCtx.beginPath();
+            historyCtx.arc(x, y, size, 0, 2 * Math.PI);
+            historyCtx.strokeStyle = color;
+            historyCtx.lineWidth = size / 10 + 0.5;
+            historyCtx.stroke();
+            historyCtx.font = `${Math.floor(25)}px Comic Sans MS`;
+            historyCtx.fillText(`${dayNo}[${orderNo}]`, x, y);
+            // historyCtx.fillStyle = color;
+            // historyCtx.fill();
+            historyCtx.closePath();
 
             if (prevX && prevY) {
-              markPointCtx.beginPath();
-              markPointCtx.moveTo(prevX, prevY);
-              markPointCtx.lineTo(x, y);
-              markPointCtx.stroke();
-              markPointCtx.closePath();
+              historyCtx.beginPath();
+              historyCtx.moveTo(prevX, prevY);
+              historyCtx.lineTo(x, y);
+              historyCtx.stroke();
+              historyCtx.closePath();
             }
             prevData = data;
             console.log(prevX, prevY);
@@ -810,7 +811,7 @@
 
       async function markVisitSchedule(options) {
         const dayNo = options?.dayNo;
-        markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         console.log(typeof dayNo, dayNo && dayNo >= 0);
         prevData = undefined;
         if (dayNo !== undefined && dayNo >= 0) {
@@ -830,6 +831,12 @@
             }
           }
         }
+      }
+
+      function both() {
+        load();
+        markValidCentroids();
+        markVisitSchedule();
       }
     </script>
   </head>

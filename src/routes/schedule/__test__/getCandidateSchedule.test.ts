@@ -101,7 +101,7 @@ describe('Schedule Express Router E2E Test', () => {
   it('Case: Correct - 이미 만들어진 일정의 tourPlace를 중복 리턴하진 않았는가', () => {
     const { candidateList } = getCandSchdRes;
     const tpIds = reqSchdRes.plan
-      .map(p => p.day.map(d => d.titleList.map(l => l.tourPlaceData?.id)))
+      .map(d => d.scheduleItem.map(l => l.tourPlaceData?.id))
       .flat(10);
 
     const duplicateRes = tpIds.filter(
