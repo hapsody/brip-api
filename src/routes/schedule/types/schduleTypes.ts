@@ -414,6 +414,11 @@ export interface IVisitOneSchedule {
   stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
   checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
   checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  cent?:
+    | GeoFormat & {
+        idx: number;
+        numOfPointLessThanR: number;
+      };
   data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
 }
 
