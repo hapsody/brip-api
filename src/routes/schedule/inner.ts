@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
-import { EventEmitter } from 'events';
+// import { EventEmitter } from 'events';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import {
   isNumber,
@@ -78,7 +78,7 @@ import {
   IValidCentResources,
 } from './types/schduleTypes';
 
-const HotelQueryEventEmitter = new EventEmitter();
+// const HotelQueryEventEmitter = new EventEmitter();
 /**
  * inner utils
  *  */
@@ -2069,7 +2069,7 @@ export const makeSchedule = async (
   ctx.foodClusterRes = makeCluster(ctx, 'food');
 
   /// hotel search part
-  await (async () => {
+  (() => {
     const child = familyOpt.find(v => v.toUpperCase().includes('CHILD'))
       ? 1
       : 0;
@@ -2389,7 +2389,7 @@ export const makeSchedule = async (
     const hWithoutData = (() => {
       let prevCheckout = '';
       let transitionNo = -1;
-      let restSpot = ctx.numOfWholeTravelSpot!;
+      let restSpot = ctx.numOfWholeTravelSpot;
 
       const hotelSrchOpts = validSpotCentroids.map(centGeo => {
         return {
@@ -2491,57 +2491,57 @@ export const makeSchedule = async (
         });
     })();
 
-    const queryPromises = new Promise<GetHotelDataFromBKCRETParamPayload[]>(
-      resolve => {
-        const hotelResult = Array<GetHotelDataFromBKCRETParamPayload>();
+    // const queryPromises = new Promise<GetHotelDataFromBKCRETParamPayload[]>(
+    //   resolve => {
+    //     const hotelResult = Array<GetHotelDataFromBKCRETParamPayload>();
 
-        HotelQueryEventEmitter.on(
-          `doQuery`,
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          async (hQParam: {
-            index: number;
-            hQMetaData: IHotelInMakeSchedule[];
-            prevStartTime: number;
-          }) => {
-            const { index, hQMetaData, prevStartTime } = hQParam;
+    //     HotelQueryEventEmitter.on(
+    //       `doQuery`,
+    //       // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    //       async (hQParam: {
+    //         index: number;
+    //         hQMetaData: IHotelInMakeSchedule[];
+    //         prevStartTime: number;
+    //       }) => {
+    //         const { index, hQMetaData, prevStartTime } = hQParam;
 
-            hotelResult.push(
-              await getHotelDataFromBKC({
-                ...hQMetaData[index].hotelSrchOpt,
-                checkinDate: hQMetaData[index].checkin,
-                checkoutDate: hQMetaData[index].checkout,
-                store: true,
-              }),
-            );
+    //         hotelResult.push(
+    //           await getHotelDataFromBKC({
+    //             ...hQMetaData[index].hotelSrchOpt,
+    //             checkinDate: hQMetaData[index].checkin,
+    //             checkoutDate: hQMetaData[index].checkout,
+    //             store: true,
+    //           }),
+    //         );
 
-            const startTime = moment(prevStartTime);
-            const endTime = new Date();
-            console.log(
-              `[${index}]: ${moment(endTime).diff(startTime, 'millisecond')}ms`,
-            );
+    //         const startTime = moment(prevStartTime);
+    //         const endTime = new Date();
+    //         console.log(
+    //           `[${index}]: ${moment(endTime).diff(startTime, 'millisecond')}ms`,
+    //         );
 
-            if (index + 1 < hQMetaData.length) {
-              const timeId = setTimeout(() => {
-                HotelQueryEventEmitter.emit('doQuery', {
-                  index: index + 1,
-                  hQMetaData,
-                  prevStartTime: endTime,
-                });
-                clearTimeout(timeId);
-              }, 0);
-            } else {
-              resolve(hotelResult);
-            }
-          },
-        );
+    //         if (index + 1 < hQMetaData.length) {
+    //           const timeId = setTimeout(() => {
+    //             HotelQueryEventEmitter.emit('doQuery', {
+    //               index: index + 1,
+    //               hQMetaData,
+    //               prevStartTime: endTime,
+    //             });
+    //             clearTimeout(timeId);
+    //           }, 0);
+    //         } else {
+    //           resolve(hotelResult);
+    //         }
+    //       },
+    //     );
 
-        HotelQueryEventEmitter.emit('doQuery', {
-          index: 0,
-          hQMetaData: hWithoutData,
-          prevStartTime: new Date(),
-        });
-      },
-    );
+    //     HotelQueryEventEmitter.emit('doQuery', {
+    //       index: 0,
+    //       hQMetaData: hWithoutData,
+    //       prevStartTime: new Date(),
+    //     });
+    //   },
+    // );
 
     let tempValidCents = /// 클러스터간 거리를 측정하고 이를 바탕으로 클러스터 방문 순서를 결정하기 위해 클러스터별 메타데이터(stayPeriod, numOfVisitSpotInClusteer, ...)를 클러스터에 넣고
       /// 위에서 null 표시된 클러스터는 제외하고 (클러스터내 포함된 여행지가 너무 적어 (=해당 클러스터에서 머무를 여행일정이 너무 적어))
@@ -2658,24 +2658,24 @@ export const makeSchedule = async (
         return ret;
       })();
 
-    const hotelData = await queryPromises;
+    // const hotelData = await queryPromises;
 
-    ctx.spotClusterRes!.validCentNSpots = tempValidCents.map((v, i) => {
+    ctx.spotClusterRes!.validCentNSpots = tempValidCents.map(v => {
       /// 호텔 검색결과와 검색 메타데이터를 합쳐서 ctx에 저장한다.
 
       return {
         ...v,
         centroidNHotel: {
           ...v.centroidNHotel,
-          hotels: hotelData[i],
+          // hotels: hotelData[i],
         },
       };
     });
 
-    ctx.hotels = hWithoutData.map((v, i) => {
+    ctx.hotels = hWithoutData.map(v => {
       return {
         ...v,
-        hotels: hotelData[i],
+        // hotels: hotelData[i],
       };
     });
   })(); /// end of hotel srch part
@@ -2686,13 +2686,12 @@ export const makeSchedule = async (
 
     // let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
-    let acc = /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
-      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel.stayPeriod!;
+    let acc = ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
     let curRestSpot =
-      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel
+      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel
         .numOfVisitSpotInCluster!;
     let curRestDay =
-      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel.stayPeriod!;
+      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -2851,23 +2850,23 @@ export const makeSchedule = async (
       travelHard: Number(travelHard),
       tourPlace: {
         connect: [
-          ...(() => {
-            const result = ctx
-              .hotels!.map(c => {
-                const hotelIds = c.hotels.hotelSearchResult
-                  .map(h => {
-                    if (h.id)
-                      return {
-                        id: h.id,
-                      };
-                    return undefined;
-                  })
-                  .filter((x): x is { id: number } => x !== undefined);
-                return hotelIds;
-              })
-              .flat();
-            return result;
-          })(),
+          // ...(() => {
+          //   const result = ctx
+          //     .hotels!.map(c => {
+          //       const hotelIds = c.hotels.hotelSearchResult
+          //         .map(h => {
+          //           if (h.id)
+          //             return {
+          //               id: h.id,
+          //             };
+          //           return undefined;
+          //         })
+          //         .filter((x): x is { id: number } => x !== undefined);
+          //       return hotelIds;
+          //     })
+          //     .flat();
+          //   return result;
+          // })(),
           ...ctx.foods.map(v => {
             return { id: v.id };
           }),
@@ -2905,8 +2904,7 @@ export const makeSchedule = async (
       },
       metaScheduleInfo: {
         create: {
-          totalHotelSearchCount:
-            ctx.hotels![0]!.hotels?.hotelSearchResult.length,
+          totalHotelSearchCount: ctx.hotels[0].hotels?.hotelSearchResult.length,
           totalRestaurantSearchCount: ctx.foods.length,
           totalSpotSearchCount: ctx.spots.length,
           spotPerDay: ctx.spotPerDay,
@@ -2916,7 +2914,7 @@ export const makeSchedule = async (
           travelDays: ctx.travelDays,
           hotelTransition: ctx.hotelTransition,
           transitionTerm: ctx
-            .spotClusterRes!.validCentNSpots!.map(
+            .spotClusterRes!.validCentNSpots.map(
               v => v.centroidNHotel.stayPeriod!,
             )
             .toString(),
@@ -2964,18 +2962,15 @@ export const makeSchedule = async (
                   if (t.data[0].gl_name) return t.data[0].gl_name;
                   if (t.data[0].vj_title) return t.data[0].vj_title;
                 }
-                if (t.placeType!.includes('HOTEL')) {
-                  return (
-                    ctx
-                      .hotels!.map(h => {
-                        return h.hotels.hotelSearchResult.map(
-                          v2 => v2.bkc_hotel_name!,
-                        );
-                      })
-                      // .flat(1)
-                      .toString()
-                  );
-                }
+                // if (t.placeType!.includes('HOTEL')) {
+                //   return ctx
+                //     .hotels!.map(h => {
+                //       return h.hotels.hotelSearchResult.map(
+                //         v2 => v2.bkc_hotel_name!,
+                //       );
+                //     })
+                //     .toString();
+                // }
                 return '';
               })(),
               ...t,
