@@ -33,6 +33,8 @@ import {
   GetHotelListRETParam,
   GetScheduleLoadingImgREQParam,
   GetScheduleLoadingImgRETParam,
+  GetScheduleCountREQParam,
+  GetScheduleCountRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -50,6 +52,7 @@ import {
   makeSchedule,
   getHotelList,
   getScheduleLoadingImg,
+  getScheduleCount,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -780,6 +783,62 @@ export const getScheduleLoadingImgWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: imgs,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 일정중 요청하는 유저의 tokenId로 생성된 Schedule 리스트를 반환하는 api
+ *
+ */
+export const getScheduleCountWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleCountREQParam>,
+    res: Express.IBTypedResponse<GetScheduleCountRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const ctx: IBContext = {
+        userTokenId,
+      };
+      const scheduleCount = await getScheduleCount(ctx);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleCount,
       });
     } catch (err) {
       if (err instanceof IBError) {

@@ -79,6 +79,7 @@ import {
   GetHotelListRETParamPayload,
   GetHotelListREQParam,
   GetScheduleLoadingImgRETParamPayload,
+  GetScheduleCountRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -4240,56 +4241,24 @@ export const getScheduleLoadingImg =
     };
   };
 
-// /**
-//  * 저장된 내 스케쥴 수 반환
-//  */
-// export const getMyScheduleCount =
-// async (): Promise<GetMyScheduleCountRETParamPayload> => {
+/**
+ * 저장된 내 스케쥴 수 반환
+ */
+export const getScheduleCount = async (
+  ctx?: IBContext,
+): Promise<GetScheduleCountRETParamPayload> => {
+  const userTokenId = ctx?.userTokenId;
 
-//   const queryParams = await prisma.queryParams.findMany({
-//     // skip: Number(skip),
-//     // take: Number(take),
-//     where: {
-//       userTokenId,
-//       savedSchedule: {
-//         NOT: undefined,
-//       },
-//     },
-//     include: {
-//       visitSchedule: {
-//         include: {
-//           tourPlace: true,
-//         },
-//       },
-//       // metaScheduleInfo: true,
-//       savedSchedule: {
-//         include: {
-//           hashTag: true,
-//         },
-//       },
-//     },
-//   });
+  const count = await prisma.queryParams.count({
+    // skip: Number(skip),
+    // take: Number(take),
+    where: {
+      userTokenId,
+      savedSchedule: {
+        NOT: undefined,
+      },
+    },
+  });
 
-//   if (count === 0)
-//     throw new IBError({
-//       type: 'NOTEXISTDATA',
-//       message: '카드 뉴스 데이터가 데이터가 존재하지 않습니다.',
-//     });
-
-//   const skip = Math.floor(Math.random() * (count - 1));
-//   const cardNewsGroup = await prisma.cardNewsGroup.findMany({
-//     take: 1,
-//     skip,
-//     select: {
-//       cardNewsContent: {
-//         select: {
-//           bgPicUri: true,
-//         },
-//       },
-//     },
-//   });
-
-//   return {
-//     cardImgs: cardNewsGroup[0].cardNewsContent.map(v => v.bgPicUri),
-//   };
-// };
+  return { count };
+};

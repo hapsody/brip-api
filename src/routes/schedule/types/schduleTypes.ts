@@ -929,14 +929,14 @@ export type GetScheduleLoadingImgRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleLoadingImgRETParamPayload | {};
 };
 
-// /**
-//  * getMyScheduleCount
-//  */
-// export interface GetScheduleLoadingImgREQParam {}
-// export interface GetMyScheduleCountRETParamPayload {
-//   cardImgs: string[];
-// }
+/**
+ * getMyScheduleCount
+ */
+export interface GetScheduleCountREQParam {}
+export interface GetScheduleCountRETParamPayload {
+  count: number;
+}
 
-// export type GetScheduleLoadingImgRETParam = Omit<IBResFormat, 'IBparams'> & {
-//   IBparams: GetScheduleLoadingImgRETParamPayload | {};
-// };
+export type GetScheduleCountRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleCountRETParamPayload | {};
+};
