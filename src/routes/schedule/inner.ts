@@ -2838,7 +2838,7 @@ export const makeSchedule = async (
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
                   data = ctx
-                    .foodClusterRes!.validCentNSpots![
+                    .spotClusterRes!.validCentNSpots![
                       clusterNo
                     ].nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc))
                     .shift();
@@ -4162,7 +4162,10 @@ export const getHotelList = async (
         const startTime = moment(prevStartTime);
         const endTime = new Date();
         console.log(
-          `[${index}]: ${moment(endTime).diff(startTime, 'millisecond')}ms`,
+          `hotelQuery [${index}]: ${moment(endTime).diff(
+            startTime,
+            'millisecond',
+          )}ms`,
         );
 
         if (index + 1 < hQMetaData.length) {

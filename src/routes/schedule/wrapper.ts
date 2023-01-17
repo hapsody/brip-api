@@ -716,10 +716,10 @@ export const getHotelListWrapper = asyncWrapper(
       }
 
       const param = req.body;
-      const scheduleResult = await getHotelList(param);
+      const hotelSrchRes = await getHotelList(param);
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: scheduleResult,
+        IBparams: hotelSrchRes,
       });
     } catch (err) {
       if (err instanceof IBError) {
