@@ -78,6 +78,7 @@ import {
   IValidCentResources,
   GetHotelListRETParamPayload,
   GetHotelListREQParam,
+  GetScheduleLoadingImgRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -4207,3 +4208,88 @@ export const getHotelList = async (
     }),
   };
 };
+
+/**
+ * makeSchedule로 인한 클러스터 형성 후
+ * 일정반환까지 띄워줄 로딩화면 창 img 반환
+ */
+export const getScheduleLoadingImg =
+  async (): Promise<GetScheduleLoadingImgRETParamPayload> => {
+    const count = await prisma.cardNewsGroup.count();
+    if (count === 0)
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '카드 뉴스 데이터가 데이터가 존재하지 않습니다.',
+      });
+
+    const skip = Math.floor(Math.random() * (count - 1));
+    const cardNewsGroup = await prisma.cardNewsGroup.findMany({
+      take: 1,
+      skip,
+      select: {
+        cardNewsContent: {
+          select: {
+            bgPicUri: true,
+          },
+        },
+      },
+    });
+
+    return {
+      cardImgs: cardNewsGroup[0].cardNewsContent.map(v => v.bgPicUri),
+    };
+  };
+
+// /**
+//  * 저장된 내 스케쥴 수 반환
+//  */
+// export const getMyScheduleCount =
+// async (): Promise<GetMyScheduleCountRETParamPayload> => {
+
+//   const queryParams = await prisma.queryParams.findMany({
+//     // skip: Number(skip),
+//     // take: Number(take),
+//     where: {
+//       userTokenId,
+//       savedSchedule: {
+//         NOT: undefined,
+//       },
+//     },
+//     include: {
+//       visitSchedule: {
+//         include: {
+//           tourPlace: true,
+//         },
+//       },
+//       // metaScheduleInfo: true,
+//       savedSchedule: {
+//         include: {
+//           hashTag: true,
+//         },
+//       },
+//     },
+//   });
+
+//   if (count === 0)
+//     throw new IBError({
+//       type: 'NOTEXISTDATA',
+//       message: '카드 뉴스 데이터가 데이터가 존재하지 않습니다.',
+//     });
+
+//   const skip = Math.floor(Math.random() * (count - 1));
+//   const cardNewsGroup = await prisma.cardNewsGroup.findMany({
+//     take: 1,
+//     skip,
+//     select: {
+//       cardNewsContent: {
+//         select: {
+//           bgPicUri: true,
+//         },
+//       },
+//     },
+//   });
+
+//   return {
+//     cardImgs: cardNewsGroup[0].cardNewsContent.map(v => v.bgPicUri),
+//   };
+// };

@@ -31,6 +31,8 @@ import {
   ContextMakeSchedule,
   GetHotelListREQParam,
   GetHotelListRETParam,
+  GetScheduleLoadingImgREQParam,
+  GetScheduleLoadingImgRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -47,6 +49,7 @@ import {
   modifySchedule,
   makeSchedule,
   getHotelList,
+  getScheduleLoadingImg,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -722,6 +725,61 @@ export const getHotelListWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: hotelSrchRes,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * makeSchedule로 인한 클러스터 형성 후
+ * 일정반환까지 띄워줄 로딩화면 창 img 반환
+ *
+ */
+export const getScheduleLoadingImgWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetScheduleLoadingImgREQParam>,
+    res: Express.IBTypedResponse<GetScheduleLoadingImgRETParam>,
+  ) => {
+    try {
+      // const watchStart = moment();
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const imgs = await getScheduleLoadingImg();
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: imgs,
       });
     } catch (err) {
       if (err instanceof IBError) {

@@ -916,3 +916,27 @@ export type GetHotelListRETParamPayload = {
 export type GetHotelListRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetHotelListRETParamPayload[] | {};
 };
+
+/**
+ * getScheduleLoadingImg
+ */
+export interface GetScheduleLoadingImgREQParam {}
+export interface GetScheduleLoadingImgRETParamPayload {
+  cardImgs: string[];
+}
+
+export type GetScheduleLoadingImgRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleLoadingImgRETParamPayload | {};
+};
+
+// /**
+//  * getMyScheduleCount
+//  */
+// export interface GetScheduleLoadingImgREQParam {}
+// export interface GetMyScheduleCountRETParamPayload {
+//   cardImgs: string[];
+// }
+
+// export type GetScheduleLoadingImgRETParam = Omit<IBResFormat, 'IBparams'> & {
+//   IBparams: GetScheduleLoadingImgRETParamPayload | {};
+// };
