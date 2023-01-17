@@ -898,3 +898,20 @@ export interface MakeClusterRETParam {
   validCentNSpots?: IValidCentResources[]; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값을 기반으로 여행 일정이 짜여진다.
   validCentNFoods?: IValidCentResources[];
 }
+
+/**
+ * getHotelList
+ */
+export interface GetHotelListREQParam {
+  queryParamsId: string;
+}
+export type GetHotelListRETParamPayload = {
+  transitionNo: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+  stayPeriod: number; // 호텔일경우 해당 호텔에 머무르는 일 수
+  checkin: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
+  checkout: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  hotels: GetHotelDataFromBKCRETParamPayload;
+};
+export type GetHotelListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetHotelListRETParamPayload[] | {};
+};

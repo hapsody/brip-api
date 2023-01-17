@@ -224,12 +224,14 @@ model QueryParams {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  minMoney  Int?
-  maxMoney  Int?
-  startDate DateTime?
-  endDate   DateTime?
-  adult     Int?
-  child     Int?
+  minMoney   Int?
+  maxMoney   Int?
+  startDate  DateTime?
+  endDate    DateTime?
+  adult      Int?
+  child      Int?
+  infant     Int? /// 5세 미만
+  roomNumber Int?
   // travelHard Int?
 
   ingNow    String? /// 현재 여행중인지 여부 ex) "ing", "preStep"
@@ -252,6 +254,7 @@ model QueryParams {
   // schedulePlanType
   // scheduleHash     String?           @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
   savedSchedule    ScheduleBank? /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
+  scheduleCluster  ScheduleCluster[]
 }
 
 /// ScheduleBank는 유저가 생성된 일정을 검토한 후 저장했을 경우 생성되는 모델이다. 유저가 일정을 생성요청 하면 생기는 QueryParams와 1:1 관계를 갖는다. QueryParams가 null이 아닌값을 savedSchedule로 가지면 이는 유저가 해당 일정을 '저장'했다는 뜻이다.
@@ -502,4 +505,21 @@ model RModelBetweenTravelType {
 
   @@id([fromId, toId])
   @@unique([fromId, toId])
+}
+
+/// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델
+model ScheduleCluster {
+  id                      Int         @id @default(autoincrement())
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @default(now())
+  lat                     Float
+  lng                     Float
+  transitionNo            Int /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
+  stayPeriod              Int /// 검색한 숙소에서 며칠을 머무를지
+  checkin                 DateTime /// 검색한 숙소에 체크인할 날짜
+  checkout                DateTime /// 검색한 숙소에 체크아웃할 날짜
+  numOfVisitSpotInCluster Int /// 해당 클러스터에서 체류 기간중 방문해야할 여행지 수
+  ratio                   Float /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
+  queryParams             QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  queryParamsId           Int
 }

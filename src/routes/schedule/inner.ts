@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
-// import { EventEmitter } from 'events';
+import { EventEmitter } from 'events';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import {
   isNumber,
@@ -76,9 +76,10 @@ import {
   ContextMakeSchedule,
   GeoFormat,
   IValidCentResources,
+  GetHotelListRETParamPayload,
+  GetHotelListREQParam,
 } from './types/schduleTypes';
 
-// const HotelQueryEventEmitter = new EventEmitter();
 /**
  * inner utils
  *  */
@@ -160,6 +161,118 @@ export const arrTravelTypeToObj = (
     {},
   );
   return travelType;
+};
+
+export const getChildNumber = (familyOpt: string[]): number =>
+  familyOpt.find(v => v.toUpperCase().includes('CHILD')) ? 1 : 0;
+export const getInfantNumber = (familyOpt: string[]): number =>
+  familyOpt.find(v => v.toUpperCase().includes('INFANT')) ? 1 : 0;
+export const getAdultNumber = ({
+  companion,
+  familyOpt,
+  maxFriend,
+}: {
+  companion: string;
+  familyOpt: string[];
+  maxFriend: string;
+}): number => {
+  if (companion) {
+    const withPeople = companion.toUpperCase();
+    switch (withPeople) {
+      case 'ALONE':
+        return 1;
+      case 'FAMILY': {
+        const parent = 2;
+        const teenager = familyOpt.find(v =>
+          v.toUpperCase().includes('TEENAGER'),
+        )
+          ? 1
+          : 0;
+        return parent + teenager;
+      }
+      case 'FRIEND': {
+        const me = 1;
+        return me + Number(maxFriend);
+      }
+      case 'NOTYET':
+      default:
+        return 2;
+    }
+  }
+  return 2;
+};
+export const getRoomNumber = ({
+  companion,
+  familyOpt,
+  maxFriend,
+}: {
+  companion: string;
+  familyOpt: string[];
+  maxFriend: string;
+}): number => {
+  const withPeople = companion.toUpperCase();
+  switch (withPeople) {
+    case 'FAMILY': {
+      const parent = 1;
+      const teenager = familyOpt.find(v => v.toUpperCase().includes('TEENAGER'))
+        ? 1
+        : 0;
+      return parent + teenager;
+    }
+    case 'FRIEND': {
+      if (!isEmpty(maxFriend)) return Math.ceil(Number(maxFriend) / 2);
+      return 1;
+    }
+    case 'ALONE':
+    case 'NOTYET':
+    default:
+      return 1;
+  }
+};
+
+export const getBKCHotelSrchOpts = ({
+  companion,
+  familyOpt,
+  maxFriend,
+  period,
+}: {
+  companion: string;
+  familyOpt: string[];
+  maxFriend: string;
+  period: string;
+}): {
+  childrenNumber: number;
+  childrenAges: number[];
+  adultsNumber: number;
+  roomNumber: number;
+  startDate: string;
+  endDate: string;
+} => {
+  const child = getChildNumber(familyOpt);
+  const infant = getInfantNumber(familyOpt);
+  const childrenNumber = child + infant;
+
+  const childrenAges = childInfantToChildrenAges({
+    child: Number(child),
+    infant: Number(infant),
+  });
+
+  /// teenager는 성인 1로 친다.
+  /// default 2
+  const adultsNumber = getAdultNumber({ companion, familyOpt, maxFriend });
+  const roomNumber = getRoomNumber({ companion, familyOpt, maxFriend });
+
+  const startDate = getNDaysLater(90);
+  const endDate = getNDaysLater(90 + Number(period));
+
+  return {
+    childrenNumber,
+    childrenAges,
+    adultsNumber,
+    roomNumber,
+    startDate,
+    endDate,
+  };
 };
 
 /**
@@ -472,7 +585,7 @@ export const getHotelDataFromBKC = async (
     return retValue;
   })();
 
-  return { hotelSearchResult, hotelSearchCount: hotelSearchResult.length };
+  return { hotelSearchCount: hotelSearchResult.length, hotelSearchResult };
 };
 
 /**
@@ -2068,74 +2181,17 @@ export const makeSchedule = async (
   ctx.spotClusterRes = makeCluster(ctx, 'spot');
   ctx.foodClusterRes = makeCluster(ctx, 'food');
 
+  const {
+    childrenNumber,
+    childrenAges,
+    adultsNumber,
+    roomNumber,
+    startDate,
+    endDate,
+  } = getBKCHotelSrchOpts({ companion, familyOpt, maxFriend, period });
+
   /// hotel search part
   (() => {
-    const child = familyOpt.find(v => v.toUpperCase().includes('CHILD'))
-      ? 1
-      : 0;
-    const infant = familyOpt.find(v => v.toUpperCase().includes('INFANT'))
-      ? 1
-      : 0;
-    const childrenNumber = child + infant;
-
-    const childrenAges = childInfantToChildrenAges({
-      child: Number(child),
-      infant: Number(infant),
-    });
-
-    /// teenager는 성인 1로 친다.
-    /// default 2
-    const adultsNumber = (() => {
-      if (companion) {
-        const withPeople = companion.toUpperCase();
-        switch (withPeople) {
-          case 'ALONE':
-            return 1;
-          case 'FAMILY': {
-            const parent = 2;
-            const teenager = familyOpt.find(v =>
-              v.toUpperCase().includes('TEENAGER'),
-            )
-              ? 1
-              : 0;
-            return parent + teenager;
-          }
-          case 'FRIEND': {
-            const me = 1;
-            return me + Number(maxFriend);
-          }
-          case 'NOTYET':
-          default:
-            return 2;
-        }
-      }
-      return 2;
-    })();
-    const roomNumber = (() => {
-      const withPeople = companion.toUpperCase();
-      switch (withPeople) {
-        case 'FAMILY': {
-          const parent = 1;
-          const teenager = familyOpt.find(v =>
-            v.toUpperCase().includes('TEENAGER'),
-          )
-            ? 1
-            : 0;
-          return parent + teenager;
-        }
-        case 'FRIEND': {
-          if (!isEmpty(maxFriend)) return Math.ceil(Number(maxFriend) / 2);
-          return 1;
-        }
-        case 'ALONE':
-        case 'NOTYET':
-        default:
-          return 1;
-      }
-    })();
-
-    const startDate = getNDaysLater(90);
-    const endDate = getNDaysLater(90 + Number(period));
     let validSpotCentroids = // validSpotCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validSpotCentroids 의 위치를 바탕으로 숙소를 검색한다.
       ctx.spotClusterRes?.nonDupCentroids
         // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
@@ -2661,7 +2717,7 @@ export const makeSchedule = async (
     // const hotelData = await queryPromises;
 
     ctx.spotClusterRes!.validCentNSpots = tempValidCents.map(v => {
-      /// 호텔 검색결과와 검색 메타데이터를 합쳐서 ctx에 저장한다.
+      /// 호텔 검색결과와 클러스터 방문 순서를 정렬한 결과의 검색 메타데이터를 합쳐서 ctx에 저장한다.
 
       return {
         ...v,
@@ -2846,8 +2902,10 @@ export const makeSchedule = async (
       minFriend: Number(minFriend),
       maxFriend: Number(maxFriend),
       travelType: travelType.toString(),
-      destination,
+      period: Number(period),
+      adult: Number(adultsNumber),
       travelHard: Number(travelHard),
+      destination,
       tourPlace: {
         connect: [
           // ...(() => {
@@ -2919,6 +2977,20 @@ export const makeSchedule = async (
             )
             .toString(),
         },
+      },
+      scheduleCluster: {
+        create: ctx.spotClusterRes?.validCentNSpots.map(v => {
+          return {
+            lat: v.centroidNHotel.cent?.lat!,
+            lng: v.centroidNHotel.cent?.lng!,
+            transitionNo: v.centroidNHotel.transitionNo!,
+            stayPeriod: v.centroidNHotel.stayPeriod!,
+            checkin: v.centroidNHotel.checkin!,
+            checkout: v.centroidNHotel.checkout!,
+            numOfVisitSpotInCluster: v.centroidNHotel.numOfVisitSpotInCluster!,
+            ratio: v.centroidNHotel.ratio!,
+          };
+        }),
       },
     },
     include: {
@@ -3992,4 +4064,130 @@ export const modifySchedule = async (
   });
 
   return updateRes;
+};
+
+/**
+ * makeSchedule로 인한 클러스터 형성 후
+ * 관련 호텔 데이터를 반환하는 api
+ */
+export const getHotelList = async (
+  param: GetHotelListREQParam,
+): Promise<GetHotelListRETParamPayload[]> => {
+  const { queryParamsId } = param;
+
+  const queryParams = await prisma.queryParams.findUnique({
+    where: {
+      id: Number(queryParamsId),
+    },
+    include: {
+      scheduleCluster: true,
+    },
+  });
+
+  if (isEmpty(queryParams))
+    throw new IBError({
+      type: 'NOTMATCHEDDATA',
+      message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
+    });
+
+  const {
+    adult,
+    maxFriend,
+    companion,
+    familyOpt,
+    period,
+    // roomNumber,
+    startDate,
+    endDate,
+    scheduleCluster,
+  } = queryParams;
+
+  const { childrenNumber, childrenAges, roomNumber } = getBKCHotelSrchOpts({
+    companion: companion!,
+    familyOpt: familyOpt!.split(','),
+    maxFriend: maxFriend!.toString(),
+    period: period!.toString(),
+  });
+
+  const withHMetaData = scheduleCluster.map(cluster => {
+    const hotelSrchOpt = {
+      orderBy: 'distance',
+      adultsNumber: adult!,
+      roomNumber,
+      checkinDate: moment(startDate).toISOString(),
+      checkoutDate: moment(endDate).toISOString(),
+      filterByCurrency: 'KRW',
+      latitude: cluster.lat.toString(),
+      longitude: cluster.lng.toString(),
+      pageNumber: 0,
+      includeAdjacency: false,
+      childrenAges,
+      childrenNumber,
+      categoriesFilterIds: ['property_type::204'],
+      // randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
+    } as BKCSrchByCoordReqOpt;
+    return {
+      ...cluster,
+      hotelSrchOpt,
+    };
+  });
+
+  const HotelQueryEventEmitter = new EventEmitter();
+  const queryPromises = new Promise<GetHotelListRETParamPayload[]>(resolve => {
+    const hotelResult = Array<GetHotelListRETParamPayload>();
+
+    HotelQueryEventEmitter.on(
+      `doQuery`,
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      async (hQParam: {
+        index: number;
+        hQMetaData: IHotelInMakeSchedule[];
+        prevStartTime: number;
+      }) => {
+        const { index, hQMetaData, prevStartTime } = hQParam;
+
+        hotelResult.push({
+          checkin: hQMetaData[index].checkin,
+          checkout: hQMetaData[index].checkout,
+          transitionNo: hQMetaData[index].transitionNo,
+          stayPeriod: hQMetaData[index].stayPeriod,
+          hotels: await getHotelDataFromBKC({
+            ...hQMetaData[index].hotelSrchOpt,
+            checkinDate: hQMetaData[index].checkin,
+            checkoutDate: hQMetaData[index].checkout,
+            store: true,
+          }),
+        });
+
+        const startTime = moment(prevStartTime);
+        const endTime = new Date();
+        console.log(
+          `[${index}]: ${moment(endTime).diff(startTime, 'millisecond')}ms`,
+        );
+
+        if (index + 1 < hQMetaData.length) {
+          const timeId = setTimeout(() => {
+            HotelQueryEventEmitter.emit('doQuery', {
+              index: index + 1,
+              hQMetaData,
+              prevStartTime: endTime,
+            });
+            clearTimeout(timeId);
+          }, 0);
+        } else {
+          resolve(hotelResult);
+        }
+      },
+    );
+
+    HotelQueryEventEmitter.emit('doQuery', {
+      index: 0,
+      hQMetaData: withHMetaData,
+      prevStartTime: new Date(),
+    });
+  });
+
+  const hotelData = await queryPromises;
+
+  return hotelData;
 };
