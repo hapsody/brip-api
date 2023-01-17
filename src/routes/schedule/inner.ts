@@ -3,7 +3,7 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
-import { EventEmitter } from 'events';
+// import { EventEmitter } from 'events';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import {
   isNumber,
@@ -4072,8 +4072,8 @@ export const modifySchedule = async (
  */
 export const getHotelList = async (
   param: GetHotelListREQParam,
-): Promise<GetHotelListRETParamPayload[]> => {
-  const { queryParamsId } = param;
+): Promise<GetHotelListRETParamPayload> => {
+  const { queryParamsId, transitionNo } = param;
 
   const queryParams = await prisma.queryParams.findUnique({
     where: {
@@ -4132,65 +4132,78 @@ export const getHotelList = async (
     };
   });
 
-  const HotelQueryEventEmitter = new EventEmitter();
-  const queryPromises = new Promise<GetHotelListRETParamPayload[]>(resolve => {
-    const hotelResult = Array<GetHotelListRETParamPayload>();
+  // const HotelQueryEventEmitter = new EventEmitter();
+  // const queryPromises = new Promise<GetHotelListRETParamPayload[]>(resolve => {
+  //   const hotelResult = Array<GetHotelListRETParamPayload>();
 
-    HotelQueryEventEmitter.on(
-      `doQuery`,
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      async (hQParam: {
-        index: number;
-        hQMetaData: IHotelInMakeSchedule[];
-        prevStartTime: number;
-      }) => {
-        const { index, hQMetaData, prevStartTime } = hQParam;
+  //   HotelQueryEventEmitter.on(
+  //     `doQuery`,
+  //     // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  //     async (hQParam: {
+  //       index: number;
+  //       hQMetaData: IHotelInMakeSchedule[];
+  //       prevStartTime: number;
+  //     }) => {
+  //       const { index, hQMetaData, prevStartTime } = hQParam;
 
-        hotelResult.push({
-          checkin: hQMetaData[index].checkin,
-          checkout: hQMetaData[index].checkout,
-          transitionNo: hQMetaData[index].transitionNo,
-          stayPeriod: hQMetaData[index].stayPeriod,
-          hotels: await getHotelDataFromBKC({
-            ...hQMetaData[index].hotelSrchOpt,
-            checkinDate: hQMetaData[index].checkin,
-            checkoutDate: hQMetaData[index].checkout,
-            store: true,
-          }),
-        });
+  //       hotelResult.push({
+  //         checkin: hQMetaData[index].checkin,
+  //         checkout: hQMetaData[index].checkout,
+  //         transitionNo: hQMetaData[index].transitionNo,
+  //         stayPeriod: hQMetaData[index].stayPeriod,
+  //         hotels: await getHotelDataFromBKC({
+  //           ...hQMetaData[index].hotelSrchOpt,
+  //           checkinDate: hQMetaData[index].checkin,
+  //           checkoutDate: hQMetaData[index].checkout,
+  //           store: true,
+  //         }),
+  //       });
 
-        const startTime = moment(prevStartTime);
-        const endTime = new Date();
-        console.log(
-          `hotelQuery [${index}]: ${moment(endTime).diff(
-            startTime,
-            'millisecond',
-          )}ms`,
-        );
+  //       const startTime = moment(prevStartTime);
+  //       const endTime = new Date();
+  //       console.log(
+  //         `hotelQuery [${index}]: ${moment(endTime).diff(
+  //           startTime,
+  //           'millisecond',
+  //         )}ms`,
+  //       );
 
-        if (index + 1 < hQMetaData.length) {
-          const timeId = setTimeout(() => {
-            HotelQueryEventEmitter.emit('doQuery', {
-              index: index + 1,
-              hQMetaData,
-              prevStartTime: endTime,
-            });
-            clearTimeout(timeId);
-          }, 0);
-        } else {
-          resolve(hotelResult);
-        }
-      },
-    );
+  //       if (index + 1 < hQMetaData.length) {
+  //         const timeId = setTimeout(() => {
+  //           HotelQueryEventEmitter.emit('doQuery', {
+  //             index: index + 1,
+  //             hQMetaData,
+  //             prevStartTime: endTime,
+  //           });
+  //           clearTimeout(timeId);
+  //         }, 0);
+  //       } else {
+  //         resolve(hotelResult);
+  //       }
+  //     },
+  //   );
 
-    HotelQueryEventEmitter.emit('doQuery', {
-      index: 0,
-      hQMetaData: withHMetaData,
-      prevStartTime: new Date(),
-    });
-  });
+  //   HotelQueryEventEmitter.emit('doQuery', {
+  //     index: 0,
+  //     hQMetaData: withHMetaData,
+  //     prevStartTime: new Date(),
+  //   });
+  // });
 
-  const hotelData = await queryPromises;
+  // const hotelData = await queryPromises;
+  // return hotelData
+  const tNo = Number(transitionNo);
 
-  return hotelData;
+  return {
+    checkin: moment(withHMetaData[tNo].checkin).toISOString(),
+    checkout: moment(withHMetaData[tNo].checkout).toISOString(),
+    transitionNo: withHMetaData[tNo].transitionNo,
+    stayPeriod: withHMetaData[tNo].stayPeriod,
+    hotels: await getHotelDataFromBKC({
+      ...withHMetaData[tNo].hotelSrchOpt,
+      checkinDate: moment(withHMetaData[tNo].checkin).toISOString(),
+      checkoutDate: moment(withHMetaData[tNo].checkout).toISOString(),
+      store: true,
+    }),
+  };
 };

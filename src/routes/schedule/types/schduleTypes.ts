@@ -904,6 +904,7 @@ export interface MakeClusterRETParam {
  */
 export interface GetHotelListREQParam {
   queryParamsId: string;
+  transitionNo: string;
 }
 export type GetHotelListRETParamPayload = {
   transitionNo: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지

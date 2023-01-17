@@ -29,6 +29,8 @@ import {
   MakeScheduleREQParam,
   MakeScheduleRETParam,
   ContextMakeSchedule,
+  GetHotelListREQParam,
+  GetHotelListRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -696,8 +698,8 @@ export const modifyScheduleWrapper = asyncWrapper(
  */
 export const getHotelListWrapper = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetScheduleREQParam>,
-    res: Express.IBTypedResponse<GetScheduleRETParam>,
+    req: Express.IBTypedReqBody<GetHotelListREQParam>,
+    res: Express.IBTypedResponse<GetHotelListRETParam>,
   ) => {
     try {
       // const watchStart = moment();
