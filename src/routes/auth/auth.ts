@@ -16,6 +16,7 @@ import passport from 'passport';
 import { User } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
+import moment from 'moment';
 
 const authRouter: express.Application = express();
 
@@ -451,7 +452,7 @@ export type SendSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * 인증번호 발송
+ * 문자 인증번호 발송
  *
  */
 export const sendSMSAuthCode = asyncWrapper(
@@ -599,6 +600,101 @@ export const sendSMSAuthCode = asyncWrapper(
   },
 );
 
+export type SubmitSMSAuthCodeREQParam = {
+  phone: string;
+  authCode: string;
+};
+export interface SubmitSMSAuthCodeRETParamPayload {}
+
+export type SubmitSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SubmitSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 문자 인증번호 제출
+ *
+ */
+export const submitSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubmitSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SubmitSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { phone, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      // await prisma.sMSAuthCode.deleteMany({
+      //   where: {
+      //     OR: [{ phone }, { userTokenId }],
+      //   },
+      // });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
     testParam: string;
@@ -647,5 +743,6 @@ authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 authRouter.post('/refreshAccessToken', refreshAccessToken);
 authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
+authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
 
 export default authRouter;

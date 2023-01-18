@@ -7,9 +7,5 @@ CREATE TABLE `SMSAuthCode` (
     `phone` VARCHAR(191) NOT NULL,
     `userTokenId` VARCHAR(191) NOT NULL,
 
-    UNIQUE INDEX `SMSAuthCode_userTokenId_key`(`userTokenId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- AddForeignKey
-ALTER TABLE `SMSAuthCode` ADD CONSTRAINT `SMSAuthCode_userTokenId_fkey` FOREIGN KEY (`userTokenId`) REFERENCES `User`(`userTokenId`) ON DELETE RESTRICT ON UPDATE CASCADE;
