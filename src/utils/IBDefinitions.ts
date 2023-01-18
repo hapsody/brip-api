@@ -63,7 +63,6 @@ export interface IBResFormats {
   TOKENNOTEXPIRED: IBResFormat; // 401
   NOTREFRESHTOKEN: IBResFormat; // 401
   NOTAUTHORIZED: IBResFormat; // 403
-  INVALIDTOKEN: IBResFormat; // 401
   KAKAOTOKENERROR: IBResFormat; // 401
   DBTRANSACTIONERROR: IBResFormat; // 500
   NOTEXISTDATA: IBResFormat; // 202, 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
@@ -117,12 +116,6 @@ export const ibDefs: IBResFormats = {
   NOTAUTHORIZED: {
     IBcode: '1005',
     IBmessage: '해당 계정으로 접근할수 없는 권한의 기능입니다.',
-    IBdetail: '',
-    IBparams: {},
-  },
-  INVALIDTOKEN: {
-    IBcode: '1006',
-    IBmessage: '토큰 payload의 정보가 유효하지 않습니다.',
     IBdetail: '',
     IBparams: {},
   },

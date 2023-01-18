@@ -1,32 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 // import { PrismaClient } from '@prisma/client';
 import passport from 'passport';
-import prisma from '@src/prisma';
 import { NextFunction } from 'express';
 import { ibDefs, IBResFormat, GuardRes } from '../IBDefinitions';
 
 // const prisma = new PrismaClient();
-
-let nonMemberUserCount = 0;
-(() => {
-  prisma.nonMembersCount
-    .findMany({
-      take: 1,
-      orderBy: { id: 'desc' },
-    })
-    .then(res => {
-      nonMemberUserCount = res[0].id;
-    })
-    .catch(err => {
-      const isError = (obj: unknown): obj is Error => {
-        return typeof obj === 'object' && 'name' in obj! && 'message' in obj;
-      };
-
-      if (isError(err)) {
-        console.log(err);
-      }
-    });
-})();
 
 const accessTokenValidCheck = (
   req: Express.IBAuthGuardRequest,
@@ -96,12 +74,6 @@ const accessTokenValidCheck = (
       //   return;
       // }
 
-      if (user && user.tokenId && Number(user.tokenId) > nonMemberUserCount) {
-        res.status(401).json({
-          ...ibDefs.INVALIDTOKEN,
-        });
-        return;
-      }
       req.locals = {
         ...req.locals,
         grade: user.grade,
