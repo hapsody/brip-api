@@ -17,6 +17,7 @@ import { User } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
+import { compare } from 'bcrypt';
 
 const authRouter: express.Application = express();
 
@@ -752,6 +753,137 @@ export const authGuardTest = (
   });
 };
 
+export type ChangePasswordREQParam = {
+  password: string;
+  newPassword: string;
+  authCode: string;
+};
+export interface ChangePasswordRETParamPayload {}
+
+export type ChangePasswordRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangePasswordRETParamPayload | {};
+};
+
+/**
+ * 비밀번호 변경
+ *
+ */
+export const changePassword = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangePasswordREQParam>,
+    res: Express.IBTypedResponse<ChangePasswordRETParam>,
+  ) => {
+    try {
+      const { password, newPassword, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return null;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 userTokenId가 아니거나 정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          userTokenId,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 회원입니다.',
+        });
+      }
+
+      const compareResult: Boolean = await compare(password, user.password);
+      if (!compareResult) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: '기존 password가 일치하지 않습니다.',
+        });
+      }
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: user.phone,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      const hash = genBcryptHash(newPassword);
+
+      await prisma.$transaction(async tx => {
+        await tx.user.update({
+          where: {
+            userTokenId,
+          },
+          data: {
+            password: hash,
+          },
+        });
+
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone: user.phone }, { userTokenId }],
+          },
+        });
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -779,5 +911,6 @@ authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 authRouter.post('/refreshAccessToken', refreshAccessToken);
 authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
+authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 
 export default authRouter;
