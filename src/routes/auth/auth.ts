@@ -14,6 +14,8 @@ import _, { isEmpty, isEqual } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User } from '@prisma/client';
+import axios, { Method } from 'axios';
+import CryptoJS from 'crypto-js';
 
 const authRouter: express.Application = express();
 
@@ -439,6 +441,151 @@ export const refreshAccessToken = asyncWrapper(
   },
 );
 
+export type SendSMSAuthCodeREQParam = {
+  userId: string;
+  refreshToken: string;
+};
+export interface SendSMSAuthCodeRETParamPayload {
+  token: string;
+  userId: number;
+  email: string;
+  nickName: string;
+}
+
+export type SendSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SendSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 인증번호 발송
+ *
+ */
+export const sendSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SendSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SendSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const timestamp = `${new Date().getTime().toString()}`; // current timestamp (epoch)
+      const makeSignature = () => {
+        const space = ' '; // one space
+        const newLine = '\n'; // new line
+        const method = 'POST'; // method
+        const url = `/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`; // url (include query string)
+        // const timestamp = `${new Date().getTime()}`; // current timestamp (epoch)
+        const accessKey = `${process.env.NAVER_PLATFORM_ACCESS_KEY as string}`; // access key id (from portal or Sub Account)
+        const secretKey = `${process.env.NAVER_PLATFORM_SECRET_KEY as string}`; // secret key (from portal or Sub Account)
+
+        const hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, secretKey);
+        hmac.update(method);
+        hmac.update(space);
+        hmac.update(url);
+        hmac.update(newLine);
+        hmac.update(timestamp);
+        hmac.update(newLine);
+        hmac.update(accessKey);
+        const hash = hmac.finalize();
+        const signature = hash.toString(CryptoJS.enc.Base64);
+        return signature;
+      };
+
+      const signature = makeSignature();
+      const smsResult: Partial<{
+        name: string;
+        config: {
+          data: string;
+          headers: object;
+        };
+        status: number;
+        statusText: string;
+        data: {
+          requestId: string;
+          requestTime: string;
+          statusCode: string;
+          statusName: string;
+        };
+      }> = await axios.request({
+        method: 'POST' as Method,
+        url: `https://sens.apigw.ntruss.com/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`,
+
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ncp-iam-access-key': `${
+            process.env.NAVER_PLATFORM_ACCESS_KEY as string
+          }`,
+          'x-ncp-apigw-signature-v2': signature,
+          'x-ncp-apigw-timestamp': timestamp,
+        },
+        data: {
+          type: 'SMS',
+          contentType: 'COMM',
+          countryCode: '82',
+          from: `${process.env.NAVER_SENS_CALLING_NUMBER as string}`,
+          content: '테스트입니다.',
+          messages: [
+            {
+              to: '01020595137',
+              subject: '테스트제목',
+              content: '테스트 컨텐츠',
+            },
+          ],
+        },
+      });
+
+      const { status, statusText } = smsResult;
+      if (status !== 202 || statusText !== 'Accepted') {
+        throw new IBError({
+          type: 'EXTERNALAPI',
+          message: `SMS API 호출 에러`,
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
     testParam: string;
@@ -486,5 +633,6 @@ authRouter.post('/signUp', accessTokenValidCheck, signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 authRouter.post('/refreshAccessToken', refreshAccessToken);
+authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 
 export default authRouter;
