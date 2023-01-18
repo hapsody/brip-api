@@ -442,15 +442,9 @@ export const refreshAccessToken = asyncWrapper(
 );
 
 export type SendSMSAuthCodeREQParam = {
-  userId: string;
-  refreshToken: string;
+  phone: string;
 };
-export interface SendSMSAuthCodeRETParamPayload {
-  token: string;
-  userId: number;
-  email: string;
-  nickName: string;
-}
+export interface SendSMSAuthCodeRETParamPayload {}
 
 export type SendSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: SendSMSAuthCodeRETParamPayload | {};
@@ -466,6 +460,7 @@ export const sendSMSAuthCode = asyncWrapper(
     res: Express.IBTypedResponse<SendSMSAuthCodeRETParam>,
   ) => {
     try {
+      const { phone } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
@@ -480,6 +475,16 @@ export const sendSMSAuthCode = asyncWrapper(
         });
       }
 
+      const randNum = Math.random().toString().substring(2, 8);
+      const authCode =
+        randNum.length < 6
+          ? `${randNum}${Array<number>(6 - randNum.length)
+              .fill(0)
+              .reduce(
+                (acc: string, cur: number) => `${acc}${cur.toString()}`,
+                '' as string,
+              )}`
+          : randNum;
       const timestamp = `${new Date().getTime().toString()}`; // current timestamp (epoch)
       const makeSignature = () => {
         const space = ' '; // one space
@@ -539,12 +544,12 @@ export const sendSMSAuthCode = asyncWrapper(
           contentType: 'COMM',
           countryCode: '82',
           from: `${process.env.NAVER_SENS_CALLING_NUMBER as string}`,
-          content: '테스트입니다.',
+          content: `brip SMS 문자인증 코드: ${authCode}`,
           messages: [
             {
-              to: '01020595137',
-              subject: '테스트제목',
-              content: '테스트 컨텐츠',
+              to: phone,
+              subject: 'brip SMS 문자인증 코드',
+              content: `brip SMS 문자인증 코드: ${authCode}`,
             },
           ],
         },
@@ -557,6 +562,14 @@ export const sendSMSAuthCode = asyncWrapper(
           message: `SMS API 호출 에러`,
         });
       }
+
+      await prisma.sMSAuthCode.create({
+        data: {
+          phone,
+          code: authCode,
+          userTokenId,
+        },
+      });
 
       res.json({
         ...ibDefs.SUCCESS,

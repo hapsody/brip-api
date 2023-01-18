@@ -31,6 +31,7 @@ model User {
   tripCreator            TripCreator[]
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now())
+  SMSAuthCode            SMSAuthCode[]
 }
 
 // enum OPENINGHOURS {
@@ -522,4 +523,15 @@ model ScheduleCluster {
   ratio                   Float /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
   queryParams             QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId           Int
+}
+
+/// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델
+model SMSAuthCode {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  code        String
+  phone       String
+  user        User     @relation(fields: [userTokenId], references: [userTokenId])
+  userTokenId String   @unique
 }
