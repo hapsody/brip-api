@@ -180,6 +180,19 @@ export const signUp = asyncWrapper(
       },
     } = req;
 
+    const userTokenId = (() => {
+      if (locals && locals?.grade === 'member')
+        return locals?.user?.userTokenId;
+      return locals?.tokenId;
+    })();
+
+    if (!userTokenId) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      });
+    }
+
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
     if (isEmpty(password)) emptyCheckArr.push('password');
@@ -213,17 +226,45 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    const createdUser = await prisma.user.create({
-      data: {
-        email,
-        password: hash,
-        phone,
-        nickName,
-        countryCode,
-        userTokenId: locals?.tokenId?.toString() ?? 'error',
-      },
+    const userWithoutPw = await prisma.$transaction(async tx => {
+      const smsAuthCode = await tx.sMSAuthCode.findMany({
+        where: {
+          phone,
+          code: phoneAuthCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      await tx.sMSAuthCode.deleteMany({
+        where: {
+          OR: [{ phone }, { userTokenId }],
+        },
+      });
+
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          password: hash,
+          phone,
+          nickName,
+          countryCode,
+          userTokenId: locals?.tokenId?.toString() ?? 'error',
+        },
+      });
+      const user = _.omit(createdUser, ['password']);
+      return user;
     });
-    const userWithoutPw = _.omit(createdUser, ['password']);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -660,12 +701,6 @@ export const submitSMSAuthCode = asyncWrapper(
           message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
         });
       }
-
-      // await prisma.sMSAuthCode.deleteMany({
-      //   where: {
-      //     OR: [{ phone }, { userTokenId }],
-      //   },
-      // });
 
       res.json({
         ...ibDefs.SUCCESS,
