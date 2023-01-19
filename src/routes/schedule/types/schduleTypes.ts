@@ -414,6 +414,11 @@ export interface IVisitOneSchedule {
   stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
   checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
   checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  cent?:
+    | GeoFormat & {
+        idx: number;
+        numOfPointLessThanR: number;
+      };
   data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
 }
 
@@ -542,6 +547,7 @@ export interface IHotelInMakeSchedule {
   numOfVisitSpotInCluster: number; /// 해당 클러스터에서 체류 기간중 방문해야할 여행지 수
   ratio: number; /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
   hotels: GetHotelDataFromBKCRETParamPayload; /// 해당 클러스터에서 검색된 후보 숙소들
+  hotelSrchOpt: BKCSrchByCoordReqOpt;
 }
 export interface IVisitDaySchedule {
   planType: PlanType;
@@ -892,3 +898,45 @@ export interface MakeClusterRETParam {
   validCentNSpots?: IValidCentResources[]; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값을 기반으로 여행 일정이 짜여진다.
   validCentNFoods?: IValidCentResources[];
 }
+
+/**
+ * getHotelList
+ */
+export interface GetHotelListREQParam {
+  queryParamsId: string;
+  transitionNo: string;
+}
+export type GetHotelListRETParamPayload = {
+  transitionNo: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+  stayPeriod: number; // 호텔일경우 해당 호텔에 머무르는 일 수
+  checkin: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
+  checkout: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  hotels: GetHotelDataFromBKCRETParamPayload;
+};
+export type GetHotelListRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetHotelListRETParamPayload[] | {};
+};
+
+/**
+ * getScheduleLoadingImg
+ */
+export interface GetScheduleLoadingImgREQParam {}
+export interface GetScheduleLoadingImgRETParamPayload {
+  cardImgs: string[];
+}
+
+export type GetScheduleLoadingImgRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleLoadingImgRETParamPayload | {};
+};
+
+/**
+ * getMyScheduleCount
+ */
+export interface GetScheduleCountREQParam {}
+export interface GetScheduleCountRETParamPayload {
+  count: number;
+}
+
+export type GetScheduleCountRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetScheduleCountRETParamPayload | {};
+};

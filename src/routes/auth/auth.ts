@@ -14,6 +14,10 @@ import _, { isEmpty, isEqual } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User } from '@prisma/client';
+import axios, { Method } from 'axios';
+import CryptoJS from 'crypto-js';
+import moment from 'moment';
+import { compare } from 'bcrypt';
 
 const authRouter: express.Application = express();
 
@@ -177,6 +181,19 @@ export const signUp = asyncWrapper(
       },
     } = req;
 
+    const userTokenId = (() => {
+      if (locals && locals?.grade === 'member')
+        return locals?.user?.userTokenId;
+      return locals?.tokenId;
+    })();
+
+    if (!userTokenId) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      });
+    }
+
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
     if (isEmpty(password)) emptyCheckArr.push('password');
@@ -210,17 +227,45 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    const createdUser = await prisma.user.create({
-      data: {
-        email,
-        password: hash,
-        phone,
-        nickName,
-        countryCode,
-        userTokenId: locals?.tokenId?.toString() ?? 'error',
-      },
+    const userWithoutPw = await prisma.$transaction(async tx => {
+      const smsAuthCode = await tx.sMSAuthCode.findMany({
+        where: {
+          phone,
+          code: phoneAuthCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      await tx.sMSAuthCode.deleteMany({
+        where: {
+          OR: [{ phone }, { userTokenId }],
+        },
+      });
+
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          password: hash,
+          phone,
+          nickName,
+          countryCode,
+          userTokenId: locals?.tokenId?.toString() ?? 'error',
+        },
+      });
+      const user = _.omit(createdUser, ['password']);
+      return user;
     });
-    const userWithoutPw = _.omit(createdUser, ['password']);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -439,6 +484,253 @@ export const refreshAccessToken = asyncWrapper(
   },
 );
 
+export type SendSMSAuthCodeREQParam = {
+  phone: string;
+};
+export interface SendSMSAuthCodeRETParamPayload {}
+
+export type SendSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SendSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 문자 인증번호 발송
+ *
+ */
+export const sendSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SendSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SendSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { phone } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const randNum = Math.random().toString().substring(2, 8);
+      const authCode =
+        randNum.length < 6
+          ? `${randNum}${Array<number>(6 - randNum.length)
+              .fill(0)
+              .reduce(
+                (acc: string, cur: number) => `${acc}${cur.toString()}`,
+                '' as string,
+              )}`
+          : randNum;
+      const timestamp = `${new Date().getTime().toString()}`; // current timestamp (epoch)
+      const makeSignature = () => {
+        const space = ' '; // one space
+        const newLine = '\n'; // new line
+        const method = 'POST'; // method
+        const url = `/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`; // url (include query string)
+        // const timestamp = `${new Date().getTime()}`; // current timestamp (epoch)
+        const accessKey = `${process.env.NAVER_PLATFORM_ACCESS_KEY as string}`; // access key id (from portal or Sub Account)
+        const secretKey = `${process.env.NAVER_PLATFORM_SECRET_KEY as string}`; // secret key (from portal or Sub Account)
+
+        const hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, secretKey);
+        hmac.update(method);
+        hmac.update(space);
+        hmac.update(url);
+        hmac.update(newLine);
+        hmac.update(timestamp);
+        hmac.update(newLine);
+        hmac.update(accessKey);
+        const hash = hmac.finalize();
+        const signature = hash.toString(CryptoJS.enc.Base64);
+        return signature;
+      };
+
+      const signature = makeSignature();
+      const smsResult: Partial<{
+        name: string;
+        config: {
+          data: string;
+          headers: object;
+        };
+        status: number;
+        statusText: string;
+        data: {
+          requestId: string;
+          requestTime: string;
+          statusCode: string;
+          statusName: string;
+        };
+      }> = await axios.request({
+        method: 'POST' as Method,
+        url: `https://sens.apigw.ntruss.com/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`,
+
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ncp-iam-access-key': `${
+            process.env.NAVER_PLATFORM_ACCESS_KEY as string
+          }`,
+          'x-ncp-apigw-signature-v2': signature,
+          'x-ncp-apigw-timestamp': timestamp,
+        },
+        data: {
+          type: 'SMS',
+          contentType: 'COMM',
+          countryCode: '82',
+          from: `${process.env.NAVER_SENS_CALLING_NUMBER as string}`,
+          content: `brip SMS 문자인증 코드: ${authCode}`,
+          messages: [
+            {
+              to: phone,
+              subject: 'brip SMS 문자인증 코드',
+              content: `brip SMS 문자인증 코드: ${authCode}`,
+            },
+          ],
+        },
+      });
+
+      const { status, statusText } = smsResult;
+      if (status !== 202 || statusText !== 'Accepted') {
+        throw new IBError({
+          type: 'EXTERNALAPI',
+          message: `SMS API 호출 에러`,
+        });
+      }
+
+      await prisma.sMSAuthCode.create({
+        data: {
+          phone,
+          code: authCode,
+          userTokenId,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type SubmitSMSAuthCodeREQParam = {
+  phone: string;
+  authCode: string;
+};
+export interface SubmitSMSAuthCodeRETParamPayload {}
+
+export type SubmitSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SubmitSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 문자 인증번호 제출
+ *
+ */
+export const submitSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubmitSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SubmitSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { phone, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
     testParam: string;
@@ -460,6 +752,163 @@ export const authGuardTest = (
     },
   });
 };
+
+export type ChangePasswordREQParam = {
+  password: string;
+  newPassword: string;
+  authCode: string;
+};
+export interface ChangePasswordRETParamPayload {}
+
+export type ChangePasswordRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangePasswordRETParamPayload | {};
+};
+
+/**
+ * 비밀번호 변경
+ *
+ */
+export const changePassword = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangePasswordREQParam>,
+    res: Express.IBTypedResponse<ChangePasswordRETParam>,
+  ) => {
+    try {
+      const { password, newPassword, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return null;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 userTokenId가 아니거나 정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          userTokenId,
+        },
+        include: {
+          UserPasswordHistory: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 회원입니다.',
+        });
+      }
+
+      const compareResult: Boolean = await compare(password, user.password);
+      if (!compareResult) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: '기존 password가 일치하지 않습니다.',
+        });
+      }
+
+      const checkHistory = await (async () => {
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const history of user.UserPasswordHistory) {
+          const compareRes = await compare(newPassword, history.password);
+          if (compareRes) return true;
+        }
+        return false;
+      })();
+
+      if (checkHistory) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '사용하였던 password입니다.',
+        });
+      }
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: user.phone,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      const hash = genBcryptHash(newPassword);
+
+      await prisma.$transaction(async tx => {
+        await tx.user.update({
+          where: {
+            userTokenId,
+          },
+          data: {
+            password: hash,
+          },
+        });
+
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone: user.phone }, { userTokenId }],
+          },
+        });
+
+        await tx.userPasswordHistory.create({
+          data: {
+            password: user.password,
+            userId: user.id,
+          },
+        });
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
@@ -486,5 +935,8 @@ authRouter.post('/signUp', accessTokenValidCheck, signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 authRouter.post('/refreshAccessToken', refreshAccessToken);
+authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
+authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
+authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 
 export default authRouter;

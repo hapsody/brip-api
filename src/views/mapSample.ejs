@@ -33,14 +33,14 @@
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
       /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
-      // const clipMinLat = 33.109684; // 제주 지역만 필터링
-      // const clipMaxLat = 33.650946;
-      // const clipMinLng = 126.032175;
-      // const clipMaxLng = 127.048411;
-      const clipMinLat = 37.483403; // 서울 지역만 필터링
-      const clipMaxLat = 37.655385;
-      const clipMinLng = 126.796251;
-      const clipMaxLng = 127.230211;
+      const clipMinLat = 33.109684; // 제주 지역만 필터링
+      const clipMaxLat = 33.650946;
+      const clipMinLng = 126.032175;
+      const clipMaxLng = 127.048411;
+      // const clipMinLat = 37.483403; // 서울 지역만 필터링
+      // const clipMaxLat = 37.655385;
+      // const clipMinLng = 126.796251;
+      // const clipMaxLng = 127.230211;
       let gRDistToPxLength;
       let gPlayMode = {
         /// 직전 load 또는 play 함수 실행할때 어떤 옵션으로 수행했었는가를 기록 이 값에 따라 clickCanvas 실행할때 결과값을 보고 있는 화면의 결과에 맞게 뿌려줌.
@@ -53,7 +53,7 @@
       };
       let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
       let gResetOpt = true;
-      let gResultMode = '<%= type %>'; ///'spot'; ///'spot' or 'food'
+      let gResultMode = '<%= type %>'; ///'spot' or 'food'
 
       const palette = [
         'brown',
@@ -245,13 +245,15 @@
           console.log(`time diff: ${diffTime / 1000}s`);
           gIBparams = result.IBparams;
           gVisitSchedules = gIBparams.visitSchedules;
+          gResultMode = /// default spot
+            !gResultMode || gResultMode.length === 0 ? 'spot' : gResultMode;
           console.log(gResultMode);
-          if (gResultMode === 'spot') {
-            gData = result.IBparams.spotClusterRes;
-            gSpotsGeoLocation = gData.spotsGeoLocation;
-          } else {
+          if (gResultMode === 'food') {
             gData = result.IBparams.foodClusterRes;
             gFoodsGeoLocation = gData.foodsGeoLocation;
+          } else {
+            gData = result.IBparams.spotClusterRes;
+            gSpotsGeoLocation = gData.spotsGeoLocation;
           }
           gFoodClusterRes = result.IBparams.foodClusterRes;
           gSpotClusterRes = result.IBparams.spotClusterRes;
@@ -352,7 +354,7 @@
           const { x } = geoLocToCoord(geo);
           console.log(x);
           radiusCircleSize = x;
-          both();
+          // both();
         },
         error: function (request, status, error) {
           console.log(error);
@@ -421,6 +423,7 @@
       function geoLocToCoord(geo) {
         const { lng, lat } = geo;
 
+        if (lng === undefined || lat === undefined) return { x: -1, y: -1 };
         /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
         const transToCanvasX =
           ((lng - gMinX) * canvasWidth) / gDistributionThickness;
@@ -524,9 +527,15 @@
             lat: spot.vj_latitude,
             lng: spot.vj_longitude,
           };
+        if (spot.bkc_longitude && spot.bkc_latitude) {
+          return {
+            lat: spot.bkc_latitude,
+            lng: spot.bkc_longitude,
+          };
+        }
         return {
-          lat: spot.vj_latitude,
-          lng: spot.vj_longitude,
+          lat: undefined,
+          lng: undefined,
         };
       };
       let prevData;

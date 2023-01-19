@@ -12,6 +12,9 @@ import scheduleRouter, {
   getCandDetailSchdWrapper,
   modifyScheduleWrapper,
   reqScheduleWrapper,
+  getHotelListWrapper,
+  getScheduleLoadingImgWrapper,
+  getScheduleCountWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -69,7 +72,21 @@ scheduleRouter.post(
 );
 
 scheduleRouter.post('/reqSchedule', accessTokenValidCheck, reqScheduleWrapper);
-
+scheduleRouter.post(
+  '/getHotelList',
+  accessTokenValidCheck,
+  getHotelListWrapper,
+);
+scheduleRouter.post(
+  '/getScheduleLoadingImg',
+  accessTokenValidCheck,
+  getScheduleLoadingImgWrapper,
+);
+scheduleRouter.post(
+  '/getScheduleCount',
+  accessTokenValidCheck,
+  getScheduleCountWrapper,
+);
 /**
  * 내부 개발용
  */
