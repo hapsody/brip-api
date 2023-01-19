@@ -80,6 +80,7 @@ import {
   GetHotelListREQParam,
   GetScheduleLoadingImgRETParamPayload,
   GetScheduleCountRETParamPayload,
+  SuperCentroid,
 } from './types/schduleTypes';
 
 /**
@@ -2894,6 +2895,126 @@ export const makeSchedule = async (
       });
   })();
   ctx.visitSchedules = visitSchedules;
+
+  /// super clustering (클러스터링 결과의 상위 그룹화)
+  (() => {
+    const sortedCents = ctx.spotClusterRes!.validCentNSpots.map(
+      v => v.centroidNHotel.cent,
+    );
+
+    const distances = sortedCents.map((c, i) => {
+      if (i === 0) return 0;
+
+      return degreeToMeter(
+        c!.lat,
+        c!.lng,
+        sortedCents[i - 1]!.lat,
+        sortedCents[i - 1]!.lng,
+      );
+    });
+    const totalDistance = distances.reduce((acc, cur) => acc + cur, 0);
+    const avgDistance = totalDistance / (distances.length - 1);
+
+    let accDist = 0;
+    const superClusterMap = distances.reduce<boolean[]>(
+      (acc, dist, i): boolean[] => {
+        if (i === 0) return acc;
+        accDist += dist;
+        if (dist > avgDistance || accDist > avgDistance * 4) {
+          accDist = 0;
+          acc.push(true); /// 클러스터 그룹 변경(=호텔 변경점)
+          return acc;
+        }
+        acc.push(false);
+        return acc;
+      },
+      [true],
+    );
+    // console.log(distances, avgDistance);
+
+    const getMaxDistance = (
+      superCentLat: number,
+      superCentLng: number,
+      startIdx: number,
+      endIdx: number,
+    ) => {
+      let maxDistance = -1;
+      for (let i = startIdx; i < endIdx; i += 1) {
+        const dist = degreeToMeter(
+          superCentLat,
+          superCentLng,
+          sortedCents[i]!.lat,
+          sortedCents[i]!.lng,
+        );
+        if (maxDistance < dist) maxDistance = dist;
+      }
+      return maxDistance;
+    };
+
+    let accCnt = 0;
+    let accLat = 0;
+    let accLng = 0;
+
+    let prevIdx = 0;
+    const superCentroids = superClusterMap.reduce<SuperCentroid[]>(
+      (acc, cur, i) => {
+        if (i > 0 && cur === true) {
+          const avgLat = accLat / accCnt;
+          const avgLng = accLng / accCnt;
+          acc.push({
+            transitionIdx: prevIdx,
+            superCent: {
+              lat: avgLat,
+              lng: avgLng,
+              num: accCnt,
+              // maxDistance: (() => {
+              //   let maxDistance = -1;
+              //   for (let j = prevIdx; j < i; j += 1) {
+              //     const dist = degreeToMeter(
+              //       avgLat,
+              //       avgLng,
+              //       sortedCents[j]!.lat,
+              //       sortedCents[j]!.lng,
+              //     );
+              //     if (maxDistance < dist) maxDistance = dist;
+              //   }
+              //   return maxDistance;
+              // })(),
+              maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
+            },
+          });
+          prevIdx = i;
+
+          accLat = 0;
+          accLng = 0;
+          accCnt = 0;
+        }
+
+        accLat += sortedCents[i]!.lat;
+        accLng += sortedCents[i]!.lng;
+        accCnt += 1;
+
+        if (i === superClusterMap.length - 1) {
+          const avgLat = accLat / accCnt;
+          const avgLng = accLng / accCnt;
+          acc.push({
+            transitionIdx: prevIdx,
+            superCent: {
+              lat: avgLat,
+              lng: avgLng,
+              num: accCnt,
+              maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
+            },
+          });
+        }
+
+        return acc;
+      },
+      [],
+    );
+
+    ctx.spotClusterRes!.superCentroids = superCentroids;
+  })();
 
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.queryParams.create({

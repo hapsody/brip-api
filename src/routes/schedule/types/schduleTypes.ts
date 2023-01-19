@@ -865,6 +865,15 @@ export interface GeoFormat {
   lng: number;
 }
 
+export interface SuperCentroid {
+  transitionIdx: number;
+  superCent: {
+    lat: number;
+    lng: number;
+    num?: number;
+    maxDistance?: number;
+  };
+}
 export interface MakeClusterRETParam {
   r: number;
   maxPhase: number;
@@ -897,6 +906,7 @@ export interface MakeClusterRETParam {
   /// 클러스터링 최종 결과중 중복제외하고 하루 여행방문지수를 미달하는 여행지를 포함하는 군집인 경우를 제외한 유효한 군집 배열.
   validCentNSpots?: IValidCentResources[]; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값을 기반으로 여행 일정이 짜여진다.
   validCentNFoods?: IValidCentResources[];
+  superCentroids?: SuperCentroid[];
 }
 
 /**
