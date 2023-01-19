@@ -31,6 +31,7 @@ model User {
   tripCreator            TripCreator[]
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now())
+  UserPasswordHistory    UserPasswordHistory[]
 }
 
 // enum OPENINGHOURS {
@@ -532,4 +533,13 @@ model SMSAuthCode {
   code        String
   phone       String
   userTokenId String
+}
+
+model UserPasswordHistory {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  password  String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
 }

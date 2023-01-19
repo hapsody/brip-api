@@ -794,6 +794,9 @@ export const changePassword = asyncWrapper(
         where: {
           userTokenId,
         },
+        include: {
+          UserPasswordHistory: true,
+        },
       });
 
       if (!user) {
@@ -808,6 +811,22 @@ export const changePassword = asyncWrapper(
         throw new IBError({
           type: 'NOTMATCHEDDATA',
           message: '기존 password가 일치하지 않습니다.',
+        });
+      }
+
+      const checkHistory = await (async () => {
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const history of user.UserPasswordHistory) {
+          const compareRes = await compare(newPassword, history.password);
+          if (compareRes) return true;
+        }
+        return false;
+      })();
+
+      if (checkHistory) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '사용하였던 password입니다.',
         });
       }
 
@@ -852,6 +871,13 @@ export const changePassword = asyncWrapper(
         await tx.sMSAuthCode.deleteMany({
           where: {
             OR: [{ phone: user.phone }, { userTokenId }],
+          },
+        });
+
+        await tx.userPasswordHistory.create({
+          data: {
+            password: user.password,
+            userId: user.id,
           },
         });
       });
