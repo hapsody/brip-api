@@ -2446,7 +2446,6 @@ export const makeSchedule = async (
     // })();
 
     const hWithoutData = (() => {
-      let prevCheckout = '';
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
 
@@ -2520,25 +2519,11 @@ export const makeSchedule = async (
             return null;
           }
 
-          const curCheckin = isEmpty(prevCheckout)
-            ? moment(startDate).toISOString()
-            : prevCheckout;
-
-          let curCheckout = moment(
-            moment(curCheckin).add(stayPeriod, 'd'),
-          ).toISOString();
-          prevCheckout = curCheckout;
-
-          if (moment(curCheckout).diff(moment(endDate), 'd') > 0)
-            curCheckout = endDate;
-
           transitionNo += 1;
 
           return {
             transitionNo,
-            stayPeriod: moment(curCheckout).diff(curCheckin, 'd'),
-            checkin: curCheckin,
-            checkout: curCheckout,
+            stayPeriod,
             numOfVisitSpotInCluster,
             ratio,
             hotelSrchOpt: hotelSrchOpts[i],
@@ -2611,14 +2596,13 @@ export const makeSchedule = async (
           const clusteredHotel = [...hWithoutData][idx];
 
           if (isUndefined(clusteredHotel)) return null;
+
           return {
             ...v,
             centroidNHotel: {
               ...v.centroidNHotel,
               transitionNo: clusteredHotel.transitionNo,
               stayPeriod: clusteredHotel.stayPeriod,
-              checkin: clusteredHotel.checkin,
-              checkout: clusteredHotel.checkout,
               numOfVisitSpotInCluster: clusteredHotel.numOfVisitSpotInCluster,
               ratio: clusteredHotel.ratio,
               // hotels: clusteredHotel.hotels, //// 이 시점에는 호텔 쿼리가 다끝나지 않아 아래에서 호텔 쿼리 데이터를 따로 비동기 처리하여 합친다.
@@ -2719,13 +2703,30 @@ export const makeSchedule = async (
 
     // const hotelData = await queryPromises;
 
+    let prevCheckout = '';
     ctx.spotClusterRes!.validCentNSpots = tempValidCents.map(v => {
       /// 호텔 검색결과와 클러스터 방문 순서를 정렬한 결과의 검색 메타데이터를 합쳐서 ctx에 저장한다.
+
+      const { stayPeriod } = v.centroidNHotel;
+
+      const curCheckin = isEmpty(prevCheckout)
+        ? moment(startDate).toISOString()
+        : prevCheckout;
+
+      let curCheckout = moment(
+        moment(curCheckin).add(stayPeriod, 'd'),
+      ).toISOString();
+      prevCheckout = curCheckout;
+
+      if (moment(curCheckout).diff(moment(endDate), 'd') > 0)
+        curCheckout = endDate;
 
       return {
         ...v,
         centroidNHotel: {
           ...v.centroidNHotel,
+          checkin: curCheckin,
+          checkout: curCheckout,
           // hotels: hotelData[i],
         },
       };
@@ -2743,7 +2744,6 @@ export const makeSchedule = async (
   const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
 
-    // let visitMeasure = 0; /// spotPerDay를 일마다 더하여 정수부만큼 그날 방문 수로 정하는데 이때 참조하는 누적 측정값
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
     let acc = ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
     let curRestSpot =
