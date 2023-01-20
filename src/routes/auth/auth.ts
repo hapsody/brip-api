@@ -511,6 +511,20 @@ export const sendSMSAuthCode = asyncWrapper(
         return locals?.tokenId;
       })();
 
+      if (isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '파라미터가 제공되지 않았습니다',
+        });
+      }
+
+      if (!phone.includes('+')) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '국제코드가 포함되어야 합니다.',
+        });
+      }
+
       if (!userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
@@ -554,6 +568,13 @@ export const sendSMSAuthCode = asyncWrapper(
       };
 
       const signature = makeSignature();
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
       const smsResult: Partial<{
         name: string;
         config: {
@@ -585,12 +606,12 @@ export const sendSMSAuthCode = asyncWrapper(
         data: {
           type: 'SMS',
           contentType: 'COMM',
-          countryCode: '82',
+          countryCode: interCode,
           from: `${process.env.NAVER_SENS_CALLING_NUMBER as string}`,
           content: `brip SMS 문자인증 코드: ${authCode}`,
           messages: [
             {
-              to: phone,
+              to: formattedPhone,
               subject: 'brip SMS 문자인증 코드',
               content: `brip SMS 문자인증 코드: ${authCode}`,
             },
@@ -677,9 +698,14 @@ export const submitSMSAuthCode = asyncWrapper(
         });
       }
 
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
       const smsAuthCode = await prisma.sMSAuthCode.findMany({
         where: {
-          phone,
+          phone: `+${interCode}-${formattedPhone}`,
           code: authCode,
           userTokenId,
         },
