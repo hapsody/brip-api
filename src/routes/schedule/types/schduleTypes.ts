@@ -923,6 +923,8 @@ export type GetHotelListRETParamPayload = {
   checkin: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
   checkout: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
   hotels: GetHotelDataFromBKCRETParamPayload;
+  lat: number;
+  lng: number;
 };
 export type GetHotelListRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetHotelListRETParamPayload[] | {};

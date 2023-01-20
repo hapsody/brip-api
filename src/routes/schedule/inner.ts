@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import moment from 'moment';
 import prisma from '@src/prisma';
+// import { EventEmitter } from 'events';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
@@ -2703,7 +2704,7 @@ export const makeSchedule = async (
         (acc, dist, i): boolean[] => {
           if (i === 0) return acc;
           accDist += dist;
-          if (dist > avgDistance || accDist > avgDistance * 4) {
+          if (dist > avgDistance * 2.5 || accDist > avgDistance * 4) {
             accDist = 0;
             acc.push(true); /// 클러스터 그룹 변경(=호텔 변경점)
             return acc;
@@ -4249,8 +4250,8 @@ export const getHotelList = async (
     familyOpt,
     period,
     // roomNumber,
-    startDate,
-    endDate,
+    // startDate,
+    // endDate,
     scheduleCluster,
   } = queryParams;
 
@@ -4261,28 +4262,126 @@ export const getHotelList = async (
     period: period!.toString(),
   });
 
-  const withHMetaData = scheduleCluster.map(cluster => {
-    const hotelSrchOpt = {
-      orderBy: 'distance',
-      adultsNumber: adult!,
-      roomNumber,
-      checkinDate: moment(startDate).toISOString(),
-      checkoutDate: moment(endDate).toISOString(),
-      filterByCurrency: 'KRW',
-      latitude: cluster.lat.toString(),
-      longitude: cluster.lng.toString(),
-      pageNumber: 0,
-      includeAdjacency: false,
-      childrenAges,
-      childrenNumber,
-      categoriesFilterIds: ['property_type::204'],
-      // randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
-    } as BKCSrchByCoordReqOpt;
-    return {
-      ...cluster,
-      hotelSrchOpt,
-    };
-  });
+  let prevTransitionNo = 0;
+  let curCheckin = new Date();
+  let curCheckout = new Date();
+  let stayPeriod = 0;
+  let ratio = 0;
+  let numOfVisitSpotInCluster = 0;
+  let sumLat = 0;
+  let sumLng = 0;
+  let cnt = 0;
+
+  const withHMetaData = scheduleCluster
+    .map((cluster, idx) => {
+      if (idx === 0) {
+        curCheckin = cluster.checkin;
+        curCheckout = cluster.checkout;
+        stayPeriod = cluster.stayPeriod;
+        ratio = cluster.ratio;
+        numOfVisitSpotInCluster = cluster.numOfVisitSpotInCluster;
+        sumLat = cluster.lat;
+        sumLng = cluster.lng;
+        cnt = 1;
+        // return null;
+      }
+
+      if (idx + 1 <= scheduleCluster.length - 1) {
+        const nextCluster = scheduleCluster[idx + 1];
+
+        if (nextCluster.transitionNo === prevTransitionNo) {
+          curCheckout = nextCluster.checkout;
+          stayPeriod += nextCluster.stayPeriod;
+          ratio += nextCluster.ratio;
+          numOfVisitSpotInCluster += nextCluster.numOfVisitSpotInCluster;
+          sumLat += nextCluster.lat;
+          sumLng += nextCluster.lng;
+          cnt += 1;
+          return null;
+        }
+
+        const avgLat = sumLat / cnt;
+        const avgLng = sumLng / cnt;
+        const metaData = {
+          checkin: curCheckin,
+          checkout: curCheckout,
+          stayPeriod,
+          ratio,
+          numOfVisitSpotInCluster,
+          transitionNo: prevTransitionNo,
+          lat: avgLat,
+          lng: avgLng,
+        };
+        prevTransitionNo = nextCluster.transitionNo;
+
+        const hotelSrchOpt = {
+          orderBy: 'distance',
+          adultsNumber: adult!,
+          roomNumber,
+          checkinDate: moment(curCheckin).toISOString(),
+          checkoutDate: moment(curCheckout).toISOString(),
+          filterByCurrency: 'KRW',
+          latitude: avgLat.toString(),
+          longitude: avgLng.toString(),
+          pageNumber: 0,
+          includeAdjacency: false,
+          childrenAges,
+          childrenNumber,
+          categoriesFilterIds: ['property_type::204'],
+          // randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
+        } as BKCSrchByCoordReqOpt;
+
+        curCheckin = nextCluster.checkin;
+        curCheckout = nextCluster.checkout;
+        stayPeriod = nextCluster.stayPeriod;
+        ratio = nextCluster.ratio;
+        numOfVisitSpotInCluster = nextCluster.numOfVisitSpotInCluster;
+        sumLat = nextCluster.lat;
+        sumLng = nextCluster.lng;
+        cnt = 1;
+
+        return {
+          ...metaData,
+          hotelSrchOpt,
+        };
+      }
+
+      /// 수퍼 클러스터의 마지막 호텔 검색 메타 데이터 처리
+      const avgLat = sumLat / cnt;
+      const avgLng = sumLng / cnt;
+      const metaData = {
+        checkin: curCheckin,
+        checkout: curCheckout,
+        stayPeriod,
+        ratio,
+        numOfVisitSpotInCluster,
+        transitionNo: prevTransitionNo,
+        lat: avgLat,
+        lng: avgLng,
+      };
+
+      const hotelSrchOpt = {
+        orderBy: 'distance',
+        adultsNumber: adult!,
+        roomNumber,
+        checkinDate: moment(curCheckin).toISOString(),
+        checkoutDate: moment(curCheckout).toISOString(),
+        filterByCurrency: 'KRW',
+        latitude: avgLat.toString(),
+        longitude: avgLng.toString(),
+        pageNumber: 0,
+        includeAdjacency: false,
+        childrenAges,
+        childrenNumber,
+        categoriesFilterIds: ['property_type::204'],
+        // randNum: centGeo.randNum, /// !! makeCluster단계에서 생성된 클러스터들을 랜덤하게 섞기 위해 참조했던 랜덤 변수값. 아래에서 수행될 각 클러스터별 numOfVisitSpotInCluster와 stayPeriod 결정중에 numOfSpotInCluster / stayPeriod 반올림과정에서 numOfNrbySpot 가 많은 순으로 수행되지 않으면 오차가 뒤로 갈수록 점점 커져 restSpot이 부족해지는 현상이 나타나는데 이를 방지하기 위해 일시적으로 다시 보유한 스팟순으로 정렬했다가 다시 랜덤하게 섞어주기 위해 쓰인다.
+      } as BKCSrchByCoordReqOpt;
+      return {
+        ...metaData,
+        hotelSrchOpt,
+      };
+    })
+    .filter(v => v);
 
   // const HotelQueryEventEmitter = new EventEmitter();
   // const queryPromises = new Promise<GetHotelListRETParamPayload[]>(resolve => {
@@ -4341,20 +4440,21 @@ export const getHotelList = async (
   //     prevStartTime: new Date(),
   //   });
   // });
-
   // const hotelData = await queryPromises;
-  // return hotelData
+
   const tNo = Number(transitionNo);
 
   return {
-    checkin: moment(withHMetaData[tNo].checkin).toISOString(),
-    checkout: moment(withHMetaData[tNo].checkout).toISOString(),
-    transitionNo: withHMetaData[tNo].transitionNo,
-    stayPeriod: withHMetaData[tNo].stayPeriod,
+    checkin: moment(withHMetaData[tNo]!.checkin).toISOString(),
+    checkout: moment(withHMetaData[tNo]!.checkout).toISOString(),
+    transitionNo: withHMetaData[tNo]!.transitionNo,
+    stayPeriod: withHMetaData[tNo]!.stayPeriod,
+    lat: withHMetaData[tNo]!.lat,
+    lng: withHMetaData[tNo]!.lng,
     hotels: await getHotelDataFromBKC({
-      ...withHMetaData[tNo].hotelSrchOpt,
-      checkinDate: moment(withHMetaData[tNo].checkin).toISOString(),
-      checkoutDate: moment(withHMetaData[tNo].checkout).toISOString(),
+      ...withHMetaData[tNo]!.hotelSrchOpt,
+      checkinDate: moment(withHMetaData[tNo]!.checkin).toISOString(),
+      checkoutDate: moment(withHMetaData[tNo]!.checkout).toISOString(),
       store: true,
     }),
   };
