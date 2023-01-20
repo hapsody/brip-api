@@ -3,7 +3,6 @@ import moment from 'moment';
 import prisma from '@src/prisma';
 import { IBError, getToday, getTomorrow, getNDaysLater } from '@src/utils';
 import axios, { Method } from 'axios';
-// import { EventEmitter } from 'events';
 import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
 import {
   isNumber,
@@ -2535,58 +2534,6 @@ export const makeSchedule = async (
         });
     })();
 
-    // const queryPromises = new Promise<GetHotelDataFromBKCRETParamPayload[]>(
-    //   resolve => {
-    //     const hotelResult = Array<GetHotelDataFromBKCRETParamPayload>();
-
-    //     HotelQueryEventEmitter.on(
-    //       `doQuery`,
-    //       // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    //       async (hQParam: {
-    //         index: number;
-    //         hQMetaData: IHotelInMakeSchedule[];
-    //         prevStartTime: number;
-    //       }) => {
-    //         const { index, hQMetaData, prevStartTime } = hQParam;
-
-    //         hotelResult.push(
-    //           await getHotelDataFromBKC({
-    //             ...hQMetaData[index].hotelSrchOpt,
-    //             checkinDate: hQMetaData[index].checkin,
-    //             checkoutDate: hQMetaData[index].checkout,
-    //             store: true,
-    //           }),
-    //         );
-
-    //         const startTime = moment(prevStartTime);
-    //         const endTime = new Date();
-    //         console.log(
-    //           `[${index}]: ${moment(endTime).diff(startTime, 'millisecond')}ms`,
-    //         );
-
-    //         if (index + 1 < hQMetaData.length) {
-    //           const timeId = setTimeout(() => {
-    //             HotelQueryEventEmitter.emit('doQuery', {
-    //               index: index + 1,
-    //               hQMetaData,
-    //               prevStartTime: endTime,
-    //             });
-    //             clearTimeout(timeId);
-    //           }, 0);
-    //         } else {
-    //           resolve(hotelResult);
-    //         }
-    //       },
-    //     );
-
-    //     HotelQueryEventEmitter.emit('doQuery', {
-    //       index: 0,
-    //       hQMetaData: hWithoutData,
-    //       prevStartTime: new Date(),
-    //     });
-    //   },
-    // );
-
     let tempValidCents = /// 클러스터간 거리를 측정하고 이를 바탕으로 클러스터 방문 순서를 결정하기 위해 클러스터별 메타데이터(stayPeriod, numOfVisitSpotInClusteer, ...)를 클러스터에 넣고
       /// 위에서 null 표시된 클러스터는 제외하고 (클러스터내 포함된 여행지가 너무 적어 (=해당 클러스터에서 머무를 여행일정이 너무 적어))
       /// 남은 클러스터간 방문 순서를 결정하도록 한다.
@@ -2732,12 +2679,213 @@ export const makeSchedule = async (
       };
     });
 
-    ctx.hotels = hWithoutData.map(v => {
-      return {
-        ...v,
-        // hotels: hotelData[i],
+    /// super clustering (클러스터링 결과의 상위 그룹화)
+    (() => {
+      const sortedCents = ctx.spotClusterRes!.validCentNSpots.map(
+        v => v.centroidNHotel.cent,
+      );
+
+      const distances = sortedCents.map((c, i) => {
+        if (i === 0) return 0;
+
+        return degreeToMeter(
+          c!.lat,
+          c!.lng,
+          sortedCents[i - 1]!.lat,
+          sortedCents[i - 1]!.lng,
+        );
+      });
+      const totalDistance = distances.reduce((acc, cur) => acc + cur, 0);
+      const avgDistance = totalDistance / (distances.length - 1);
+
+      let accDist = 0;
+      const superClusterMap = distances.reduce<boolean[]>(
+        (acc, dist, i): boolean[] => {
+          if (i === 0) return acc;
+          accDist += dist;
+          if (dist > avgDistance || accDist > avgDistance * 4) {
+            accDist = 0;
+            acc.push(true); /// 클러스터 그룹 변경(=호텔 변경점)
+            return acc;
+          }
+          acc.push(false);
+          return acc;
+        },
+        [true],
+      );
+      // console.log(distances, avgDistance);
+
+      const getMaxDistance = (
+        superCentLat: number,
+        superCentLng: number,
+        startIdx: number,
+        endIdx: number,
+      ) => {
+        let maxDistance = -1;
+        for (let i = startIdx; i < endIdx; i += 1) {
+          const dist = degreeToMeter(
+            superCentLat,
+            superCentLng,
+            sortedCents[i]!.lat,
+            sortedCents[i]!.lng,
+          );
+          if (maxDistance < dist) maxDistance = dist;
+        }
+        return maxDistance;
       };
-    });
+
+      let accCnt = 0;
+      let accLat = 0;
+      let accLng = 0;
+
+      let prevIdx = 0;
+      const superCentroids = superClusterMap.reduce<SuperCentroid[]>(
+        (acc, cur, i) => {
+          if (i > 0 && cur === true) {
+            const avgLat = accLat / accCnt;
+            const avgLng = accLng / accCnt;
+            acc.push({
+              transitionIdx: prevIdx,
+              superCent: {
+                lat: avgLat,
+                lng: avgLng,
+                num: accCnt,
+                // maxDistance: (() => {
+                //   let maxDistance = -1;
+                //   for (let j = prevIdx; j < i; j += 1) {
+                //     const dist = degreeToMeter(
+                //       avgLat,
+                //       avgLng,
+                //       sortedCents[j]!.lat,
+                //       sortedCents[j]!.lng,
+                //     );
+                //     if (maxDistance < dist) maxDistance = dist;
+                //   }
+                //   return maxDistance;
+                // })(),
+                maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
+              },
+            });
+            prevIdx = i;
+
+            accLat = 0;
+            accLng = 0;
+            accCnt = 0;
+          }
+
+          accLat += sortedCents[i]!.lat;
+          accLng += sortedCents[i]!.lng;
+          accCnt += 1;
+
+          if (i === superClusterMap.length - 1) {
+            const avgLat = accLat / accCnt;
+            const avgLng = accLng / accCnt;
+            acc.push({
+              transitionIdx: prevIdx,
+              superCent: {
+                lat: avgLat,
+                lng: avgLng,
+                num: accCnt,
+                maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
+              },
+            });
+          }
+
+          return acc;
+        },
+        [],
+      );
+
+      ctx.spotClusterRes!.superCentroids = superCentroids;
+      ctx.spotClusterRes!.superClusterMap = superClusterMap;
+      ctx.spotClusterRes!.validCentNSpots = /// 수퍼 클러스터링 결과에 따라 호텔 검색할 부분만 transitionNo를 재부여
+        (() => {
+          let transitionNoCnt = 0;
+          return ctx.spotClusterRes!.validCentNSpots.map((v, i) => {
+            const r = {
+              ...v,
+              // centroidNHotel: {
+              //   ...v.centroidNHotel,
+              // },
+            };
+            if (superClusterMap[i]) {
+              r.centroidNHotel.transitionNo = transitionNoCnt;
+              transitionNoCnt += 1;
+              return r;
+            }
+            r.centroidNHotel.transitionNo = transitionNoCnt;
+            return v;
+          });
+        })();
+    })();
+
+    /// getHotelList api로 역할을 이전함.
+    // const HotelQueryEventEmitter = new EventEmitter();
+    // const queryPromises = new Promise<GetHotelDataFromBKCRETParamPayload[]>(
+    //   resolve => {
+    //     const hotelResult = Array<GetHotelDataFromBKCRETParamPayload>();
+
+    //     HotelQueryEventEmitter.on(
+    //       `doQuery`,
+    //       // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    //       async (hQParam: {
+    //         index: number;
+    //         hQMetaData: IHotelInMakeSchedule[];
+    //         prevStartTime: Date;
+    //       }) => {
+    //         const { index, hQMetaData, prevStartTime } = hQParam;
+    //         let endTime = prevStartTime;
+    //         if (
+    //           ctx.spotClusterRes!.validCentNSpots![index].centroidNHotel
+    //             .transitionNo! >= 0
+    //         ) {
+    //           hotelResult.push(
+    //             await getHotelDataFromBKC({
+    //               ...hQMetaData[index].hotelSrchOpt,
+    //               checkinDate: hQMetaData[index].checkin,
+    //               checkoutDate: hQMetaData[index].checkout,
+    //               store: true,
+    //             }),
+    //           );
+    //           const startTime = moment(prevStartTime);
+    //           endTime = new Date();
+    //           console.log(
+    //             `[${index}]: ${moment(endTime).diff(
+    //               startTime,
+    //               'millisecond',
+    //             )}ms`,
+    //           );
+    //         }
+    //         if (index + 1 < hQMetaData.length) {
+    //           const timeId = setTimeout(() => {
+    //             HotelQueryEventEmitter.emit('doQuery', {
+    //               index: index + 1,
+    //               hQMetaData,
+    //               prevStartTime: endTime,
+    //             });
+    //             clearTimeout(timeId);
+    //           }, 0);
+    //         } else {
+    //           resolve(hotelResult);
+    //         }
+    //       },
+    //     );
+
+    //     HotelQueryEventEmitter.emit('doQuery', {
+    //       index: 0,
+    //       hQMetaData: hWithoutData,
+    //       prevStartTime: new Date(),
+    //     });
+    //   },
+    // );
+    // const hotelData = await queryPromises;
+    // ctx.hotels = hWithoutData.map((v, i) => {
+    //   return {
+    //     ...v,
+    //     hotels: hotelData[i],
+    //   };
+    // });
+    ctx.hotels = [...hWithoutData];
   })(); /// end of hotel srch part
 
   /// 여행일수에 따른 visitSchedule 배열 생성
@@ -2896,126 +3044,6 @@ export const makeSchedule = async (
   })();
   ctx.visitSchedules = visitSchedules;
 
-  /// super clustering (클러스터링 결과의 상위 그룹화)
-  (() => {
-    const sortedCents = ctx.spotClusterRes!.validCentNSpots.map(
-      v => v.centroidNHotel.cent,
-    );
-
-    const distances = sortedCents.map((c, i) => {
-      if (i === 0) return 0;
-
-      return degreeToMeter(
-        c!.lat,
-        c!.lng,
-        sortedCents[i - 1]!.lat,
-        sortedCents[i - 1]!.lng,
-      );
-    });
-    const totalDistance = distances.reduce((acc, cur) => acc + cur, 0);
-    const avgDistance = totalDistance / (distances.length - 1);
-
-    let accDist = 0;
-    const superClusterMap = distances.reduce<boolean[]>(
-      (acc, dist, i): boolean[] => {
-        if (i === 0) return acc;
-        accDist += dist;
-        if (dist > avgDistance || accDist > avgDistance * 4) {
-          accDist = 0;
-          acc.push(true); /// 클러스터 그룹 변경(=호텔 변경점)
-          return acc;
-        }
-        acc.push(false);
-        return acc;
-      },
-      [true],
-    );
-    // console.log(distances, avgDistance);
-
-    const getMaxDistance = (
-      superCentLat: number,
-      superCentLng: number,
-      startIdx: number,
-      endIdx: number,
-    ) => {
-      let maxDistance = -1;
-      for (let i = startIdx; i < endIdx; i += 1) {
-        const dist = degreeToMeter(
-          superCentLat,
-          superCentLng,
-          sortedCents[i]!.lat,
-          sortedCents[i]!.lng,
-        );
-        if (maxDistance < dist) maxDistance = dist;
-      }
-      return maxDistance;
-    };
-
-    let accCnt = 0;
-    let accLat = 0;
-    let accLng = 0;
-
-    let prevIdx = 0;
-    const superCentroids = superClusterMap.reduce<SuperCentroid[]>(
-      (acc, cur, i) => {
-        if (i > 0 && cur === true) {
-          const avgLat = accLat / accCnt;
-          const avgLng = accLng / accCnt;
-          acc.push({
-            transitionIdx: prevIdx,
-            superCent: {
-              lat: avgLat,
-              lng: avgLng,
-              num: accCnt,
-              // maxDistance: (() => {
-              //   let maxDistance = -1;
-              //   for (let j = prevIdx; j < i; j += 1) {
-              //     const dist = degreeToMeter(
-              //       avgLat,
-              //       avgLng,
-              //       sortedCents[j]!.lat,
-              //       sortedCents[j]!.lng,
-              //     );
-              //     if (maxDistance < dist) maxDistance = dist;
-              //   }
-              //   return maxDistance;
-              // })(),
-              maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
-            },
-          });
-          prevIdx = i;
-
-          accLat = 0;
-          accLng = 0;
-          accCnt = 0;
-        }
-
-        accLat += sortedCents[i]!.lat;
-        accLng += sortedCents[i]!.lng;
-        accCnt += 1;
-
-        if (i === superClusterMap.length - 1) {
-          const avgLat = accLat / accCnt;
-          const avgLng = accLng / accCnt;
-          acc.push({
-            transitionIdx: prevIdx,
-            superCent: {
-              lat: avgLat,
-              lng: avgLng,
-              num: accCnt,
-              maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
-            },
-          });
-        }
-
-        return acc;
-      },
-      [],
-    );
-
-    ctx.spotClusterRes!.superCentroids = superCentroids;
-  })();
-
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.queryParams.create({
     data: {
@@ -3031,6 +3059,7 @@ export const makeSchedule = async (
       destination,
       tourPlace: {
         connect: [
+          /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
           // ...(() => {
           //   const result = ctx
           //     .hotels!.map(c => {
@@ -3102,7 +3131,7 @@ export const makeSchedule = async (
         },
       },
       scheduleCluster: {
-        create: ctx.spotClusterRes?.validCentNSpots.map(v => {
+        create: ctx.spotClusterRes?.validCentNSpots!.map(v => {
           return {
             lat: v.centroidNHotel.cent?.lat!,
             lng: v.centroidNHotel.cent?.lng!,
