@@ -35,6 +35,8 @@ import {
   GetScheduleLoadingImgRETParam,
   GetScheduleCountREQParam,
   GetScheduleCountRETParam,
+  FixHotelREQParam,
+  FixHotelRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -53,6 +55,7 @@ import {
   getHotelList,
   getScheduleLoadingImg,
   getScheduleCount,
+  fixHotel,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -839,6 +842,61 @@ export const getScheduleCountWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleCount,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 일정기반 일자별 유저 호텔 선택 결과를 서버에 알리는 api
+ *
+ */
+export const fixHotelWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<FixHotelREQParam>,
+    res: Express.IBTypedResponse<FixHotelRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const updateList = await fixHotel(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updateList,
       });
     } catch (err) {
       if (err instanceof IBError) {

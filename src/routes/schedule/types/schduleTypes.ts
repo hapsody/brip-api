@@ -953,3 +953,18 @@ export interface GetScheduleCountRETParamPayload {
 export type GetScheduleCountRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleCountRETParamPayload | {};
 };
+
+/**
+ * fixHotel
+ */
+export interface FixHotelREQParam {
+  queryParamsId: string;
+  hotelPerDay: string[];
+}
+export interface FixHotelRETParamPayload {
+  updateList: VisitSchedule[];
+}
+
+export type FixHotelRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: FixHotelRETParamPayload | {};
+};

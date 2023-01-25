@@ -81,6 +81,8 @@ import {
   GetScheduleLoadingImgRETParamPayload,
   GetScheduleCountRETParamPayload,
   SuperCentroid,
+  FixHotelREQParam,
+  FixHotelRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -4511,4 +4513,56 @@ export const getScheduleCount = async (
   });
 
   return { count };
+};
+
+/**
+ * 생성된 일정기반 일자별 유저 호텔 선택 결과를 서버에 알리는 api
+ */
+export const fixHotel = async (
+  param: FixHotelREQParam,
+): Promise<FixHotelRETParamPayload> => {
+  const { queryParamsId, hotelPerDay } = param;
+
+  const removedDup = (() => {
+    let prevTpId = -1;
+    return hotelPerDay.reduce<number[]>((acc, curTpId) => {
+      if (Number(prevTpId) !== Number(curTpId)) {
+        acc.push(Number(curTpId));
+        prevTpId = Number(curTpId);
+      }
+      return acc;
+    }, []);
+  })();
+
+  const updateList = await Promise.all(
+    hotelPerDay.map((tpId, dayNo) => {
+      return prisma.$transaction(async tx => {
+        const [vs] = await tx.visitSchedule.findMany({
+          where: {
+            queryParamsId: Number(queryParamsId),
+            dayNo,
+            placeType: {
+              contains: 'HOTEL',
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        const uppdateRes = await tx.visitSchedule.update({
+          where: {
+            id: vs.id,
+          },
+          data: {
+            tourPlaceId: Number(tpId),
+            transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
+          },
+        });
+        return uppdateRes;
+      });
+    }),
+  );
+
+  return { updateList };
 };
