@@ -83,6 +83,8 @@ import {
   SuperCentroid,
   FixHotelREQParam,
   FixHotelRETParamPayload,
+  RefreshScheduleREQParam,
+  RefreshScheduleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -4565,4 +4567,219 @@ export const fixHotel = async (
   );
 
   return { updateList };
+};
+
+/**
+ * 기본 생성된 일정들중 특정 일자의 추천 리스트를 새로고침 요청하는 api
+ * fixedList에 전달되는 각 VisitSchedule 들은 그대로 리턴되고
+ * 나머지는 기존 검색되었던 장소 또는 음식점들중에 다른것으로 교체(DB에도 그대로 적용된 후 ) 반환된다.
+ *
+ * "남은일정 새로고침" 클릭시에 요청됨
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=407:2587&t=dh22WyIeTTDtUTxg-4
+ */
+export const refreshSchedule = async (
+  param: RefreshScheduleREQParam,
+): Promise<RefreshScheduleRETParamPayload> => {
+  const { queryParamsId, dayNo, fixedList } = param;
+
+  const vs = await prisma.visitSchedule.findMany({
+    where: {
+      // id: {
+      //   in: fixedList.map(v => Number(v)),
+      // },
+      dayNo: Number(dayNo),
+      queryParamsId: Number(queryParamsId),
+    },
+    include: {
+      tourPlace: true,
+    },
+  });
+
+  const fixedVS = vs.filter(
+    (
+      v,
+    ): v is VisitSchedule & {
+      tourPlace: TourPlace | null;
+    } => {
+      if (v !== null && fixedList.includes(v.id.toString())) return true;
+      return false;
+    },
+  );
+
+  /// 조건으로 fixed VisitScheduleId에 해당하는 TourPlace는 후보에서 제외되도록 한다.
+  const tp = await prisma.tourPlace.findMany({
+    where: {
+      AND: [
+        {
+          queryParams: {
+            some: {
+              id: Number(queryParamsId),
+            },
+          },
+        },
+        {
+          id: {
+            notIn: fixedVS
+              .map(v => v.tourPlaceId)
+              .filter((v): v is number => v !== null),
+          },
+        },
+      ],
+    },
+  });
+
+  const spot = tp.filter(t => t.tourPlaceType.includes('SPOT'));
+  const food = tp.filter(t => t.tourPlaceType.includes('RESTAURANT'));
+
+  /// randomize
+  const randomSpot = spot
+    .map(v => {
+      return {
+        ...v,
+        randomNum: Math.random(),
+      };
+    })
+    .sort((a, b) => a.randomNum - b.randomNum);
+
+  const randomFood = food
+    .map(v => {
+      return {
+        ...v,
+        randomNum: Math.random(),
+      };
+    })
+    .sort((a, b) => a.randomNum - b.randomNum);
+
+  const refreshedList = await prisma.$transaction(
+    vs.map(v => {
+      const letItBeVS = fixedVS.find(f => v.id === f.id);
+
+      return prisma.visitSchedule.update({
+        where: {
+          id: v.id,
+        },
+        data: {
+          tourPlaceId: (() => {
+            if (letItBeVS) return letItBeVS.tourPlaceId; /// fixedList에 있는 항목이면 원래 tourPlaceId 그대로 둔다.
+
+            /// 이 api에서 호텔은 refresh 대상이 아니다.
+            if (v.placeType!.includes('HOTEL')) return v.tourPlaceId;
+
+            return v.placeType!.includes('SPOT')
+              ? randomSpot.shift()!.id
+              : randomFood.shift()!.id;
+          })(),
+        },
+        include: {
+          tourPlace: {
+            include: {
+              gl_photos: true,
+            },
+          },
+        },
+      });
+    }),
+  );
+
+  const spotList: Pick<RefreshScheduleRETParamPayload, 'spotList'> = {
+    spotList: refreshedList.map(v => {
+      if (!v.tourPlace) return undefined;
+
+      const vType: PlaceType = v.tourPlace.tourPlaceType;
+      const night = v.stayPeriod ?? 0;
+      const days = v.stayPeriod ? night + 1 : 0;
+
+      if (vType.includes('BKC_HOTEL')) {
+        const hotel = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg: hotel.bkc_main_photo_url ?? 'none',
+          spotName: hotel.bkc_hotel_name ?? 'none',
+          roomType: hotel.bkc_unit_configuration_label ?? 'none',
+          spotAddr: hotel.bkc_address ?? 'none',
+          hotelBookingUrl: hotel.bkc_url ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          checkin: hotel.bkc_checkin,
+          checkout: hotel.bkc_checkout,
+          price: hotel.bkc_min_total_price?.toString(),
+          rating: hotel.bkc_review_score
+            ? hotel.bkc_review_score / 2.0
+            : undefined,
+          lat: hotel.bkc_latitude ?? -1,
+          lng: hotel.bkc_longitude ?? -1,
+          imageList: [
+            {
+              id: '1',
+              url: hotel.bkc_main_photo_url ?? undefined,
+            },
+          ],
+        };
+      }
+      if (vType.includes('GL_')) {
+        const googlePlace = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg:
+            googlePlace.gl_photos.length > 0 &&
+            googlePlace.gl_photos[0].photo_reference
+              ? googlePlace.gl_photos[0].photo_reference
+              : 'none',
+          spotName: googlePlace.gl_name ?? 'none',
+          spotAddr:
+            googlePlace.gl_vicinity ??
+            googlePlace.gl_formatted_address ??
+            'none',
+          // contact: 'none',
+          placeId: googlePlace.gl_place_id ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          price: googlePlace.gl_price_level?.toString(),
+          rating: googlePlace.gl_rating ?? undefined,
+          lat: googlePlace.gl_lat ?? -1,
+          lng: googlePlace.gl_lng ?? -1,
+          imageList: googlePlace.gl_photos.map(p => {
+            return {
+              id: p.id.toString(),
+              photo_reference: p.photo_reference,
+            };
+          }),
+        };
+      }
+
+      if (vType.includes('VISITJEJU_')) {
+        const visitJejuPlace = v.tourPlace;
+        return {
+          id: v.id.toString(),
+          spotType: vType as string,
+          previewImg: 'none',
+          spotName: visitJejuPlace.vj_title ?? 'none',
+          spotAddr: visitJejuPlace.vj_address ?? 'none',
+          // contact: 'none',
+          placeId: visitJejuPlace.vj_contentsid ?? 'none',
+          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+          night,
+          days,
+          lat: visitJejuPlace.vj_latitude ?? -1,
+          lng: visitJejuPlace.vj_longitude ?? -1,
+        };
+      }
+      return undefined;
+    }),
+  };
+
+  const retValue: RefreshScheduleRETParamPayload = {
+    id: queryParamsId,
+    dayCount: Number(dayNo),
+    contentsCountAll: spotList.spotList.length,
+    spotList: spotList.spotList,
+  };
+  return retValue;
 };

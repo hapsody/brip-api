@@ -968,3 +968,18 @@ export interface FixHotelRETParamPayload {
 export type FixHotelRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: FixHotelRETParamPayload | {};
 };
+
+/**
+ * refreshScchedule
+ */
+export interface RefreshScheduleREQParam {
+  queryParamsId: string;
+  dayNo: string;
+  fixedList: string[];
+}
+export interface RefreshScheduleRETParamPayload
+  extends GetDayScheduleRETParamPayload {}
+
+export type RefreshScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: RefreshScheduleRETParamPayload | {};
+};
