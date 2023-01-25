@@ -935,15 +935,15 @@
           const radiusGeo = await estGeoLocFromMeter(s.superCent.maxDistance);
           const { x: superCentRadius } = geoLocToCoord(radiusGeo);
 
-          drawPointOnHistoryCanvas({
-            lat: s.superCent.lat,
-            lng: s.superCent.lng,
-            color: 'green',
-            size: superCentRadius ? superCentRadius : 30,
-            text: `${i++}`,
-            alpha: 0.3,
-            blink: false,
-          });
+          // drawPointOnHistoryCanvas({
+          //   lat: s.superCent.lat,
+          //   lng: s.superCent.lng,
+          //   color: 'green',
+          //   size: superCentRadius ? superCentRadius : 30,
+          //   text: `${i++}`,
+          //   alpha: 1,
+          //   blink: false,
+          // });
         }
       }
 

@@ -2801,7 +2801,7 @@ export const makeSchedule = async (
       ctx.spotClusterRes!.superClusterMap = superClusterMap;
       ctx.spotClusterRes!.validCentNSpots = /// 수퍼 클러스터링 결과에 따라 호텔 검색할 부분만 transitionNo를 재부여
         (() => {
-          let transitionNoCnt = 0;
+          let transitionNoCnt = -1;
           return ctx.spotClusterRes!.validCentNSpots.map((v, i) => {
             const r = {
               ...v,
@@ -2810,8 +2810,8 @@ export const makeSchedule = async (
               // },
             };
             if (superClusterMap[i]) {
-              r.centroidNHotel.transitionNo = transitionNoCnt;
               transitionNoCnt += 1;
+              r.centroidNHotel.transitionNo = transitionNoCnt;
               return r;
             }
             r.centroidNHotel.transitionNo = transitionNoCnt;
