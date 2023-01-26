@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
 import nodemailer from 'nodemailer';
+import multer from 'multer';
 import {
   QuestionTicket,
   User,
@@ -13,9 +14,13 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  s3FileUpload,
+  getS3SignedUrl,
 } from '@src/utils';
 
-const authRouter: express.Application = express();
+const upload = multer();
+
+const settingRouter: express.Application = express();
 
 export type ReqTicketRequestType = {
   content: string;
@@ -624,9 +629,173 @@ export const reqTripCreator = asyncWrapper(
   },
 );
 
-authRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
-authRouter.post('/reqBusinessTicket', accessTokenValidCheck, reqBusinessTicket);
-authRouter.get('/getFaqList', accessTokenValidCheck, getFaqList);
-authRouter.post('/reqTripCreator', accessTokenValidCheck, reqTripCreator);
+export type ChangeProfileImgRequestType = {};
+export interface ChangeProfileImgSuccessResType {
+  signedUrl: string;
+}
 
-export default authRouter;
+export type ChangeProfileImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangeProfileImgSuccessResType[] | {};
+};
+
+export const changeProfileImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangeProfileImgRequestType>,
+    res: Express.IBTypedResponse<ChangeProfileImgResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const files = req.files as Express.Multer.File[];
+
+      const uploadPromises = files.map((file: Express.Multer.File) => {
+        return s3FileUpload({
+          fileName: `userProfileImg/${file.originalname}`,
+          fileData: file.buffer,
+        });
+      });
+
+      const [{ Key: key }] = await Promise.all(uploadPromises);
+
+      await prisma.user.update({
+        where: {
+          userTokenId,
+        },
+        data: {
+          profileImg: key,
+        },
+      });
+      const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          signedUrl: signedProfileImgUrl,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type GetProfileImgRequestType = {
+  key: string;
+};
+export interface GetProfileImgSuccessResType {
+  signedUrl: string;
+}
+
+export type GetProfileImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetProfileImgSuccessResType[] | {};
+};
+
+export const getProfileImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetProfileImgRequestType>,
+    res: Express.IBTypedResponse<GetProfileImgResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { key } = req.body;
+
+      const signedUrl = await getS3SignedUrl(`${key}`);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          signedUrl,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
+settingRouter.post(
+  '/reqBusinessTicket',
+  accessTokenValidCheck,
+  reqBusinessTicket,
+);
+settingRouter.get('/getFaqList', accessTokenValidCheck, getFaqList);
+settingRouter.post('/reqTripCreator', accessTokenValidCheck, reqTripCreator);
+settingRouter.post(
+  '/changeProfileImg',
+  accessTokenValidCheck,
+  [upload.array('files', 10)],
+  changeProfileImg,
+);
+settingRouter.post('/getProfileImg', accessTokenValidCheck, getProfileImg);
+
+export default settingRouter;
