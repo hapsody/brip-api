@@ -35,6 +35,10 @@ import {
   GetScheduleLoadingImgRETParam,
   GetScheduleCountREQParam,
   GetScheduleCountRETParam,
+  FixHotelREQParam,
+  FixHotelRETParam,
+  RefreshScheduleREQParam,
+  RefreshScheduleRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -53,6 +57,8 @@ import {
   getHotelList,
   getScheduleLoadingImg,
   getScheduleCount,
+  fixHotel,
+  refreshSchedule,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -839,6 +845,120 @@ export const getScheduleCountWrapper = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: scheduleCount,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 일정기반 일자별 유저 호텔 선택 결과를 서버에 알리는 api
+ *
+ */
+export const fixHotelWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<FixHotelREQParam>,
+    res: Express.IBTypedResponse<FixHotelRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const updateList = await fixHotel(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updateList,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(202).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 기본 생성된 일정들중 특정 일자의 추천 리스트를 새로고침 요청하는 api
+ * fixedList에 전달되는 각 VisitSchedule 들은 그대로 리턴되고
+ * 나머지는 기존 검색되었던 장소 또는 음식점들중에 다른것으로 교체(DB에도 그대로 적용된 후 ) 반환된다.
+ *
+ * "남은일정 새로고침" 클릭시에 요청됨
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=407:2587&t=dh22WyIeTTDtUTxg-4
+ */
+export const refreshScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RefreshScheduleREQParam>,
+    res: Express.IBTypedResponse<RefreshScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const scheduleResult = await refreshSchedule(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: scheduleResult,
       });
     } catch (err) {
       if (err instanceof IBError) {
