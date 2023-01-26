@@ -4592,18 +4592,26 @@ export const refreshSchedule = async (
 ): Promise<RefreshScheduleRETParamPayload> => {
   const { queryParamsId, dayNo, fixedList } = param;
 
-  const vs = await prisma.visitSchedule.findMany({
+  const qp = await prisma.queryParams.findUnique({
     where: {
-      // id: {
-      //   in: fixedList.map(v => Number(v)),
-      // },
-      dayNo: Number(dayNo),
-      queryParamsId: Number(queryParamsId),
+      id: Number(queryParamsId),
     },
     include: {
-      tourPlace: true,
+      visitSchedule: {
+        where: {
+          dayNo: Number(dayNo),
+        },
+      },
+      validCluster: true,
     },
   });
+  if (isNil(qp)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 queryParamsId입니다.',
+    });
+  }
+  const { visitSchedule: vs, validCluster } = qp;
 
   const fixedVS = vs.filter(
     (
@@ -4616,27 +4624,32 @@ export const refreshSchedule = async (
     },
   );
 
-  /// 조건으로 fixed VisitScheduleId에 해당하는 TourPlace는 후보에서 제외되도록 한다.
-  const tp = await prisma.tourPlace.findMany({
-    where: {
-      AND: [
-        {
-          queryParams: {
-            some: {
-              id: Number(queryParamsId),
-            },
-          },
-        },
-        {
-          id: {
-            notIn: fixedVS
-              .map(v => v.tourPlaceId)
-              .filter((v): v is number => v !== null),
-          },
-        },
-      ],
-    },
+  let accDayNo = 0;
+  const targetClusterIdx = validCluster.findIndex(v => {
+    const prevAccDayNo = accDayNo;
+    accDayNo += v.stayPeriod;
+
+    if (Number(dayNo) >= prevAccDayNo && Number(dayNo) < accDayNo) return true;
+    return false;
   });
+
+  const { tourPlace: tp } = (await prisma.validCluster.findUnique({
+    where: {
+      id: validCluster[targetClusterIdx].id,
+    },
+    select: {
+      /// 조건으로 fixed VisitScheduleId에 해당하는 TourPlace는 후보에서 제외되도록 한다.
+      tourPlace: {
+        where: {
+          id: {
+            notIn: vs.map(v => {
+              return Number(v.tourPlaceId);
+            }),
+          },
+        },
+      },
+    },
+  }))!;
 
   const spot = tp.filter(t => t.tourPlaceType.includes('SPOT'));
   const food = tp.filter(t => t.tourPlaceType.includes('RESTAURANT'));
