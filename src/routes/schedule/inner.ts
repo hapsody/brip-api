@@ -2893,6 +2893,22 @@ export const makeSchedule = async (
     ctx.hotels = [...hWithoutData];
   })(); /// end of hotel srch part
 
+  /// visitSchedules 생성중 validCentNSpots.nearbyFoods, validCentNSpots.nearbySpots의 구성에 변경이 가해져 원본 유지를 위해 백업함
+  const backupValidCentNSpots = [
+    ...ctx.spotClusterRes!.validCentNSpots.map(v => {
+      return {
+        centroidNHotel: {
+          cent: v.centroidNHotel.cent
+            ? { ...v.centroidNHotel.cent }
+            : undefined,
+          ...v.centroidNHotel,
+        },
+        nearbyFoods: [...v.nearbyFoods],
+        nearbySpots: [...v.nearbySpots],
+      };
+    }),
+  ];
+
   /// 여행일수에 따른 visitSchedule 배열 생성
   const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
@@ -3048,6 +3064,7 @@ export const makeSchedule = async (
       });
   })();
   ctx.visitSchedules = visitSchedules;
+  ctx.spotClusterRes!.validCentNSpots = backupValidCentNSpots;
 
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.queryParams.create({
