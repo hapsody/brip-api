@@ -3135,7 +3135,7 @@ export const makeSchedule = async (
             .toString(),
         },
       },
-      scheduleCluster: {
+      validCluster: {
         create: ctx.spotClusterRes?.validCentNSpots!.map(v => {
           return {
             lat: v.centroidNHotel.cent?.lat!,
@@ -3146,6 +3146,16 @@ export const makeSchedule = async (
             checkout: v.centroidNHotel.checkout!,
             numOfVisitSpotInCluster: v.centroidNHotel.numOfVisitSpotInCluster!,
             ratio: v.centroidNHotel.ratio!,
+            tourPlace: {
+              connect: [
+                ...v.nearbyFoods.map(n => {
+                  return { id: n.id };
+                }),
+                ...v.nearbySpots.map(n => {
+                  return { id: n.id };
+                }),
+              ],
+            },
           };
         }),
       },
@@ -4237,7 +4247,7 @@ export const getHotelList = async (
       id: Number(queryParamsId),
     },
     include: {
-      scheduleCluster: true,
+      validCluster: true,
     },
   });
 
@@ -4256,7 +4266,7 @@ export const getHotelList = async (
     // roomNumber,
     // startDate,
     // endDate,
-    scheduleCluster,
+    validCluster,
   } = queryParams;
 
   const { childrenNumber, childrenAges, roomNumber } = getBKCHotelSrchOpts({
@@ -4276,7 +4286,7 @@ export const getHotelList = async (
   let sumLng = 0;
   let cnt = 0;
 
-  const withHMetaData = scheduleCluster
+  const withHMetaData = validCluster
     .map((cluster, idx) => {
       if (idx === 0) {
         curCheckin = cluster.checkin;
@@ -4290,8 +4300,8 @@ export const getHotelList = async (
         // return null;
       }
 
-      if (idx + 1 <= scheduleCluster.length - 1) {
-        const nextCluster = scheduleCluster[idx + 1];
+      if (idx + 1 <= validCluster.length - 1) {
+        const nextCluster = validCluster[idx + 1];
 
         if (nextCluster.transitionNo === prevTransitionNo) {
           curCheckout = nextCluster.checkout;
