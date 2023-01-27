@@ -26,6 +26,7 @@ model User {
   countryCode            String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
   userTokenId            String                   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
+  profileImg             String?
   questionTicket         QuestionTicket[]
   businessQuestionTicket BusinessQuestionTicket[]
   tripCreator            TripCreator[]

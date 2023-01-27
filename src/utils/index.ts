@@ -12,6 +12,7 @@ import asyncWrapper from './asyncWrapper';
 import somethingHandler from './middlewares/somethingHandler';
 import accessTokenValidCheck from './middlewares/authGuard';
 import genBcryptHash from './genBcryptHash';
+import { s3FileUpload, getS3SignedUrl } from './aws/s3';
 import { getToday, getTomorrow, getNDaysLater } from './time';
 
 export {
@@ -30,4 +31,6 @@ export {
   getToday,
   getTomorrow,
   getNDaysLater,
+  s3FileUpload,
+  getS3SignedUrl,
 };
