@@ -650,7 +650,7 @@ export const sendSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -744,7 +744,7 @@ export const submitSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -923,7 +923,7 @@ export const changePassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
