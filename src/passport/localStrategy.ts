@@ -21,9 +21,12 @@ export default (passport: PassportStatic): void => {
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     async (id, password, done: LocalStrategyCBFunc): Promise<void> => {
       try {
-        const user: User | null = await prisma.user.findFirst({
+        const user = await prisma.user.findFirst({
           where: {
             email: id,
+          },
+          include: {
+            tripCreator: true,
           },
         });
 

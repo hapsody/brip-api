@@ -304,6 +304,7 @@ model MockBookingDotComHotelResource {
   responseData        String            @db.LongText
 }
 
+/// 비회원일 경우도 DB에 저장되는 모든 데이터들의 소유자를 특정할수 있도록 reqNonMembersUserToken api를 통해 tokenId를 payload로 갖는 일종의 accessToken을 부여하는데 그 tokenId번호를 NonMemberCount 모델의 id값으로 삼는다.
 model NonMembersCount {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
