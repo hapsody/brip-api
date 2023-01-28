@@ -85,6 +85,7 @@ import {
   FixHotelRETParamPayload,
   RefreshScheduleREQParam,
   RefreshScheduleRETParamPayload,
+  VisitPlaceType,
 } from './types/schduleTypes';
 
 /**
@@ -1567,14 +1568,15 @@ const visitScheduleToDayScheduleType = (
     if (!alreadyDayExist) {
       acc.push({
         dayNo: cur.dayNo.toString(),
-        scheduleItem: [
+        transitionNo: cur.transitionNo,
+        stayPeriod: cur.stayPeriod,
+        checkin: cur.checkin?.toISOString() ?? null,
+        checkout: cur.checkout?.toISOString() ?? null,
+        titleList: [
           {
             visitScheduleId: cur.id.toString(),
             orderNo: cur.orderNo.toString(),
-            transitionNo: cur.transitionNo,
-            stayPeriod: cur.stayPeriod,
-            checkin: cur.checkin?.toISOString() ?? null,
-            checkout: cur.checkout?.toISOString() ?? null,
+            placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
             title: (() => {
               if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
                 return cur.tourPlace?.bkc_hotel_name ?? '';
@@ -1591,18 +1593,19 @@ const visitScheduleToDayScheduleType = (
       return acc;
     }
 
-    const alreadyOrderExist = alreadyDayExist.scheduleItem.find(
+    const alreadyOrderExist = alreadyDayExist.titleList.find(
       v => v.orderNo === cur.orderNo?.toString(),
     );
 
     if (!alreadyOrderExist) {
-      alreadyDayExist.scheduleItem.push({
+      alreadyDayExist.titleList.push({
         visitScheduleId: cur.id?.toString() ?? 'none',
         orderNo: cur.orderNo.toString(),
-        transitionNo: cur.transitionNo,
-        stayPeriod: cur.stayPeriod,
-        checkin: cur.checkin?.toISOString() ?? null,
-        checkout: cur.checkout?.toISOString() ?? null,
+        placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
+        // transitionNo: cur.transitionNo,
+        // stayPeriod: cur.stayPeriod,
+        // checkin: cur.checkin?.toISOString() ?? null,
+        // checkout: cur.checkout?.toISOString() ?? null,
         title: (() => {
           if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
             return cur.tourPlace?.bkc_hotel_name ?? '';
@@ -1620,7 +1623,7 @@ const visitScheduleToDayScheduleType = (
           ...acc,
           {
             ...last,
-            scheduleItem: alreadyDayExist.scheduleItem,
+            titleList: alreadyDayExist.titleList,
           },
         ];
       }
@@ -2947,9 +2950,15 @@ export const makeSchedule = async (
 
         const tmpArr = Array(ctx.mealPerDay! + 1 + numOfTodaySpot).fill(null);
 
+        const validCent = ctx.spotClusterRes!.validCentNSpots![clusterNo];
+
         return {
-          planType: 'MIN' as PlanType,
+          // planType: 'MIN' as PlanType,
           dayNo,
+          transitionNo: validCent.centroidNHotel.transitionNo,
+          stayPeriod: validCent.centroidNHotel.stayPeriod,
+          checkin: validCent.centroidNHotel.checkin,
+          checkout: validCent.centroidNHotel.checkout,
           titleList: tmpArr
             .map((v, orderNo) => {
               const curResources =
@@ -2959,11 +2968,6 @@ export const makeSchedule = async (
 
               let ret: Partial<IVisitOneSchedule> = {
                 orderNo,
-                dayNo,
-                transitionNo: curResources.centroidNHotel.transitionNo,
-                stayPeriod: curResources.centroidNHotel.stayPeriod,
-                checkin: curResources.centroidNHotel.checkin,
-                checkout: curResources.centroidNHotel.checkout,
               };
 
               /// 하루일정중 첫번째는 언제나 숙소이다.
@@ -2974,8 +2978,8 @@ export const makeSchedule = async (
                 const centNHotel = curResources.centroidNHotel;
                 ret = {
                   ...ret,
-                  cent: centNHotel.cent,
                   placeType: 'HOTEL',
+                  cent: centNHotel.cent,
                   data: centNHotel.hotels?.hotelSearchResult, /// 호텔은 정해지지 않았으므로 검색한 중심점을 데이터로 넣는다.
                 };
 
@@ -3118,12 +3122,12 @@ export const makeSchedule = async (
                 const ret = {
                   dayNo: v.dayNo,
                   orderNo: t.orderNo!,
-                  planType: v.planType,
+                  // planType: v.planType,
                   placeType: t.placeType!,
-                  transitionNo: t.transitionNo,
-                  stayPeriod: t.stayPeriod,
-                  checkin: t.checkin,
-                  checkout: t.checkout,
+                  transitionNo: v.transitionNo,
+                  stayPeriod: v.stayPeriod,
+                  checkin: v.checkin,
+                  checkout: v.checkout,
                   tourPlaceId: tmp,
                   // queryParamsId
                 };
@@ -3212,6 +3216,8 @@ export const makeSchedule = async (
                 if (
                   (t.placeType!.includes('RESTAURANT') ||
                     t.placeType!.includes('SPOT')) &&
+                  // (t.placeType!.includes('RESTAURANT') ||
+                  //   t.placeType!.includes('SPOT')) &&
                   t.data &&
                   t.data.length > 0
                 ) {
@@ -3416,7 +3422,7 @@ export const saveSchedule = async (
 export const getDaySchedule = async (
   param: GetDayScheduleREQParam,
 ): Promise<GetDayScheduleRETParamPayload> => {
-  const { queryParamsId, day, planType } = param;
+  const { queryParamsId, day } = param;
 
   const queryParams = await prisma.queryParams.findFirst({
     where: {
@@ -3426,7 +3432,7 @@ export const getDaySchedule = async (
       visitSchedule: {
         where: {
           dayNo: { equals: Number(day) },
-          planType: { equals: planType.toUpperCase() as PlanType },
+          // planType: { equals: planType.toUpperCase() as PlanType },
         },
         include: {
           tourPlace: {
@@ -3670,7 +3676,7 @@ export const getDetailSchedule = async (
           id: visitSchedule.id.toString(),
           dayCount: visitSchedule.dayNo,
           orderCount: visitSchedule.orderNo,
-          planType: visitSchedule.planType,
+          // planType: visitSchedule.planType,
           spotType: tourPlaceType,
           previewImg: hotel.bkc_main_photo_url ?? 'none',
           spotName: hotel.bkc_hotel_name ?? 'none',
@@ -3725,7 +3731,7 @@ export const getDetailSchedule = async (
           id: visitSchedule.id.toString(),
           dayCount: visitSchedule.dayNo,
           orderCount: visitSchedule.orderNo,
-          planType: visitSchedule.planType,
+          // planType: visitSchedule.planType,
           spotType: tourPlaceType,
           previewImg: (() => {
             return googlePlace.gl_photos.length > 0 &&
@@ -3796,7 +3802,7 @@ export const getDetailSchedule = async (
           id: visitSchedule.id.toString(),
           dayCount: visitSchedule.dayNo,
           orderCount: visitSchedule.orderNo,
-          planType: visitSchedule.planType,
+          // planType: visitSchedule.planType,
           spotType: tourPlaceType,
           previewImg: 'none',
           spotName: visitJejuPlace.vj_title ?? 'none',

@@ -407,13 +407,8 @@ export type VisitPlaceType = 'HOTEL' | 'SPOT' | 'RESTAURANT';
 export interface IVisitOneSchedule {
   visitScheduleId: number; // ex)  171273
   orderNo: number; // x일차 y번째 일정인지 표기 1,2,3,4,..
-  dayNo: number;
-  placeType: VisitPlaceType;
   title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-  transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
-  stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
-  checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
-  checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  placeType: VisitPlaceType;
   cent?:
     | GeoFormat & {
         idx: number;
@@ -466,14 +461,15 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
   dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
-  scheduleItem: {
+  transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+  stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
+  checkin: string | null; // 호텔일경우 해당 호텔에 체크인하는 날짜
+  checkout: string | null; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+  titleList: {
     visitScheduleId: string; // ex)  171273
+    placeType: VisitPlaceType;
     orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
     title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-    transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
-    stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
-    checkin: string | null; // 호텔일경우 해당 호텔에 체크인하는 날짜
-    checkout: string | null; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
     tourPlaceData: TourPlace | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
 }
@@ -550,7 +546,7 @@ export interface IHotelInMakeSchedule {
   hotelSrchOpt: BKCSrchByCoordReqOpt;
 }
 export interface IVisitDaySchedule {
-  planType: PlanType;
+  // planType: PlanType;
   dayNo: number;
   titleList: Partial<IVisitOneSchedule>[];
 }
@@ -587,8 +583,14 @@ export interface MakeScheduleRETParamPayload {
   spots?: TourPlaceGeoLoc[];
   foods?: TourPlaceGeoLoc[];
   visitSchedules: {
-    planType: PlanType;
     dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
+    // planType: PlanType;
+
+    transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
+    stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
+    checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
+    checkout?: string; // 호텔일경우 해당 호텔에 체크아웃하는 날짜
+
     titleList: Partial<IVisitOneSchedule>[];
   }[];
   queryParams: QueryParams & {
@@ -695,7 +697,7 @@ export interface DetailScheduleType {
   id: string; /// ex) 22748
   dayCount: number; /// x일째 정보인지 ex) 1, 2, 3
   orderCount: number; /// x일째 y번째 방문 정보인지 ex) 0,1,2,3,...
-  planType: PlanType; /// 해당 장소는 비용타입중 min | mid | max중 어디에 속하는가
+  // planType: PlanType; /// 해당 장소는 비용타입중 min | mid | max중 어디에 속하는가
   spotType: string; /// ex) 'hotel', 'spot', 'restaurant'
   previewImg: string; /// ex) http://jtjtbasdhtja;dfakjsdf
   spotName: string; /// ex) 'Turtle Bay Resort'
