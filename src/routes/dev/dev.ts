@@ -9,6 +9,7 @@ import {
   accessTokenValidCheck,
   s3FileUpload,
   getS3SignedUrl,
+  s3,
 } from '@src/utils';
 
 const upload = multer();
@@ -95,6 +96,7 @@ export type GetPresignedUrlFromS3FileRequestType = {
   key: string;
 };
 export interface GetPresignedUrlFromS3FileSuccessResType {
+  key: string;
   signedUrl: string;
 }
 
@@ -133,8 +135,61 @@ export const getPresignedUrlFromS3File = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
+          key,
           signedUrl,
         },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface PrismaTestRequestType {
+  key: string;
+}
+export interface PrismaTestSuccessResType {}
+
+export type PrismaTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: PrismaTestSuccessResType | {};
+};
+
+export const prismaTest = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<PrismaTestRequestType>,
+    res: Express.IBTypedResponse<PrismaTestResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const { key } = param;
+      const s3Resp = await s3
+        .getObject({
+          Bucket: process.env.AWS_S3_BUCKET ?? '',
+          Key: key,
+        })
+        .promise();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: s3Resp,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -171,5 +226,6 @@ settingRouter.post(
   accessTokenValidCheck,
   getPresignedUrlFromS3File,
 );
+settingRouter.post('/prismaTest', prismaTest);
 
 export default settingRouter;

@@ -1,19 +1,18 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
-// import multer from 'multer';
+import multer from 'multer';
 import {
   ibDefs,
   asyncWrapper,
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  // getS3SignedUrl,
-  // s3FileUpload,
+  s3FileUpload,
 } from '@src/utils';
 import { CardTag, CardNewsGroup, CardNewsContent } from '@prisma/client';
 import { isEmpty } from 'lodash';
 
-// const upload = multer();
+const upload = multer();
 
 const authRouter: express.Application = express();
 
@@ -338,88 +337,157 @@ export const addCardGrp = asyncWrapper(
   },
 );
 
-// export type UploadCardGrpImgRequestType = {};
-// export interface UploadCardGrpImgSuccessResType {
-//   signedUrl: string;
-// }
+export type UploadCardGrpImgRequestType = {};
+export interface UploadCardGrpImgSuccessResType {
+  signedUrl: string;
+}
 
-// export type UploadCardGrpImgResType = Omit<IBResFormat, 'IBparams'> & {
-//   IBparams: UploadCardGrpImgSuccessResType[] | {};
-// };
+export type UploadCardGrpImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UploadCardGrpImgSuccessResType[] | {};
+};
 
-// export const uploadCardGrpImg = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<UploadCardGrpImgRequestType>,
-//     res: Express.IBTypedResponse<UploadCardGrpImgResType>,
-//   ) => {
-//     try {
-//       const { locals } = req;
-//       const userTokenId = (() => {
-//         if (
-//           locals &&
-//           locals?.grade === 'member' &&
-//           !isEmpty(locals?.user?.tripCreator)
-//         ) {
-//           return locals?.user?.userTokenId;
-//         }
+export const uploadCardGrpImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UploadCardGrpImgRequestType>,
+    res: Express.IBTypedResponse<UploadCardGrpImgResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
 
-//         // return locals?.tokenId;
-//         throw new IBError({
-//           type: 'NOTAUTHORIZED',
-//           message: 'creator member 등급만 접근 가능합니다.',
-//         });
-//       })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
 
-//       const files = req.files as Express.Multer.File[];
+      const files = req.files as Express.Multer.File[];
 
-//       const uploadPromises = files.map((file: Express.Multer.File) => {
-//         return s3FileUpload({
-//           fileName: `cardNewsGroupImg/${file.originalname}`,
-//           fileData: file.buffer,
-//         });
-//       });
+      const uploadPromises = files.map((file: Express.Multer.File) => {
+        return s3FileUpload({
+          fileName: `cardNewsGroupImg/${file.originalname}`,
+          fileData: file.buffer,
+        });
+      });
 
-//       const [{ Key: key }] = await Promise.all(uploadPromises);
+      const [{ Key: key }] = await Promise.all(uploadPromises);
 
-//       await prisma.user.update({
-//         where: {
-//           userTokenId,
-//         },
-//         data: {
-//           profileImg: key,
-//         },
-//       });
-//       const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          key,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
-//       res.json({
-//         ...ibDefs.SUCCESS,
-//         IBparams: {
-//           signedUrl: signedProfileImgUrl,
-//         },
-//       });
-//     } catch (err) {
-//       if (err instanceof IBError) {
-//         if (err.type === 'NOTAUTHORIZED') {
-//           res.status(403).json({
-//             ...ibDefs.NOTAUTHORIZED,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//         if (err.type === 'NOTEXISTDATA') {
-//           res.status(404).json({
-//             ...ibDefs.NOTEXISTDATA,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//       }
-//       throw err;
-//     }
-//   },
-// );
+export type UploadCardImgRequestType = {};
+
+export type UploadCardImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: string[] | {};
+};
+
+export const uploadCardImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UploadCardImgRequestType>,
+    res: Express.IBTypedResponse<UploadCardImgResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const files = req.files as Express.Multer.File[];
+
+      const uploadPromises = files.map((file: Express.Multer.File) => {
+        return s3FileUpload({
+          fileName: `cardNewsContentBgImg/${file.originalname}`,
+          fileData: file.buffer,
+        });
+      });
+
+      // const [{ Key: key }] = await Promise.all(uploadPromises);
+      const keys = await Promise.all(uploadPromises);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: keys.map(v => v.Key),
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
@@ -428,6 +496,17 @@ authRouter.get(
   getMainCardNewsGrp,
 );
 authRouter.post('/addCardGrp', accessTokenValidCheck, addCardGrp);
-// authRouter.post('/uploadCardGrpImg', accessTokenValidCheck, uploadCardGrpImg);
+authRouter.post(
+  '/uploadCardGrpImg',
+  accessTokenValidCheck,
+  [upload.array('files', 10)],
+  uploadCardGrpImg,
+);
+authRouter.post(
+  '/uploadCardImg',
+  accessTokenValidCheck,
+  [upload.array('files', 10)],
+  uploadCardImg,
+);
 
 export default authRouter;

@@ -10,11 +10,14 @@ export const s3 = new AWS.S3({
   params: { timeout: 6000000 },
 });
 
-export const getS3SignedUrl = async (s3ObjectKey: string): Promise<string> => {
+export const getS3SignedUrl = async (
+  s3ObjectKey: string,
+  Expires?: number,
+): Promise<string> => {
   const signedUrl = await s3.getSignedUrlPromise('getObject', {
     Bucket: process.env.AWS_S3_BUCKET,
     Key: s3ObjectKey,
-    Expires: 10,
+    Expires: Expires ?? 900,
   });
   return signedUrl;
 };
