@@ -216,15 +216,19 @@ export const getMainCardNewsGrp = asyncWrapper(
   },
 );
 
-export interface AddCardGrpRequestType {
+export interface CardNewsContentReqType {
+  title: string; /// 그룹에 속한 카드 컨텐츠의 타이틀
+  content: string; /// 그룹에 속한 카드 컨텐츠의 내용
+  bgPicUri: string; /// 그룹에 속한 카드 컨텐츠의 배경 이미지
+}
+
+export interface CardNewsGroupRequestType {
   title: string; /// 카드 뉴스 그룹 타이틀
   thumbnailUri: string; /// 카드 뉴스 그룹 썸네일 이미지
-  no?: number; /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
-  cardNewsContent?: {
-    title: string; /// 그룹에 속한 카드 컨텐츠의 타이틀
-    content: string; /// 그룹에 속한 카드 컨텐츠의 내용
-    bgPicUri: string; /// 그룹에 속한 카드 컨텐츠의 배경 이미지
-  }[];
+  groupNo?: string; /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
+}
+export interface AddCardGrpRequestType extends CardNewsGroupRequestType {
+  cardNewsContent?: CardNewsContentReqType[];
   cardTag?: string[]; /// 그룹이 가지는 카드 태그 => 카드 그룹이 가지고 있지만 이것을 개별 카드 컨텐츠가 갖도록 수정 필요
 }
 export interface AddCardGrpSuccessResType
@@ -266,12 +270,12 @@ export const addCardGrp = asyncWrapper(
         });
       }
 
-      const { title, thumbnailUri, no, cardNewsContent, cardTag } = param;
-      const createdGroup = await prisma.cardNewsGroup.create({
+      const { title, thumbnailUri, groupNo, cardNewsContent, cardTag } = param;
+      const updatedGroup = await prisma.cardNewsGroup.create({
         data: {
           title,
           thumbnailUri,
-          no: no ?? 1,
+          no: groupNo ? Number(groupNo) : 0,
           ...(cardNewsContent &&
             !isEmpty(cardNewsContent) && {
               cardNewsContent: {
@@ -310,15 +314,15 @@ export const addCardGrp = asyncWrapper(
       });
 
       const retCardGroups: AddCardGrpSuccessResType = {
-        groupNo: createdGroup.no,
-        groupId: createdGroup.id,
-        groupTitle: createdGroup.title,
-        groupThumbnail: createdGroup.thumbnailUri,
-        cards: createdGroup.cardNewsContent.map(card => {
+        groupNo: updatedGroup.no,
+        groupId: updatedGroup.id,
+        groupTitle: updatedGroup.title,
+        groupThumbnail: updatedGroup.thumbnailUri,
+        cards: updatedGroup.cardNewsContent.map(card => {
           return {
             cardId: card.id,
             cardNo: card.no,
-            tag: createdGroup.cardTag,
+            tag: updatedGroup.cardTag,
             cardTitle: card.title,
             cardContent: card.content,
             cardBgUri: card.bgPicUri,
@@ -506,6 +510,109 @@ export const uploadCardImg = asyncWrapper(
   },
 );
 
+export interface UpdateCardGrpRequestType
+  extends Partial<CardNewsGroupRequestType> {
+  groupId: string;
+}
+export interface UpdateCardGrpSuccessResType
+  extends Omit<GetContentListSuccessResType, 'cards'> {}
+
+export type UpdateCardGrpResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UpdateCardGrpSuccessResType | {};
+};
+
+export const updateCardGrp = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UpdateCardGrpRequestType>,
+    res: Express.IBTypedResponse<UpdateCardGrpResType>,
+  ) => {
+    try {
+      const param = req.body;
+
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { groupId, title, thumbnailUri, groupNo } = param;
+      const foundGroup = await prisma.cardNewsGroup.findUnique({
+        where: {
+          id: Number(groupId),
+        },
+      });
+
+      if (!foundGroup) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 그룹 Id입니다.',
+        });
+      }
+
+      const updatedGroup = await prisma.cardNewsGroup.update({
+        where: {
+          id: Number(groupId),
+        },
+        data: {
+          title,
+          thumbnailUri,
+          no: groupNo ? Number(groupNo) : undefined,
+        },
+      });
+
+      const retCardGroups = {
+        groupNo: updatedGroup.no,
+        groupId: updatedGroup.id,
+        groupTitle: updatedGroup.title,
+        groupThumbnail: updatedGroup.thumbnailUri,
+      };
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retCardGroups,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
@@ -525,5 +632,6 @@ authRouter.post(
   [upload.array('files', 10)],
   uploadCardImg,
 );
+authRouter.post('/updateCardGrp', accessTokenValidCheck, updateCardGrp);
 
 export default authRouter;
