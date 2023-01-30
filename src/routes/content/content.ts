@@ -228,10 +228,10 @@ export interface AddCardGrpRequestType {
   cardTag?: string[]; /// 그룹이 가지는 카드 태그 => 카드 그룹이 가지고 있지만 이것을 개별 카드 컨텐츠가 갖도록 수정 필요
 }
 export interface AddCardGrpSuccessResType
-  extends GetMainCardNewsGrpSuccessResType {}
+  extends GetContentListSuccessResType {}
 
 export type AddCardGrpResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: AddCardGrpSuccessResType[] | {};
+  IBparams: AddCardGrpSuccessResType | {};
 };
 
 export const addCardGrp = asyncWrapper(
@@ -267,7 +267,7 @@ export const addCardGrp = asyncWrapper(
       }
 
       const { title, thumbnailUri, no, cardNewsContent, cardTag } = param;
-      const createRes = await prisma.cardNewsGroup.create({
+      const createdGroup = await prisma.cardNewsGroup.create({
         data: {
           title,
           thumbnailUri,
@@ -309,9 +309,26 @@ export const addCardGrp = asyncWrapper(
         },
       });
 
+      const retCardGroups: AddCardGrpSuccessResType = {
+        groupNo: createdGroup.no,
+        groupId: createdGroup.id,
+        groupTitle: createdGroup.title,
+        groupThumbnail: createdGroup.thumbnailUri,
+        cards: createdGroup.cardNewsContent.map(card => {
+          return {
+            cardId: card.id,
+            cardNo: card.no,
+            tag: createdGroup.cardTag,
+            cardTitle: card.title,
+            cardContent: card.content,
+            cardBgUri: card.bgPicUri,
+          };
+        }),
+      };
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: createRes,
+        IBparams: retCardGroups,
       });
     } catch (err) {
       if (err instanceof IBError) {
