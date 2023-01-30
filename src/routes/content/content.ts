@@ -539,7 +539,6 @@ export const updateCardGrp = asyncWrapper(
           return locals?.user?.userTokenId;
         }
 
-        // return locals?.tokenId;
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: 'creator member 등급만 접근 가능합니다.',
@@ -613,6 +612,123 @@ export const updateCardGrp = asyncWrapper(
   },
 );
 
+export type UpdateCardNewsRequestUnitType = Partial<CardNewsContentReqType> & {
+  cardId: string;
+  cardNo?: string;
+};
+export interface UpdateCardNewsRequestType {
+  cardNewsContent: UpdateCardNewsRequestUnitType[];
+}
+export type PickCardsTypeFromGetContentList =
+  GetContentListSuccessResType['cards'][0];
+export interface UpdateCardNewsSuccessResType {}
+
+export type UpdateCardNewsResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: PickCardsTypeFromGetContentList[] | {};
+};
+
+export const updateCardNews = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UpdateCardNewsRequestType>,
+    res: Express.IBTypedResponse<UpdateCardNewsResType>,
+  ) => {
+    try {
+      const param = req.body;
+
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { cardNewsContent: updateCardArrParam } = param;
+
+      const updatedCardList = await Promise.all(
+        updateCardArrParam.map(v => {
+          return prisma.$transaction(async tx => {
+            const foundCard = await tx.cardNewsContent.findUnique({
+              where: {
+                id: Number(v.cardId),
+              },
+            });
+            if (!foundCard) {
+              throw new IBError({
+                type: 'NOTEXISTDATA',
+                message: '존재하지 않는 카드 Id입니다.',
+              });
+            }
+
+            const updatedCardNews = await tx.cardNewsContent.update({
+              where: {
+                id: Number(v.cardId),
+              },
+              data: {
+                title: v.title,
+                content: v.content,
+                no: v.cardNo ? Number(v.cardNo) : undefined,
+                bgPicUri: v.bgPicUri,
+              },
+            });
+            return updatedCardNews;
+          });
+        }),
+      );
+
+      const retCardNewsList = updatedCardList.map(v => {
+        return {
+          cardId: v.id,
+          cardNo: v.no,
+          cardTitle: v.title,
+          cardContent: v.content,
+          cardBgUri: v.bgPicUri,
+        };
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retCardNewsList,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
@@ -633,5 +749,6 @@ authRouter.post(
   uploadCardImg,
 );
 authRouter.post('/updateCardGrp', accessTokenValidCheck, updateCardGrp);
+authRouter.post('/updateCardNews', accessTokenValidCheck, updateCardNews);
 
 export default authRouter;
