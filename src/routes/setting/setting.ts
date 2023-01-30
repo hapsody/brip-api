@@ -681,12 +681,12 @@ export const changeProfileImg = asyncWrapper(
           profileImg: key,
         },
       });
-      const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
+      // const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
 
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
-          signedUrl: signedProfileImgUrl,
+          key,
         },
       });
     } catch (err) {
