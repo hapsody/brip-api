@@ -11,11 +11,11 @@ import { CardTag } from '@prisma/client';
 
 const authRouter: express.Application = express();
 
-export type GetContentListRequestType = {
+export interface GetContentListRequestType {
   keyword: string;
   skip: number;
   take: number;
-};
+}
 export interface GetContentListSuccessResType {
   groupNo: number;
   groupId: number;
@@ -103,6 +103,68 @@ export const getContentList = asyncWrapper(
   },
 );
 
+export interface GetHotCardTagListRequestType {
+  skip: number;
+  take: number;
+}
+export interface GetHotCardTagListSuccessResType {
+  tag: string;
+  count: number;
+}
+
+export type GetHotCardTagListResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetHotCardTagListSuccessResType[] | {};
+};
+
+export const getHotCardTagList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetHotCardTagListRequestType>,
+    res: Express.IBTypedResponse<GetHotCardTagListResType>,
+  ) => {
+    try {
+      const { take, skip } = req.query;
+      const hotTagList = await prisma.cardTag.findMany({
+        take: Number(take),
+        skip: Number(skip),
+        include: {
+          _count: {
+            select: { cardNewsGroup: true },
+          },
+        },
+        orderBy: {
+          cardNewsGroup: {
+            _count: 'desc',
+          },
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: hotTagList.map(v => {
+          return {
+            tag: v.value,
+            // eslint-disable-next-line no-underscore-dangle
+            count: v._count.cardNewsGroup,
+          };
+        }),
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        // if (err.type === 'INVALIDENVPARAMS') {
+        //   res.status(500).json({
+        //     ...ibDefs.INVALIDENVPARAMS,
+        //     IBdetail: (err as Error).message,
+        //     IBparams: {} as object,
+        //   });
+        //   return;
+        // }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
+authRouter.get('/getHotCardTagList', accessTokenValidCheck, getHotCardTagList);
 
 export default authRouter;
