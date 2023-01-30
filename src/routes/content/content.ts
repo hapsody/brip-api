@@ -1,13 +1,19 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
+// import multer from 'multer';
 import {
   ibDefs,
   asyncWrapper,
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  // getS3SignedUrl,
+  // s3FileUpload,
 } from '@src/utils';
 import { CardTag, CardNewsGroup, CardNewsContent } from '@prisma/client';
+import { isEmpty } from 'lodash';
+
+// const upload = multer();
 
 const authRouter: express.Application = express();
 
@@ -211,11 +217,217 @@ export const getMainCardNewsGrp = asyncWrapper(
   },
 );
 
+export interface AddCardGrpRequestType {
+  title: string; /// 카드 뉴스 그룹 타이틀
+  thumbnailUri: string; /// 카드 뉴스 그룹 썸네일 이미지
+  no?: number; /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
+  cardNewsContent?: {
+    title: string; /// 그룹에 속한 카드 컨텐츠의 타이틀
+    content: string; /// 그룹에 속한 카드 컨텐츠의 내용
+    bgPicUri: string; /// 그룹에 속한 카드 컨텐츠의 배경 이미지
+  }[];
+  cardTag?: string[]; /// 그룹이 가지는 카드 태그 => 카드 그룹이 가지고 있지만 이것을 개별 카드 컨텐츠가 갖도록 수정 필요
+}
+export interface AddCardGrpSuccessResType
+  extends GetMainCardNewsGrpSuccessResType {}
+
+export type AddCardGrpResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AddCardGrpSuccessResType[] | {};
+};
+
+export const addCardGrp = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AddCardGrpRequestType>,
+    res: Express.IBTypedResponse<AddCardGrpResType>,
+  ) => {
+    try {
+      const param = req.body;
+
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { title, thumbnailUri, no, cardNewsContent, cardTag } = param;
+      const createRes = await prisma.cardNewsGroup.create({
+        data: {
+          title,
+          thumbnailUri,
+          no: no ?? 1,
+          ...(cardNewsContent &&
+            !isEmpty(cardNewsContent) && {
+              cardNewsContent: {
+                createMany: {
+                  data: cardNewsContent.map((v, i) => {
+                    return {
+                      title: v.title,
+                      content: v.content,
+                      bgPicUri: v.bgPicUri,
+                      no: i,
+                    };
+                  }),
+                },
+              },
+            }),
+          ...(cardTag &&
+            !isEmpty(cardTag) && {
+              cardTag: {
+                connectOrCreate: cardTag.map(value => {
+                  return {
+                    where: {
+                      value,
+                    },
+                    create: {
+                      value,
+                    },
+                  };
+                }),
+              },
+            }),
+        },
+        include: {
+          cardNewsContent: true,
+          cardTag: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: createRes,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+// export type UploadCardGrpImgRequestType = {};
+// export interface UploadCardGrpImgSuccessResType {
+//   signedUrl: string;
+// }
+
+// export type UploadCardGrpImgResType = Omit<IBResFormat, 'IBparams'> & {
+//   IBparams: UploadCardGrpImgSuccessResType[] | {};
+// };
+
+// export const uploadCardGrpImg = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<UploadCardGrpImgRequestType>,
+//     res: Express.IBTypedResponse<UploadCardGrpImgResType>,
+//   ) => {
+//     try {
+//       const { locals } = req;
+//       const userTokenId = (() => {
+//         if (
+//           locals &&
+//           locals?.grade === 'member' &&
+//           !isEmpty(locals?.user?.tripCreator)
+//         ) {
+//           return locals?.user?.userTokenId;
+//         }
+
+//         // return locals?.tokenId;
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: 'creator member 등급만 접근 가능합니다.',
+//         });
+//       })();
+
+//       const files = req.files as Express.Multer.File[];
+
+//       const uploadPromises = files.map((file: Express.Multer.File) => {
+//         return s3FileUpload({
+//           fileName: `cardNewsGroupImg/${file.originalname}`,
+//           fileData: file.buffer,
+//         });
+//       });
+
+//       const [{ Key: key }] = await Promise.all(uploadPromises);
+
+//       await prisma.user.update({
+//         where: {
+//           userTokenId,
+//         },
+//         data: {
+//           profileImg: key,
+//         },
+//       });
+//       const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
+
+//       res.json({
+//         ...ibDefs.SUCCESS,
+//         IBparams: {
+//           signedUrl: signedProfileImgUrl,
+//         },
+//       });
+//     } catch (err) {
+//       if (err instanceof IBError) {
+//         if (err.type === 'NOTAUTHORIZED') {
+//           res.status(403).json({
+//             ...ibDefs.NOTAUTHORIZED,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'NOTEXISTDATA') {
+//           res.status(404).json({
+//             ...ibDefs.NOTEXISTDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//       }
+//       throw err;
+//     }
+//   },
+// );
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
   accessTokenValidCheck,
   getMainCardNewsGrp,
 );
+authRouter.post('/addCardGrp', accessTokenValidCheck, addCardGrp);
+// authRouter.post('/uploadCardGrpImg', accessTokenValidCheck, uploadCardGrpImg);
 
 export default authRouter;
