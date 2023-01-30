@@ -7,7 +7,7 @@ import {
   IBError,
   accessTokenValidCheck,
 } from '@src/utils';
-import { CardTag } from '@prisma/client';
+import { CardTag, CardNewsGroup, CardNewsContent } from '@prisma/client';
 
 const authRouter: express.Application = express();
 
@@ -164,7 +164,58 @@ export const getHotCardTagList = asyncWrapper(
   },
 );
 
+export interface GetMainCardNewsGrpRequestType {}
+export type GetMainCardNewsGrpSuccessResType = CardNewsGroup & {
+  cardNewsContent: CardNewsContent[];
+  cardTag: CardTag[];
+};
+
+export type GetMainCardNewsGrpResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMainCardNewsGrpSuccessResType | {};
+};
+
+export const getMainCardNewsGrp = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetMainCardNewsGrpRequestType>,
+    res: Express.IBTypedResponse<GetMainCardNewsGrpResType>,
+  ) => {
+    try {
+      /// 임시로 가장 최근 작성된 뉴스 그룹을 내보내도록 함. 향후 시용지 취향에 따라 노출하도록 변경할것
+      const mainCardNewsGrp = await prisma.cardNewsGroup.findFirst({
+        orderBy: {
+          id: 'desc',
+        },
+        include: {
+          cardNewsContent: true,
+          cardTag: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: mainCardNewsGrp ?? {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        // if (err.type === 'INVALIDENVPARAMS') {
+        //   res.status(500).json({
+        //     ...ibDefs.INVALIDENVPARAMS,
+        //     IBdetail: (err as Error).message,
+        //     IBparams: {} as object,
+        //   });
+        //   return;
+        // }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
-authRouter.get('/getHotCardTagList', accessTokenValidCheck, getHotCardTagList);
+authRouter.get(
+  '/getMainCardNewsGrp',
+  accessTokenValidCheck,
+  getMainCardNewsGrp,
+);
 
 export default authRouter;
