@@ -3267,6 +3267,7 @@ export const getSchedule = async (
           tourPlace: true,
         },
       },
+      metaScheduleInfo: true,
     },
   });
 
@@ -3283,6 +3284,7 @@ export const getSchedule = async (
 
   return {
     ...omit(queryParams, 'visitSchedule'),
+    metaScheduleInfo: queryParams.metaScheduleInfo!,
     plan: retValue,
   };
 };
@@ -3316,7 +3318,7 @@ export const getScheduleList = async (
           tourPlace: true,
         },
       },
-      // metaScheduleInfo: true,
+      metaScheduleInfo: true,
       savedSchedule: {
         include: {
           hashTag: true,
@@ -4569,36 +4571,95 @@ export const fixHotel = async (
     }, []);
   })();
 
-  const updateList = await Promise.all(
-    hotelPerDay.map((tpId, dayNo) => {
-      return prisma.$transaction(async tx => {
-        const [vs] = await tx.visitSchedule.findMany({
-          where: {
-            queryParamsId: Number(queryParamsId),
-            dayNo,
-            placeType: {
-              contains: 'HOTEL',
-            },
-          },
-          select: {
-            id: true,
-          },
+  const updateList = await prisma.$transaction(async tx => {
+    let estimatedCost = 0;
+    const retList = await Promise.all(
+      hotelPerDay.map((tpId, dayNo) => {
+        const promise = new Promise<VisitSchedule>(resolve => {
+          // eslint-disable-next-line no-void
+          void (async () => {
+            const [vs] = await tx.visitSchedule.findMany({
+              where: {
+                queryParamsId: Number(queryParamsId),
+                dayNo,
+                placeType: {
+                  contains: 'HOTEL',
+                },
+              },
+              select: {
+                id: true,
+              },
+            });
+
+            const uppdateRes = await tx.visitSchedule.update({
+              where: {
+                id: vs.id,
+              },
+              data: {
+                tourPlaceId: Number(tpId),
+                transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
+              },
+            });
+
+            const tp = await tx.tourPlace.findUnique({
+              where: {
+                id: Number(tpId),
+              },
+            });
+
+            estimatedCost += tp?.bkc_gross_amount_per_night ?? 0;
+            resolve(uppdateRes);
+          })();
         });
 
-        const uppdateRes = await tx.visitSchedule.update({
-          where: {
-            id: vs.id,
-          },
-          data: {
-            tourPlaceId: Number(tpId),
-            transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
-          },
-        });
-        return uppdateRes;
-      });
-    }),
-  );
+        return promise;
+      }),
+    );
+    await tx.metaScheduleInfo.update({
+      where: {
+        queryParamsId: Number(queryParamsId),
+      },
+      data: {
+        estimatedCost,
+      },
+    });
+    return retList;
+  });
 
+  // const updateList = await Promise.all([
+  //   hotelPerDay.map((tpId, dayNo) => {
+  //     return prisma.$transaction(async tx => {
+  //       const [vs] = await tx.visitSchedule.findMany({
+  //         where: {
+  //           queryParamsId: Number(queryParamsId),
+  //           dayNo,
+  //           placeType: {
+  //             contains: 'HOTEL',
+  //           },
+  //         },
+  //         select: {
+  //           id: true,
+  //           tourPlace: {
+  //             select: {
+  //               bkc_gross_amount_per_night: true,
+  //             },
+  //           },
+  //         },
+  //       });
+  //       estimatedCost += vs.tourPlace?.bkc_gross_amount_per_night ?? 0;
+  //       const uppdateRes = await tx.visitSchedule.update({
+  //         where: {
+  //           id: vs.id,
+  //         },
+  //         data: {
+  //           tourPlaceId: Number(tpId),
+  //           transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
+  //         },
+  //       });
+  //       return uppdateRes;
+  //     });
+  //   }),
+  // ]);
   return { updateList };
 };
 

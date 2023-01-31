@@ -5,6 +5,7 @@ import {
   QueryParams,
   VisitSchedule,
   PlaceType,
+  MetaScheduleInfo,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow } from '@src/utils';
 
@@ -609,8 +610,9 @@ export type MakeScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface GetScheduleREQParam {
   queryParamsId: string;
 }
-export interface GetScheduleRETParamPayload
-  extends ReqScheduleRETParamPayload {}
+export interface GetScheduleRETParamPayload extends ReqScheduleRETParamPayload {
+  metaScheduleInfo: MetaScheduleInfo;
+}
 
 export type GetScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetScheduleRETParamPayload | {};

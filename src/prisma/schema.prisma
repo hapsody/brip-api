@@ -372,6 +372,7 @@ model MetaScheduleInfo {
   recommendedMidHotelCount Int? /// 검색된 호텔들중 mid 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
   recommendedMaxHotelCount Int? /// 검색된 호텔들중 max 여행 경비 범위 안의 호텔들을 추려, 평가 상위에서부터 여행중 필요한 숙소의 수만큼 걸러낸 호텔의 수
   // visitSchedulesCount      Int /// 생성된 일정에서 몇일치 코스가 생성됐는지 수
+  estimatedCost            Float? /// 예상 여행 비용
   queryParams              QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId            Int         @unique
 }
