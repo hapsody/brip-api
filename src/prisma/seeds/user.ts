@@ -51,6 +51,21 @@ const creatorData: {
       domain: '1,4',
     },
   },
+  {
+    email: 'yjshim@gmail.com',
+    password: 'qwer1234',
+    phone: '+821012345678',
+    nickName: '윤진',
+    countryCode: 'KR',
+    userTokenId: '1',
+    tripCreator: {
+      nickName: 'yjshim',
+      phone: '+821012345678',
+      area: '서울',
+      proposal: '크리에이터에용',
+      domain: '5,6,9,10',
+    },
+  },
 ];
 
 async function main() {

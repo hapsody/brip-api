@@ -33,6 +33,7 @@ model User {
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now())
   UserPasswordHistory    UserPasswordHistory[]
+  CardNewsGroup          CardNewsGroup[]
 }
 
 // enum OPENINGHOURS {
@@ -334,6 +335,8 @@ model CardNewsGroup {
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
+  user            User              @relation(fields: [userId], references: [id])
+  userId          Int
 }
 
 model CardTag {

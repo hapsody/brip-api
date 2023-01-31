@@ -257,13 +257,16 @@ export const addCardGrp = asyncWrapper(
       const param = req.body;
 
       const { locals } = req;
-      const userTokenId = (() => {
+      const { creatorUserId, userTokenId } = (() => {
         if (
           locals &&
           locals?.grade === 'member' &&
           !isEmpty(locals?.user?.tripCreator)
         ) {
-          return locals?.user?.userTokenId;
+          return {
+            creatorUserId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
         }
 
         // return locals?.tokenId;
@@ -273,7 +276,7 @@ export const addCardGrp = asyncWrapper(
         });
       })();
 
-      if (!userTokenId) {
+      if (!userTokenId || !creatorUserId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
@@ -285,6 +288,7 @@ export const addCardGrp = asyncWrapper(
         title,
         thumbnailUri,
         no: groupNo ? Number(groupNo) : 0,
+        userId: creatorUserId,
         ...(cardNewsContent &&
           !isEmpty(cardNewsContent) && {
             cardNewsContent: {
@@ -924,6 +928,132 @@ export const deleteCardNews = asyncWrapper(
   },
 );
 
+export interface GetMyContentListRequestType {
+  keyword: string;
+  skip: number;
+  take: number;
+}
+export interface GetMyContentListSuccessResType {
+  groupNo: number;
+  groupId: number;
+  groupTitle: string;
+  groupThumbnail: string;
+  cards: {
+    cardId: number;
+    cardNo: number;
+    tag: CardTag[];
+    cardTitle: string;
+    cardContent: string;
+    cardBgUri: string;
+  }[];
+}
+
+export type GetMyContentListResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyContentListSuccessResType[] | {};
+};
+
+export const getMyContentList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetMyContentListRequestType>,
+    res: Express.IBTypedResponse<GetMyContentListResType>,
+  ) => {
+    try {
+      const { keyword, take, skip } = req.query;
+
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const foundNewsGrp = await prisma.cardNewsGroup.findMany({
+        where: {
+          OR: [
+            { title: { contains: keyword } },
+            {
+              cardNewsContent: {
+                some: {
+                  cardTag: {
+                    some: {
+                      value: { contains: keyword },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+          user: {
+            userTokenId,
+          },
+        },
+        take: Number(take),
+        skip: Number(skip),
+        include: {
+          cardNewsContent: {
+            include: {
+              cardTag: true,
+            },
+          },
+        },
+      });
+
+      const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
+        group => {
+          return {
+            groupNo: group.no,
+            groupId: group.id,
+            groupTitle: group.title,
+            groupThumbnail: group.thumbnailUri,
+            cards: group.cardNewsContent.map(card => {
+              return {
+                cardId: card.id,
+                cardNo: card.no,
+                tag: card.cardTag,
+                cardTitle: card.title,
+                cardContent: card.content,
+                cardBgUri: card.bgPicUri,
+              };
+            }),
+          };
+        },
+      );
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: retCardGroups,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        // if (err.type === 'INVALIDENVPARAMS') {
+        //   res.status(500).json({
+        //     ...ibDefs.INVALIDENVPARAMS,
+        //     IBdetail: (err as Error).message,
+        //     IBparams: {} as object,
+        //   });
+        //   return;
+        // }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
@@ -947,5 +1077,5 @@ authRouter.post('/updateCardGrp', accessTokenValidCheck, updateCardGrp);
 authRouter.post('/updateCardNews', accessTokenValidCheck, updateCardNews);
 authRouter.post('/deleteCardGrp', accessTokenValidCheck, deleteCardGrp);
 authRouter.post('/deleteCardNews', accessTokenValidCheck, deleteCardNews);
-
+authRouter.get('/getMyContentList', accessTokenValidCheck, getMyContentList);
 export default authRouter;

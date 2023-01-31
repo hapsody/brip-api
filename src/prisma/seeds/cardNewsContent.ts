@@ -3,6 +3,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  const creator = await prisma.user.findFirst({
+    where: {
+      tripCreator: {
+        some: {},
+      },
+    },
+  });
+
   const alreadyOne = await prisma.cardNewsGroup.findFirst({
     where: {
       title: {
@@ -25,6 +33,7 @@ async function main() {
       title: '몰디브의 비밀',
       thumbnailUri:
         'https://www.ttlnews.com/upload/editor_content_images/1550201354466_editor_image.jpg',
+      userId: creator!.id,
       // cardTag: {
       //   connectOrCreate: [
       //     {
@@ -146,6 +155,7 @@ async function main() {
       title: '베네치아의 비밀',
       thumbnailUri:
         'https://img.freepik.com/premium-photo/historic-houses-traditional-venetian-architecture-on-grand-canal-in-venice-italy_87646-8192.jpg?w=1060',
+      userId: creator!.id,
       // cardTag: {
       //   connectOrCreate: [
       //     {
