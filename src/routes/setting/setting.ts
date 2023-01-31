@@ -17,6 +17,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
+import { omit } from 'lodash';
 
 const upload = multer();
 
@@ -782,6 +783,82 @@ export const getProfileImg = asyncWrapper(
   },
 );
 
+export type GetMyAccountInfoRequestType = {};
+export interface GetMyAccountInfoSuccessResType
+  extends Omit<User, 'password'> {}
+
+export type GetMyAccountInfoResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyAccountInfoSuccessResType | {};
+};
+
+export const getMyAccountInfo = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetMyAccountInfoRequestType>,
+    res: Express.IBTypedResponse<GetMyAccountInfoResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: omit(user, ['password']),
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -797,5 +874,10 @@ settingRouter.post(
   changeProfileImg,
 );
 settingRouter.post('/getProfileImg', accessTokenValidCheck, getProfileImg);
+settingRouter.post(
+  '/getMyAccountInfo',
+  accessTokenValidCheck,
+  getMyAccountInfo,
+);
 
 export default settingRouter;

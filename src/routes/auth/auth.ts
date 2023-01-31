@@ -158,7 +158,7 @@ export type SignUpRequestType = {
   // userToken: string;
 };
 export type SignUpResponseType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: User | {};
+  IBparams: Omit<User, 'password'> | {};
 };
 
 export const signUp = asyncWrapper(
