@@ -52,9 +52,13 @@ export const getContentList = asyncWrapper(
           OR: [
             { title: { contains: keyword } },
             {
-              cardTag: {
+              cardNewsContent: {
                 some: {
-                  value: { contains: keyword },
+                  cardTag: {
+                    some: {
+                      value: { contains: keyword },
+                    },
+                  },
                 },
               },
             },
@@ -63,8 +67,11 @@ export const getContentList = asyncWrapper(
         take: Number(take),
         skip: Number(skip),
         include: {
-          cardNewsContent: true,
-          cardTag: true,
+          cardNewsContent: {
+            include: {
+              cardTag: true,
+            },
+          },
         },
       });
 
@@ -79,7 +86,7 @@ export const getContentList = asyncWrapper(
               return {
                 cardId: card.id,
                 cardNo: card.no,
-                tag: group.cardTag,
+                tag: card.cardTag,
                 cardTitle: card.title,
                 cardContent: card.content,
                 cardBgUri: card.bgPicUri,
@@ -133,11 +140,11 @@ export const getHotCardTagList = asyncWrapper(
         skip: Number(skip),
         include: {
           _count: {
-            select: { cardNewsGroup: true },
+            select: { cardNewsContent: true },
           },
         },
         orderBy: {
-          cardNewsGroup: {
+          cardNewsContent: {
             _count: 'desc',
           },
         },
@@ -149,7 +156,7 @@ export const getHotCardTagList = asyncWrapper(
           return {
             tag: v.value,
             // eslint-disable-next-line no-underscore-dangle
-            count: v._count.cardNewsGroup,
+            count: v._count.cardNewsContent,
           };
         }),
       });
@@ -191,8 +198,11 @@ export const getMainCardNewsGrp = asyncWrapper(
           id: 'desc',
         },
         include: {
-          cardNewsContent: true,
-          cardTag: true,
+          cardNewsContent: {
+            include: {
+              cardTag: true,
+            },
+          },
         },
       });
 
@@ -220,6 +230,7 @@ export interface CardNewsContentReqType {
   title: string; /// 그룹에 속한 카드 컨텐츠의 타이틀
   content: string; /// 그룹에 속한 카드 컨텐츠의 내용
   bgPicUri: string; /// 그룹에 속한 카드 컨텐츠의 배경 이미지
+  cardTag?: string[]; /// 그룹이 가지는 카드 태그 => 카드 그룹이 가지고 있지만 이것을 개별 카드 컨텐츠가 갖도록 수정 필요
 }
 
 export interface CardNewsGroupRequestType {
@@ -229,7 +240,6 @@ export interface CardNewsGroupRequestType {
 }
 export interface AddCardGrpRequestType extends CardNewsGroupRequestType {
   cardNewsContent?: CardNewsContentReqType[];
-  cardTag?: string[]; /// 그룹이 가지는 카드 태그 => 카드 그룹이 가지고 있지만 이것을 개별 카드 컨텐츠가 갖도록 수정 필요
 }
 export interface AddCardGrpSuccessResType
   extends GetContentListSuccessResType {}
@@ -270,59 +280,63 @@ export const addCardGrp = asyncWrapper(
         });
       }
 
-      const { title, thumbnailUri, groupNo, cardNewsContent, cardTag } = param;
-      const updatedGroup = await prisma.cardNewsGroup.create({
-        data: {
-          title,
-          thumbnailUri,
-          no: groupNo ? Number(groupNo) : 0,
-          ...(cardNewsContent &&
-            !isEmpty(cardNewsContent) && {
-              cardNewsContent: {
-                createMany: {
-                  data: cardNewsContent.map((v, i) => {
-                    return {
-                      title: v.title,
-                      content: v.content,
-                      bgPicUri: v.bgPicUri,
-                      no: i,
-                    };
-                  }),
-                },
-              },
-            }),
-          ...(cardTag &&
-            !isEmpty(cardTag) && {
-              cardTag: {
-                connectOrCreate: cardTag.map(value => {
-                  return {
-                    where: {
-                      value,
-                    },
-                    create: {
-                      value,
-                    },
-                  };
-                }),
-              },
-            }),
-        },
+      const { title, thumbnailUri, groupNo, cardNewsContent } = param;
+      const data = {
+        title,
+        thumbnailUri,
+        no: groupNo ? Number(groupNo) : 0,
+        ...(cardNewsContent &&
+          !isEmpty(cardNewsContent) && {
+            cardNewsContent: {
+              create: cardNewsContent.map((v, i) => {
+                const { cardTag } = v;
+                return {
+                  title: v.title,
+                  content: v.content,
+                  bgPicUri: v.bgPicUri,
+                  no: i,
+                  ...(cardTag &&
+                    !isEmpty(cardTag) && {
+                      cardTag: {
+                        connectOrCreate: cardTag.map(value => {
+                          return {
+                            where: {
+                              value,
+                            },
+                            create: {
+                              value,
+                            },
+                          };
+                        }),
+                      },
+                    }),
+                };
+              }),
+            },
+          }),
+      };
+
+      const createdGroup = await prisma.cardNewsGroup.create({
+        data,
         include: {
-          cardNewsContent: true,
-          cardTag: true,
+          cardNewsContent: {
+            include: {
+              cardTag: true,
+            },
+          },
         },
       });
 
       const retCardGroups: AddCardGrpSuccessResType = {
-        groupNo: updatedGroup.no,
-        groupId: updatedGroup.id,
-        groupTitle: updatedGroup.title,
-        groupThumbnail: updatedGroup.thumbnailUri,
-        cards: updatedGroup.cardNewsContent.map(card => {
+        groupNo: createdGroup.no,
+        groupId: createdGroup.id,
+        groupTitle: createdGroup.title,
+        groupThumbnail: createdGroup.thumbnailUri,
+        cards: createdGroup.cardNewsContent.map(card => {
           return {
             cardId: card.id,
             cardNo: card.no,
-            tag: updatedGroup.cardTag,
+            tag: card.cardTag,
             cardTitle: card.title,
             cardContent: card.content,
             cardBgUri: card.bgPicUri,
@@ -662,6 +676,7 @@ export const updateCardNews = asyncWrapper(
 
       const updatedCardList = await Promise.all(
         updateCardArrParam.map(v => {
+          const { cardTag } = v;
           return prisma.$transaction(async tx => {
             const foundCard = await tx.cardNewsContent.findUnique({
               where: {
@@ -684,6 +699,25 @@ export const updateCardNews = asyncWrapper(
                 content: v.content,
                 no: v.cardNo ? Number(v.cardNo) : undefined,
                 bgPicUri: v.bgPicUri,
+                ...(cardTag &&
+                  !isEmpty(cardTag) && {
+                    cardTag: {
+                      set: [],
+                      connectOrCreate: cardTag.map(tag => {
+                        return {
+                          where: {
+                            value: tag,
+                          },
+                          create: {
+                            value: tag,
+                          },
+                        };
+                      }),
+                    },
+                  }),
+              },
+              include: {
+                cardTag: true,
               },
             });
             return updatedCardNews;
@@ -698,6 +732,7 @@ export const updateCardNews = asyncWrapper(
           cardTitle: v.title,
           cardContent: v.content,
           cardBgUri: v.bgPicUri,
+          tag: v.cardTag.map(n => n.value),
         };
       });
 
