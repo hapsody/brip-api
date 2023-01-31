@@ -7,6 +7,7 @@ import {
   User,
   BusinessQuestionTicket,
   TripCreator,
+  FavoriteTravelType,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -859,6 +860,151 @@ export const getMyAccountInfo = asyncWrapper(
   },
 );
 
+export type SetTravelTypeToUserRequestType = {
+  season?: string;
+  dest?: string;
+  trip?: string;
+  activity?: string;
+  companion?: string;
+};
+export interface SetTravelTypeToUserSuccessResType extends FavoriteTravelType {}
+
+export type SetTravelTypeToUserResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SetTravelTypeToUserSuccessResType | {};
+};
+
+export const setTravelTypeToUser = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SetTravelTypeToUserRequestType>,
+    res: Express.IBTypedResponse<SetTravelTypeToUserResType>,
+  ) => {
+    try {
+      const { season, dest, trip, activity, companion } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+        include: {
+          FavoriteTravelType: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      const trimSeason = season
+        ? season
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimDest = dest
+        ? dest
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimTrip = trip
+        ? trip
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimActivity = activity
+        ? activity
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimCompanion = companion
+        ? companion
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+
+      const updatedUser = await prisma.user.update({
+        where: {
+          id: memberId,
+        },
+        data: {
+          FavoriteTravelType: {
+            upsert: {
+              update: {
+                season: trimSeason,
+                dest: trimDest,
+                trip: trimTrip,
+                activity: trimActivity,
+                companion: trimCompanion,
+              },
+              create: {
+                season: trimSeason,
+                dest: trimDest,
+                trip: trimTrip,
+                activity: trimActivity,
+                companion: trimCompanion,
+              },
+            },
+          },
+        },
+        include: {
+          FavoriteTravelType: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedUser.FavoriteTravelType!,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -878,6 +1024,11 @@ settingRouter.post(
   '/getMyAccountInfo',
   accessTokenValidCheck,
   getMyAccountInfo,
+);
+settingRouter.post(
+  '/setTravelTypeToUser',
+  accessTokenValidCheck,
+  setTravelTypeToUser,
 );
 
 export default settingRouter;

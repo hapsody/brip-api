@@ -18,15 +18,16 @@ enum UserType {
 }
 
 model User {
-  id                     Int                      @id @default(autoincrement())
-  email                  String                   @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
-  password               String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
-  phone                  String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
-  nickName               String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
-  countryCode            String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userTokenId            String                   @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
+  id          Int     @id @default(autoincrement())
+  email       String  @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
+  password    String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
+  phone       String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
+  nickName    String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
+  countryCode String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
+  userTokenId String  @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
-  profileImg             String?
+  profileImg  String?
+
   questionTicket         QuestionTicket[]
   businessQuestionTicket BusinessQuestionTicket[]
   tripCreator            TripCreator[]
@@ -34,6 +35,21 @@ model User {
   updatedAt              DateTime                 @default(now())
   UserPasswordHistory    UserPasswordHistory[]
   CardNewsGroup          CardNewsGroup[]
+  FavoriteTravelType     FavoriteTravelType?
+}
+
+model FavoriteTravelType {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  season    String @default("dontcare") /// 선호하는 여행시기 복수선택 가능 ex) "spring, summer, autumn, winter, dontcare"
+  dest      String @default("dontcare") /// 선호하는 목적지 날씨 복수선택 가능 ex) "tropical(열대), dry(건조), temperate(온대), polar(냉대), warm(한대), dontcare" 
+  trip      String @default("dontcare") /// 선호하는 여행타입 복수선택 가능 ex) "free(자유여행), package(패키지), food(먹거리), luxury(럭셔리), privateActivity(개인 액티비티), groupActivity(그룹 액티비티), shopping(쇼핑), resort(호캉스/리조트), visit(명소방문), landscape(자연경관), waterpark(워터파크), ocean(해수욕), dontcare"
+  activity  String @default("dontcare") /// 선호하는 액티비티 타입 복수선택 가능 ex) "surfing(서핑), skyDiving(스카이 다이빙), scubaDiving(스쿠버다이빙), tracking(트랙킹), bicycle(자전거), bike(바이크), climbing(등산), swimming(수영), ski(스키/보드), golf(골프), snorkling(스노클링), etc(기타), dontcare(상관없음)"
+  companion String @default("dontcare") /// 선호하는 동반자 타입 복수선택 가능 ex) "family(가족), lover(연인), friend(친구), alone(혼자), circle(소모임), traveler(여행중 만난사람), dontcare(상관없음)"
+  user      User   @relation(fields: [userId], references: [id])
+  userId    Int    @unique
 }
 
 // enum OPENINGHOURS {
