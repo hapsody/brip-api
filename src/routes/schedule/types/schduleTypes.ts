@@ -987,3 +987,17 @@ export interface RefreshScheduleRETParamPayload
 export type RefreshScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: RefreshScheduleRETParamPayload | {};
 };
+
+/**
+ * getEstimatedCost
+ */
+export interface GetEstimatedCostREQParam {
+  queryParamsId: string;
+}
+export interface GetEstimatedCostRETParamPayload {
+  estimatedCost: number;
+}
+
+export type GetEstimatedCostRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: RefreshScheduleRETParamPayload | {};
+};

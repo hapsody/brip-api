@@ -86,6 +86,8 @@ import {
   RefreshScheduleREQParam,
   RefreshScheduleRETParamPayload,
   VisitPlaceType,
+  GetEstimatedCostREQParam,
+  GetEstimatedCostRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -4889,4 +4891,32 @@ export const refreshSchedule = async (
     spotList: spotList.spotList,
   };
   return retValue;
+};
+
+/**
+ * fixHotel api를 통해 호텔들이 선택되면 MetaScheduleInfo에 저장된  산출된 비용을 반환함
+ */
+export const getEstimatedCost = async (
+  param: GetEstimatedCostREQParam,
+): Promise<GetEstimatedCostRETParamPayload> => {
+  const { queryParamsId } = param;
+
+  const metaScheduleInfo = await prisma.metaScheduleInfo.findUnique({
+    where: {
+      queryParamsId: Number(queryParamsId),
+    },
+    select: {
+      estimatedCost: true,
+    },
+  });
+
+  if (!metaScheduleInfo) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 queryParamsId 입니다.',
+    });
+  }
+  const { estimatedCost } = metaScheduleInfo;
+
+  return { estimatedCost: estimatedCost ?? 0 };
 };
