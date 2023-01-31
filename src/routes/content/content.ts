@@ -764,6 +764,86 @@ export const updateCardNews = asyncWrapper(
   },
 );
 
+export interface DeleteCardGrpRequestType {
+  groupId: string;
+}
+export type DeleteCardGrpResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+export const deleteCardGrp = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteCardGrpRequestType>,
+    res: Express.IBTypedResponse<DeleteCardGrpResType>,
+  ) => {
+    try {
+      const param = req.body;
+
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'creator member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { groupId } = param;
+      const foundGroup = await prisma.cardNewsGroup.delete({
+        where: {
+          id: Number(groupId),
+        },
+      });
+
+      if (!foundGroup) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 그룹 Id입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
@@ -785,5 +865,6 @@ authRouter.post(
 );
 authRouter.post('/updateCardGrp', accessTokenValidCheck, updateCardGrp);
 authRouter.post('/updateCardNews', accessTokenValidCheck, updateCardNews);
+authRouter.post('/deleteCardGrp', accessTokenValidCheck, deleteCardGrp);
 
 export default authRouter;
