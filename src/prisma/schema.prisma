@@ -37,6 +37,7 @@ model User {
   CardNewsGroup          CardNewsGroup[]
   FavoriteTravelType     FavoriteTravelType?
   TripMemoryGroup        TripMemoryGroup[]
+  TripMemoryTag          TripMemoryTag[]
 }
 
 model FavoriteTravelType {
@@ -597,37 +598,40 @@ model TripMemoryGroup {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다.
 model TripMemory {
-  id                 Int                  @id @default(autoincrement())
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @default(now())
-  comment            String               @db.Text
-  lat                Float? /// tourPlace가 가지는 latitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  lng                Float? /// tourPlace가 가지는 longitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address            String?              @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  tag                TripMemoryTag[] /// 기억에 태그한 해시태그들.
-  img                String /// 기억 사진
-  group              TripMemoryGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
-  groupId            Int
-  TourPlace          TourPlace?           @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
-  tourPlaceId        Int?
-  tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
+  id          Int             @id @default(autoincrement())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now())
+  title       String /// 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 이름으로 나타난다.
+  comment     String          @db.Text
+  lat         Float /// tourPlace가 가지는 latitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  lng         Float /// tourPlace가 가지는 longitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address     String?         @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  tag         TripMemoryTag[] /// 기억에 태그한 해시태그들.
+  img         String /// 기억 사진
+  group       TripMemoryGroup @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
+  groupId     Int
+  TourPlace   TourPlace?      @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
+  tourPlaceId Int?
+  // tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
 
   ShareTripMemory ShareTripMemory?
 }
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
 model ShareTripMemory {
-  id           Int        @id @default(autoincrement())
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @default(now())
-  lat          Float? /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  lng          Float? /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address      String?    @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  img          String
-  TourPlace    TourPlace? @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
-  tourPlaceId  Int?
-  tripMemory   TripMemory @relation(fields: [tripMemoryId], references: [id])
-  tripMemoryId Int        @unique
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  title              String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
+  lat                Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  lng                Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address            String?              @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  img                String
+  TourPlace          TourPlace?           @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
+  tourPlaceId        Int?
+  tripMemory         TripMemory           @relation(fields: [tripMemoryId], references: [id])
+  tripMemoryId       Int                  @unique
+  tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
 }
 
 /// 개인 기억에 개인적으로 태그할 태그들.
@@ -635,18 +639,23 @@ model TripMemoryTag {
   id         Int          @id @default(autoincrement())
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @default(now())
-  name       String       @unique /// ex) 가족여행, 제주, 힐링여행
+  name       String /// ex) 가족여행, 제주, 힐링여행
+  user       User         @relation(fields: [userId], references: [id])
+  userId     Int
   tripMemory TripMemory[]
+
+  @@unique([name, userId])
+  @@index([name, userId])
 }
 
 /// 네트워크 공유시에 공유 기억을 분류할 카테고리. 마치 태그처럼 사용한다.
 model TripMemoryCategory {
-  id         Int          @id @default(autoincrement())
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @default(now())
-  super      String       @default("etc") /// 상위 카테고리 ex) food(음식), cafe(카페), lodge(숙소), tour(관광), activity(액티비티), rest(휴식)
-  name       String /// 카테고리 ex) 브런치, 한식, 커피...
-  tripMemory TripMemory[]
+  id              Int               @id @default(autoincrement())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now())
+  super           String            @default("etc") /// 상위 카테고리 ex) food(음식), cafe(카페), lodge(숙소), tour(관광), activity(액티비티), rest(휴식)
+  name            String /// 카테고리 ex) 브런치, 한식, 커피...
+  shareTripMemory ShareTripMemory[]
 
   @@unique([super, name])
   @@index([super, name])
