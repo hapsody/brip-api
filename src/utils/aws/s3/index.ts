@@ -17,7 +17,19 @@ export const getS3SignedUrl = async (
   const signedUrl = await s3.getSignedUrlPromise('getObject', {
     Bucket: process.env.AWS_S3_BUCKET,
     Key: s3ObjectKey,
-    Expires: Expires ?? 900,
+    Expires: Expires ?? 30,
+  });
+  return signedUrl;
+};
+
+export const putS3SignedUrl = async (
+  s3ObjectKey: string,
+  Expires?: number,
+): Promise<string> => {
+  const signedUrl = await s3.getSignedUrlPromise('putObject', {
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: s3ObjectKey,
+    Expires: Expires ?? 30,
   });
   return signedUrl;
 };

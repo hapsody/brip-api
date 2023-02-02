@@ -9,6 +9,7 @@ import {
   accessTokenValidCheck,
   s3FileUpload,
   getS3SignedUrl,
+  putS3SignedUrl,
   s3,
 } from '@src/utils';
 
@@ -163,6 +164,77 @@ export const getPresignedUrlFromS3File = asyncWrapper(
   },
 );
 
+export type ReqUriForPutObjectToS3RequestType = {
+  key: string;
+};
+export interface ReqUriForPutObjectToS3SuccessResType {
+  key: string;
+  signedUrl: string;
+}
+
+export type ReqUriForPutObjectToS3ResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqUriForPutObjectToS3SuccessResType[] | {};
+};
+
+export const reqUriForPutObjectToS3 = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqUriForPutObjectToS3RequestType>,
+    res: Express.IBTypedResponse<ReqUriForPutObjectToS3ResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { key } = req.body;
+
+      const signedUrl = await putS3SignedUrl(`${key}`);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          key,
+          signedUrl,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export interface PrismaTestRequestType {
   key: string;
 }
@@ -227,5 +299,10 @@ settingRouter.post(
   getPresignedUrlFromS3File,
 );
 settingRouter.post('/prismaTest', prismaTest);
+settingRouter.post(
+  '/reqUriForPutObjectToS3',
+  accessTokenValidCheck,
+  reqUriForPutObjectToS3,
+);
 
 export default settingRouter;
