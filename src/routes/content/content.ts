@@ -8,6 +8,7 @@ import {
   IBError,
   accessTokenValidCheck,
   s3FileUpload,
+  getS3SignedUrl,
 } from '@src/utils';
 import { CardTag, CardNewsGroup, CardNewsContent } from '@prisma/client';
 import { isEmpty } from 'lodash';
@@ -75,25 +76,34 @@ export const getContentList = asyncWrapper(
         },
       });
 
-      const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
-        group => {
-          return {
-            groupNo: group.no,
-            groupId: group.id,
-            groupTitle: group.title,
-            groupThumbnail: group.thumbnailUri,
-            cards: group.cardNewsContent.map(card => {
+      const retCardGroups = await Promise.all(
+        foundNewsGrp.map(async group => {
+          const groupThumbnail = group.thumbnailUri.includes('http')
+            ? group.thumbnailUri
+            : await getS3SignedUrl(group.thumbnailUri);
+          const cards = await Promise.all(
+            group.cardNewsContent.map(async card => {
+              const cardBgUri = card.bgPicUri.includes('http')
+                ? card.bgPicUri
+                : await getS3SignedUrl(card.bgPicUri);
               return {
                 cardId: card.id,
                 cardNo: card.no,
                 tag: card.cardTag,
                 cardTitle: card.title,
                 cardContent: card.content,
-                cardBgUri: card.bgPicUri,
+                cardBgUri,
               };
             }),
+          );
+          return {
+            groupNo: group.no,
+            groupId: group.id,
+            groupTitle: group.title,
+            groupThumbnail,
+            cards,
           };
-        },
+        }),
       );
       res.json({
         ...ibDefs.SUCCESS,
@@ -206,9 +216,43 @@ export const getMainCardNewsGrp = asyncWrapper(
         },
       });
 
+      if (!mainCardNewsGrp) {
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: {},
+        });
+        return;
+      }
+
+      const groupThumbnail = mainCardNewsGrp.thumbnailUri.includes('http')
+        ? mainCardNewsGrp.thumbnailUri
+        : await getS3SignedUrl(mainCardNewsGrp.thumbnailUri);
+      const cards = await Promise.all(
+        mainCardNewsGrp.cardNewsContent.map(async card => {
+          const cardBgUri = card.bgPicUri.includes('http')
+            ? card.bgPicUri
+            : await getS3SignedUrl(card.bgPicUri);
+          return {
+            cardId: card.id,
+            cardNo: card.no,
+            tag: card.cardTag,
+            cardTitle: card.title,
+            cardContent: card.content,
+            cardBgUri,
+          };
+        }),
+      );
+      const ret = {
+        groupNo: mainCardNewsGrp.no,
+        groupId: mainCardNewsGrp.id,
+        groupTitle: mainCardNewsGrp.title,
+        groupThumbnail,
+        cards,
+      };
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: mainCardNewsGrp ?? {},
+        IBparams: ret,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -1014,26 +1058,57 @@ export const getMyContentList = asyncWrapper(
         },
       });
 
-      const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
-        group => {
-          return {
-            groupNo: group.no,
-            groupId: group.id,
-            groupTitle: group.title,
-            groupThumbnail: group.thumbnailUri,
-            cards: group.cardNewsContent.map(card => {
+      // const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
+      //   group => {
+      //     return {
+      //       groupNo: group.no,
+      //       groupId: group.id,
+      //       groupTitle: group.title,
+      //       groupThumbnail: group.thumbnailUri,
+      //       cards: group.cardNewsContent.map(card => {
+      //         return {
+      //           cardId: card.id,
+      //           cardNo: card.no,
+      //           tag: card.cardTag,
+      //           cardTitle: card.title,
+      //           cardContent: card.content,
+      //           cardBgUri: card.bgPicUri,
+      //         };
+      //       }),
+      //     };
+      //   },
+      // );
+
+      const retCardGroups = await Promise.all(
+        foundNewsGrp.map(async group => {
+          const groupThumbnail = group.thumbnailUri.includes('http')
+            ? group.thumbnailUri
+            : await getS3SignedUrl(group.thumbnailUri);
+          const cards = await Promise.all(
+            group.cardNewsContent.map(async card => {
+              const cardBgUri = card.bgPicUri.includes('http')
+                ? card.bgPicUri
+                : await getS3SignedUrl(card.bgPicUri);
               return {
                 cardId: card.id,
                 cardNo: card.no,
                 tag: card.cardTag,
                 cardTitle: card.title,
                 cardContent: card.content,
-                cardBgUri: card.bgPicUri,
+                cardBgUri,
               };
             }),
+          );
+          return {
+            groupNo: group.no,
+            groupId: group.id,
+            groupTitle: group.title,
+            groupThumbnail,
+            cards,
           };
-        },
+        }),
       );
+
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: retCardGroups,
