@@ -32,18 +32,20 @@ model User {
   businessQuestionTicket BusinessQuestionTicket[]
   tripCreator            TripCreator[]
   createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
   UserPasswordHistory    UserPasswordHistory[]
   CardNewsGroup          CardNewsGroup[]
   FavoriteTravelType     FavoriteTravelType?
   TripMemoryGroup        TripMemoryGroup[]
   TripMemoryTag          TripMemoryTag[]
+  TripMemory             TripMemory[]
+  ShareTripMemory        ShareTripMemory[]
 }
 
 model FavoriteTravelType {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   season    String @default("dontcare") /// 선호하는 여행시기 복수선택 가능 ex) "spring, summer, autumn, winter, dontcare"
   dest      String @default("dontcare") /// 선호하는 목적지 날씨 복수선택 가능 ex) "tropical(열대), dry(건조), temperate(온대), polar(냉대), warm(한대), dontcare" 
@@ -61,7 +63,7 @@ model FavoriteTravelType {
 model GglPhotos {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   height            Int?
   width             Int?
@@ -75,7 +77,7 @@ model GglPhotos {
 model GglNearbySearchResType {
   id        Int         @id @default(autoincrement())
   createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
   value     String      @unique
   tourPlace TourPlace[]
 }
@@ -98,7 +100,7 @@ enum DataStageStatus {
 model TourPlace {
   id                                    Int             @id @default(autoincrement())
   createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime        @default(now())
+  updatedAt                             DateTime        @default(now()) @updatedAt
   tourPlaceType                         PlaceType
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
@@ -210,7 +212,7 @@ model TourPlace {
 model BatchQueryParams {
   id            Int                  @id @default(autoincrement())
   createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @default(now())
+  updatedAt     DateTime             @default(now()) @updatedAt
   latitude      Float?
   longitude     Float?
   radius        Float?
@@ -225,7 +227,7 @@ model BatchQueryParams {
 model BatchSearchKeyword {
   id               Int                @id @default(autoincrement())
   createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now()) @updatedAt
   keyword          String             @unique
   batchQueryParams BatchQueryParams[]
   // gglNearbysearchRes GglNearbySearchRes[]
@@ -251,7 +253,7 @@ model BatchSearchKeyword {
 model QueryParams {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   minMoney   Int?
   maxMoney   Int?
@@ -290,7 +292,7 @@ model QueryParams {
 model ScheduleBank {
   id            Int           @id @default(autoincrement())
   createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
   title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   planType      PlanType
@@ -313,7 +315,7 @@ enum BookingComReqType {
 model MockBookingDotComHotelResource {
   id                  Int               @id @default(autoincrement())
   createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
   reqType             BookingComReqType @default(SEARCH_HOTELS_BY_COORDINATES) /// 개발용 booking.com hotels mock data type 구분용
   orderBy             String?
   adultsNumber        Int?
@@ -334,14 +336,14 @@ model MockBookingDotComHotelResource {
 model NonMembersCount {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 /// 카드 뉴스 1장에 대응하는 모델
 model CardNewsContent {
   id              Int           @id @default(autoincrement())
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now()) @updatedAt
   no              Int /// 카드 컨텐츠 순서
   title           String /// 카드 컨텐츠의 타이틀
   content         String ///  카드 컨텐츠의 내용
@@ -355,7 +357,7 @@ model CardNewsContent {
 model CardNewsGroup {
   id              Int               @id @default(autoincrement())
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
   title           String /// 카드 뉴스 그룹 타이틀
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
@@ -367,7 +369,7 @@ model CardNewsGroup {
 model CardTag {
   id              Int               @id @default(autoincrement())
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
   value           String            @unique
   cardNewsContent CardNewsContent[]
 }
@@ -375,7 +377,7 @@ model CardTag {
 model ScheduleTag {
   id           Int            @id @default(autoincrement())
   createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @default(now())
+  updatedAt    DateTime       @default(now()) @updatedAt
   value        String         @unique
   scheduleBank ScheduleBank[]
 }
@@ -383,7 +385,7 @@ model ScheduleTag {
 model MetaScheduleInfo {
   id                         Int      @id @default(autoincrement())
   createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @default(now())
+  updatedAt                  DateTime @default(now()) @updatedAt
   totalHotelSearchCount      Int? /// 검색된 호텔들의 수
   totalRestaurantSearchCount Int? /// 검색된 식당의 수, type이 restaurant인 Google 주변검색결과 수다.
   totalSpotSearchCount       Int? /// 검색된 관광지의 수
@@ -409,7 +411,7 @@ model MetaScheduleInfo {
 model VisitSchedule {
   id           Int       @id @default(autoincrement())
   createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
   dayNo        Int /// 본 스케쥴이 x일차 일정인지, 1일부터 시작
   orderNo      Int /// 본 스케쥴이 x일차의 y번째 일정인지, 0번부터 시작
   // planType     PlanType  @default(MIN) /// 본 스케쥴이 최저, 중간, 최대 비용에 의한 추천 호텔중 어디로부터 시작하는 일정인지 기록
@@ -444,7 +446,7 @@ enum PlaceType {
 model QuestionTicket {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   content   String   @db.LongText
   noti      Boolean  @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -455,7 +457,7 @@ model QuestionTicket {
 model BusinessQuestionTicket {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
   noti        Boolean  @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
   companyName String
   phone       String
@@ -468,7 +470,7 @@ model BusinessQuestionTicket {
 model FaqList {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   question String
   answer   String @db.Text
@@ -496,7 +498,7 @@ enum CreatorStatus {
 model TripCreator {
   id        Int           @id @default(autoincrement())
   createdAt DateTime      @default(now())
-  updatedAt DateTime      @default(now())
+  updatedAt DateTime      @default(now()) @updatedAt
   status    CreatorStatus @default(APPLIED)
   noti      Boolean       @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
   nickName  String        @unique /// creator 닉네임, 공백 허용x
@@ -512,7 +514,7 @@ model TripCreator {
 model VisitJejuTag {
   id        Int         @id @default(autoincrement())
   createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
   value     String      @unique ///ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,
   tourPlace TourPlace[]
 }
@@ -521,7 +523,7 @@ model VisitJejuTag {
 model IBTravelTag {
   id            Int                       @id @default(autoincrement())
   createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @default(now()) @updatedAt
   minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
   maxDifficulty Int?
   value         String                    @unique
@@ -532,7 +534,7 @@ model IBTravelTag {
 
 model RModelBetweenTravelType {
   createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
   to        IBTravelTag @relation(name: "Super", fields: [toId], references: [id])
   toId      Int
   from      IBTravelTag @relation(name: "Sub", fields: [fromId], references: [id])
@@ -546,7 +548,7 @@ model RModelBetweenTravelType {
 model ValidCluster {
   id                      Int         @id @default(autoincrement())
   createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @default(now())
+  updatedAt               DateTime    @default(now()) @updatedAt
   lat                     Float
   lng                     Float
   transitionNo            Int /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
@@ -564,7 +566,7 @@ model ValidCluster {
 model SMSAuthCode {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
   code        String
   phone       String
   userTokenId String
@@ -574,7 +576,7 @@ model SMSAuthCode {
 model UserPasswordHistory {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   password  String
   user      User     @relation(fields: [userId], references: [id])
   userId    Int
@@ -584,7 +586,7 @@ model UserPasswordHistory {
 model TripMemoryGroup {
   id         Int          @id @default(autoincrement())
   createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @default(now())
+  updatedAt  DateTime     @default(now()) @updatedAt
   name       String /// 기억그룹 이름
   startDate  DateTime? /// 그룹에 속한 날짜들중 가장 오래된 날짜
   endDate    DateTime? /// 그룹에 속한 날짜들중 가장 최근 날짜
@@ -600,7 +602,7 @@ model TripMemoryGroup {
 model TripMemory {
   id          Int             @id @default(autoincrement())
   createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
   title       String /// 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 이름으로 나타난다.
   comment     String          @db.Text
   lat         Float /// tourPlace가 가지는 latitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
@@ -613,6 +615,8 @@ model TripMemory {
   TourPlace   TourPlace?      @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId Int?
   // tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
+  user        User            @relation(fields: [userId], references: [id])
+  userId      Int
 
   ShareTripMemory ShareTripMemory?
 }
@@ -621,7 +625,7 @@ model TripMemory {
 model ShareTripMemory {
   id                 Int                  @id @default(autoincrement())
   createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
   title              String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
   lat                Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng                Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
@@ -632,13 +636,15 @@ model ShareTripMemory {
   tripMemory         TripMemory           @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId       Int                  @unique
   tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
+  user               User                 @relation(fields: [userId], references: [id])
+  userId             Int
 }
 
 /// 개인 기억에 개인적으로 태그할 태그들.
 model TripMemoryTag {
   id         Int          @id @default(autoincrement())
   createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @default(now())
+  updatedAt  DateTime     @default(now()) @updatedAt
   name       String /// ex) 가족여행, 제주, 힐링여행
   user       User         @relation(fields: [userId], references: [id])
   userId     Int
@@ -652,7 +658,7 @@ model TripMemoryTag {
 model TripMemoryCategory {
   id              Int               @id @default(autoincrement())
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
   super           String            @default("etc") /// 상위 카테고리 ex) food(음식), cafe(카페), lodge(숙소), tour(관광), activity(액티비티), rest(휴식)
   name            String /// 카테고리 ex) 브런치, 한식, 커피...
   shareTripMemory ShareTripMemory[]
