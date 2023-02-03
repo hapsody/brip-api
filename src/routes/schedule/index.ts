@@ -17,6 +17,7 @@ import scheduleRouter, {
   getScheduleCountWrapper,
   fixHotelWrapper,
   refreshScheduleWrapper,
+  getEstimatedCostWrapper,
 } from './wrapper';
 import {
   addMockBKCHotelResourceWrapper,
@@ -94,6 +95,11 @@ scheduleRouter.post(
   '/refreshSchedule',
   accessTokenValidCheck,
   refreshScheduleWrapper,
+);
+scheduleRouter.post(
+  '/getEstimatedCost',
+  accessTokenValidCheck,
+  getEstimatedCostWrapper,
 );
 /**
  * 내부 개발용

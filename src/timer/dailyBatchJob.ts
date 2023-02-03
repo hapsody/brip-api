@@ -118,7 +118,7 @@ async function batchJob(): Promise<void> {
 
   await getPlaceDataFromVJ({
     locale: 'kr',
-    page: 44,
+    page: 30,
     loadAll: true,
     store: true,
     batchJobCtx: {

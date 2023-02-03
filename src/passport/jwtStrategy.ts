@@ -39,6 +39,9 @@ export default (passport: PassportStatic): void => {
 
           const user = await prisma.user.findFirst({
             where: { email },
+            include: {
+              tripCreator: true,
+            },
           });
           if (!user) {
             done(new Error('NOTEXISTDATA'));

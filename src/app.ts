@@ -10,6 +10,8 @@ import authRouter from './routes/auth';
 import scheduleRouter from './routes/schedule';
 import contentRouter from './routes/content';
 import settingRouter from './routes/setting';
+import tripNetworkRouter from './routes/tripNetwork';
+import devRouter from './routes/dev';
 
 import passportConfig from './passport';
 
@@ -56,6 +58,8 @@ app.use('/auth', authRouter);
 app.use('/schedule', scheduleRouter);
 app.use('/content', contentRouter);
 app.use('/setting', settingRouter);
+app.use('/tripNetwork', tripNetworkRouter);
+app.use('/dev', devRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

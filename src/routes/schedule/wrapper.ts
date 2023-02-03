@@ -39,6 +39,8 @@ import {
   FixHotelRETParam,
   RefreshScheduleREQParam,
   RefreshScheduleRETParam,
+  GetEstimatedCostREQParam,
+  GetEstimatedCostRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -59,6 +61,7 @@ import {
   getScheduleCount,
   fixHotel,
   refreshSchedule,
+  getEstimatedCost,
 } from './inner';
 
 const scheduleRouter: express.Application = express();
@@ -92,7 +95,7 @@ export const getHotelDataFromBKCWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -132,7 +135,7 @@ export const getPlaceByGglTxtSrchWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -172,7 +175,7 @@ export const getPlaceByGglNrbyWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -242,7 +245,7 @@ export const reqScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -297,7 +300,7 @@ export const getScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -354,7 +357,7 @@ export const getScheduleListWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -411,7 +414,7 @@ export const saveScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -466,7 +469,7 @@ export const getDayScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -525,7 +528,7 @@ export const getDetailScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -580,7 +583,7 @@ export const getCandidateScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -636,7 +639,7 @@ export const getCandDetailSchdWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -690,7 +693,7 @@ export const modifyScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -746,7 +749,7 @@ export const getHotelListWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -801,7 +804,7 @@ export const getScheduleLoadingImgWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -857,7 +860,7 @@ export const getScheduleCountWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -912,7 +915,7 @@ export const fixHotelWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -971,7 +974,61 @@ export const refreshScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * fixHotel api를 통해 호텔들이 선택되면 MetaScheduleInfo에 저장된  산출된 비용을 반환함
+ */
+export const getEstimatedCostWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetEstimatedCostREQParam>,
+    res: Express.IBTypedResponse<GetEstimatedCostRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+
+      const result = await getEstimatedCost(param);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: result,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,

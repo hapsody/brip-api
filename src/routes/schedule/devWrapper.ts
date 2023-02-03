@@ -161,7 +161,7 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -589,7 +589,7 @@ export const makeScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,

@@ -13,7 +13,7 @@ import {
 import _, { isEmpty, isEqual } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User } from '@prisma/client';
+import { User, TripCreator } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
@@ -27,6 +27,7 @@ export interface SaveScheduleResponsePayload {
   nickName: string;
   userId: number;
   email: string;
+  isCreator: boolean;
 }
 
 export interface SignInRequest {
@@ -46,7 +47,11 @@ export const signIn = (
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   passport.authenticate(
     'local',
-    (err: Error, user: User, info: { message: string }) => {
+    (
+      err: Error,
+      user: User & { tripCreator: TripCreator[] },
+      info: { message: string },
+    ) => {
       if (err) {
         console.error(err);
         res.status(500).json({
@@ -134,6 +139,7 @@ export const signIn = (
           nickName: user.nickName,
           userId: user.id,
           email: user.email,
+          isCreator: !isEmpty(user.tripCreator),
         },
       });
     },
@@ -152,7 +158,7 @@ export type SignUpRequestType = {
   // userToken: string;
 };
 export type SignUpResponseType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: User | {};
+  IBparams: Omit<User, 'password'> | {};
 };
 
 export const signUp = asyncWrapper(
@@ -650,7 +656,7 @@ export const sendSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -744,7 +750,7 @@ export const submitSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -923,7 +929,7 @@ export const changePassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,

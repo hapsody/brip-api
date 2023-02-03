@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { User, TripCreator } from '@prisma/client';
 
 export class IBError extends Error {
   type: keyof IBResFormats;
@@ -203,5 +203,7 @@ export interface RefreshTokenPayload {
 export interface GuardRes {
   grade: MemberGrade;
   tokenId?: string;
-  user?: User;
+  user?: User & {
+    tripCreator: TripCreator[];
+  };
 }

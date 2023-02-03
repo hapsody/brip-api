@@ -7,6 +7,7 @@ import {
   User,
   BusinessQuestionTicket,
   TripCreator,
+  FavoriteTravelType,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -17,6 +18,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
+import { omit } from 'lodash';
 
 const upload = multer();
 
@@ -187,7 +189,7 @@ export const reqTicket = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -344,7 +346,7 @@ export const reqBusinessTicket = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -426,7 +428,7 @@ export const getFaqList = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -600,7 +602,7 @@ export const reqTripCreator = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -681,12 +683,12 @@ export const changeProfileImg = asyncWrapper(
           profileImg: key,
         },
       });
-      const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
+      // const signedProfileImgUrl = await getS3SignedUrl(`${key}`);
 
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
-          signedUrl: signedProfileImgUrl,
+          key,
         },
       });
     } catch (err) {
@@ -700,7 +702,7 @@ export const changeProfileImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -769,7 +771,228 @@ export const getProfileImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
-          res.status(202).json({
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type GetMyAccountInfoRequestType = {};
+export interface GetMyAccountInfoSuccessResType
+  extends Omit<User, 'password'> {}
+
+export type GetMyAccountInfoResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyAccountInfoSuccessResType | {};
+};
+
+export const getMyAccountInfo = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetMyAccountInfoRequestType>,
+    res: Express.IBTypedResponse<GetMyAccountInfoResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: omit(user, ['password']),
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type SetTravelTypeToUserRequestType = {
+  season?: string;
+  dest?: string;
+  trip?: string;
+  activity?: string;
+  companion?: string;
+};
+export interface SetTravelTypeToUserSuccessResType extends FavoriteTravelType {}
+
+export type SetTravelTypeToUserResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SetTravelTypeToUserSuccessResType | {};
+};
+
+export const setTravelTypeToUser = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SetTravelTypeToUserRequestType>,
+    res: Express.IBTypedResponse<SetTravelTypeToUserResType>,
+  ) => {
+    try {
+      const { season, dest, trip, activity, companion } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+        include: {
+          FavoriteTravelType: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      const trimSeason = season
+        ? season
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimDest = dest
+        ? dest
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimTrip = trip
+        ? trip
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimActivity = activity
+        ? activity
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+      const trimCompanion = companion
+        ? companion
+            .split(',')
+            .map(v => v.trim())
+            .toString()
+        : undefined;
+
+      const updatedUser = await prisma.user.update({
+        where: {
+          id: memberId,
+        },
+        data: {
+          FavoriteTravelType: {
+            upsert: {
+              update: {
+                season: trimSeason,
+                dest: trimDest,
+                trip: trimTrip,
+                activity: trimActivity,
+                companion: trimCompanion,
+              },
+              create: {
+                season: trimSeason,
+                dest: trimDest,
+                trip: trimTrip,
+                activity: trimActivity,
+                companion: trimCompanion,
+              },
+            },
+          },
+        },
+        include: {
+          FavoriteTravelType: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedUser.FavoriteTravelType!,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
@@ -797,5 +1020,15 @@ settingRouter.post(
   changeProfileImg,
 );
 settingRouter.post('/getProfileImg', accessTokenValidCheck, getProfileImg);
+settingRouter.post(
+  '/getMyAccountInfo',
+  accessTokenValidCheck,
+  getMyAccountInfo,
+);
+settingRouter.post(
+  '/setTravelTypeToUser',
+  accessTokenValidCheck,
+  setTravelTypeToUser,
+);
 
 export default settingRouter;
