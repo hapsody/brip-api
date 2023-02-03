@@ -21,7 +21,7 @@ const seedData = [
   },
 ];
 
-async function main() {
+async function main(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax
   for await (const data of seedData) {
     let alreadyFaq = await prisma.faqList.findFirst({
@@ -39,25 +39,28 @@ async function main() {
     }
     console.log(alreadyFaq);
   }
+  await prisma.$disconnect();
 }
 
-const wrapper = (func: () => Promise<void>): (() => void) => {
-  return () => {
-    func().catch(e => console.log(e));
-  };
-};
+// const wrapper = (func: () => Promise<void>): (() => void) => {
+//   return () => {
+//     func().catch(e => console.log(e));
+//   };
+// };
 
-const seeder = (): void => {
-  main()
-    .catch(e => {
-      console.error(e);
-      process.exit(1);
-    })
-    .finally(
-      wrapper(async () => {
-        await prisma.$disconnect();
-      }),
-    );
-};
+// const seeder = (): void => {
+//   main()
+//     .catch(e => {
+//       console.error(e);
+//       process.exit(1);
+//     })
+//     .finally(
+//       wrapper(async () => {
+//         await prisma.$disconnect();
+//       }),
+//     );
+// };
 
-export default seeder;
+// seeder();
+
+export default main;

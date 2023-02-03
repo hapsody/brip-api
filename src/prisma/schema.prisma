@@ -362,7 +362,7 @@ model CardNewsGroup {
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
-  user            User              @relation(fields: [userId], references: [id])
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId          Int
 }
 
@@ -646,7 +646,7 @@ model TripMemoryTag {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @default(now()) @updatedAt
   name       String /// ex) 가족여행, 제주, 힐링여행
-  user       User         @relation(fields: [userId], references: [id])
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId     Int
   tripMemory TripMemory[]
 
