@@ -1158,6 +1158,252 @@ export const addReplyToShareTripMemory = asyncWrapper(
   },
 );
 
+export interface ModifyReplyToShareTripMemoryRequestType {
+  replyId: string;
+  replyText: string;
+}
+export interface ModifyReplyToShareTripMemorySuccessResType
+  extends ReplyForShareTripMemory {
+  parentReply: ReplyForShareTripMemory | null;
+  childrenReplies: ReplyForShareTripMemory | null;
+}
+
+export type ModifyReplyToShareTripMemoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: ModifyReplyToShareTripMemorySuccessResType | {};
+};
+
+export const modifyReplyToShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyReplyToShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<ModifyReplyToShareTripMemoryResType>,
+  ) => {
+    try {
+      const { replyId, replyText } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(replyId) || isNil(replyText)) {
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: 'replyId와 replyText는 필수 파라미터입니다.',
+        });
+      }
+
+      const target = await prisma.replyForShareTripMemory.findUnique({
+        where: {
+          id: Number(replyId),
+        },
+      });
+
+      if (isNil(target)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'replyId에 해당하는 댓글이 없습니다.',
+        });
+      }
+
+      if (target.userId !== Number(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            'replyId에 해당하는 댓글은 다른 유저의 댓글로 수정 권한이 없습니다.',
+        });
+      }
+
+      const updatedOne = await prisma.replyForShareTripMemory.update({
+        where: {
+          id: Number(replyId),
+        },
+        data: {
+          text: replyText,
+        },
+        include: {
+          parentReply: true,
+          childrenReplies: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedOne,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+// export interface DeleteReplyToShareTripMemoryRequestType {
+//   replyId: string;
+// }
+// export interface DeleteReplyToShareTripMemorySuccessResType
+//   extends ReplyForShareTripMemory {
+//   parentReply: ReplyForShareTripMemory | null;
+// }
+
+// export type DeleteReplyToShareTripMemoryResType = Omit<
+//   IBResFormat,
+//   'IBparams'
+// > & {
+//   IBparams: DeleteReplyToShareTripMemorySuccessResType | {};
+// };
+
+// export const deleteReplyToShareTripMemory = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<DeleteReplyToShareTripMemoryRequestType>,
+//     res: Express.IBTypedResponse<DeleteReplyToShareTripMemoryResType>,
+//   ) => {
+//     try {
+//       const { replyId } = req.body;
+//       const { locals } = req;
+//       const { memberId, userTokenId } = (() => {
+//         if (locals && locals?.grade === 'member')
+//           return {
+//             memberId: locals?.user?.id,
+//             userTokenId: locals?.user?.userTokenId,
+//           };
+//         // return locals?.tokenId;
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: 'member 등급만 접근 가능합니다.',
+//         });
+//       })();
+
+//       if (!userTokenId || !memberId) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+//         });
+//       }
+
+//       if (isNil(replyId) || isNil(replyText)) {
+//         throw new IBError({
+//           type: 'INVALIDENVPARAMS',
+//           message: 'replyId와 replyText는 필수 파라미터입니다.',
+//         });
+//       }
+
+//       const target = await prisma.replyForShareTripMemory.findUnique({
+//         where: {
+//           id: Number(replyId),
+//         },
+//       });
+
+//       if (isNil(target)) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: 'replyId에 해당하는 댓글이 없습니다.',
+//         });
+//       }
+
+//       if (target.userId !== Number(memberId)) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message:
+//             'replyId에 해당하는 댓글은 다른 유저의 댓글로 수정 권한이 없습니다.',
+//         });
+//       }
+
+//       const createdOne = await prisma.replyForShareTripMemory.update({
+//         where: {
+//           id: Number(replyId),
+//         },
+//         data: {
+//           text: replyText,
+//         },
+//         include: {
+//           parentReply: true,
+//           childrenReplies: true,
+//         },
+//       });
+
+//       res.json({
+//         ...ibDefs.SUCCESS,
+//         IBparams: createdOne,
+//       });
+//     } catch (err) {
+//       if (err instanceof IBError) {
+//         if (err.type === 'NOTAUTHORIZED') {
+//           res.status(403).json({
+//             ...ibDefs.NOTAUTHORIZED,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+
+//         if (err.type === 'NOTEXISTDATA') {
+//           res.status(404).json({
+//             ...ibDefs.NOTEXISTDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+
+//         if (err.type === 'DBTRANSACTIONERROR') {
+//           res.status(500).json({
+//             ...ibDefs.DBTRANSACTIONERROR,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//       }
+//       throw err;
+//     }
+//   },
+// );
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -1189,11 +1435,22 @@ tripNetworkRouter.post(
   accessTokenValidCheck,
   getNrbyPlaceListWithGeoLoc,
 );
-
 tripNetworkRouter.post(
   '/addReplyToShareTripMemory',
   accessTokenValidCheck,
   addReplyToShareTripMemory,
 );
+
+tripNetworkRouter.post(
+  '/modifyReplyToShareTripMemory',
+  accessTokenValidCheck,
+  modifyReplyToShareTripMemory,
+);
+
+// tripNetworkRouter.post(
+//   '/deleteReplyToShareTripMemory',
+//   accessTokenValidCheck,
+//   deleteReplyToShareTripMemory,
+// );
 
 export default tripNetworkRouter;
