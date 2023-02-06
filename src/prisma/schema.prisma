@@ -665,7 +665,7 @@ model ReplyForShareTripMemory {
   user              User?                     @relation(fields: [userId], references: [id]) /// 댓글을 썼던 사용자가 삭제될 경우 null일수도 있다.                
   userId            Int?
   childrenReplies   ReplyForShareTripMemory[] @relation("parentReply")
-  parentReply       ReplyForShareTripMemory?  @relation(name: "parentReply", fields: [parentReplyId], references: [id]) /// 부모댓글
+  parentReply       ReplyForShareTripMemory?  @relation(name: "parentReply", fields: [parentReplyId], references: [id], onDelete: Restrict, onUpdate: Restrict) /// 부모댓글
   parentReplyId     Int?
 
   noPtrForChildren ReplyForShareTripMemory[] @relation(name: "notUsedForReply") /// prisma schema syntax 때문에 선언해줬으나 사용하지 않을것
