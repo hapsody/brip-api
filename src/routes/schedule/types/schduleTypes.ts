@@ -7,7 +7,7 @@ import {
   PlaceType,
   MetaScheduleInfo,
 } from '@prisma/client';
-import { IBResFormat, getToday, getTomorrow } from '@src/utils';
+import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
 export const gMealPerDay = 2;
 export const gSpotPerDay = 2;
@@ -100,13 +100,7 @@ export class MealOrder {
     return nextMealOrder;
   };
 }
-/**
- * 함수-함수 전달시 함수간 전달해야할 내부 변수들
- */
-export interface IBContext {
-  queryParamsId?: string;
-  userTokenId?: string;
-}
+
 /**
  * GetHotelDataFromBKC Type
  */

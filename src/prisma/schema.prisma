@@ -70,8 +70,10 @@ model GglPhotos {
   html_attributions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
   photo_reference   String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
   url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
-  TourPlace         TourPlace? @relation(fields: [tourPlaceId], references: [id])
+  TourPlace         TourPlace? @relation(name: "GooglePhotos", fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?
+  shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
+  shareTripMemTPId  Int?
 }
 
 model GglNearbySearchResType {
@@ -85,6 +87,7 @@ model GglNearbySearchResType {
 /// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
 enum DataStageStatus {
   NEW /// 새로 수집된 데이터, 이후 사용승인이 나야 IN_USE 단계로 넘어갈수 있다.
+  USER_CREATE_NEW /// 유저를 통해(shareTripMemory) 새로 등록된 데이터
   APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
   IN_USE ///  사용중인 데이터
   ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
@@ -166,7 +169,7 @@ model TourPlace {
   gl_user_ratings_total    Int? /// 별점을 준 유저수
   gl_vicinity              String? /// nearbySearch 검색시에 주소
   gl_formatted_address     String? /// textSearch 검색시에 주소
-  gl_photos                GglPhotos[] /// 장소 사진 url
+  gl_photos                GglPhotos[]              @relation("GooglePhotos") /// 장소 사진 url
 
   /// visitJeju result format
   // vj_alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
@@ -192,6 +195,11 @@ model TourPlace {
   vj_longitude       Float? /// 경도 ex) 126.936424
   vj_postcode        String? /// 우편번호 ex) 63643
   vj_phoneno         String? /// 전화번호 ex) 064-783-0959
+
+  lat     Float?
+  lng     Float?
+  address String?     @db.Text
+  photos  GglPhotos[] @relation("ShareTripMemoryTourPlacePhotos")
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
@@ -440,6 +448,8 @@ enum PlaceType {
   GL_SPOT
   VISITJEJU_RESTAURANT
   VISITJEJU_SPOT
+  USER_SPOT
+  USER_RESTAURANT
 }
 
 /// 문의사항
@@ -532,6 +542,7 @@ model IBTravelTag {
   tourPlace     TourPlace[]
 }
 
+/// IBTravelTag 간에 관계 정의
 model RModelBetweenTravelType {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @default(now()) @updatedAt
@@ -630,11 +641,12 @@ model ShareTripMemory {
   lat                Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng                Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   address            String?              @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  comment            String               @db.Text
   img                String
   TourPlace          TourPlace?           @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId        Int?
-  tripMemory         TripMemory           @relation(fields: [tripMemoryId], references: [id])
-  tripMemoryId       Int                  @unique
+  tripMemory         TripMemory?          @relation(fields: [tripMemoryId], references: [id])
+  tripMemoryId       Int?                 @unique
   tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
   user               User                 @relation(fields: [userId], references: [id])
   userId             Int

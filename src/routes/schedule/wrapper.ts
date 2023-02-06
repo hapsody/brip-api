@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import express from 'express';
-import { ibDefs, asyncWrapper, IBError } from '@src/utils';
+import { ibDefs, asyncWrapper, IBError, IBContext } from '@src/utils';
 import {
   GetHotelDataFromBKCREQParam,
   GetHotelDataFromBKCRETParam,
@@ -15,7 +15,6 @@ import {
   GetScheduleListRETParam,
   SaveScheduleREQParam,
   SaveScheduleRETParam,
-  IBContext,
   GetDayScheduleREQParam,
   GetDayScheduleRETParam,
   GetDetailScheduleREQParam,

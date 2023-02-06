@@ -26,6 +26,15 @@ export interface IBResFormat {
   IBparams: object | {};
 }
 
+/**
+ * 함수-함수 전달시 함수간 전달해야할 내부 변수들
+ */
+export interface IBContext {
+  queryParamsId?: string;
+  userTokenId?: string;
+  memberId?: number;
+}
+
 // export interface IBTypedReqBody<T> extends Express.Request {
 //   locals?: {
 //     resMessages: IBResFormat;
