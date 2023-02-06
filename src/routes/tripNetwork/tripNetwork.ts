@@ -829,199 +829,172 @@ export const addShareTripMemory = asyncWrapper(
   },
 );
 
-// export interface GetTourPlaceWithGeoLocRequestType {
-//   lat: string;
-//   lng: string;
-// }
-// export interface GetTourPlaceWithGeoLocSuccessResType extends TripMemory {
-//   tag: TripMemoryTag[];
-//   group: TripMemoryGroup;
-// }
+export interface GetNrbyPlaceListWithGeoLocRequestType {
+  minLat: string;
+  minLng: string;
+  maxLat: string;
+  maxLng: string;
+  take: string;
+  lastId: string; /// pagination을 위해 사용될 직전 검색의 마지막 검색된 tourPlaceId
+}
+export interface GetNrbyPlaceListWithGeoLocSuccessResType {
+  totalCount: number;
+  returnedCount: number;
+  list: TourPlace[];
+}
 
-// export type GetTourPlaceWithGeoLocResType = Omit<IBResFormat, 'IBparams'> & {
-//   IBparams: GetTourPlaceWithGeoLocSuccessResType | {};
-// };
+export type GetNrbyPlaceListWithGeoLocResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetNrbyPlaceListWithGeoLocSuccessResType | {};
+};
 
-// export const getTourPlaceWithGeoLoc = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<GetTourPlaceWithGeoLocRequestType>,
-//     res: Express.IBTypedResponse<GetTourPlaceWithGeoLocResType>,
-//   ) => {
-//     try {
-//       const { lat, lng } = req.body;
-//       const { title, comment, address, lat, lng, img } = tripMemoryParam;
-//       const { locals } = req;
-//       const { memberId, userTokenId } = (() => {
-//         if (locals && locals?.grade === 'member')
-//           return {
-//             memberId: locals?.user?.id,
-//             userTokenId: locals?.user?.userTokenId,
-//           };
-//         // return locals?.tokenId;
-//         throw new IBError({
-//           type: 'NOTAUTHORIZED',
-//           message: 'member 등급만 접근 가능합니다.',
-//         });
-//       })();
+export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetNrbyPlaceListWithGeoLocRequestType>,
+    res: Express.IBTypedResponse<GetNrbyPlaceListWithGeoLocResType>,
+  ) => {
+    try {
+      const {
+        minLat,
+        minLng,
+        maxLat,
+        maxLng,
+        take = '10',
+        lastId = '1',
+      } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
 
-//       if (!userTokenId || !memberId) {
-//         throw new IBError({
-//           type: 'NOTEXISTDATA',
-//           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-//         });
-//       }
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
 
-//       const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
-//         where: {
-//           id: {
-//             in: categoryIds.map(v => Number(v)),
-//           },
-//         },
-//       });
+      const count = await prisma.tourPlace.aggregate({
+        where: {
+          OR: [
+            {
+              AND: [
+                { lat: { gte: Number(minLat) } },
+                { lat: { lt: Number(maxLat) } },
+                { lng: { gte: Number(minLng) } },
+                { lng: { lt: Number(maxLng) } },
+              ],
+            },
+            {
+              AND: [
+                { gl_lat: { gte: Number(minLat) } },
+                { gl_lat: { lt: Number(maxLat) } },
+                { gl_lng: { gte: Number(minLng) } },
+                { gl_lng: { lt: Number(maxLng) } },
+              ],
+            },
+            {
+              AND: [
+                { vj_latitude: { gte: Number(minLat) } },
+                { vj_latitude: { lt: Number(maxLat) } },
+                { vj_longitude: { gte: Number(minLng) } },
+                { vj_longitude: { lt: Number(maxLng) } },
+              ],
+            },
+          ],
+        },
+        _count: {
+          id: true,
+        },
+      });
+      const foundTourPlace = await prisma.tourPlace.findMany({
+        where: {
+          OR: [
+            {
+              AND: [
+                { lat: { gte: Number(minLat) } },
+                { lat: { lt: Number(maxLat) } },
+                { lng: { gte: Number(minLng) } },
+                { lng: { lt: Number(maxLng) } },
+              ],
+            },
+            {
+              AND: [
+                { gl_lat: { gte: Number(minLat) } },
+                { gl_lat: { lt: Number(maxLat) } },
+                { gl_lng: { gte: Number(minLng) } },
+                { gl_lng: { lt: Number(maxLng) } },
+              ],
+            },
+            {
+              AND: [
+                { vj_latitude: { gte: Number(minLat) } },
+                { vj_latitude: { lt: Number(maxLat) } },
+                { vj_longitude: { gte: Number(minLng) } },
+                { vj_longitude: { lt: Number(maxLng) } },
+              ],
+            },
+          ],
+        },
+        take: Number(take),
+        cursor: {
+          id: Number(lastId) + 1,
+        },
+      });
 
-//       if (
-//         !tripMemoryCategory ||
-//         tripMemoryCategory.length !== categoryIds.length
-//       ) {
-//         const notExistIds = categoryIds.filter(id => {
-//           const notExist = tripMemoryCategory.find(v => v.id !== Number(id));
-//           return !isNil(notExist);
-//         });
-//         throw new IBError({
-//           type: 'NOTEXISTDATA',
-//           message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
-//         });
-//       }
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          // eslint-disable-next-line no-underscore-dangle
+          totalCount: count._count.id ?? 0,
+          returnedCount: foundTourPlace.length,
+          list: foundTourPlace,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
 
-//       const ctx = {
-//         userTokenId,
-//         memberId,
-//       };
-//       const createdTripMem = await addTripMemory(tripMemoryParam, ctx);
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
 
-//       const shareTripMemory = await prisma.shareTripMemory.create({
-//         data: {
-//           title,
-//           lat: Number(lat),
-//           lng: Number(lng),
-//           address,
-//           img,
-//           comment,
-//           user: {
-//             connect: {
-//               id: Number(memberId),
-//             },
-//           },
-//           tripMemoryCategory: {
-//             connect: categoryIds.map(v => {
-//               return {
-//                 id: Number(v),
-//               };
-//             }),
-//           },
-//           tripMemory: {
-//             connect: {
-//               id: createdTripMem.id,
-//             },
-//           },
-//           TourPlace: isNil(tourPlaceId)
-//             ? {
-//                 create: {
-//                   lat: Number(lat),
-//                   lng: Number(lng),
-//                   address,
-//                   tourPlaceType: 'USER_SPOT',
-//                   photos: {
-//                     create: {
-//                       photo_reference: img,
-//                     },
-//                   },
-//                 },
-//               }
-//             : {
-//                 connect: {
-//                   id: Number(tourPlaceId),
-//                 },
-//               },
-//         },
-//         include: {
-//           TourPlace: true,
-//         },
-//       });
-
-//       const recommendUpdatePromise = (() => {
-//         if (recommendGrade === 'good') {
-//           const nextGood = shareTripMemory.TourPlace!.good + 1;
-//           return prisma.tourPlace.update({
-//             where: {
-//               id: shareTripMemory.TourPlace!.id,
-//             },
-//             data: {
-//               good: nextGood,
-//             },
-//           });
-//         }
-//         if (recommendGrade === 'notbad') {
-//           const nextNotBad = shareTripMemory.TourPlace!.notBad + 1;
-//           return prisma.tourPlace.update({
-//             where: {
-//               id: shareTripMemory.TourPlace!.id,
-//             },
-//             data: {
-//               notBad: nextNotBad,
-//             },
-//           });
-//         }
-//         const nextBad = shareTripMemory.TourPlace!.bad + 1;
-//         return prisma.tourPlace.update({
-//           where: {
-//             id: shareTripMemory.TourPlace!.id,
-//           },
-//           data: {
-//             bad: nextBad,
-//           },
-//         });
-//       })();
-
-//       await recommendUpdatePromise;
-
-//       res.json({
-//         ...ibDefs.SUCCESS,
-//         IBparams: shareTripMemory,
-//       });
-//     } catch (err) {
-//       if (err instanceof IBError) {
-//         if (err.type === 'NOTAUTHORIZED') {
-//           res.status(403).json({
-//             ...ibDefs.NOTAUTHORIZED,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-
-//         if (err.type === 'NOTEXISTDATA') {
-//           res.status(404).json({
-//             ...ibDefs.NOTEXISTDATA,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-
-//         if (err.type === 'DBTRANSACTIONERROR') {
-//           res.status(500).json({
-//             ...ibDefs.DBTRANSACTIONERROR,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//       }
-//       throw err;
-//     }
-//   },
-// );
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
 
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
@@ -1048,6 +1021,11 @@ tripNetworkRouter.post(
   '/addShareTripMemory',
   accessTokenValidCheck,
   addShareTripMemory,
+);
+tripNetworkRouter.post(
+  '/getNrbyPlaceListWithGeoLoc',
+  accessTokenValidCheck,
+  getNrbyPlaceListWithGeoLoc,
 );
 
 export default tripNetworkRouter;
