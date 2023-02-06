@@ -7,6 +7,7 @@ import {
   RefreshTokenPayload,
   MemberGrade,
   GuardRes,
+  IBContext,
 } from './IBDefinitions';
 import asyncWrapper from './asyncWrapper';
 import somethingHandler from './middlewares/somethingHandler';
@@ -35,4 +36,5 @@ export {
   getS3SignedUrl,
   putS3SignedUrl,
   s3,
+  IBContext,
 };
