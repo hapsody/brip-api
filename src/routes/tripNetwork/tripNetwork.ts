@@ -913,6 +913,7 @@ export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
               ],
             },
           ],
+          status: 'IN_USE',
         },
         _count: {
           id: true,
