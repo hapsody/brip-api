@@ -1937,9 +1937,13 @@ export interface GetTripMemListRequestType {
   tripMemoryId?: string; /// 단일 조회를 원할 경우 조회를 원하는 항목의 id
   orderBy?: string; /// 최신순(latest), 오래된 순(oldest) 정렬 default 최신순
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
-  take: string; /// default 10
-  tagKeyword: string; /// 해시태그 검색 키워드
-  groupId: string; /// 그룹에 따라 조회하려면 groupId가 제공되어야 한다.
+  take?: string; /// default 10
+  tagKeyword?: string; /// 해시태그 검색 키워드
+  groupId?: string; /// 그룹에 따라 조회하려면 groupId가 제공되어야 한다.
+  minLat?: string; /// 지도에서 위치 기반으로 검색할 경우
+  minLng?: string;
+  maxLat?: string;
+  maxLng?: string;
 }
 export interface GetTripMemListSuccessResType {
   id: number;
@@ -1987,6 +1991,10 @@ export const getTripMemList = asyncWrapper(
         take = '10',
         tagKeyword = '',
         groupId,
+        minLat,
+        minLng,
+        maxLat,
+        maxLng,
       } = req.body;
       const { locals } = req;
       const { memberId, userTokenId } = (() => {
@@ -2096,6 +2104,11 @@ export const getTripMemList = asyncWrapper(
             {
               groupId: isNil(groupId) ? undefined : Number(groupId),
             },
+
+            { lat: isNil(minLat) ? undefined : { gte: Number(minLat) } },
+            { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
+            { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
+            { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
           ],
         },
         ...(isNil(lastId) && {
