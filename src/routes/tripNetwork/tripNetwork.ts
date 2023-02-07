@@ -7,6 +7,7 @@ import {
   IBError,
   accessTokenValidCheck,
   IBContext,
+  getS3SignedUrl,
 } from '@src/utils';
 import {
   Prisma,
@@ -1416,6 +1417,251 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
   },
 );
 
+export interface GetShareTripMemListRequestType {
+  shareTripMemoryId?: string; /// 단일 조회를 원할 경우 조회를 원하는 항목의 id
+  orderBy?: string; /// 추천순(recommend), 좋아요순(like), 최신순(latest) 정렬 default 최신순
+  lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
+  take: string; /// default 10
+}
+export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
+  TourPlace: {
+    good: number;
+    like: number;
+  } | null;
+  user: {
+    id: number;
+    nickName: string;
+    profileImg: string | null;
+    tripCreator: {
+      nickName: string;
+    }[];
+  };
+}
+
+export type GetShareTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetShareTripMemListSuccessResType[] | {};
+};
+
+export const getShareTripMemList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetShareTripMemListRequestType>,
+    res: Express.IBTypedResponse<GetShareTripMemListResType>,
+  ) => {
+    try {
+      const {
+        shareTripMemoryId,
+        orderBy = 'latest',
+        lastId,
+        take = '10',
+      } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (!isNil(shareTripMemoryId)) {
+        const foundShareTripMem = await prisma.shareTripMemory.findUnique({
+          where: {
+            id: Number(shareTripMemoryId),
+          },
+          include: {
+            TourPlace: true,
+            tripMemoryCategory: true,
+            ReplyForShareTripMemory: {
+              include: {
+                childrenReplies: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+                tripCreator: {
+                  select: {
+                    nickName: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (isNil(foundShareTripMem)) {
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재하지 않는 shareTripMemoryId입니다.',
+          });
+        }
+        const { profileImg } = foundShareTripMem.user;
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: [
+            {
+              ...foundShareTripMem,
+              img: foundShareTripMem.img.includes('http')
+                ? foundShareTripMem.img
+                : await getS3SignedUrl(foundShareTripMem.img),
+              user: {
+                ...foundShareTripMem.user,
+                ...(!isNil(profileImg) && {
+                  profileImg: profileImg.includes('http')
+                    ? profileImg
+                    : await getS3SignedUrl(profileImg),
+                }),
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      const foundShareTripMemList = await prisma.shareTripMemory.findMany({
+        take: Number(take),
+        ...(!isNil(lastId) && {
+          cursor: {
+            id: Number(lastId),
+          },
+        }),
+        include: {
+          TourPlace: {
+            select: {
+              good: true,
+              like: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+              tripCreator: {
+                select: {
+                  nickName: true,
+                },
+              },
+            },
+          },
+        },
+        ...(orderBy.toUpperCase().includes('LATEST') && {
+          orderBy: {
+            id: 'desc',
+          },
+        }),
+        ...(orderBy.toUpperCase().includes('RECOMMEND') && {
+          orderBy: {
+            TourPlace: {
+              good: 'desc',
+            },
+          },
+        }),
+        ...(orderBy.toUpperCase().includes('LIKE') && {
+          orderBy: {
+            TourPlace: {
+              like: 'desc',
+            },
+          },
+        }),
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: await Promise.all(
+          foundShareTripMemList.map(async v => {
+            const userImg = await (() => {
+              const { profileImg } = v.user;
+              if (!isNil(profileImg)) {
+                if (profileImg.includes('http')) return profileImg;
+                return getS3SignedUrl(profileImg);
+              }
+              return null;
+            })();
+
+            const ret = {
+              ...v,
+              img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              user: {
+                ...v.user,
+                profileImg: userImg,
+              },
+            };
+
+            // return omit(ret, ['TourPlace']);
+            return ret;
+          }),
+        ),
+      });
+    } catch (err) {
+      const isPrismaError = (
+        v: unknown,
+      ): v is Prisma.PrismaClientKnownRequestError => {
+        if (v instanceof Prisma.PrismaClientKnownRequestError) return true;
+        return false;
+      };
+
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      } else if (isPrismaError(err)) {
+        if (
+          err.code === 'P2003' &&
+          err.message.includes(
+            'Foreign key constraint failed on the field: `parentReplyId`',
+          )
+        ) {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -1463,6 +1709,11 @@ tripNetworkRouter.post(
   '/deleteReplyToShareTripMemory',
   accessTokenValidCheck,
   deleteReplyToShareTripMemory,
+);
+tripNetworkRouter.post(
+  '/getShareTripMemList',
+  accessTokenValidCheck,
+  getShareTripMemList,
 );
 
 export default tripNetworkRouter;
