@@ -1160,6 +1160,150 @@ export const addReplyToShareTripMemory = asyncWrapper(
   },
 );
 
+export interface GetReplyListByShareTripMemRequestType {
+  shareTripMemoryId?: string; /// 조회하려는 댓글이 속한 공유기억(shareTripMemory) id
+}
+export interface GetReplyListByShareTripMemSuccessResType {
+  shareTripMemoryId: number;
+  id: number;
+  text: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: number;
+    nickName: string;
+    profileImg: string | null;
+  } | null;
+  childrenReplies: {
+    id: number;
+    text: string;
+    createdAt: Date;
+    updatedAt: Date;
+    parentReplyId: number;
+    user: {
+      id: number;
+      nickName: string;
+      profileImg: string;
+    };
+  }[];
+}
+
+export type GetReplyListByShareTripMemResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetReplyListByShareTripMemSuccessResType | {};
+};
+
+export const getReplyListByShareTripMem = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetReplyListByShareTripMemRequestType>,
+    res: Express.IBTypedResponse<GetReplyListByShareTripMemResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: 'shareTripMemoryId는 필수 파라미터입니다.',
+        });
+      }
+
+      const found = await prisma.replyForShareTripMemory.findMany({
+        where: {
+          shareTripMemoryId: Number(shareTripMemoryId),
+        },
+        select: {
+          id: true,
+          text: true,
+          createdAt: true,
+          updatedAt: true,
+          shareTripMemoryId: true,
+          user: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+            },
+          },
+          childrenReplies: {
+            select: {
+              id: true,
+              text: true,
+              createdAt: true,
+              updatedAt: true,
+              parentReplyId: true,
+              user: {
+                select: {
+                  id: true,
+                  nickName: true,
+                  profileImg: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: found,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export interface ModifyReplyToShareTripMemoryRequestType {
   replyId: string;
   replyText: string;
@@ -1687,6 +1831,11 @@ tripNetworkRouter.post(
   '/addShareTripMemory',
   accessTokenValidCheck,
   addShareTripMemory,
+);
+tripNetworkRouter.post(
+  '/getReplyListByShareTripMem',
+  accessTokenValidCheck,
+  getReplyListByShareTripMem,
 );
 tripNetworkRouter.post(
   '/getNrbyPlaceListWithGeoLoc',
