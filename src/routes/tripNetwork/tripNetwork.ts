@@ -1192,7 +1192,7 @@ export type GetReplyListByShareTripMemResType = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: GetReplyListByShareTripMemSuccessResType | {};
+  IBparams: GetReplyListByShareTripMemSuccessResType[] | {};
 };
 
 export const getReplyListByShareTripMem = asyncWrapper(
@@ -1269,6 +1269,116 @@ export const getReplyListByShareTripMem = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: found,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface DelShareTripMemReplyRequestType {
+  replyId?: string; /// 삭제하려는 공유기억 댓글 id
+}
+
+export type DelShareTripMemReplyResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+export const delShareTripMemReply = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DelShareTripMemReplyRequestType>,
+    res: Express.IBTypedResponse<DelShareTripMemReplyResType>,
+  ) => {
+    try {
+      const { replyId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(replyId)) {
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: 'replyId는 필수 파라미터입니다.',
+        });
+      }
+
+      const checkExist = await prisma.replyForShareTripMemory.findUnique({
+        where: {
+          id: Number(replyId),
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+      if (isNil(checkExist)) {
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: '존재하지 않는 replyId입니다.',
+        });
+      }
+
+      if (checkExist.userId !== Number(memberId)) {
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: '다른 유저의 댓글은 삭제 권한이 없습니다.',
+        });
+      }
+
+      await prisma.replyForShareTripMemory.delete({
+        where: {
+          id: Number(replyId),
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -1836,6 +1946,12 @@ tripNetworkRouter.post(
   '/getReplyListByShareTripMem',
   accessTokenValidCheck,
   getReplyListByShareTripMem,
+);
+
+tripNetworkRouter.post(
+  '/delShareTripMemReply',
+  accessTokenValidCheck,
+  delShareTripMemReply,
 );
 tripNetworkRouter.post(
   '/getNrbyPlaceListWithGeoLoc',
