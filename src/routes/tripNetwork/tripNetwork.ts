@@ -1676,6 +1676,7 @@ export interface GetShareTripMemListRequestType {
   orderBy?: string; /// 추천순(recommend), 좋아요순(like), 최신순(latest) 정렬 default 최신순
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
+  categoryKeyword: string; /// 카테고리 검색 키워드
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
   TourPlace: {
@@ -1707,6 +1708,7 @@ export const getShareTripMemList = asyncWrapper(
         orderBy = 'latest',
         lastId,
         take = '10',
+        categoryKeyword = '',
       } = req.body;
       const { locals } = req;
       const { memberId, userTokenId } = (() => {
@@ -1787,13 +1789,26 @@ export const getShareTripMemList = asyncWrapper(
       }
 
       const foundShareTripMemList = await prisma.shareTripMemory.findMany({
-        take: Number(take),
+        where: {
+          tripMemoryCategory: {
+            some: {
+              name: {
+                contains: categoryKeyword,
+              },
+            },
+          },
+        },
+        ...(isNil(lastId) && {
+          take: Number(take),
+        }),
         ...(!isNil(lastId) && {
+          take: Number(take) + 1,
           cursor: {
             id: Number(lastId),
           },
         }),
         include: {
+          tripMemoryCategory: true,
           TourPlace: {
             select: {
               good: true,
@@ -1833,6 +1848,8 @@ export const getShareTripMemList = asyncWrapper(
           },
         }),
       });
+
+      if (!isNil(lastId)) foundShareTripMemList.shift();
 
       res.json({
         ...ibDefs.SUCCESS,
