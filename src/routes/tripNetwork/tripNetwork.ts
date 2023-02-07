@@ -1933,6 +1933,306 @@ export const getShareTripMemList = asyncWrapper(
   },
 );
 
+export interface GetTripMemListRequestType {
+  tripMemoryId?: string; /// 단일 조회를 원할 경우 조회를 원하는 항목의 id
+  orderBy?: string; /// 최신순(latest), 오래된 순(oldest) 정렬 default 최신순
+  lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
+  take: string; /// default 10
+  tagKeyword: string; /// 해시태그 검색 키워드
+  groupId: string; /// 그룹에 따라 조회하려면 groupId가 제공되어야 한다.
+}
+export interface GetTripMemListSuccessResType {
+  id: number;
+  title: string;
+  comment: true;
+  lat: true;
+  lng: true;
+  address: true;
+  img: true;
+  tag: {
+    id: number;
+    name: string;
+  }[];
+  group: {
+    id: number;
+    name: string;
+    startDate: string;
+    endDate: string;
+  };
+  user: {
+    id: number;
+    nickName: string;
+    profileImg: string | null;
+  };
+  ShareTripMemory: {
+    id: number;
+    tourPlaceId: number | null;
+  } | null;
+}
+
+export type GetTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetTripMemListSuccessResType[] | {};
+};
+
+export const getTripMemList = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetTripMemListRequestType>,
+    res: Express.IBTypedResponse<GetTripMemListResType>,
+  ) => {
+    try {
+      const {
+        tripMemoryId,
+        orderBy = 'latest',
+        lastId,
+        take = '10',
+        tagKeyword = '',
+        groupId,
+      } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (!isNil(tripMemoryId)) {
+        const foundTripMem = await prisma.tripMemory.findUnique({
+          where: {
+            id: Number(tripMemoryId),
+          },
+          select: {
+            id: true,
+            title: true,
+            comment: true,
+            lat: true,
+            lng: true,
+            address: true,
+            img: true,
+            tag: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            group: {
+              select: {
+                id: true,
+                name: true,
+                startDate: true,
+                endDate: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+              },
+            },
+            ShareTripMemory: {
+              select: {
+                id: true,
+                tourPlaceId: true,
+              },
+            },
+          },
+        });
+
+        if (isNil(foundTripMem)) {
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재하지 않는 shareTripMemoryId입니다.',
+          });
+        }
+        const { profileImg } = foundTripMem.user;
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: [
+            {
+              ...foundTripMem,
+              img: foundTripMem.img.includes('http')
+                ? foundTripMem.img
+                : await getS3SignedUrl(foundTripMem.img),
+              user: {
+                ...foundTripMem.user,
+                ...(!isNil(profileImg) && {
+                  profileImg: profileImg.includes('http')
+                    ? profileImg
+                    : await getS3SignedUrl(profileImg),
+                }),
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      const foundTripMemList = await prisma.tripMemory.findMany({
+        where: {
+          AND: [
+            {
+              tag: {
+                some: {
+                  name: {
+                    contains: tagKeyword,
+                  },
+                },
+              },
+            },
+            {
+              groupId: isNil(groupId) ? undefined : Number(groupId),
+            },
+          ],
+        },
+        ...(isNil(lastId) && {
+          take: Number(take),
+        }),
+        ...(!isNil(lastId) && {
+          take: Number(take) + 1,
+          cursor: {
+            id: Number(lastId),
+          },
+        }),
+        select: {
+          id: true,
+          title: true,
+          comment: true,
+          lat: true,
+          lng: true,
+          address: true,
+          img: true,
+          tag: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+            },
+          },
+          ShareTripMemory: {
+            select: {
+              id: true,
+              tourPlaceId: true,
+            },
+          },
+        },
+        ...(orderBy.toUpperCase().includes('LATEST') && {
+          orderBy: {
+            id: 'desc',
+          },
+        }),
+      });
+
+      if (!isNil(lastId)) foundTripMemList.shift();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: await Promise.all(
+          foundTripMemList.map(async v => {
+            const userImg = await (() => {
+              const { profileImg } = v.user;
+              if (!isNil(profileImg)) {
+                if (profileImg.includes('http')) return profileImg;
+                return getS3SignedUrl(profileImg);
+              }
+              return null;
+            })();
+
+            const ret = {
+              ...v,
+              img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              user: {
+                ...v.user,
+                profileImg: userImg,
+              },
+            };
+
+            return ret;
+          }),
+        ),
+      });
+    } catch (err) {
+      const isPrismaError = (
+        v: unknown,
+      ): v is Prisma.PrismaClientKnownRequestError => {
+        if (v instanceof Prisma.PrismaClientKnownRequestError) return true;
+        return false;
+      };
+
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      } else if (isPrismaError(err)) {
+        if (
+          err.code === 'P2003' &&
+          err.message.includes(
+            'Foreign key constraint failed on the field: `parentReplyId`',
+          )
+        ) {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -1996,6 +2296,11 @@ tripNetworkRouter.post(
   '/getShareTripMemList',
   accessTokenValidCheck,
   getShareTripMemList,
+);
+tripNetworkRouter.post(
+  '/getTripMemList',
+  accessTokenValidCheck,
+  getTripMemList,
 );
 
 export default tripNetworkRouter;
