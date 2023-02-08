@@ -1096,30 +1096,39 @@ export const addReplyToShareTripMemory = asyncWrapper(
         return Number(userInputShareTripMemId);
       })();
 
-      const createdOne = await prisma.replyForShareTripMemory.create({
-        data: {
-          text: replyText,
-          shareTripMemory: {
-            connect: {
-              id: shareTripMemoryId,
-            },
+      const createdOne = await prisma.$transaction(async tx => {
+        await tx.notiNewCommentOnShareTripMemory.create({
+          data: {
+            userId: Number(memberId),
+            shareTripMemoryId,
           },
-          user: {
-            connect: {
-              id: Number(memberId),
-            },
-          },
-          ...(parentReplyId && {
-            parentReply: {
+        });
+        const result = await tx.replyForShareTripMemory.create({
+          data: {
+            text: replyText,
+            shareTripMemory: {
               connect: {
-                id: Number(parentReplyId),
+                id: shareTripMemoryId,
               },
             },
-          }),
-        },
-        include: {
-          parentReply: true,
-        },
+            user: {
+              connect: {
+                id: Number(memberId),
+              },
+            },
+            ...(parentReplyId && {
+              parentReply: {
+                connect: {
+                  id: Number(parentReplyId),
+                },
+              },
+            }),
+          },
+          include: {
+            parentReply: true,
+          },
+        });
+        return result;
       });
 
       res.json({
@@ -2254,6 +2263,210 @@ export const getTripMemList = asyncWrapper(
   },
 );
 
+export interface GetNotiNewCommentRequestType {}
+
+export type GetNotiNewCommentResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: boolean | {};
+};
+
+export const getNotiNewComment = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetNotiNewCommentRequestType>,
+    res: Express.IBTypedResponse<GetNotiNewCommentResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const shareTripMemory = await prisma.shareTripMemory.findMany({
+        where: {
+          userId: Number(memberId),
+          NotiNewCommentOnShareTripMemory: {
+            some: {
+              userChecked: false,
+            },
+          },
+        },
+        include: {
+          NotiNewCommentOnShareTripMemory: true,
+        },
+      });
+
+      let result = false;
+      if (!isEmpty(shareTripMemory)) result = true;
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: result,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface CheckNotiNewCommentRequestType {}
+
+export type CheckNotiNewCommentResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: number | {};
+};
+
+export const checkNotiNewComment = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<CheckNotiNewCommentRequestType>,
+    res: Express.IBTypedResponse<CheckNotiNewCommentResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const shareTripMemory = await prisma.shareTripMemory.findMany({
+        where: {
+          userId: Number(memberId),
+          NotiNewCommentOnShareTripMemory: {
+            some: {
+              userChecked: false,
+            },
+          },
+        },
+        select: {
+          NotiNewCommentOnShareTripMemory: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      const notiNewCommentIds = shareTripMemory
+        .map(
+          (
+            v,
+          ): {
+            id: number;
+          }[] => {
+            return v.NotiNewCommentOnShareTripMemory;
+          },
+        )
+        .flat()
+        .map(v => v.id);
+
+      let updated: Prisma.BatchPayload | undefined;
+      if (!isEmpty(notiNewCommentIds)) {
+        updated = await prisma.notiNewCommentOnShareTripMemory.updateMany({
+          where: {
+            id: {
+              in: notiNewCommentIds,
+            },
+          },
+          data: {
+            userChecked: true,
+          },
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updated && updated.count ? updated.count : 0,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -2322,6 +2535,17 @@ tripNetworkRouter.post(
   '/getTripMemList',
   accessTokenValidCheck,
   getTripMemList,
+);
+
+tripNetworkRouter.get(
+  '/getNotiNewComment',
+  accessTokenValidCheck,
+  getNotiNewComment,
+);
+tripNetworkRouter.post(
+  '/checkNotiNewComment',
+  accessTokenValidCheck,
+  checkNotiNewComment,
 );
 
 export default tripNetworkRouter;
