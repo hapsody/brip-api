@@ -2066,6 +2066,13 @@ export const getTripMemList = asyncWrapper(
             message: '존재하지 않는 shareTripMemoryId입니다.',
           });
         }
+
+        if (foundTripMem.user.id !== Number(memberId)) {
+          throw new IBError({
+            type: 'NOTAUTHORIZED',
+            message: '조회 권한이 없는 기억 id입니다.',
+          });
+        }
         const { profileImg } = foundTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
@@ -2109,6 +2116,7 @@ export const getTripMemList = asyncWrapper(
             { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
             { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
             { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
+            { userId: Number(memberId) },
           ],
         },
         ...(isNil(lastId) && {
