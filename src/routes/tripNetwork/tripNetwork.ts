@@ -2288,6 +2288,8 @@ export interface GetTripMemListByGroupSuccessResType {
     profileImg: string | null;
   };
   tripMemory: {
+    createdAt: string;
+    createdDay: string;
     img: string;
     lng: number;
     lat: number;
@@ -2407,6 +2409,7 @@ export const getTripMemListByGroup = asyncWrapper(
           tripMemory: {
             select: {
               id: true,
+              createdAt: true,
               title: true,
               comment: true,
               lat: true,
@@ -2455,6 +2458,9 @@ export const getTripMemListByGroup = asyncWrapper(
                 v.tripMemory.map(async k => {
                   return {
                     ...k,
+                    createdDay: moment(k.createdAt)
+                      .startOf('d')
+                      .format('YYYY-MM-DD'),
                     img: k.img.includes('http')
                       ? k.img
                       : await getS3SignedUrl(k.img),
