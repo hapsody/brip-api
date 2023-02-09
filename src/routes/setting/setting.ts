@@ -18,7 +18,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
-import { omit } from 'lodash';
+import { omit, isEmpty } from 'lodash';
 
 const upload = multer();
 
@@ -784,6 +784,98 @@ export const getProfileImg = asyncWrapper(
   },
 );
 
+export interface GetMyProfileImgRequestType {}
+export interface GetMyProfileImgSuccessResType {
+  signedUrl: string;
+}
+
+export type GetMyProfileImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyProfileImgSuccessResType[] | {};
+};
+
+export const getMyProfileImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetMyProfileImgRequestType>,
+    res: Express.IBTypedResponse<GetMyProfileImgResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      // const { key } = req.body;
+
+      // const signedUrl = await getS3SignedUrl(`${key}`);
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+        select: {
+          profileImg: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          profileImg: await (() => {
+            if (user.profileImg && !isEmpty(user.profileImg)) {
+              return user.profileImg.includes('http')
+                ? user.profileImg
+                : getS3SignedUrl(user.profileImg);
+            }
+            return null;
+          })(),
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export type GetMyAccountInfoRequestType = {};
 export interface GetMyAccountInfoSuccessResType
   extends Omit<User, 'password'> {}
@@ -834,7 +926,15 @@ export const getMyAccountInfo = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: omit(user, ['password']),
+        IBparams: {
+          ...omit(user, ['password']),
+          ...(user.profileImg &&
+            !isEmpty(user.profileImg) && {
+              profileImg: user.profileImg.includes('http')
+                ? user.profileImg
+                : await getS3SignedUrl(user.profileImg),
+            }),
+        },
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -1020,6 +1120,7 @@ settingRouter.post(
   changeProfileImg,
 );
 settingRouter.post('/getProfileImg', accessTokenValidCheck, getProfileImg);
+settingRouter.post('/getMyProfileImg', accessTokenValidCheck, getMyProfileImg);
 settingRouter.post(
   '/getMyAccountInfo',
   accessTokenValidCheck,

@@ -1987,6 +1987,9 @@ export type GetTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetTripMemListSuccessResType[] | {};
 };
 
+/**
+ * '내' 기억 리스트를 리턴하는 api
+ */
 export const getTripMemList = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetTripMemListRequestType>,
@@ -2198,6 +2201,266 @@ export const getTripMemList = asyncWrapper(
             const ret = {
               ...v,
               img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              user: {
+                ...v.user,
+                profileImg: userImg,
+              },
+            };
+
+            return ret;
+          }),
+        ),
+      });
+    } catch (err) {
+      const isPrismaError = (
+        v: unknown,
+      ): v is Prisma.PrismaClientKnownRequestError => {
+        if (v instanceof Prisma.PrismaClientKnownRequestError) return true;
+        return false;
+      };
+
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      } else if (isPrismaError(err)) {
+        if (
+          err.code === 'P2003' &&
+          err.message.includes(
+            'Foreign key constraint failed on the field: `parentReplyId`',
+          )
+        ) {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface GetTripMemListByGroupRequestType {
+  orderBy?: string; /// 최신순(latest), 오래된 순(oldest) 정렬 default 최신순
+  lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
+  take?: string; /// default 10
+  tagKeyword?: string; /// 해시태그 검색 키워드
+  groupId?: string; /// 그룹에 따라 조회하려면 groupId가 제공되어야 한다.
+  minLat?: string; /// 지도에서 위치 기반으로 검색할 경우
+  minLng?: string;
+  maxLat?: string;
+  maxLng?: string;
+}
+export interface GetTripMemListByGroupSuccessResType {
+  id: number;
+  name: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  user: {
+    id: number;
+    nickName: string;
+    profileImg: string | null;
+  };
+  tripMemory: {
+    img: string;
+    lng: number;
+    lat: number;
+    tag: {
+      id: number;
+      name: string;
+    }[];
+    id: number;
+    title: string;
+    comment: string;
+    address: string | null;
+    ShareTripMemory: {
+      id: number;
+      tourPlaceId: number | null;
+    } | null;
+  }[];
+}
+
+export type GetTripMemListByGroupResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetTripMemListByGroupSuccessResType[] | {};
+};
+
+/**
+ * 기억 그룹별로 그룹지어진 '내' 기억 리스트를 리턴하는 api
+ */
+export const getTripMemListByGroup = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetTripMemListByGroupRequestType>,
+    res: Express.IBTypedResponse<GetTripMemListByGroupResType>,
+  ) => {
+    try {
+      const {
+        orderBy = 'latest',
+        lastId,
+        take = '10',
+        tagKeyword = '',
+        groupId,
+        minLat,
+        minLng,
+        maxLat,
+        maxLng,
+      } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const foundGroupList = await prisma.tripMemoryGroup.findMany({
+        where: {
+          AND: [
+            { id: isNil(groupId) ? undefined : Number(groupId) },
+            { userId: Number(memberId) },
+            {
+              tripMemory: {
+                some: {
+                  AND: [
+                    {
+                      tag: {
+                        some: {
+                          name: {
+                            contains: tagKeyword,
+                          },
+                        },
+                      },
+                    },
+                    {
+                      lat: isNil(minLat) ? undefined : { gte: Number(minLat) },
+                    },
+                    { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
+                    {
+                      lng: isNil(minLng) ? undefined : { gte: Number(minLng) },
+                    },
+                    { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        ...(isNil(lastId) && {
+          take: Number(take),
+        }),
+        ...(!isNil(lastId) && {
+          take: Number(take) + 1,
+          cursor: {
+            id: Number(lastId),
+          },
+        }),
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+          user: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+            },
+          },
+          tripMemory: {
+            select: {
+              id: true,
+              title: true,
+              comment: true,
+              lat: true,
+              lng: true,
+              address: true,
+              img: true,
+              tag: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              ShareTripMemory: {
+                select: {
+                  id: true,
+                  tourPlaceId: true,
+                },
+              },
+            },
+          },
+        },
+        ...(orderBy.toUpperCase().includes('LATEST') && {
+          orderBy: {
+            id: 'desc',
+          },
+        }),
+      });
+      if (!isNil(lastId)) foundGroupList.shift();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: await Promise.all(
+          foundGroupList.map(async v => {
+            const userImg = await (() => {
+              const { profileImg } = v.user;
+              if (!isNil(profileImg)) {
+                if (profileImg.includes('http')) return profileImg;
+                return getS3SignedUrl(profileImg);
+              }
+              return null;
+            })();
+
+            const ret = {
+              ...v,
+              tripMemory: await Promise.all(
+                v.tripMemory.map(async k => {
+                  return {
+                    ...k,
+                    img: k.img.includes('http')
+                      ? k.img
+                      : await getS3SignedUrl(k.img),
+                  };
+                }),
+              ),
               user: {
                 ...v.user,
                 profileImg: userImg,
@@ -2535,6 +2798,11 @@ tripNetworkRouter.post(
   '/getTripMemList',
   accessTokenValidCheck,
   getTripMemList,
+);
+tripNetworkRouter.post(
+  '/getTripMemListByGroup',
+  accessTokenValidCheck,
+  getTripMemListByGroup,
 );
 
 tripNetworkRouter.get(
