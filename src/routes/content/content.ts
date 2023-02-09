@@ -10,7 +10,12 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
-import { CardTag, CardNewsGroup, CardNewsContent } from '@prisma/client';
+import {
+  CardTag,
+  CardNewsGroup,
+  CardNewsContent,
+  Prisma,
+} from '@prisma/client';
 import { isEmpty } from 'lodash';
 
 const upload = multer();
@@ -1129,6 +1134,81 @@ export const getMyContentList = asyncWrapper(
   },
 );
 
+export interface GetRandomCardImgRequestType {
+  num: string;
+}
+export interface GetRandomCardImgSuccessResType {
+  img: string[];
+}
+
+export type GetRandomCardImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRandomCardImgSuccessResType | {};
+};
+
+export const getRandomCardImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetRandomCardImgRequestType>,
+    res: Express.IBTypedResponse<GetRandomCardImgResType>,
+  ) => {
+    try {
+      const { num = '10' } = req.query;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const cardNewsContent = await prisma.$queryRaw<
+        Promise<{ bgPicUri: string }[]>
+      >(
+        Prisma.sql`select bgPicUri from CardNewsContent order by RAND() limit ${Number(
+          num,
+        )};`,
+      );
+
+      const retImgs = await Promise.all(
+        cardNewsContent.map(async card => {
+          const img = card.bgPicUri.includes('http')
+            ? card.bgPicUri
+            : await getS3SignedUrl(card.bgPicUri);
+
+          return img;
+        }),
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: { img: retImgs },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        // if (err.type === 'INVALIDENVPARAMS') {
+        //   res.status(500).json({
+        //     ...ibDefs.INVALIDENVPARAMS,
+        //     IBdetail: (err as Error).message,
+        //     IBparams: {} as object,
+        //   });
+        //   return;
+        // }
+      }
+      throw err;
+    }
+  },
+);
+
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
 authRouter.get(
   '/getMainCardNewsGrp',
@@ -1153,4 +1233,5 @@ authRouter.post('/updateCardNews', accessTokenValidCheck, updateCardNews);
 authRouter.post('/deleteCardGrp', accessTokenValidCheck, deleteCardGrp);
 authRouter.post('/deleteCardNews', accessTokenValidCheck, deleteCardNews);
 authRouter.get('/getMyContentList', accessTokenValidCheck, getMyContentList);
+authRouter.get('/getRandomCardImg', accessTokenValidCheck, getRandomCardImg);
 export default authRouter;
