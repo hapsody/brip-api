@@ -18,7 +18,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
-import { omit } from 'lodash';
+import { omit, isEmpty } from 'lodash';
 
 const upload = multer();
 
@@ -832,9 +832,22 @@ export const getMyAccountInfo = asyncWrapper(
         });
       }
 
+      // ...(user.profileImg && !isEmpty(user.profileImg) && {
+      //   profileImg: user.profileImg.includes('http')
+      //   ? user.profileImg
+      //   : await getS3SignedUrl(user.profileImg)
+      // })
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: omit(user, ['password']),
+        IBparams: {
+          ...omit(user, ['password']),
+          ...(user.profileImg &&
+            !isEmpty(user.profileImg) && {
+              profileImg: user.profileImg.includes('http')
+                ? user.profileImg
+                : await getS3SignedUrl(user.profileImg),
+            }),
+        },
       });
     } catch (err) {
       if (err instanceof IBError) {
