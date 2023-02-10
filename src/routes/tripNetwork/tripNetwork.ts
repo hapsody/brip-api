@@ -214,6 +214,7 @@ export interface AddTripMemoryRequestType {
   lng: string;
   img: string;
   groupId: string;
+  tourPlaceId?: string;
 }
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
@@ -230,7 +231,17 @@ const addTripMemory = async (
   param: AddTripMemoryRequestType,
   ctx: ContextAddTripMemory,
 ): Promise<AddTripMemorySuccessResType> => {
-  const { title, comment, hashTag, address, lat, lng, img, groupId } = param;
+  const {
+    title,
+    comment,
+    hashTag,
+    address,
+    lat,
+    lng,
+    img,
+    groupId,
+    tourPlaceId,
+  } = param;
   const tripMemoryGroup = await prisma.tripMemoryGroup.findUnique({
     where: {
       id: Number(groupId),
@@ -336,6 +347,13 @@ const addTripMemory = async (
               }),
             },
           }),
+        ...(!isNil(tourPlaceId) && {
+          tourPlace: {
+            connect: {
+              id: Number(tourPlaceId),
+            },
+          },
+        }),
       },
       include: {
         tag: true,
