@@ -12,6 +12,7 @@ import contentRouter from './routes/content';
 import settingRouter from './routes/setting';
 import tripNetworkRouter from './routes/tripNetwork';
 import devRouter from './routes/dev';
+import utilRouter from './routes/util';
 
 import passportConfig from './passport';
 
@@ -60,6 +61,7 @@ app.use('/content', contentRouter);
 app.use('/setting', settingRouter);
 app.use('/tripNetwork', tripNetworkRouter);
 app.use('/dev', devRouter);
+app.use('/util', utilRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
