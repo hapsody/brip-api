@@ -848,6 +848,15 @@ export const getPlaceByGglTxtSrch = async (
             ) === -1
               ? 'GL_SPOT'
               : 'GL_RESTAURANT',
+
+          /// 통합 필수 필드
+          lat: item.geometry?.location?.lat,
+          lng: item.geometry?.location?.lng,
+          address: item.formatted_address ?? item.vicinity ?? undefined,
+          openWeek: undefined,
+          postcode: undefined,
+          contact: undefined,
+
           gl_lat: item.geometry?.location?.lat,
           gl_lng: item.geometry?.location?.lng,
           gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
@@ -1251,6 +1260,14 @@ export const getPlaceDataFromVJ = async (
               item.contentscd?.label === '음식점'
                 ? 'VISITJEJU_RESTAURANT'
                 : 'VISITJEJU_SPOT',
+
+            /// 통합 필수 필드
+            lat: item.latitude,
+            lng: item.longitude,
+            address: item.address,
+            openWeek: undefined,
+            postcode: item.postcode,
+            contact: item.phoneno,
 
             vj_contentsid: item.contentsid as string,
             vj_contentscdLabel: item.contentscd?.label,

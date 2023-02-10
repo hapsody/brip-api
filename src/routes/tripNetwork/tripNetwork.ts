@@ -736,7 +736,7 @@ export const addShareTripMemory = asyncWrapper(
                   tourPlaceType: 'USER_SPOT',
                   photos: {
                     create: {
-                      photo_reference: img,
+                      key: img,
                     },
                   },
                 },
@@ -2037,6 +2037,20 @@ export const getShareTripMemListByPlace = asyncWrapper(
           gl_name: true,
           vj_title: true,
           title: true,
+          lat: true,
+          lng: true,
+          address: true,
+          gl_vicinity: true,
+          gl_formatted_address: true,
+          vj_roadaddress: true,
+          vj_address: true,
+          gl_photos: true,
+          photos: true,
+          openWeek: true,
+          gl_opening_hours: true,
+          contact: true,
+          good: true,
+          like: true,
           shareTripMemory: {
             include: {
               tripMemoryCategory: true,
@@ -2099,7 +2113,6 @@ export const getShareTripMemListByPlace = asyncWrapper(
                     }
                     return null;
                   })();
-
                   const ret = {
                     ...s,
                     img: s.img.includes('http')
