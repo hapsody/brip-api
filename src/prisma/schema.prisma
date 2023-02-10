@@ -198,6 +198,7 @@ model TourPlace {
   vj_postcode        String? /// 우편번호 ex) 63643
   vj_phoneno         String? /// 전화번호 ex) 064-783-0959
 
+  title   String?
   lat     Float?
   lng     Float?
   address String?     @db.Text
