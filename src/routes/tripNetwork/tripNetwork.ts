@@ -729,6 +729,7 @@ export const addShareTripMemory = asyncWrapper(
           TourPlace: isNil(tourPlaceId)
             ? {
                 create: {
+                  title,
                   lat: Number(lat),
                   lng: Number(lng),
                   address,
@@ -1689,6 +1690,10 @@ export interface GetShareTripMemListRequestType {
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
   TourPlace: {
+    id: number;
+    gl_name: string | null;
+    vj_title: string | null;
+    title: string | null;
     good: number;
     like: number;
   } | null;
@@ -1820,6 +1825,10 @@ export const getShareTripMemList = asyncWrapper(
           tripMemoryCategory: true,
           TourPlace: {
             select: {
+              id: true,
+              gl_name: true,
+              vj_title: true,
+              title: true,
               good: true,
               like: true,
             },
@@ -1884,6 +1893,229 @@ export const getShareTripMemList = asyncWrapper(
 
             // return omit(ret, ['TourPlace']);
             return ret;
+          }),
+        ),
+      });
+    } catch (err) {
+      const isPrismaError = (
+        v: unknown,
+      ): v is Prisma.PrismaClientKnownRequestError => {
+        if (v instanceof Prisma.PrismaClientKnownRequestError) return true;
+        return false;
+      };
+
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      } else if (isPrismaError(err)) {
+        if (
+          err.code === 'P2003' &&
+          err.message.includes(
+            'Foreign key constraint failed on the field: `parentReplyId`',
+          )
+        ) {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface GetShareTripMemListByGroupRequestType {
+  tourPlaceId?: string; /// 단일 tourPlaceId 조회
+  orderBy?: string; /// 추천순(recommend), 좋아요순(like), 최신순(latest) 정렬 default 최신순
+  lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 tourPlace id. undefined라면 처음부터 조회한다.
+  take: string; /// default 10
+  categoryKeyword: string; /// 카테고리 검색 키워드
+}
+export interface GetShareTripMemListByGroupSuccessResType
+  extends ShareTripMemory {
+  TourPlace: {
+    id: number;
+    gl_name: string | null;
+    vj_title: string | null;
+    title: string | null;
+    good: number;
+    like: number;
+  } | null;
+  user: {
+    id: number;
+    nickName: string;
+    profileImg: string | null;
+    tripCreator: {
+      nickName: string;
+    }[];
+  };
+}
+
+export type GetShareTripMemListByGroupResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: GetShareTripMemListByGroupSuccessResType[] | {};
+};
+
+export const getShareTripMemListByGroup = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetShareTripMemListByGroupRequestType>,
+    res: Express.IBTypedResponse<GetShareTripMemListByGroupResType>,
+  ) => {
+    try {
+      const {
+        tourPlaceId,
+        orderBy = 'latest',
+        lastId,
+        take = '10',
+        categoryKeyword = '',
+      } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const tourPlaceList = await prisma.tourPlace.findMany({
+        where: {
+          id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId),
+          shareTripMemory: {
+            some: {
+              tripMemoryCategory: {
+                some: {
+                  name: {
+                    contains: categoryKeyword,
+                  },
+                },
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          gl_name: true,
+          vj_title: true,
+          title: true,
+          shareTripMemory: {
+            include: {
+              tripMemoryCategory: true,
+              user: {
+                select: {
+                  id: true,
+                  nickName: true,
+                  profileImg: true,
+                  tripCreator: {
+                    select: {
+                      nickName: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        ...(orderBy.toUpperCase().includes('LATEST') && {
+          orderBy: {
+            id: 'desc',
+          },
+        }),
+        ...(orderBy.toUpperCase().includes('RECOMMEND') && {
+          orderBy: {
+            good: 'desc',
+          },
+        }),
+        ...(orderBy.toUpperCase().includes('LIKE') && {
+          orderBy: {
+            like: 'desc',
+          },
+        }),
+        ...(isNil(lastId) && {
+          take: Number(take),
+        }),
+        ...(!isNil(lastId) && {
+          take: Number(take) + 1,
+          cursor: {
+            id: Number(lastId),
+          },
+        }),
+      });
+
+      if (!isNil(lastId)) tourPlaceList.shift();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: await Promise.all(
+          tourPlaceList.map(async t => {
+            return {
+              ...t,
+              shareTripMemory: await Promise.all(
+                t.shareTripMemory.map(async s => {
+                  const userImg = await (() => {
+                    const { profileImg } = s.user;
+                    if (!isNil(profileImg)) {
+                      if (profileImg.includes('http')) return profileImg;
+                      return getS3SignedUrl(profileImg);
+                    }
+                    return null;
+                  })();
+
+                  const ret = {
+                    ...s,
+                    img: s.img.includes('http')
+                      ? s.img
+                      : await getS3SignedUrl(s.img),
+                    user: {
+                      ...s.user,
+                      profileImg: userImg,
+                    },
+                  };
+                  return ret;
+                }),
+              ),
+            };
           }),
         ),
       });
@@ -2288,6 +2520,8 @@ export interface GetTripMemListByGroupSuccessResType {
     profileImg: string | null;
   };
   tripMemory: {
+    createdAt: string;
+    createdDay: string;
     img: string;
     lng: number;
     lat: number;
@@ -2407,6 +2641,7 @@ export const getTripMemListByGroup = asyncWrapper(
           tripMemory: {
             select: {
               id: true,
+              createdAt: true,
               title: true,
               comment: true,
               lat: true,
@@ -2455,6 +2690,9 @@ export const getTripMemListByGroup = asyncWrapper(
                 v.tripMemory.map(async k => {
                   return {
                     ...k,
+                    createdDay: moment(k.createdAt)
+                      .startOf('d')
+                      .format('YYYY-MM-DD'),
                     img: k.img.includes('http')
                       ? k.img
                       : await getS3SignedUrl(k.img),
@@ -2793,6 +3031,11 @@ tripNetworkRouter.post(
   '/getShareTripMemList',
   accessTokenValidCheck,
   getShareTripMemList,
+);
+tripNetworkRouter.post(
+  '/getShareTripMemListByGroup',
+  accessTokenValidCheck,
+  getShareTripMemListByGroup,
 );
 tripNetworkRouter.post(
   '/getTripMemList',
