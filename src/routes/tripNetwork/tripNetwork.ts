@@ -736,7 +736,7 @@ export const addShareTripMemory = asyncWrapper(
                   tourPlaceType: 'USER_SPOT',
                   photos: {
                     create: {
-                      photo_reference: img,
+                      key: img,
                     },
                   },
                 },
@@ -1951,44 +1951,42 @@ export const getShareTripMemList = asyncWrapper(
   },
 );
 
-export interface GetShareTripMemListByGroupRequestType {
+export interface GetShareTripMemListByPlaceRequestType {
   tourPlaceId?: string; /// 단일 tourPlaceId 조회
   orderBy?: string; /// 추천순(recommend), 좋아요순(like), 최신순(latest) 정렬 default 최신순
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 tourPlace id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
 }
-export interface GetShareTripMemListByGroupSuccessResType
-  extends ShareTripMemory {
-  TourPlace: {
-    id: number;
-    gl_name: string | null;
-    vj_title: string | null;
-    title: string | null;
-    good: number;
-    like: number;
-  } | null;
-  user: {
-    id: number;
-    nickName: string;
-    profileImg: string | null;
-    tripCreator: {
+export interface GetShareTripMemListByPlaceSuccessResType {
+  id: number;
+  title: string | null;
+  shareTripMemory: (ShareTripMemory & {
+    user: {
+      id: number;
+      tripCreator: {
+        nickName: string;
+      }[];
       nickName: string;
-    }[];
-  };
+      profileImg: string | null;
+    };
+    tripMemoryCategory: TripMemoryCategory[];
+  })[];
+  gl_name: string | null;
+  vj_title: string | null;
 }
 
-export type GetShareTripMemListByGroupResType = Omit<
+export type GetShareTripMemListByPlaceResType = Omit<
   IBResFormat,
   'IBparams'
 > & {
-  IBparams: GetShareTripMemListByGroupSuccessResType[] | {};
+  IBparams: GetShareTripMemListByPlaceSuccessResType[] | {};
 };
 
-export const getShareTripMemListByGroup = asyncWrapper(
+export const getShareTripMemListByPlace = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetShareTripMemListByGroupRequestType>,
-    res: Express.IBTypedResponse<GetShareTripMemListByGroupResType>,
+    req: Express.IBTypedReqBody<GetShareTripMemListByPlaceRequestType>,
+    res: Express.IBTypedResponse<GetShareTripMemListByPlaceResType>,
   ) => {
     try {
       const {
@@ -2039,6 +2037,20 @@ export const getShareTripMemListByGroup = asyncWrapper(
           gl_name: true,
           vj_title: true,
           title: true,
+          lat: true,
+          lng: true,
+          address: true,
+          gl_vicinity: true,
+          gl_formatted_address: true,
+          vj_roadaddress: true,
+          vj_address: true,
+          gl_photos: true,
+          photos: true,
+          openWeek: true,
+          gl_opening_hours: true,
+          contact: true,
+          good: true,
+          like: true,
           shareTripMemory: {
             include: {
               tripMemoryCategory: true,
@@ -2101,7 +2113,6 @@ export const getShareTripMemListByGroup = asyncWrapper(
                     }
                     return null;
                   })();
-
                   const ret = {
                     ...s,
                     img: s.img.includes('http')
@@ -3033,9 +3044,9 @@ tripNetworkRouter.post(
   getShareTripMemList,
 );
 tripNetworkRouter.post(
-  '/getShareTripMemListByGroup',
+  '/getShareTripMemListByPlace',
   accessTokenValidCheck,
-  getShareTripMemListByGroup,
+  getShareTripMemListByPlace,
 );
 tripNetworkRouter.post(
   '/getTripMemList',

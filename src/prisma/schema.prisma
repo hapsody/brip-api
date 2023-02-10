@@ -74,8 +74,8 @@ model GglPhotos {
   url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
   TourPlace         TourPlace? @relation(name: "GooglePhotos", fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?
-  shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
-  shareTripMemTPId  Int?
+  // shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
+  // shareTripMemTPId  Int?
 }
 
 model GglNearbySearchResType {
@@ -93,6 +93,17 @@ enum DataStageStatus {
   APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
   IN_USE ///  사용중인 데이터
   ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+}
+
+/// idealbloom 이미지 
+model IBPhotos {
+  id          Int        @id @default(autoincrement())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
+  key         String? /// s3 key path
+  url         String?    @db.Text /// 직접접근이 가능한 url이 있을 경우
+  tourPlace   TourPlace? @relation(fields: [tourPlaceId], references: [id])
+  tourPlaceId Int?
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
@@ -198,11 +209,18 @@ model TourPlace {
   vj_postcode        String? /// 우편번호 ex) 63643
   vj_phoneno         String? /// 전화번호 ex) 064-783-0959
 
-  title   String?
-  lat     Float?
-  lng     Float?
-  address String?     @db.Text
-  photos  GglPhotos[] @relation("ShareTripMemoryTourPlacePhotos")
+  /// 공통 필수 필드
+  title       String?
+  lat         Float?
+  lng         Float?
+  address     String?    @db.Text
+  roadAddress String?    @db.Text
+  /// 공통 옵션 필드
+  openWeek    String?
+  contact     String?
+  postcode    String?
+  // photos   GglPhotos[] @relation("ShareTripMemoryTourPlacePhotos")
+  photos      IBPhotos[]
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.

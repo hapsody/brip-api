@@ -74,6 +74,14 @@ async function batchJob(): Promise<void> {
     await prisma.tourPlace.create({
       data: {
         status: 'IN_USE',
+        /// 통합 필수 필드
+        lat: geoLocation.lat,
+        lng: geoLocation.lngt,
+        address: v.formatted_address ?? v.vicinity ?? undefined,
+        openWeek: undefined,
+        postcode: undefined,
+        contact: undefined,
+
         gl_icon: v.icon,
         gl_icon_background_color: v.icon_background_color,
         gl_icon_mask_base_uri: v.icon_mask_base_uri,
