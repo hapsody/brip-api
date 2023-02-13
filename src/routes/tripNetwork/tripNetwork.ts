@@ -872,22 +872,107 @@ export type GetNrbyPlaceListWithGeoLocResType = Omit<
   IBparams: GetNrbyPlaceListWithGeoLocSuccessResType | {};
 };
 
-export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
+export interface ContextGetNrbyPlaceListWithGeoLoc extends IBContext {}
+
+export const getNrbyPlaceListWithGeoLoc = async (
+  param: GetNrbyPlaceListWithGeoLocRequestType,
+  ctx: ContextGetNrbyPlaceListWithGeoLoc,
+): Promise<GetNrbyPlaceListWithGeoLocSuccessResType> => {
+  const { minLat, minLng, maxLat, maxLng, take = '10', lastId = '1' } = param;
+  const { memberId, userTokenId } = ctx;
+
+  if (!userTokenId || !memberId) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+    });
+  }
+
+  const count = await prisma.tourPlace.aggregate({
+    where: {
+      OR: [
+        {
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { gl_lat: { gte: Number(minLat) } },
+            { gl_lat: { lt: Number(maxLat) } },
+            { gl_lng: { gte: Number(minLng) } },
+            { gl_lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { vj_latitude: { gte: Number(minLat) } },
+            { vj_latitude: { lt: Number(maxLat) } },
+            { vj_longitude: { gte: Number(minLng) } },
+            { vj_longitude: { lt: Number(maxLng) } },
+          ],
+        },
+      ],
+      status: 'IN_USE',
+    },
+    _count: {
+      id: true,
+    },
+  });
+  const foundTourPlace = await prisma.tourPlace.findMany({
+    where: {
+      OR: [
+        {
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { gl_lat: { gte: Number(minLat) } },
+            { gl_lat: { lt: Number(maxLat) } },
+            { gl_lng: { gte: Number(minLng) } },
+            { gl_lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { vj_latitude: { gte: Number(minLat) } },
+            { vj_latitude: { lt: Number(maxLat) } },
+            { vj_longitude: { gte: Number(minLng) } },
+            { vj_longitude: { lt: Number(maxLng) } },
+          ],
+        },
+      ],
+    },
+    take: Number(take),
+    cursor: {
+      id: Number(lastId) + 1,
+    },
+  });
+  return {
+    // eslint-disable-next-line no-underscore-dangle
+    totalCount: count._count.id ?? 0,
+    returnedCount: foundTourPlace.length,
+    list: foundTourPlace,
+  };
+};
+
+export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetNrbyPlaceListWithGeoLocRequestType>,
     res: Express.IBTypedResponse<GetNrbyPlaceListWithGeoLocResType>,
   ) => {
     try {
-      const {
-        minLat,
-        minLng,
-        maxLat,
-        maxLng,
-        take = '10',
-        lastId = '1',
-      } = req.body;
+      const param = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const ctx: ContextGetNrbyPlaceListWithGeoLoc = (() => {
         if (locals && locals?.grade === 'member')
           return {
             memberId: locals?.user?.id,
@@ -900,90 +985,10 @@ export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
         });
       })();
 
-      if (!userTokenId || !memberId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
-
-      const count = await prisma.tourPlace.aggregate({
-        where: {
-          OR: [
-            {
-              AND: [
-                { lat: { gte: Number(minLat) } },
-                { lat: { lt: Number(maxLat) } },
-                { lng: { gte: Number(minLng) } },
-                { lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { gl_lat: { gte: Number(minLat) } },
-                { gl_lat: { lt: Number(maxLat) } },
-                { gl_lng: { gte: Number(minLng) } },
-                { gl_lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { vj_latitude: { gte: Number(minLat) } },
-                { vj_latitude: { lt: Number(maxLat) } },
-                { vj_longitude: { gte: Number(minLng) } },
-                { vj_longitude: { lt: Number(maxLng) } },
-              ],
-            },
-          ],
-          status: 'IN_USE',
-        },
-        _count: {
-          id: true,
-        },
-      });
-      const foundTourPlace = await prisma.tourPlace.findMany({
-        where: {
-          OR: [
-            {
-              AND: [
-                { lat: { gte: Number(minLat) } },
-                { lat: { lt: Number(maxLat) } },
-                { lng: { gte: Number(minLng) } },
-                { lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { gl_lat: { gte: Number(minLat) } },
-                { gl_lat: { lt: Number(maxLat) } },
-                { gl_lng: { gte: Number(minLng) } },
-                { gl_lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { vj_latitude: { gte: Number(minLat) } },
-                { vj_latitude: { lt: Number(maxLat) } },
-                { vj_longitude: { gte: Number(minLng) } },
-                { vj_longitude: { lt: Number(maxLng) } },
-              ],
-            },
-          ],
-        },
-        take: Number(take),
-        cursor: {
-          id: Number(lastId) + 1,
-        },
-      });
-
+      const result = await getNrbyPlaceListWithGeoLoc(param, ctx);
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          // eslint-disable-next-line no-underscore-dangle
-          totalCount: count._count.id ?? 0,
-          returnedCount: foundTourPlace.length,
-          list: foundTourPlace,
-        },
+        IBparams: result,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -3037,7 +3042,7 @@ tripNetworkRouter.post(
 tripNetworkRouter.post(
   '/getNrbyPlaceListWithGeoLoc',
   accessTokenValidCheck,
-  getNrbyPlaceListWithGeoLoc,
+  getNrbyPlaceListWithGeoLocWrapper,
 );
 tripNetworkRouter.post(
   '/addReplyToShareTripMemory',

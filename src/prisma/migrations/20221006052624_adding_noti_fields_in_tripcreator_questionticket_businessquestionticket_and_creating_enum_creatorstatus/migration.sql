@@ -1,9 +1,0 @@
--- AlterTable
-ALTER TABLE `BusinessQuestionTicket` ADD COLUMN `noti` BOOLEAN NOT NULL DEFAULT false;
-
--- AlterTable
-ALTER TABLE `QuestionTicket` ADD COLUMN `noti` BOOLEAN NOT NULL DEFAULT false;
-
--- AlterTable
-ALTER TABLE `TripCreator` ADD COLUMN `noti` BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN `status` ENUM('APPLIED', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'APPLIED';
