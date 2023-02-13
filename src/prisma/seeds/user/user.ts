@@ -19,6 +19,14 @@ const userData: {
     countryCode: 'KR',
     userTokenId: '0',
   },
+  {
+    email: 'admin@gmail.com',
+    password: 'qwer1234!',
+    phone: '+821072371091',
+    nickName: '윤디니',
+    countryCode: 'KR',
+    userTokenId: '2',
+  },
 ];
 
 const creatorData: {

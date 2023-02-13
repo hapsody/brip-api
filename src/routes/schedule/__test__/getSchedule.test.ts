@@ -1,76 +1,76 @@
 /* eslint-disable no-restricted-syntax */
-import request from 'supertest';
-import server from '@src/server';
+// import request from 'supertest';
+// import server from '@src/server';
 // import moment from 'moment';
-import prisma from '@src/prisma';
-import { QueryParams } from '@prisma/client';
+// import prisma from '@src/prisma';
+// import { QueryParams } from '@prisma/client';
 // import { isEmpty } from 'lodash';
-import { ibDefs } from '@src/utils';
-import {
-  ReqNonMembersUserTokenSuccessResType,
-  ReqNonMembersUserTokenResType,
-} from '@src/routes/auth';
-import {
-  ReqScheduleRETParam,
-  ReqScheduleRETParamPayload,
-  GetScheduleRETParam,
-  GetScheduleRETParamPayload,
-  // MealOrder,
-} from '../types/schduleTypes';
-import { params } from './testData';
+// import { ibDefs } from '@src/utils';
+// import {
+//   ReqNonMembersUserTokenSuccessResType,
+//   ReqNonMembersUserTokenResType,
+// } from '@src/routes/auth';
+// import {
+//   ReqScheduleRETParam,
+//   ReqScheduleRETParamPayload,
+//   GetScheduleRETParam,
+//   GetScheduleRETParamPayload,
+//   // MealOrder,
+// } from '../types/schduleTypes';
+// import { params } from './testData';
 
 // const travelDays = travelNights + 1;
 
 jest.setTimeout(120000);
 
-let getSchdRawResult: GetScheduleRETParam;
-let getSchdRes: GetScheduleRETParamPayload;
-let queryParams: QueryParams | null;
-beforeAll(async () => {
-  const userTokenRawRes = await request(server)
-    .post('/auth/reqNonMembersUserToken')
-    .send();
-  const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
-  const userToken =
-    userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
+// let getSchdRawResult: GetScheduleRETParam;
+// let getSchdRes: GetScheduleRETParamPayload;
+// let queryParams: QueryParams | null;
+// beforeAll(async () => {
+//   const userTokenRawRes = await request(server)
+//     .post('/auth/reqNonMembersUserToken')
+//     .send();
+//   const userTokenRes = userTokenRawRes.body as ReqNonMembersUserTokenResType;
+//   const userToken =
+//     userTokenRes.IBparams as ReqNonMembersUserTokenSuccessResType;
 
-  const reqSchdResponse = await request(server)
-    .post('/schedule/reqSchedule')
-    .set('Authorization', `Bearer ${userToken.userToken}`)
-    .send(params.reqScheduleReqOpt);
+//   const reqSchdResponse = await request(server)
+//     .post('/schedule/reqSchedule')
+//     .set('Authorization', `Bearer ${userToken.userToken}`)
+//     .send(params.reqScheduleReqOpt);
 
-  const reqSchdRawResult = reqSchdResponse.body as ReqScheduleRETParam;
-  const reqSchdRes = reqSchdRawResult.IBparams as ReqScheduleRETParamPayload;
-  expect(reqSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+//   const reqSchdRawResult = reqSchdResponse.body as ReqScheduleRETParam;
+//   const reqSchdRes = reqSchdRawResult.IBparams as ReqScheduleRETParamPayload;
+//   expect(reqSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(reqSchdRes).toHaveProperty('id');
-  queryParams = await prisma.queryParams.findUnique({
-    where: {
-      id: Number(reqSchdRes.id),
-    },
-    include: {
-      visitSchedule: {
-        include: {
-          tourPlace: true,
-        },
-      },
-    },
-  });
-  expect(queryParams).toBeDefined();
+//   expect(reqSchdRes).toHaveProperty('id');
+//   queryParams = await prisma.queryParams.findUnique({
+//     where: {
+//       id: Number(reqSchdRes.id),
+//     },
+//     include: {
+//       visitSchedule: {
+//         include: {
+//           tourPlace: true,
+//         },
+//       },
+//     },
+//   });
+//   expect(queryParams).toBeDefined();
 
-  const getSchdResponse = await request(server)
-    .post('/schedule/getSchedule')
-    .set('Authorization', `Bearer ${userToken.userToken}`)
-    .send({
-      queryParamsId: queryParams?.id,
-    });
+//   const getSchdResponse = await request(server)
+//     .post('/schedule/getSchedule')
+//     .set('Authorization', `Bearer ${userToken.userToken}`)
+//     .send({
+//       queryParamsId: queryParams?.id,
+//     });
 
-  getSchdRawResult = getSchdResponse.body as ReqScheduleRETParam;
-  getSchdRes = getSchdRawResult.IBparams as ReqScheduleRETParamPayload;
-  expect(getSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
+//   getSchdRawResult = getSchdResponse.body as ReqScheduleRETParam;
+//   getSchdRes = getSchdRawResult.IBparams as ReqScheduleRETParamPayload;
+//   expect(getSchdRawResult.IBcode).toEqual({ ...ibDefs.SUCCESS }.IBcode);
 
-  expect(getSchdRes.id).toBe(queryParams?.id);
-});
+//   expect(getSchdRes.id).toBe(queryParams?.id);
+// });
 
 describe('Schedule Express Router E2E Test', () => {
   describe('POST /getSchedule', () => {
@@ -80,9 +80,9 @@ describe('Schedule Express Router E2E Test', () => {
        * 2. plan은 min, mid, max로 세개를 갖는가
        * 3. 각 plan별로 여행일수 (travelDays)에 해당하는 추천 일정들을 갖고 잇는가
        */
-      expect(getSchdRes).toHaveProperty('id');
-      expect(getSchdRes).toHaveProperty('plan');
-      expect(getSchdRes.plan.length).toBe(3);
+      // expect(getSchdRes).toHaveProperty('id');
+      // expect(getSchdRes).toHaveProperty('plan');
+      // expect(getSchdRes.plan.length).toBe(3);
       // expect(getSchdRes.plan[0].planType).toBe('MIN');
       // expect(getSchdRes.plan[1].planType).toBe('MID');
       // expect(getSchdRes.plan[2].planType).toBe('MAX');

@@ -17,11 +17,12 @@
     "prepare": "husky install",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
-    "echo": "echo aaa",
     "seed": "ts-node  -r tsconfig-paths/register ./src/prisma/seeds",
     "seed:user": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/user",
     "seed:faqList": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/faqList",
     "seed:cardNewsContent": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/cardNewsContent",
+    "seed:tripMemoryCategory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/tripMemoryCategory",
+    "seed:shareTripMemory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/shareTripMemory",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
     "batch": "yarn batch:dataresource",
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts"

@@ -214,6 +214,7 @@ export interface AddTripMemoryRequestType {
   lng: string;
   img: string;
   groupId: string;
+  tourPlaceId?: string;
 }
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
@@ -230,7 +231,17 @@ const addTripMemory = async (
   param: AddTripMemoryRequestType,
   ctx: ContextAddTripMemory,
 ): Promise<AddTripMemorySuccessResType> => {
-  const { title, comment, hashTag, address, lat, lng, img, groupId } = param;
+  const {
+    title,
+    comment,
+    hashTag,
+    address,
+    lat,
+    lng,
+    img,
+    groupId,
+    tourPlaceId,
+  } = param;
   const tripMemoryGroup = await prisma.tripMemoryGroup.findUnique({
     where: {
       id: Number(groupId),
@@ -336,6 +347,13 @@ const addTripMemory = async (
               }),
             },
           }),
+        ...(!isNil(tourPlaceId) && {
+          TourPlace: {
+            connect: {
+              id: Number(tourPlaceId),
+            },
+          },
+        }),
       },
       include: {
         tag: true,
@@ -699,7 +717,13 @@ export const addShareTripMemory = asyncWrapper(
         userTokenId,
         memberId,
       };
-      const createdTripMem = await addTripMemory(tripMemoryParam, ctx);
+      const createdTripMem = await addTripMemory(
+        {
+          ...tripMemoryParam,
+          tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+        },
+        ctx,
+      );
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
@@ -854,22 +878,107 @@ export type GetNrbyPlaceListWithGeoLocResType = Omit<
   IBparams: GetNrbyPlaceListWithGeoLocSuccessResType | {};
 };
 
-export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
+export interface ContextGetNrbyPlaceListWithGeoLoc extends IBContext {}
+
+export const getNrbyPlaceListWithGeoLoc = async (
+  param: GetNrbyPlaceListWithGeoLocRequestType,
+  ctx: ContextGetNrbyPlaceListWithGeoLoc,
+): Promise<GetNrbyPlaceListWithGeoLocSuccessResType> => {
+  const { minLat, minLng, maxLat, maxLng, take = '10', lastId = '1' } = param;
+  const { memberId, userTokenId } = ctx;
+
+  if (!userTokenId || !memberId) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+    });
+  }
+
+  const count = await prisma.tourPlace.aggregate({
+    where: {
+      OR: [
+        {
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { gl_lat: { gte: Number(minLat) } },
+            { gl_lat: { lt: Number(maxLat) } },
+            { gl_lng: { gte: Number(minLng) } },
+            { gl_lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { vj_latitude: { gte: Number(minLat) } },
+            { vj_latitude: { lt: Number(maxLat) } },
+            { vj_longitude: { gte: Number(minLng) } },
+            { vj_longitude: { lt: Number(maxLng) } },
+          ],
+        },
+      ],
+      status: 'IN_USE',
+    },
+    _count: {
+      id: true,
+    },
+  });
+  const foundTourPlace = await prisma.tourPlace.findMany({
+    where: {
+      OR: [
+        {
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { gl_lat: { gte: Number(minLat) } },
+            { gl_lat: { lt: Number(maxLat) } },
+            { gl_lng: { gte: Number(minLng) } },
+            { gl_lng: { lt: Number(maxLng) } },
+          ],
+        },
+        {
+          AND: [
+            { vj_latitude: { gte: Number(minLat) } },
+            { vj_latitude: { lt: Number(maxLat) } },
+            { vj_longitude: { gte: Number(minLng) } },
+            { vj_longitude: { lt: Number(maxLng) } },
+          ],
+        },
+      ],
+    },
+    take: Number(take),
+    cursor: {
+      id: Number(lastId) + 1,
+    },
+  });
+  return {
+    // eslint-disable-next-line no-underscore-dangle
+    totalCount: count._count.id ?? 0,
+    returnedCount: foundTourPlace.length,
+    list: foundTourPlace,
+  };
+};
+
+export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<GetNrbyPlaceListWithGeoLocRequestType>,
     res: Express.IBTypedResponse<GetNrbyPlaceListWithGeoLocResType>,
   ) => {
     try {
-      const {
-        minLat,
-        minLng,
-        maxLat,
-        maxLng,
-        take = '10',
-        lastId = '1',
-      } = req.body;
+      const param = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const ctx: ContextGetNrbyPlaceListWithGeoLoc = (() => {
         if (locals && locals?.grade === 'member')
           return {
             memberId: locals?.user?.id,
@@ -882,90 +991,10 @@ export const getNrbyPlaceListWithGeoLoc = asyncWrapper(
         });
       })();
 
-      if (!userTokenId || !memberId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
-
-      const count = await prisma.tourPlace.aggregate({
-        where: {
-          OR: [
-            {
-              AND: [
-                { lat: { gte: Number(minLat) } },
-                { lat: { lt: Number(maxLat) } },
-                { lng: { gte: Number(minLng) } },
-                { lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { gl_lat: { gte: Number(minLat) } },
-                { gl_lat: { lt: Number(maxLat) } },
-                { gl_lng: { gte: Number(minLng) } },
-                { gl_lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { vj_latitude: { gte: Number(minLat) } },
-                { vj_latitude: { lt: Number(maxLat) } },
-                { vj_longitude: { gte: Number(minLng) } },
-                { vj_longitude: { lt: Number(maxLng) } },
-              ],
-            },
-          ],
-          status: 'IN_USE',
-        },
-        _count: {
-          id: true,
-        },
-      });
-      const foundTourPlace = await prisma.tourPlace.findMany({
-        where: {
-          OR: [
-            {
-              AND: [
-                { lat: { gte: Number(minLat) } },
-                { lat: { lt: Number(maxLat) } },
-                { lng: { gte: Number(minLng) } },
-                { lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { gl_lat: { gte: Number(minLat) } },
-                { gl_lat: { lt: Number(maxLat) } },
-                { gl_lng: { gte: Number(minLng) } },
-                { gl_lng: { lt: Number(maxLng) } },
-              ],
-            },
-            {
-              AND: [
-                { vj_latitude: { gte: Number(minLat) } },
-                { vj_latitude: { lt: Number(maxLat) } },
-                { vj_longitude: { gte: Number(minLng) } },
-                { vj_longitude: { lt: Number(maxLng) } },
-              ],
-            },
-          ],
-        },
-        take: Number(take),
-        cursor: {
-          id: Number(lastId) + 1,
-        },
-      });
-
+      const result = await getNrbyPlaceListWithGeoLoc(param, ctx);
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          // eslint-disable-next-line no-underscore-dangle
-          totalCount: count._count.id ?? 0,
-          returnedCount: foundTourPlace.length,
-          list: foundTourPlace,
-        },
+        IBparams: result,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -1164,6 +1193,23 @@ export const addReplyToShareTripMemory = asyncWrapper(
           });
           return;
         }
+        if (err.type === 'INVALIDSTATUS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDENVPARAMS') {
+          res.status(500).json({
+            ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
       }
       throw err;
     }
@@ -1243,6 +1289,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
       const found = await prisma.replyForShareTripMemory.findMany({
         where: {
           shareTripMemoryId: Number(shareTripMemoryId),
+          parentReplyId: null,
         },
         select: {
           id: true,
@@ -2032,25 +2079,25 @@ export const getShareTripMemListByPlace = asyncWrapper(
             },
           },
         },
-        select: {
-          id: true,
-          gl_name: true,
-          vj_title: true,
-          title: true,
-          lat: true,
-          lng: true,
-          address: true,
-          gl_vicinity: true,
-          gl_formatted_address: true,
-          vj_roadaddress: true,
-          vj_address: true,
-          gl_photos: true,
-          photos: true,
-          openWeek: true,
-          gl_opening_hours: true,
-          contact: true,
-          good: true,
-          like: true,
+        include: {
+          // id: true,
+          // gl_name: true,
+          // vj_title: true,
+          // title: true,
+          // lat: true,
+          // lng: true,
+          // address: true,
+          // gl_vicinity: true,
+          // gl_formatted_address: true,
+          // vj_roadaddress: true,
+          // vj_address: true,
+          // gl_photos: true,
+          // photos: true,
+          // openWeek: true,
+          // gl_opening_hours: true,
+          // contact: true,
+          // good: true,
+          // like: true,
           shareTripMemory: {
             include: {
               tripMemoryCategory: true,
@@ -3019,7 +3066,7 @@ tripNetworkRouter.post(
 tripNetworkRouter.post(
   '/getNrbyPlaceListWithGeoLoc',
   accessTokenValidCheck,
-  getNrbyPlaceListWithGeoLoc,
+  getNrbyPlaceListWithGeoLocWrapper,
 );
 tripNetworkRouter.post(
   '/addReplyToShareTripMemory',

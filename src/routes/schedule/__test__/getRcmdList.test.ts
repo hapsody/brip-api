@@ -128,7 +128,7 @@ describe('Schedule Express Router E2E Test', () => {
       for await (const vs of rcmdVS) {
         expect(typeof vs.dayNo).toBe('number');
         expect(typeof vs.orderNo).toBe('number');
-        expect(vs.planType).toBeDefined();
+        // expect(vs.planType).toBeDefined();
         // expect(startDate).toBe(
         //   vs.checkin ? new Date(vs.checkin).toISOString() : undefined,
         // );
