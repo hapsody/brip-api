@@ -348,7 +348,7 @@ const addTripMemory = async (
             },
           }),
         ...(!isNil(tourPlaceId) && {
-          tourPlace: {
+          TourPlace: {
             connect: {
               id: Number(tourPlaceId),
             },
@@ -717,7 +717,13 @@ export const addShareTripMemory = asyncWrapper(
         userTokenId,
         memberId,
       };
-      const createdTripMem = await addTripMemory(tripMemoryParam, ctx);
+      const createdTripMem = await addTripMemory(
+        {
+          ...tripMemoryParam,
+          tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+        },
+        ctx,
+      );
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
