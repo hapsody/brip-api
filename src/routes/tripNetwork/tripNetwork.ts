@@ -1193,6 +1193,23 @@ export const addReplyToShareTripMemory = asyncWrapper(
           });
           return;
         }
+        if (err.type === 'INVALIDSTATUS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDENVPARAMS') {
+          res.status(500).json({
+            ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
       }
       throw err;
     }
@@ -1272,6 +1289,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
       const found = await prisma.replyForShareTripMemory.findMany({
         where: {
           shareTripMemoryId: Number(shareTripMemoryId),
+          parentReplyId: null,
         },
         select: {
           id: true,
