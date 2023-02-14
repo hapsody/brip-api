@@ -149,7 +149,7 @@ export const getHotCardTagList = asyncWrapper(
     res: Express.IBTypedResponse<GetHotCardTagListResType>,
   ) => {
     try {
-      const { take, skip } = req.query;
+      const { take = '10', skip = '0' } = req.query;
       const hotTagList = await prisma.cardTag.findMany({
         take: Number(take),
         skip: Number(skip),
@@ -1210,6 +1210,7 @@ export const getRandomCardImg = asyncWrapper(
 );
 
 authRouter.get('/getContentList', accessTokenValidCheck, getContentList);
+authRouter.get('/getHotCardTagList', accessTokenValidCheck, getHotCardTagList);
 authRouter.get(
   '/getMainCardNewsGrp',
   accessTokenValidCheck,
@@ -1234,4 +1235,5 @@ authRouter.post('/deleteCardGrp', accessTokenValidCheck, deleteCardGrp);
 authRouter.post('/deleteCardNews', accessTokenValidCheck, deleteCardNews);
 authRouter.get('/getMyContentList', accessTokenValidCheck, getMyContentList);
 authRouter.get('/getRandomCardImg', accessTokenValidCheck, getRandomCardImg);
+
 export default authRouter;
