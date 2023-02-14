@@ -75,7 +75,9 @@ export const uploadToS3 = asyncWrapper(
           case 'TRIPNETWORK/ADDTRIPMEMORY':
             return `private/tripNetwork/tripMemory/${fileName}`;
           case 'TRIPNETWORK/ADDSHARETRIPMEMORY':
-            return `private/tripNetwork/shareTripMemory/${fileName}`;
+            return `public/tripNetwork/shareTripMemory/${fileName}`;
+          case 'SETTING/CHANGEPROFILEIMG':
+            return `public/user/profileImg/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
@@ -189,6 +191,8 @@ export const getSignedUrlForFileUpload = asyncWrapper(
             return `private/tripNetwork/tripMemory/${fileName}`;
           case 'TRIPNETWORK/ADDSHARETRIPMEMORY':
             return `private/tripNetwork/shareTripMemory/${fileName}`;
+          case 'SETTING/CHANGEPROFILEIMG':
+            return `public/user/profileImg/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',

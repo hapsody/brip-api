@@ -8,6 +8,7 @@ const userData: {
   password: string;
   phone: string;
   nickName: string;
+  profileImg: string;
   countryCode: string;
   userTokenId: string;
 }[] = [
@@ -16,6 +17,7 @@ const userData: {
     password: 'qwer1234',
     phone: '+821012345678',
     nickName: '유쾌한인어',
+    profileImg: 'public/user/profileImg/starbucks.png',
     countryCode: 'KR',
     userTokenId: '0',
   },
@@ -25,6 +27,7 @@ const userData: {
     phone: '+821072371091',
     nickName: '윤디니',
     countryCode: 'KR',
+    profileImg: 'public/user/profileImg/profile.jpeg',
     userTokenId: '2',
   },
 ];
@@ -36,6 +39,7 @@ const creatorData: {
   nickName: string;
   countryCode: string;
   userTokenId: string;
+  profileImg: string;
   tripCreator: {
     nickName: string;
     phone: string;
@@ -51,6 +55,7 @@ const creatorData: {
     nickName: '침착맨',
     countryCode: 'KR',
     userTokenId: '1',
+    profileImg: 'public/user/profileImg/starbucks.png',
     tripCreator: {
       nickName: 'chimd',
       phone: '+821012345678',
@@ -66,6 +71,7 @@ const creatorData: {
     nickName: '윤진',
     countryCode: 'KR',
     userTokenId: '1',
+    profileImg: 'public/user/profileImg/고양이.png',
     tripCreator: {
       nickName: 'yjshim',
       phone: '+821012345678',
