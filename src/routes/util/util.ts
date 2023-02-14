@@ -17,6 +17,7 @@ const tripNetworkRouter: express.Application = express();
 
 export interface UploadToS3RequestType {
   apiPath: string; /// 이 api 요청으로 업로드된 파일 패스(s3 key)를 줄 apiPath ex) /content/addTripMemory
+  fileName: string; /// 업로드 하려는 파일 이름
 }
 export interface UploadToS3SuccessResType {}
 
@@ -36,7 +37,7 @@ export const uploadToS3 = asyncWrapper(
     res: Express.IBTypedResponse<UploadToS3ResType>,
   ) => {
     try {
-      const { apiPath } = req.body;
+      const { apiPath, fileName } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
@@ -55,10 +56,15 @@ export const uploadToS3 = asyncWrapper(
         });
       }
 
-      if (isNil(apiPath) || isEmpty(apiPath)) {
+      if (
+        isNil(apiPath) ||
+        isEmpty(apiPath) ||
+        isNil(fileName) ||
+        isEmpty(fileName)
+      ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'apiPath는 필수 파라미터입니다.',
+          message: 'apiPath, fileName은 필수 파라미터입니다.',
         });
       }
       const correctedPath = (() => {
@@ -67,9 +73,9 @@ export const uploadToS3 = asyncWrapper(
 
         switch (mApiPath) {
           case 'TRIPNETWORK/ADDTRIPMEMORY':
-            return 'private/tripNetwork/tripMemory';
+            return `private/tripNetwork/tripMemory/${fileName}`;
           case 'TRIPNETWORK/ADDSHARETRIPMEMORY':
-            return 'private/tripNetwork/shareTripMemory';
+            return `private/tripNetwork/shareTripMemory/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
@@ -130,6 +136,7 @@ export const uploadToS3 = asyncWrapper(
 
 export interface GetSignedUrlForFileUploadRequestType {
   apiPath: string; /// 이 api 요청으로 업로드된 파일 패스(s3 key)를 줄 apiPath ex) /content/addTripMemory
+  fileName: string; /// 업로드 하려는 파일 이름
 }
 export interface GetSignedUrlForFileUploadSuccessResType {}
 
@@ -143,7 +150,7 @@ export const getSignedUrlForFileUpload = asyncWrapper(
     res: Express.IBTypedResponse<GetSignedUrlForFileUploadResType>,
   ) => {
     try {
-      const { apiPath } = req.body;
+      const { apiPath, fileName } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
@@ -162,10 +169,15 @@ export const getSignedUrlForFileUpload = asyncWrapper(
         });
       }
 
-      if (isNil(apiPath) || isEmpty(apiPath)) {
+      if (
+        isNil(apiPath) ||
+        isEmpty(apiPath) ||
+        isNil(fileName) ||
+        isEmpty(fileName)
+      ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'apiPath는 필수 파라미터입니다.',
+          message: 'apiPath, fileName은 필수 파라미터입니다.',
         });
       }
       const correctedPath = (() => {
@@ -174,9 +186,9 @@ export const getSignedUrlForFileUpload = asyncWrapper(
 
         switch (mApiPath) {
           case 'TRIPNETWORK/ADDTRIPMEMORY':
-            return 'private/tripNetwork/tripMemory';
+            return `private/tripNetwork/tripMemory/${fileName}`;
           case 'TRIPNETWORK/ADDSHARETRIPMEMORY':
-            return 'private/tripNetwork/shareTripMemory';
+            return `private/tripNetwork/shareTripMemory/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
