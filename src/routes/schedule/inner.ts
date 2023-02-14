@@ -820,6 +820,7 @@ export const getPlaceByGglTxtSrch = async (
   const placeSearchResult = await getAllPlaceByGglTxtSrch(param);
   /// store data to db
   if (param.store) {
+    /// batchJobCtx가 있다면 배치 스크립트로 실행된 명령이다.
     const { batchJobCtx } = param;
     // eslint-disable-next-line no-restricted-syntax
     for await (const item of placeSearchResult) {
