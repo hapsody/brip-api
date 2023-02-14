@@ -34,7 +34,6 @@ model User {
   createdAt                       DateTime                          @default(now())
   updatedAt                       DateTime                          @default(now()) @updatedAt
   UserPasswordHistory             UserPasswordHistory[]
-  CardNewsGroup                   CardNewsGroup[]
   FavoriteTravelType              FavoriteTravelType?
   TripMemoryGroup                 TripMemoryGroup[]
   TripMemoryTag                   TripMemoryTag[]
@@ -391,8 +390,11 @@ model CardNewsGroup {
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId          Int
+  // user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // userId          Int
+
+  creator   TripCreator @relation(fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  creatorId Int
 }
 
 model CardTag {
@@ -527,18 +529,19 @@ enum CreatorStatus {
 
 /// 여행 크리에이터 신청목록.
 model TripCreator {
-  id        Int           @id @default(autoincrement())
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @default(now()) @updatedAt
-  status    CreatorStatus @default(APPLIED)
-  noti      Boolean       @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
-  nickName  String        @unique /// creator 닉네임, 공백 허용x
-  phone     String /// creator 연락처 ex) 01020202121
-  area      String /// 전문지역
-  proposal  String        @db.Text /// 제휴 내용
-  domain    String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId    Int
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  status        CreatorStatus   @default(APPLIED)
+  noti          Boolean         @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
+  nickName      String          @unique /// creator 닉네임, 공백 허용x
+  phone         String /// creator 연락처 ex) 01020202121
+  area          String /// 전문지역
+  proposal      String          @db.Text /// 제휴 내용
+  domain        String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId        Int
+  cardNewsGroup CardNewsGroup[]
 }
 
 /// VisitJejuData에서 활용할 Tag 모델
