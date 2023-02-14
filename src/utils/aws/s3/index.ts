@@ -1,7 +1,9 @@
 // import AWS from 'aws-sdk';
 import fs from 'fs';
 import randomstring from 'randomstring';
+import { isNil, isEmpty } from 'lodash';
 import * as AWS from 'aws-sdk';
+import { IBError } from '../../IBDefinitions';
 
 export const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY,
@@ -14,6 +16,12 @@ export const getS3SignedUrl = async (
   s3ObjectKey: string,
   Expires?: number,
 ): Promise<string> => {
+  if (isNil(s3ObjectKey) || isEmpty(s3ObjectKey)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: 's3ObjectKey는 length가 1이상인 string이어야 합니다.',
+    });
+  }
   const signedUrl = await s3.getSignedUrlPromise('getObject', {
     Bucket: process.env.AWS_S3_BUCKET,
     Key: s3ObjectKey,
@@ -26,6 +34,12 @@ export const putS3SignedUrl = async (
   s3ObjectKey: string,
   Expires?: number,
 ): Promise<string> => {
+  if (isNil(s3ObjectKey) || isEmpty(s3ObjectKey)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: 's3ObjectKey는 length가 1이상인 string이어야 합니다.',
+    });
+  }
   const signedUrl = await s3.getSignedUrlPromise('putObject', {
     Bucket: process.env.AWS_S3_BUCKET,
     Key: s3ObjectKey,
