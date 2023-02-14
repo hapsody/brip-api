@@ -380,67 +380,64 @@ const seedData = [
 
 async function main(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax
-
-  await Promise.all(
-    seedData.map(async seed => {
-      await (async () => {
-        const {
-          ibType: { typePath, minDifficulty, maxDifficulty },
-        } = seed;
-        const types = typePath.split('>');
-        // const leafType = types[types.length - 1];
-        // let lastCreatedId = 0;
-        let superTypeId: number = -1;
-        // eslint-disable-next-line no-restricted-syntax
-        for await (const type of types) {
-          let curIBTType = await prisma.iBTravelTag.findUnique({
-            where: {
+  for await (const seed of seedData) {
+    await (async () => {
+      const {
+        ibType: { typePath, minDifficulty, maxDifficulty },
+      } = seed;
+      const types = typePath.split('>');
+      // const leafType = types[types.length - 1];
+      // let lastCreatedId = 0;
+      let superTypeId: number = -1;
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const type of types) {
+        let curIBTType = await prisma.iBTravelTag.findUnique({
+          where: {
+            value: type,
+          },
+        });
+        if (!curIBTType) {
+          curIBTType = await prisma.iBTravelTag.create({
+            data: {
               value: type,
+              minDifficulty,
+              maxDifficulty,
             },
           });
-          if (!curIBTType) {
-            curIBTType = await prisma.iBTravelTag.create({
-              data: {
-                value: type,
-                minDifficulty,
-                maxDifficulty,
-              },
-            });
-            console.log(curIBTType);
-          }
-          if (superTypeId > -1) {
-            curIBTType = await prisma.iBTravelTag.update({
-              where: {
-                id: curIBTType.id,
-              },
-              data: {
-                related: {
-                  connectOrCreate: {
-                    where: {
-                      fromId_toId: {
-                        fromId: curIBTType.id,
-                        toId: superTypeId,
-                      },
-                    },
-                    create: {
+          console.log(curIBTType);
+        }
+        if (superTypeId > -1) {
+          curIBTType = await prisma.iBTravelTag.update({
+            where: {
+              id: curIBTType.id,
+            },
+            data: {
+              related: {
+                connectOrCreate: {
+                  where: {
+                    fromId_toId: {
+                      fromId: curIBTType.id,
                       toId: superTypeId,
                     },
                   },
+                  create: {
+                    toId: superTypeId,
+                  },
                 },
               },
-            });
-          }
-          superTypeId = curIBTType.id;
+            },
+          });
         }
-        // lastCreatedId = superTypeId;
-        // return {
-        //   connect: {
-        //     id: lastCreatedId,
-        //   },
-        // };
-      })();
-    }),
-  );
+        superTypeId = curIBTType.id;
+      }
+      // lastCreatedId = superTypeId;
+      // return {
+      //   connect: {
+      //     id: lastCreatedId,
+      //   },
+      // };
+    })();
+  }
 
   await prisma.$disconnect();
 }
