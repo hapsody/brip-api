@@ -569,7 +569,7 @@ model RModelBetweenTravelType {
   updatedAt DateTime    @default(now()) @updatedAt
   to        IBTravelTag @relation(name: "Super", fields: [toId], references: [id])
   toId      Int
-  from      IBTravelTag @relation(name: "Sub", fields: [fromId], references: [id])
+  from      IBTravelTag @relation(name: "Sub", fields: [fromId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   fromId    Int
 
   @@id([fromId, toId])
