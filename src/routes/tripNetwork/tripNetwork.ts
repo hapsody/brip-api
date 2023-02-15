@@ -2450,6 +2450,7 @@ export interface GetTripMemListRequestType {
 }
 export interface GetTripMemListSuccessResType {
   id: number;
+  createdAt: string;
   title: string;
   comment: true;
   lat: true;
@@ -2530,6 +2531,7 @@ export const getTripMemList = asyncWrapper(
           },
           select: {
             id: true,
+            createdAt: true,
             title: true,
             comment: true,
             lat: true,
@@ -2569,7 +2571,7 @@ export const getTripMemList = asyncWrapper(
         if (isNil(foundTripMem)) {
           throw new IBError({
             type: 'NOTEXISTDATA',
-            message: '존재하지 않는 shareTripMemoryId입니다.',
+            message: '존재하지 않는 tripMemoryId입니다.',
           });
         }
 
