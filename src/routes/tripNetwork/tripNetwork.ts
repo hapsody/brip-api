@@ -249,7 +249,7 @@ const addTripMemory = async (
     },
   });
 
-  if (!tripMemoryGroup || tripMemoryGroup.userId !== Number(ctx.memberId))
+  if (!tripMemoryGroup)
     throw new IBError({
       type: 'NOTEXISTDATA',
       message: '존재하지 않는 그룹입니다.',
@@ -3276,7 +3276,7 @@ const modifyTripMemory = async (
     },
   });
 
-  if (isNil(tripMemory) || tripMemory.userId !== Number(ctx.memberId)) {
+  if (isNil(tripMemory)) {
     throw new IBError({
       type: 'NOTEXISTDATA',
       message: '존재하지 않는 tripMemoryId입니다.',
@@ -3341,11 +3341,148 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         memberId,
         userTokenId,
       };
-      const createdTripMem = await modifyTripMemory(param, ctx);
+      const updatedTripMem = await modifyTripMemory(param, ctx);
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: createdTripMem,
+        IBparams: updatedTripMem,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface DeleteTripMemoryRequestType {
+  tripMemoryId: string;
+}
+export interface DeleteTripMemorySuccessResType {}
+
+export type DeleteTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DeleteTripMemorySuccessResType | {};
+};
+
+export interface ContextDeleteTripMemory extends IBContext {}
+
+const deleteTripMemory = async (
+  param: DeleteTripMemoryRequestType,
+  ctx: ContextDeleteTripMemory,
+): Promise<DeleteTripMemorySuccessResType> => {
+  const { tripMemoryId } = param;
+
+  if (isNil(tripMemoryId) || isEmpty(tripMemoryId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'tripMemoryId는 필수값입니다.',
+    });
+  }
+
+  const tripMemory = await prisma.tripMemory.findUnique({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    select: {
+      id: true,
+      userId: true,
+      group: {},
+    },
+  });
+
+  if (isNil(tripMemory)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 tripMemoryId입니다.',
+    });
+  }
+
+  if (tripMemory.userId !== Number(ctx.memberId)) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '해당 유저의 권한으로 수정할 수 없는 tripMemory입니다.',
+    });
+  }
+
+  const deleteResult = await prisma.tripMemory.delete({
+    where: {
+      id: Number(tripMemoryId),
+    },
+  });
+  return deleteResult;
+};
+
+export const deleteTripMemoryWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteTripMemoryRequestType>,
+    res: Express.IBTypedResponse<DeleteTripMemoryResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const ctx = {
+        memberId,
+        userTokenId,
+      };
+      await deleteTripMemory(param, ctx);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -3485,6 +3622,12 @@ tripNetworkRouter.post(
   '/modifyTripMemory',
   accessTokenValidCheck,
   modifyTripMemoryWrapper,
+);
+
+tripNetworkRouter.post(
+  '/deleteTripMemory',
+  accessTokenValidCheck,
+  deleteTripMemoryWrapper,
 );
 
 export default tripNetworkRouter;
