@@ -42,6 +42,7 @@ model User {
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
+  likeTourPlace                   TourPlace[]
 }
 
 model FavoriteTravelType {
@@ -229,6 +230,7 @@ model TourPlace {
   validCluster         ValidCluster[]
   tripMemory           TripMemory[]
   shareTripMemory      ShareTripMemory[]
+  likeFrom             User[]
 
   good   Int @default(0) /// 적극 추천해요를 받은 누적 숫자
   notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
