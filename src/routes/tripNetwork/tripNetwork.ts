@@ -3230,6 +3230,166 @@ export const checkNotiNewComment = asyncWrapper(
   },
 );
 
+export interface ModifyTripMemoryRequestType {
+  tripMemoryId: string;
+  title?: string;
+  comment?: string;
+  address?: string;
+  lat?: string;
+  lng?: string;
+  img?: string;
+}
+export interface ModifyTripMemorySuccessResType extends TripMemory {
+  tag: TripMemoryTag[];
+  group: TripMemoryGroup;
+}
+
+export type ModifyTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ModifyTripMemorySuccessResType | {};
+};
+
+export interface ContextModifyTripMemory extends IBContext {}
+
+const modifyTripMemory = async (
+  param: ModifyTripMemoryRequestType,
+  ctx: ContextModifyTripMemory,
+): Promise<ModifyTripMemorySuccessResType> => {
+  const { tripMemoryId, title, comment, address, lat, lng, img } = param;
+
+  if (isNil(tripMemoryId) || isEmpty(tripMemoryId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'tripMemoryId는 필수값입니다.',
+    });
+  }
+
+  const tripMemory = await prisma.tripMemory.findUnique({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    include: {
+      group: {
+        select: {
+          tripMemory: true,
+        },
+      },
+    },
+  });
+
+  if (isNil(tripMemory) || tripMemory.userId !== Number(ctx.memberId)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 tripMemoryId입니다.',
+    });
+  }
+
+  if (tripMemory.userId !== Number(ctx.memberId)) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '해당 유저의 권한으로 수정할 수 없는 tripMemory입니다.',
+    });
+  }
+
+  const updatedOne = await prisma.tripMemory.update({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    data: {
+      title,
+      comment,
+      lat: !isNil(lat) ? Number(lat) : undefined,
+      lng: !isNil(lng) ? Number(lng) : undefined,
+      address,
+      img,
+    },
+    include: {
+      tag: true,
+      group: true,
+    },
+  });
+  return updatedOne;
+};
+
+export const modifyTripMemoryWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyTripMemoryRequestType>,
+    res: Express.IBTypedResponse<ModifyTripMemoryResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const ctx = {
+        memberId,
+        userTokenId,
+      };
+      const createdTripMem = await modifyTripMemory(param, ctx);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: createdTripMem,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -3319,6 +3479,12 @@ tripNetworkRouter.post(
   '/checkNotiNewComment',
   accessTokenValidCheck,
   checkNotiNewComment,
+);
+
+tripNetworkRouter.post(
+  '/modifyTripMemory',
+  accessTokenValidCheck,
+  modifyTripMemoryWrapper,
 );
 
 export default tripNetworkRouter;
