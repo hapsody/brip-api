@@ -9,6 +9,13 @@ async function main(): Promise<void> {
         some: {},
       },
     },
+    select: {
+      tripCreator: {
+        select: {
+          id: true,
+        },
+      },
+    },
   });
 
   const alreadyOne = await prisma.cardNewsGroup.findFirst({
@@ -33,7 +40,8 @@ async function main(): Promise<void> {
       title: '몰디브의 비밀',
       thumbnailUri:
         'https://www.ttlnews.com/upload/editor_content_images/1550201354466_editor_image.jpg',
-      userId: creator!.id,
+      // userId: creator!.id,
+      creatorId: creator!.tripCreator[0].id,
       // cardTag: {
       //   connectOrCreate: [
       //     {
@@ -155,7 +163,8 @@ async function main(): Promise<void> {
       title: '베네치아의 비밀',
       thumbnailUri:
         'https://img.freepik.com/premium-photo/historic-houses-traditional-venetian-architecture-on-grand-canal-in-venice-italy_87646-8192.jpg?w=1060',
-      userId: creator!.id,
+      // userId: creator!.id,
+      creatorId: creator!.tripCreator[0].id,
       // cardTag: {
       //   connectOrCreate: [
       //     {

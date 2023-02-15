@@ -30,8 +30,92 @@ const seedData = [
     ],
   },
   {
+    superCategory: '카페',
+    nameList: [
+      '분위기좋은',
+      '인스타감성',
+      '케익맛집',
+      '예쁜',
+      '로컬카페',
+      '다목적공간',
+      '조용한',
+      '힙한',
+      '핫플',
+    ],
+  },
+  {
+    superCategory: '숙소',
+    nameList: [
+      '시티뷰',
+      '바다뷰',
+      '마운틴뷰',
+      '깔끔한',
+      '조용한',
+      '친절한',
+      '시내와인접한',
+      '풀빌라',
+      '에어비앤비',
+      '독채',
+      '펫동반',
+      '가족단위',
+    ],
+  },
+  {
     superCategory: '관광',
-    nameList: ['자연경관'],
+    nameList: [
+      '쇼핑',
+      '아쿠아리움',
+      '테마파크',
+      '놀이공원',
+      '유적지',
+      '박물관',
+      '미술관',
+      '국립공원',
+      '해안경관',
+      '공원/정원',
+      '섬',
+      '언덕',
+      '산',
+      '강',
+      '수목원',
+      '숲',
+      '바위',
+      '둘레길',
+      '오름',
+      '해안도로',
+      '기타',
+    ],
+  },
+  {
+    superCategory: '액티비티',
+    nameList: [
+      '스노보드',
+      '스키',
+      '케이블카',
+      '패러글라이딩',
+      '짚라인',
+      'UTV',
+      'MTB',
+      '암벽등반',
+      '그룹하이킹',
+      '등산',
+      '루지레이스',
+      '골프',
+      '티켓',
+      '농장',
+      '승마',
+      'ATV',
+      '카트레이스',
+      '크루즈',
+      '카약',
+      '패들보드',
+      '서핑',
+      '제트보트',
+      '세일링',
+      '낚시',
+      '스노클링',
+      '해수욕',
+    ],
   },
 ];
 
@@ -47,16 +131,12 @@ const login = async () => {
 const createCategory = async (
   bearerToken: string,
 ): Promise<AddTripMemCategorySuccessResType | null> => {
-  const categoryList = await prisma.tripMemoryCategory.findMany({});
-  if (isNil(categoryList) || categoryList.length === 0) {
-    const addCategoryRawRes = await request(server)
-      .post('/tripNetwork/addTripMemCategory')
-      .set('Authorization', `Bearer ${bearerToken}`)
-      .send(seedData);
-    const addCategoryRes = addCategoryRawRes.body as AddTripMemCategoryResType;
-    return addCategoryRes.IBparams as AddTripMemCategorySuccessResType;
-  }
-  return null;
+  const addCategoryRawRes = await request(server)
+    .post('/tripNetwork/addTripMemCategory')
+    .set('Authorization', `Bearer ${bearerToken}`)
+    .send(seedData);
+  const addCategoryRes = addCategoryRawRes.body as AddTripMemCategoryResType;
+  return addCategoryRes.IBparams as AddTripMemCategorySuccessResType;
 };
 
 async function main(): Promise<void> {

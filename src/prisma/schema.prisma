@@ -34,14 +34,15 @@ model User {
   createdAt                       DateTime                          @default(now())
   updatedAt                       DateTime                          @default(now()) @updatedAt
   UserPasswordHistory             UserPasswordHistory[]
-  CardNewsGroup                   CardNewsGroup[]
   FavoriteTravelType              FavoriteTravelType?
   TripMemoryGroup                 TripMemoryGroup[]
   TripMemoryTag                   TripMemoryTag[]
   TripMemory                      TripMemory[]
-  ShareTripMemory                 ShareTripMemory[]
+  ShareTripMemory                 ShareTripMemory[]                 @relation("author")
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
+  likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
+  likeTourPlace                   TourPlace[]
 }
 
 model FavoriteTravelType {
@@ -229,6 +230,7 @@ model TourPlace {
   validCluster         ValidCluster[]
   tripMemory           TripMemory[]
   shareTripMemory      ShareTripMemory[]
+  likeFrom             User[]
 
   good   Int @default(0) /// 적극 추천해요를 받은 누적 숫자
   notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
@@ -391,8 +393,11 @@ model CardNewsGroup {
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId          Int
+  // user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // userId          Int
+
+  creator   TripCreator @relation(fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  creatorId Int
 }
 
 model CardTag {
@@ -527,18 +532,19 @@ enum CreatorStatus {
 
 /// 여행 크리에이터 신청목록.
 model TripCreator {
-  id        Int           @id @default(autoincrement())
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @default(now()) @updatedAt
-  status    CreatorStatus @default(APPLIED)
-  noti      Boolean       @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
-  nickName  String        @unique /// creator 닉네임, 공백 허용x
-  phone     String /// creator 연락처 ex) 01020202121
-  area      String /// 전문지역
-  proposal  String        @db.Text /// 제휴 내용
-  domain    String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId    Int
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  status        CreatorStatus   @default(APPLIED)
+  noti          Boolean         @default(false) /// email 또는 다른 형태의 noti가 관리자에게 성공적으로 되었는지 여부 
+  nickName      String          @unique /// creator 닉네임, 공백 허용x
+  phone         String /// creator 연락처 ex) 01020202121
+  area          String /// 전문지역
+  proposal      String          @db.Text /// 제휴 내용
+  domain        String /// 전문 영역 선택 선택한 분야에 해당하는 숫자 배열 스트링 ex) "5,1,33,17,..."
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId        Int
+  cardNewsGroup CardNewsGroup[]
 }
 
 /// VisitJejuData에서 활용할 Tag 모델
@@ -655,24 +661,27 @@ model TripMemory {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
 model ShareTripMemory {
-  id                              Int                               @id @default(autoincrement())
-  createdAt                       DateTime                          @default(now())
-  updatedAt                       DateTime                          @default(now()) @updatedAt
-  title                           String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
-  lat                             Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  lng                             Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address                         String?                           @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  comment                         String                            @db.Text
-  img                             String
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
+  lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address   String?  @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  comment   String   @db.Text
+  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크
+
+  like                            Int                               @default(0) /// 공유기억 자체 like 여부
   TourPlace                       TourPlace?                        @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId                     Int?
   tripMemory                      TripMemory?                       @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId                    Int?                              @unique
   tripMemoryCategory              TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
-  user                            User                              @relation(fields: [userId], references: [id])
+  user                            User                              @relation(name: "author", fields: [userId], references: [id])
   userId                          Int
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
+  likeFrom                        User[]                            @relation(name: "likeFrom")
 }
 
 /// 대댓글 기능을 지원하는 자기참조 모델

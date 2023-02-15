@@ -16,7 +16,7 @@ import {
   CardNewsContent,
   Prisma,
 } from '@prisma/client';
-import { isEmpty } from 'lodash';
+import { isEmpty, isNil } from 'lodash';
 
 const upload = multer();
 
@@ -26,10 +26,13 @@ export interface GetContentListRequestType {
   keyword: string;
   skip: number;
   take: number;
+  orderBy: string; /// 최신순(latest), 오래된 순(oldest)
 }
 export interface GetContentListSuccessResType {
   groupNo: number;
   groupId: number;
+  createdAt: Date;
+  updatedAt: Date;
   groupTitle: string;
   groupThumbnail: string;
   cards: {
@@ -40,6 +43,10 @@ export interface GetContentListSuccessResType {
     cardContent: string;
     cardBgUri: string;
   }[];
+  userId: number;
+  creatorId: number;
+  creatorNickName: string;
+  userProfileImg: string | null;
 }
 
 export type GetContentListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -52,7 +59,7 @@ export const getContentList = asyncWrapper(
     res: Express.IBTypedResponse<GetContentListResType>,
   ) => {
     try {
-      const { keyword, take, skip } = req.query;
+      const { keyword, take, skip, orderBy } = req.query;
       const foundNewsGrp = await prisma.cardNewsGroup.findMany({
         where: {
           OR: [
@@ -78,7 +85,26 @@ export const getContentList = asyncWrapper(
               cardTag: true,
             },
           },
+          creator: {
+            select: {
+              id: true,
+              userId: true,
+              nickName: true,
+              user: {
+                select: {
+                  profileImg: true,
+                },
+              },
+            },
+          },
         },
+
+        ...(!isNil(orderBy) &&
+          !isEmpty(orderBy) && {
+            orderBy: {
+              id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
+            },
+          }),
       });
 
       const retCardGroups = await Promise.all(
@@ -104,9 +130,23 @@ export const getContentList = asyncWrapper(
           return {
             groupNo: group.no,
             groupId: group.id,
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt,
             groupTitle: group.title,
             groupThumbnail,
             cards,
+            userId: group.creator.userId,
+            creatorId: group.creator.id,
+            creatorNickName: group.creator.nickName,
+            userProfileImg: await (async () => {
+              const { profileImg } = group.creator.user;
+              if (isNil(profileImg)) return null;
+              const result =
+                profileImg && profileImg.toLowerCase().includes('http')
+                  ? profileImg
+                  : await getS3SignedUrl(profileImg);
+              return result;
+            })(),
           };
         }),
       );
@@ -306,7 +346,7 @@ export const addCardGrp = asyncWrapper(
       const param = req.body;
 
       const { locals } = req;
-      const { creatorUserId, userTokenId } = (() => {
+      const { creatorUserId, userTokenId, creatorId } = (() => {
         if (
           locals &&
           locals?.grade === 'member' &&
@@ -314,6 +354,7 @@ export const addCardGrp = asyncWrapper(
         ) {
           return {
             creatorUserId: locals?.user?.id,
+            creatorId: locals?.user?.tripCreator[0].id,
             userTokenId: locals?.user?.userTokenId,
           };
         }
@@ -337,7 +378,8 @@ export const addCardGrp = asyncWrapper(
         title,
         thumbnailUri,
         no: groupNo ? Number(groupNo) : 0,
-        userId: creatorUserId,
+        // userId: creatorUserId,
+        creatorId: creatorId!,
         ...(cardNewsContent &&
           !isEmpty(cardNewsContent) && {
             cardNewsContent: {
@@ -377,12 +419,26 @@ export const addCardGrp = asyncWrapper(
               cardTag: true,
             },
           },
+          creator: {
+            select: {
+              id: true,
+              userId: true,
+              nickName: true,
+              user: {
+                select: {
+                  profileImg: true,
+                },
+              },
+            },
+          },
         },
       });
 
       const retCardGroups: AddCardGrpSuccessResType = {
         groupNo: createdGroup.no,
         groupId: createdGroup.id,
+        createdAt: createdGroup.createdAt,
+        updatedAt: createdGroup.updatedAt,
         groupTitle: createdGroup.title,
         groupThumbnail: createdGroup.thumbnailUri,
         cards: createdGroup.cardNewsContent.map(card => {
@@ -395,6 +451,10 @@ export const addCardGrp = asyncWrapper(
             cardBgUri: card.bgPicUri,
           };
         }),
+        userId: createdGroup.creator.userId,
+        creatorId: createdGroup.creator.id,
+        creatorNickName: createdGroup.creator.nickName,
+        userProfileImg: createdGroup.creator.user.profileImg,
       };
 
       res.json({
@@ -981,10 +1041,13 @@ export interface GetMyContentListRequestType {
   keyword: string;
   skip: number;
   take: number;
+  orderBy: string; /// 최신순(latest), 오래된 순(oldest)
 }
 export interface GetMyContentListSuccessResType {
   groupNo: number;
   groupId: number;
+  createdAt: Date;
+  updatedAt: Date;
   groupTitle: string;
   groupThumbnail: string;
   cards: {
@@ -995,6 +1058,10 @@ export interface GetMyContentListSuccessResType {
     cardContent: string;
     cardBgUri: string;
   }[];
+  userId: number;
+  creatorId: number;
+  creatorNickName: string;
+  userProfileImg: string | null;
 }
 
 export type GetMyContentListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -1007,30 +1074,28 @@ export const getMyContentList = asyncWrapper(
     res: Express.IBTypedResponse<GetMyContentListResType>,
   ) => {
     try {
-      const { keyword, take, skip } = req.query;
+      const { keyword, take, skip, orderBy } = req.query;
 
       const { locals } = req;
-      const userTokenId = (() => {
+      const { creatorId } = (() => {
         if (
           locals &&
           locals?.grade === 'member' &&
           !isEmpty(locals?.user?.tripCreator)
         ) {
-          return locals?.user?.userTokenId;
+          return {
+            // creatorUserId: locals?.user?.id,
+            creatorId: locals?.user?.tripCreator[0].id,
+            // userTokenId: locals?.user?.userTokenId,
+          };
         }
 
+        // return locals?.tokenId;
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: 'creator member 등급만 접근 가능합니다.',
         });
       })();
-
-      if (!userTokenId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
 
       const foundNewsGrp = await prisma.cardNewsGroup.findMany({
         where: {
@@ -1048,9 +1113,10 @@ export const getMyContentList = asyncWrapper(
               },
             },
           ],
-          user: {
-            userTokenId,
-          },
+          // user: {
+          //   userTokenId,
+          // },
+          creatorId: creatorId!,
         },
         take: Number(take),
         skip: Number(skip),
@@ -1060,7 +1126,25 @@ export const getMyContentList = asyncWrapper(
               cardTag: true,
             },
           },
+          creator: {
+            select: {
+              id: true,
+              userId: true,
+              nickName: true,
+              user: {
+                select: {
+                  profileImg: true,
+                },
+              },
+            },
+          },
         },
+        ...(!isNil(orderBy) &&
+          !isEmpty(orderBy) && {
+            orderBy: {
+              id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
+            },
+          }),
       });
 
       // const retCardGroups: GetContentListSuccessResType[] = foundNewsGrp.map(
@@ -1107,9 +1191,23 @@ export const getMyContentList = asyncWrapper(
           return {
             groupNo: group.no,
             groupId: group.id,
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt,
             groupTitle: group.title,
             groupThumbnail,
             cards,
+            userId: group.creator.userId,
+            creatorId: group.creator.id,
+            creatorNickName: group.creator.nickName,
+            userProfileImg: await (async () => {
+              const { profileImg } = group.creator.user;
+              if (isNil(profileImg)) return null;
+              const result =
+                profileImg && profileImg.toLowerCase().includes('http')
+                  ? profileImg
+                  : await getS3SignedUrl(profileImg);
+              return result;
+            })(),
           };
         }),
       );

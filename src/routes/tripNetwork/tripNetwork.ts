@@ -249,7 +249,7 @@ const addTripMemory = async (
     },
   });
 
-  if (!tripMemoryGroup || tripMemoryGroup.userId !== Number(ctx.memberId))
+  if (!tripMemoryGroup)
     throw new IBError({
       type: 'NOTEXISTDATA',
       message: '존재하지 않는 그룹입니다.',
@@ -2450,6 +2450,7 @@ export interface GetTripMemListRequestType {
 }
 export interface GetTripMemListSuccessResType {
   id: number;
+  createdAt: string;
   title: string;
   comment: true;
   lat: true;
@@ -2530,6 +2531,7 @@ export const getTripMemList = asyncWrapper(
           },
           select: {
             id: true,
+            createdAt: true,
             title: true,
             comment: true,
             lat: true,
@@ -2569,7 +2571,7 @@ export const getTripMemList = asyncWrapper(
         if (isNil(foundTripMem)) {
           throw new IBError({
             type: 'NOTEXISTDATA',
-            message: '존재하지 않는 shareTripMemoryId입니다.',
+            message: '존재하지 않는 tripMemoryId입니다.',
           });
         }
 
@@ -3230,6 +3232,1194 @@ export const checkNotiNewComment = asyncWrapper(
   },
 );
 
+export interface ModifyTripMemoryRequestType {
+  tripMemoryId: string;
+  title?: string;
+  comment?: string;
+  address?: string;
+  lat?: string;
+  lng?: string;
+  img?: string;
+}
+export interface ModifyTripMemorySuccessResType extends TripMemory {
+  tag: TripMemoryTag[];
+  group: TripMemoryGroup;
+}
+
+export type ModifyTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ModifyTripMemorySuccessResType | {};
+};
+
+export interface ContextModifyTripMemory extends IBContext {}
+
+const modifyTripMemory = async (
+  param: ModifyTripMemoryRequestType,
+  ctx: ContextModifyTripMemory,
+): Promise<ModifyTripMemorySuccessResType> => {
+  const { tripMemoryId, title, comment, address, lat, lng, img } = param;
+
+  if (isNil(tripMemoryId) || isEmpty(tripMemoryId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'tripMemoryId는 필수값입니다.',
+    });
+  }
+
+  const tripMemory = await prisma.tripMemory.findUnique({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    include: {
+      group: {
+        select: {
+          tripMemory: true,
+        },
+      },
+    },
+  });
+
+  if (isNil(tripMemory)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 tripMemoryId입니다.',
+    });
+  }
+
+  if (tripMemory.userId !== Number(ctx.memberId)) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '해당 유저의 권한으로 수정할 수 없는 tripMemory입니다.',
+    });
+  }
+
+  const updatedOne = await prisma.tripMemory.update({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    data: {
+      title,
+      comment,
+      lat: !isNil(lat) ? Number(lat) : undefined,
+      lng: !isNil(lng) ? Number(lng) : undefined,
+      address,
+      img,
+    },
+    include: {
+      tag: true,
+      group: true,
+    },
+  });
+  return updatedOne;
+};
+
+export const modifyTripMemoryWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyTripMemoryRequestType>,
+    res: Express.IBTypedResponse<ModifyTripMemoryResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const ctx = {
+        memberId,
+        userTokenId,
+      };
+      const updatedTripMem = await modifyTripMemory(param, ctx);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedTripMem,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface DeleteTripMemoryRequestType {
+  tripMemoryId: string;
+}
+export interface DeleteTripMemorySuccessResType {}
+
+export type DeleteTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DeleteTripMemorySuccessResType | {};
+};
+
+export interface ContextDeleteTripMemory extends IBContext {}
+
+const deleteTripMemory = async (
+  param: DeleteTripMemoryRequestType,
+  ctx: ContextDeleteTripMemory,
+): Promise<DeleteTripMemorySuccessResType> => {
+  const { tripMemoryId } = param;
+
+  if (isNil(tripMemoryId) || isEmpty(tripMemoryId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'tripMemoryId는 필수값입니다.',
+    });
+  }
+
+  const tripMemory = await prisma.tripMemory.findUnique({
+    where: {
+      id: Number(tripMemoryId),
+    },
+    select: {
+      id: true,
+      userId: true,
+      group: {},
+    },
+  });
+
+  if (isNil(tripMemory)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 tripMemoryId입니다.',
+    });
+  }
+
+  if (tripMemory.userId !== Number(ctx.memberId)) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '해당 유저의 권한으로 수정할 수 없는 tripMemory입니다.',
+    });
+  }
+
+  const deleteResult = await prisma.tripMemory.delete({
+    where: {
+      id: Number(tripMemoryId),
+    },
+  });
+  return deleteResult;
+};
+
+export const deleteTripMemoryWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteTripMemoryRequestType>,
+    res: Express.IBTypedResponse<DeleteTripMemoryResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId || !memberId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const ctx = {
+        memberId,
+        userTokenId,
+      };
+      await deleteTripMemory(param, ctx);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface ModifyShareTripMemoryRequestType {
+  shareTripMemoryId: string;
+  title?: string;
+  comment?: string;
+}
+export interface ModifyShareTripMemorySuccessResType extends ShareTripMemory {
+  TourPlace: TourPlace | null;
+  tripMemory:
+    | (TripMemory & {
+        tag: TripMemoryTag[];
+        group: TripMemoryGroup;
+      })
+    | null;
+  tripMemoryCategory: TripMemoryCategory[];
+}
+
+export type ModifyShareTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ModifyShareTripMemorySuccessResType | {};
+};
+
+export const modifyShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ModifyShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<ModifyShareTripMemoryResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId, title, comment } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId) || isEmpty(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'shareTripMemoryId는 필수 값입니다.',
+        });
+      }
+
+      if (
+        (isNil(title) || isEmpty(title)) &&
+        (isNil(comment) || isEmpty(comment))
+      ) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '최소 하나의 수정 파라미터는 있어야 합니다.',
+        });
+      }
+
+      const existCheck = await prisma.shareTripMemory.findUnique({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 shareTripMemoryId입니다.',
+        });
+      }
+
+      const shareTripMemory = await prisma.shareTripMemory.update({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        data: {
+          title,
+          comment,
+        },
+        include: {
+          TourPlace: true,
+          tripMemoryCategory: true,
+          tripMemory: {
+            include: {
+              tag: true,
+              group: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: shareTripMemory,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface DeleteShareTripMemoryRequestType {
+  shareTripMemoryId: string;
+}
+export interface DeleteShareTripMemorySuccessResType {}
+
+export type DeleteShareTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DeleteShareTripMemorySuccessResType | {};
+};
+
+export const deleteShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<DeleteShareTripMemoryResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId) || isEmpty(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'shareTripMemoryId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.shareTripMemory.findUnique({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 shareTripMemoryId입니다.',
+        });
+      }
+      if (existCheck.userId !== Number(memberId)) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '해당 유저의 권한으로 수정할 수 없는 shareTripMemory입니다.',
+        });
+      }
+
+      await prisma.shareTripMemory.delete({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface LikeOrUnlilkeShareTripMemoryRequestType {
+  shareTripMemoryId: string;
+}
+export interface LikeOrUnlilkeShareTripMemorySuccessResType {
+  operation: 'like' | 'unlike';
+  updateResult: {
+    id: number;
+    like: number;
+    updatedAt: Date;
+  };
+}
+
+export type LikeOrUnlilkeShareTripMemoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: LikeOrUnlilkeShareTripMemorySuccessResType | {};
+};
+
+export const likeOrUnlikeShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<LikeOrUnlilkeShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<LikeOrUnlilkeShareTripMemoryResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId) || isEmpty(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'shareTripMemoryId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.shareTripMemory.findUnique({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        select: {
+          id: true,
+          like: true,
+          likeFrom: {
+            where: {
+              id: Number(memberId),
+            },
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 shareTripMemoryId입니다.',
+        });
+      }
+
+      // if (!isEmpty(existCheck.likeFrom)) {
+      //   throw new IBError({
+      //     type: 'DUPLICATEDDATA',
+      //     message: '이미 이전에 like 하였습니다.',
+      //   });
+      // }
+
+      if (isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
+        const likeResult = await prisma.shareTripMemory.update({
+          where: {
+            id: Number(shareTripMemoryId),
+          },
+          data: {
+            like: Number(existCheck.like) + 1,
+            likeFrom: {
+              connect: {
+                id: Number(memberId),
+              },
+            },
+          },
+          select: {
+            id: true,
+            updatedAt: true,
+            like: true,
+          },
+        });
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: {
+            operation: 'like',
+            updateResult: likeResult,
+          },
+        });
+        return;
+      }
+
+      const unlikeResult = await prisma.shareTripMemory.update({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        data: {
+          like: Number(existCheck.like) - 1,
+          likeFrom: {
+            disconnect: {
+              id: Number(memberId),
+            },
+          },
+        },
+        select: {
+          id: true,
+          updatedAt: true,
+          like: true,
+        },
+      });
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          operation: 'unlike',
+          updateResult: unlikeResult,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface LikeOrUnlilkeTourPlaceRequestType {
+  tourPlaceId: string;
+}
+export interface LikeOrUnlilkeTourPlaceSuccessResType {
+  operation: 'like' | 'unlike';
+  updateResult: {
+    id: number;
+    like: number;
+    updatedAt: Date;
+  };
+}
+
+export type LikeOrUnlilkeTourPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: LikeOrUnlilkeTourPlaceSuccessResType | {};
+};
+
+export const likeOrUnlikeTourPlace = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<LikeOrUnlilkeTourPlaceRequestType>,
+    res: Express.IBTypedResponse<LikeOrUnlilkeTourPlaceResType>,
+  ) => {
+    try {
+      const { tourPlaceId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(tourPlaceId) || isEmpty(tourPlaceId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'tourPlaceId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.tourPlace.findUnique({
+        where: {
+          id: Number(tourPlaceId),
+        },
+        select: {
+          id: true,
+          like: true,
+          likeFrom: {
+            where: {
+              id: Number(memberId),
+            },
+            select: {
+              id: true,
+            },
+          },
+          shareTripMemory: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 tourPlaceId입니다.',
+        });
+      }
+
+      if (isEmpty(existCheck.shareTripMemory)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '어떤 user도 공유하지 않은 장소입니다.',
+        });
+      }
+
+      if (isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
+        const likeResult = await prisma.tourPlace.update({
+          where: {
+            id: Number(tourPlaceId),
+          },
+          data: {
+            like: Number(existCheck.like) + 1,
+            likeFrom: {
+              connect: {
+                id: Number(memberId),
+              },
+            },
+          },
+          select: {
+            id: true,
+            updatedAt: true,
+            like: true,
+          },
+        });
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: {
+            operation: 'like',
+            updateResult: likeResult,
+          },
+        });
+        return;
+      }
+
+      const unlikeResult = await prisma.tourPlace.update({
+        where: {
+          id: Number(tourPlaceId),
+        },
+        data: {
+          like: Number(existCheck.like) - 1,
+          likeFrom: {
+            disconnect: {
+              id: Number(memberId),
+            },
+          },
+        },
+        select: {
+          id: true,
+          updatedAt: true,
+          like: true,
+        },
+      });
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          operation: 'unlike',
+          updateResult: unlikeResult,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface CheckLikeShareTripMemoryRequestType {
+  shareTripMemoryId: string;
+}
+export interface CheckLikeShareTripMemorySuccessResType {
+  status: 'like' | 'unlike';
+}
+
+export type CheckLikeShareTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: CheckLikeShareTripMemorySuccessResType | {};
+};
+
+export const checkLikeShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<CheckLikeShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<CheckLikeShareTripMemoryResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId) || isEmpty(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'shareTripMemoryId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.shareTripMemory.findUnique({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        select: {
+          id: true,
+          like: true,
+          likeFrom: {
+            where: {
+              id: Number(memberId),
+            },
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 shareTripMemoryId입니다.',
+        });
+      }
+
+      if (isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: {
+            status: 'unlike',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          status: 'like',
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface CheckLikeTourPlaceRequestType {
+  tourPlaceId: string;
+}
+export interface CheckLikeTourPlaceSuccessResType {
+  status: 'like' | 'unlike';
+}
+
+export type CheckLikeTourPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: CheckLikeTourPlaceSuccessResType | {};
+};
+
+export const checkLikeTourPlace = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<CheckLikeTourPlaceRequestType>,
+    res: Express.IBTypedResponse<CheckLikeTourPlaceResType>,
+  ) => {
+    try {
+      const { tourPlaceId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(tourPlaceId) || isEmpty(tourPlaceId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'tourPlaceId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.tourPlace.findUnique({
+        where: {
+          id: Number(tourPlaceId),
+        },
+        select: {
+          id: true,
+          like: true,
+          likeFrom: {
+            where: {
+              id: Number(memberId),
+            },
+            select: {
+              id: true,
+            },
+          },
+          shareTripMemory: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 tourPlaceId입니다.',
+        });
+      }
+
+      if (isEmpty(existCheck.shareTripMemory)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '어떤 user도 공유하지 않은 장소입니다.',
+        });
+      }
+
+      if (isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: {
+            status: 'unlike',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          status: 'like',
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -3319,6 +4509,52 @@ tripNetworkRouter.post(
   '/checkNotiNewComment',
   accessTokenValidCheck,
   checkNotiNewComment,
+);
+
+tripNetworkRouter.post(
+  '/modifyTripMemory',
+  accessTokenValidCheck,
+  modifyTripMemoryWrapper,
+);
+
+tripNetworkRouter.post(
+  '/deleteTripMemory',
+  accessTokenValidCheck,
+  deleteTripMemoryWrapper,
+);
+
+tripNetworkRouter.post(
+  '/modifyShareTripMemory',
+  accessTokenValidCheck,
+  modifyShareTripMemory,
+);
+
+tripNetworkRouter.post(
+  '/deleteShareTripMemory',
+  accessTokenValidCheck,
+  deleteShareTripMemory,
+);
+
+tripNetworkRouter.post(
+  '/likeOrUnlikeShareTripMemory',
+  accessTokenValidCheck,
+  likeOrUnlikeShareTripMemory,
+);
+tripNetworkRouter.post(
+  '/likeOrUnlikeTourPlace',
+  accessTokenValidCheck,
+  likeOrUnlikeTourPlace,
+);
+
+tripNetworkRouter.post(
+  '/checkLikeTourPlace',
+  accessTokenValidCheck,
+  checkLikeTourPlace,
+);
+tripNetworkRouter.post(
+  '/checkLikeShareTripMemory',
+  accessTokenValidCheck,
+  checkLikeShareTripMemory,
 );
 
 export default tripNetworkRouter;
