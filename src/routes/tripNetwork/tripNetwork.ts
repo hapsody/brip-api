@@ -3663,6 +3663,117 @@ export const modifyShareTripMemory = asyncWrapper(
   },
 );
 
+export interface DeleteShareTripMemoryRequestType {
+  shareTripMemoryId: string;
+}
+export interface DeleteShareTripMemorySuccessResType {}
+
+export type DeleteShareTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DeleteShareTripMemorySuccessResType | {};
+};
+
+export const deleteShareTripMemory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteShareTripMemoryRequestType>,
+    res: Express.IBTypedResponse<DeleteShareTripMemoryResType>,
+  ) => {
+    try {
+      const { shareTripMemoryId } = req.body;
+      const { locals } = req;
+      const { memberId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (isNil(userTokenId) || isNil(memberId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(shareTripMemoryId) || isEmpty(shareTripMemoryId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: 'shareTripMemoryId는 필수 값입니다.',
+        });
+      }
+
+      const existCheck = await prisma.shareTripMemory.findUnique({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 shareTripMemoryId입니다.',
+        });
+      }
+      if (existCheck.userId !== Number(memberId)) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '해당 유저의 권한으로 수정할 수 없는 shareTripMemory입니다.',
+        });
+      }
+
+      await prisma.shareTripMemory.delete({
+        where: {
+          id: Number(shareTripMemoryId),
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DBTRANSACTIONERROR') {
+          res.status(500).json({
+            ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post('/addTripMemGrp', accessTokenValidCheck, addTripMemGrp);
 tripNetworkRouter.post(
   '/getTripMemGrpList',
@@ -3770,6 +3881,12 @@ tripNetworkRouter.post(
   '/modifyShareTripMemory',
   accessTokenValidCheck,
   modifyShareTripMemory,
+);
+
+tripNetworkRouter.post(
+  '/deleteShareTripMemory',
+  accessTokenValidCheck,
+  deleteShareTripMemory,
 );
 
 export default tripNetworkRouter;

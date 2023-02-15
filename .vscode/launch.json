@@ -30,6 +30,12 @@
       "name": "test batch",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn seed:tripMemoryCategory",
+      "name": "test seed:tripMemoryCategory",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }
