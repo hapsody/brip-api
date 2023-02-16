@@ -18,7 +18,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
 } from '@src/utils';
-import { omit, isEmpty } from 'lodash';
+import { omit, isEmpty, isNil } from 'lodash';
 
 const upload = multer();
 
@@ -62,7 +62,7 @@ const sendEmail = async (params: {
       secure: true,
       requireTLS: true,
       auth: {
-        user: process.env.SYSTEM_EAMIL_SENDER, // 보내는 메일의 주소
+        user: process.env.SYSTEM_EMAIL_SENDER, // 보내는 메일의 주소
         pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
         // type: 'OAuth2',
         // user: process.env.OAUTH_USER as string,
@@ -454,10 +454,8 @@ enum CreatorDomain {
 
 export type ReqTripCreatorRequestType = {
   name: string;
-  phone: string;
   area: string;
-  content: string;
-  checkList: (keyof typeof CreatorDomain)[];
+  domain: (keyof typeof CreatorDomain)[];
   // userToken: string;
 };
 // export interface ReqTripCreatorSuccessResType {
@@ -477,9 +475,12 @@ export const reqTripCreator = asyncWrapper(
   ) => {
     try {
       const { locals } = req;
-      const userTokenId = (() => {
+      const { userTokenId, memberId } = (() => {
         if (locals && locals?.grade === 'member')
-          return locals?.user?.userTokenId;
+          return {
+            memberId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
         // return locals?.tokenId;
         throw new IBError({
           type: 'NOTAUTHORIZED',
@@ -493,98 +494,108 @@ export const reqTripCreator = asyncWrapper(
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
-      const { name, phone, area, content, checkList } = req.body;
+      const { name, area, domain } = req.body;
 
       let tripCreator: TripCreator & {
         user: User;
       };
-      try {
-        const alreadyCreator = await prisma.tripCreator.findUnique({
-          where: {
-            nickName: name,
-          },
-        });
 
-        if (alreadyCreator) {
+      const user = await prisma.user.findUnique({
+        where: {
+          id: memberId,
+        },
+        include: {
+          tripCreator: {
+            where: {
+              nickName: name,
+            },
+          },
+        },
+      });
+
+      if (isNil(user)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 memberId 입니다.',
+        });
+      }
+      if (!isEmpty(user.tripCreator)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 존재하는 nickname입니다.',
+        });
+      }
+
+      await prisma.$transaction(async tx => {
+        try {
+          tripCreator = await tx.tripCreator.create({
+            data: {
+              nickName: name,
+              area,
+              domain: domain
+                .map(
+                  v =>
+                    CreatorDomain[
+                      v.toUpperCase() as keyof typeof CreatorDomain
+                    ],
+                )
+                .toString(),
+              user: {
+                connect: {
+                  userTokenId,
+                },
+              },
+            },
+            include: {
+              user: true,
+            },
+          });
+        } catch (err) {
+          console.log(err);
+          if (err instanceof IBError) {
+            throw err;
+          }
           throw new IBError({
-            type: 'DUPLICATEDDATA',
-            message: '이미 존재하는 nickname입니다.',
+            type: 'DBTRANSACTIONERROR',
+            message: 'tripCreator DB 생성중에 문제가 발생했습니다.',
           });
         }
 
-        tripCreator = await prisma.tripCreator.create({
-          data: {
-            nickName: name,
-            phone,
-            area,
-            proposal: content,
-            domain: checkList
-              .map(
-                v =>
-                  CreatorDomain[v.toUpperCase() as keyof typeof CreatorDomain],
-              )
-              .toString(),
-            user: {
-              connect: {
-                userTokenId,
-              },
+        await sendEmail({
+          from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+          to: `${user.email}, hapsody@gmail.com`,
+          subject: 'BRiP System - Trip Creator Proposal Notification',
+          html: `<b>${
+            user.email
+          }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
+          <br><br>
+          닉네임: ${name}, <br>
+          연락처: ${user.phone}, <br>
+          전문지역: ${area}, <br>
+          전문영역: ${domain.toString()},  <br>
+          <br><br>
+          <b>문의 작성일시: <${tripCreator.createdAt.toLocaleString()}></b>
+          `,
+        });
+
+        try {
+          await tx.tripCreator.update({
+            where: {
+              id: tripCreator.id,
             },
-          },
-          include: {
-            user: true,
-          },
-        });
-      } catch (err) {
-        console.log(err);
-        if (err instanceof IBError) {
-          throw err;
+            data: {
+              noti: true,
+            },
+          });
+        } catch (err) {
+          throw new IBError({
+            type: 'DBTRANSACTIONERROR',
+            message: `tripCreator 에 상태 업데이트중 문제가 발생했습니다. \n\n ${
+              (err as Error).message
+            }`,
+          });
         }
-        throw new IBError({
-          type: 'DBTRANSACTIONERROR',
-          message: 'tripCreator DB 생성중에 문제가 발생했습니다.',
-        });
-      }
-
-      await sendEmail({
-        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${tripCreator.user.email}, hapsody@gmail.com`,
-        subject: 'BRiP System - Trip Creator Proposal Notification',
-        html: `<b>${
-          tripCreator.user.email
-        }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
-        <br><br>
-        닉네임: ${tripCreator.nickName}, <br>
-        연락처: ${tripCreator.phone}, <br>
-        전문지역: ${tripCreator.area}, <br>
-        전문영역: ${tripCreator.domain
-          .split(',')
-          .map(v => {
-            return `${CreatorDomain[Number(v)]}`;
-          })
-          .toString()},  <br>
-        제휴내용: ${tripCreator.proposal}
-        <br><br>
-        <b>문의 작성일시: <${tripCreator.createdAt.toLocaleString()}></b>
-        `,
       });
-
-      try {
-        await prisma.tripCreator.update({
-          where: {
-            id: tripCreator.id,
-          },
-          data: {
-            noti: true,
-          },
-        });
-      } catch (err) {
-        throw new IBError({
-          type: 'DBTRANSACTIONERROR',
-          message: `tripCreator 에 상태 업데이트중 문제가 발생했습니다. \n\n ${
-            (err as Error).message
-          }`,
-        });
-      }
 
       res.json({
         ...ibDefs.SUCCESS,
