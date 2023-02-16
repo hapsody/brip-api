@@ -667,9 +667,9 @@ export interface BriefScheduleType {
   spotName: string; /// ex) 'Turtle Bay Resort'
   roomType?: string; /// ex)
   spotAddr: string; /// ex) '383 Kalaimoku St, Waikiki, HI 96815 미국'
-  // contact: string; /// ex) '+18089228111'
+  contact: string; /// ex) '+18-10-2281-1111',  +82-02-123-4544
   hotelBookingUrl?: string; /// 호텔일경우 contact가 없어서 대신 해당 호텔 예약 페이지 링크 주소 ex) https://www.booking.com/hotel/kr/alice-and-trunk.html
-  placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
+  // placeId?: string; /// 장소나 식당일 경우 google 맵에 위치와 상세 정보를 표시해주기 위한 placeId ex) ChIJrRc-m4LjDDURgGLY3LPdjE0
   //    stayDate: string; // 1박2일 ex) "2022. 12. 22 ~ 2022. 12. 24"
   startDate?: string; /// 숙박 시작'일' ISO string 포맷의 Date ex) 2022-12-22T00:00:00.000Z
   endDate?: string; ///  ISO string 포맷의 Date ex) 2022-12-24T00:00:00.000Z
@@ -677,15 +677,13 @@ export interface BriefScheduleType {
   days?: Number; /// 2일 ex)
   checkIn?: String; /// ex) 15:00
   checkOut?: String; ///  ex)  11:00
-  price?: String; ///  1박당? 전체?
+  // price?: String; ///  1박당? 전체?
   rating?: number; /// ex) 8.7
   lat?: number; /// ex) 33.47471823
   lng?: number; /// ex) 126.17273718239
   imageList?: {
     id: string; /// ex) 18184
     url?: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
-    photo_reference?: string;
-    // text: string; /// ex) ??
   }[];
 }
 

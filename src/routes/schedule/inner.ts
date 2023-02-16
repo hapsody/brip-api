@@ -8,9 +8,16 @@ import {
   getTomorrow,
   getNDaysLater,
   IBContext,
+  getS3SignedUrl,
 } from '@src/utils';
 import axios, { Method } from 'axios';
-import { TourPlace, PlanType, VisitSchedule, PlaceType } from '@prisma/client';
+import {
+  TourPlace,
+  PlanType,
+  VisitSchedule,
+  PlaceType,
+  IBPhotos,
+} from '@prisma/client';
 import {
   isNumber,
   isNil,
@@ -3487,6 +3494,67 @@ export const saveSchedule = async (
 };
 
 /**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getThumbnailUrlFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<string> => {
+  if (photos.length > 0) {
+    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
+      /// 직접접근 링크 url이 존재하는 경우
+      return photos[0].url;
+    }
+
+    if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
+      /// s3 key가 존재하는 경우
+      const signedUrl = await getS3SignedUrl(photos[0].key);
+      return signedUrl;
+    }
+  }
+  return 'none';
+};
+
+/**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getImgUrlListFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<
+  {
+    id: string;
+    url: string;
+  }[]
+> => {
+  const result = await Promise.all(
+    photos.map(async p => {
+      return {
+        id: p.id.toString(),
+        url: await (async (): Promise<string> => {
+          if (photos.length > 0) {
+            if (!isNil(p.url) && !isEmpty(p.url)) {
+              /// 직접접근 링크 url이 존재하는 경우
+              return p.url;
+            }
+
+            if (!isNil(p.key) && !isEmpty(p.key)) {
+              /// s3 key가 존재하는 경우
+              const signedUrl = await getS3SignedUrl(p.key);
+              return signedUrl;
+            }
+          }
+          return 'none';
+        })(),
+      };
+    }),
+  );
+  return result;
+};
+
+/**
  * 생성된 스케쥴의 하루 일정 요청 api
  * 스케쥴에서 지정된 날짜의 데일리 계획을 조회 요청한다.
  */
@@ -3509,6 +3577,7 @@ export const getDaySchedule = async (
           tourPlace: {
             include: {
               gl_photos: true,
+              photos: true,
             },
           },
         },
@@ -3524,97 +3593,121 @@ export const getDaySchedule = async (
   }
 
   const spotList: Pick<GetDayScheduleRETParamPayload, 'spotList'> = {
-    spotList: queryParams.visitSchedule.map(v => {
-      if (!v.tourPlace) return undefined;
+    spotList: await Promise.all(
+      queryParams.visitSchedule.map(async v => {
+        if (!v.tourPlace) return undefined;
 
-      const vType: PlaceType = v.tourPlace.tourPlaceType;
-      const night = v.stayPeriod ?? 0;
-      const days = v.stayPeriod ? night + 1 : 0;
+        const vType: PlaceType = v.tourPlace.tourPlaceType;
+        const night = v.stayPeriod ?? 0;
+        const days = v.stayPeriod ? night + 1 : 0;
 
-      if (vType.includes('BKC_HOTEL')) {
-        const hotel = v.tourPlace;
+        if (vType.includes('BKC_HOTEL')) {
+          const hotel = v.tourPlace;
+          return {
+            id: v.id.toString(),
+            spotType: vType as string,
+            previewImg: hotel.bkc_main_photo_url ?? 'none',
+            spotName: hotel.bkc_hotel_name ?? 'none',
+            roomType: hotel.bkc_unit_configuration_label ?? 'none',
+            spotAddr: hotel.bkc_address ?? 'none',
+            contact: 'none',
+            hotelBookingUrl: hotel.bkc_url ?? 'none',
+            startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+            endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+            night,
+            days,
+            checkin: hotel.bkc_checkin,
+            checkout: hotel.bkc_checkout,
+            price: hotel.bkc_min_total_price?.toString(),
+            rating: hotel.bkc_review_score
+              ? hotel.bkc_review_score / 2.0
+              : undefined,
+            lat: hotel.bkc_latitude ?? -1,
+            lng: hotel.bkc_longitude ?? -1,
+            imageList: [
+              {
+                id: '1',
+                url: hotel.bkc_main_photo_url ?? undefined,
+              },
+            ],
+          };
+        }
+        // if (vType.includes('GL_')) {
+        //   const googlePlace = v.tourPlace;
+        //   return {
+        //     id: v.id.toString(),
+        //     spotType: vType as string,
+        //     previewImg:
+        //       googlePlace.gl_photos.length > 0 &&
+        //       googlePlace.gl_photos[0].photo_reference
+        //         ? googlePlace.gl_photos[0].photo_reference
+        //         : 'none',
+        //     spotName: googlePlace.gl_name ?? 'none',
+        //     spotAddr:
+        //       googlePlace.gl_vicinity ??
+        //       googlePlace.gl_formatted_address ??
+        //       'none',
+        //     // contact: 'none',
+        //     placeId: googlePlace.gl_place_id ?? 'none',
+        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+        //     night,
+        //     days,
+        //     price: googlePlace.gl_price_level?.toString(),
+        //     rating: googlePlace.gl_rating ?? undefined,
+        //     lat: googlePlace.gl_lat ?? -1,
+        //     lng: googlePlace.gl_lng ?? -1,
+        //     imageList: googlePlace.gl_photos.map(p => {
+        //       return {
+        //         id: p.id.toString(),
+        //         photo_reference: p.photo_reference,
+        //       };
+        //     }),
+        //   };
+        // }
+
+        // if (vType.includes('VISITJEJU_')) {
+        //   const visitJejuPlace = v.tourPlace;
+        //   return {
+        //     id: v.id.toString(),
+        //     spotType: vType as string,
+        //     previewImg: 'none',
+        //     spotName: visitJejuPlace.vj_title ?? 'none',
+        //     spotAddr: visitJejuPlace.vj_address ?? 'none',
+        //     // contact: 'none',
+        //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
+        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+        //     night,
+        //     days,
+        //     lat: visitJejuPlace.vj_latitude ?? -1,
+        //     lng: visitJejuPlace.vj_longitude ?? -1,
+        //   };
+        // }
+
+        /// NOT Hotel place
+        const { tourPlace } = v;
         return {
-          id: v.id.toString(),
+          id: v.id.toString(), /// visitScheduleId
           spotType: vType as string,
-          previewImg: hotel.bkc_main_photo_url ?? 'none',
-          spotName: hotel.bkc_hotel_name ?? 'none',
-          roomType: hotel.bkc_unit_configuration_label ?? 'none',
-          spotAddr: hotel.bkc_address ?? 'none',
-          hotelBookingUrl: hotel.bkc_url ?? 'none',
+          previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+
+          spotName: tourPlace.title ?? 'none',
+          spotAddr: tourPlace.address ?? tourPlace.roadAddress ?? 'none',
+          // placeId: tourPlace.gl_place_id ?? 'none',
+          contact: tourPlace.contact ?? 'none',
           startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
           endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          checkin: hotel.bkc_checkin,
-          checkout: hotel.bkc_checkout,
-          price: hotel.bkc_min_total_price?.toString(),
-          rating: hotel.bkc_review_score
-            ? hotel.bkc_review_score / 2.0
-            : undefined,
-          lat: hotel.bkc_latitude ?? -1,
-          lng: hotel.bkc_longitude ?? -1,
-          imageList: [
-            {
-              id: '1',
-              url: hotel.bkc_main_photo_url ?? undefined,
-            },
-          ],
+          night: night ?? -1,
+          days: days ?? -1,
+          // price: tourPlace.gl_price_level?.toString(),
+          rating: tourPlace.rating ?? 0,
+          lat: tourPlace.lat ?? -1,
+          lng: tourPlace.lng ?? -1,
+          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
-      }
-      if (vType.includes('GL_')) {
-        const googlePlace = v.tourPlace;
-        return {
-          id: v.id.toString(),
-          spotType: vType as string,
-          previewImg:
-            googlePlace.gl_photos.length > 0 &&
-            googlePlace.gl_photos[0].photo_reference
-              ? googlePlace.gl_photos[0].photo_reference
-              : 'none',
-          spotName: googlePlace.gl_name ?? 'none',
-          spotAddr:
-            googlePlace.gl_vicinity ??
-            googlePlace.gl_formatted_address ??
-            'none',
-          // contact: 'none',
-          placeId: googlePlace.gl_place_id ?? 'none',
-          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          price: googlePlace.gl_price_level?.toString(),
-          rating: googlePlace.gl_rating ?? undefined,
-          lat: googlePlace.gl_lat ?? -1,
-          lng: googlePlace.gl_lng ?? -1,
-          imageList: googlePlace.gl_photos.map(p => {
-            return {
-              id: p.id.toString(),
-              photo_reference: p.photo_reference,
-            };
-          }),
-        };
-      }
-
-      if (vType.includes('VISITJEJU_')) {
-        const visitJejuPlace = v.tourPlace;
-        return {
-          id: v.id.toString(),
-          spotType: vType as string,
-          previewImg: 'none',
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          // contact: 'none',
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-        };
-      }
-      return undefined;
-    }),
+      }),
+    ),
   };
 
   const retValue: GetDayScheduleRETParamPayload = {
@@ -3923,53 +4016,156 @@ export const getCandidateSchedule = async (
 ): Promise<GetCandidateScheduleRETParamPayload> => {
   const { queryParamsId, spotType = '', skip = 0, take = 10 } = param;
 
-  const retValue: GetCandidateScheduleRETParamPayload = await (async () => {
-    const queryParams = await prisma.queryParams.findUnique({
-      where: {
-        id: Number(queryParamsId),
-      },
-      include: {
-        metaScheduleInfo: true,
-        tourPlace: {
-          where: {
-            visitSchedule: { none: {} },
-            tourPlaceType: (() => {
-              if (spotType.toUpperCase().includes('HOTEL'))
-                return { equals: 'BKC_HOTEL' };
-              if (spotType.toUpperCase().includes('RESTAURANT'))
-                return { in: ['GL_RESTAURANT', 'VISITJEJU_RESTAURANT'] };
-              if (spotType.toUpperCase().includes('SPOT'))
-                return { in: ['GL_SPOT', 'VISITJEJU_SPOT'] };
-              return { in: [] };
-            })(),
-            status: {
-              equals: 'IN_USE',
-            },
-          },
-          include: {
-            gl_photos: true,
+  const queryParams = await prisma.queryParams.findUnique({
+    where: {
+      id: Number(queryParamsId),
+    },
+    include: {
+      metaScheduleInfo: true,
+      tourPlace: {
+        where: {
+          visitSchedule: { none: {} },
+          tourPlaceType: (() => {
+            if (spotType.toUpperCase().includes('HOTEL'))
+              return { equals: 'BKC_HOTEL' };
+            if (spotType.toUpperCase().includes('RESTAURANT'))
+              return { in: ['GL_RESTAURANT', 'VISITJEJU_RESTAURANT'] };
+            if (spotType.toUpperCase().includes('SPOT'))
+              return { in: ['GL_SPOT', 'VISITJEJU_SPOT'] };
+            return { in: [] };
+          })(),
+          status: {
+            equals: 'IN_USE',
           },
         },
+        include: {
+          gl_photos: true,
+          photos: true,
+        },
       },
+    },
+  });
+
+  if (isNil(queryParams)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: `존재하지 않는 queryParamsId입니다.`,
     });
+  }
 
-    const candidateList = queryParams?.tourPlace
-      .map(tp => {
-        if (!tp) return undefined;
+  const retValue: GetCandidateScheduleRETParamPayload = await (async () => {
+    const candidateList = (
+      await Promise.all(
+        queryParams?.tourPlace.map(async tp => {
+          if (!tp) return undefined;
 
-        const vType: PlaceType = tp.tourPlaceType;
-        // const night = queryParams.metaScheduleInfo?.travelNights ?? 0;
-        // const days = queryParams.metaScheduleInfo?.travelDays ?? 0;
-        if (vType.includes('BKC_HOTEL')) {
-          const hotel = tp;
+          const vType: PlaceType = tp.tourPlaceType;
+          // const night = queryParams.metaScheduleInfo?.travelNights ?? 0;
+          // const days = queryParams.metaScheduleInfo?.travelDays ?? 0;
+          if (vType.includes('BKC_HOTEL')) {
+            const hotel = tp;
+            return {
+              id: tp.id.toString(),
+              spotType: vType as string,
+              previewImg: hotel.bkc_main_photo_url ?? 'none',
+              spotName: hotel.bkc_hotel_name ?? 'none',
+              roomType: hotel.bkc_unit_configuration_label ?? 'none',
+              spotAddr: hotel.bkc_address ?? 'none',
+              contact: 'none',
+              hotelBookingUrl: hotel.bkc_url ?? 'none',
+              // startDate: tp.checkin
+              //   ? moment(tp.checkin).format('YYYY-MM-DD')
+              //   : '',
+              // endDate: tp.checkout
+              //   ? moment(tp.checkout).format('YYYY-MM-DD')
+              //   : '',
+              // night,
+              // days,
+              checkin: hotel.bkc_checkin,
+              checkout: hotel.bkc_checkout,
+              price: hotel.bkc_min_total_price?.toString(),
+              rating: hotel.bkc_review_score
+                ? hotel.bkc_review_score / 2.0
+                : undefined,
+              lat: hotel.bkc_latitude ?? -1,
+              lng: hotel.bkc_longitude ?? -1,
+              imageList: [
+                {
+                  id: '1',
+                  url: hotel.bkc_main_photo_url ?? undefined,
+                },
+              ],
+            };
+          }
+          // if (vType.includes('GL_')) {
+          //   const googlePlace = tp;
+          //   return {
+          //     id: tp.id.toString(),
+          //     spotType: vType as string,
+          //     previewImg:
+          //       googlePlace.gl_photos.length > 0 && googlePlace.gl_photos[0].url
+          //         ? googlePlace.gl_photos[0].url
+          //         : 'none',
+          //     spotName: googlePlace.gl_name ?? 'none',
+          //     spotAddr:
+          //       googlePlace.gl_vicinity ??
+          //       googlePlace.gl_formatted_address ??
+          //       'none',
+          //     // contact: 'none',
+          //     placeId: googlePlace.gl_place_id ?? 'none',
+          //     // startDate: tp.checkin
+          //     //   ? moment(tp.checkin).format('YYYY-MM-DD')
+          //     //   : '',
+          //     // endDate: tp.checkout
+          //     //   ? moment(tp.checkout).format('YYYY-MM-DD')
+          //     //   : '',
+          //     // night,
+          //     // days,
+          //     price: googlePlace.gl_price_level?.toString(),
+          //     rating: googlePlace.gl_rating ?? undefined,
+          //     lat: googlePlace.gl_lat ?? -1,
+          //     lng: googlePlace.gl_lng ?? -1,
+          //     imageList: googlePlace.gl_photos.map(p => {
+          //       return {
+          //         id: p.id.toString(),
+          //         photo_reference: p.photo_reference,
+          //       };
+          //     }),
+          //   };
+          // }
+
+          // if (vType.includes('VISITJEJU_')) {
+          //   const visitJejuPlace = tp;
+          //   return {
+          //     id: tp.id.toString(),
+          //     spotType: vType as string,
+          //     previewImg: 'none',
+          //     spotName: visitJejuPlace.vj_title ?? 'none',
+          //     spotAddr: visitJejuPlace.vj_address ?? 'none',
+          //     // contact: 'none',
+          //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
+          //     // startDate: tp.checkin
+          //     //   ? moment(tp.checkin).format('YYYY-MM-DD')
+          //     //   : '',
+          //     // endDate: tp.checkout
+          //     //   ? moment(tp.checkout).format('YYYY-MM-DD')
+          //     //   : '',
+          //     // night,
+          //     // days,
+          //     lat: visitJejuPlace.vj_latitude ?? -1,
+          //     lng: visitJejuPlace.vj_longitude ?? -1,
+          //   };
+          // }
+
+          /// Not Hotel Place
           return {
             id: tp.id.toString(),
             spotType: vType as string,
-            previewImg: hotel.bkc_main_photo_url ?? 'none',
-            spotName: hotel.bkc_hotel_name ?? 'none',
-            roomType: hotel.bkc_unit_configuration_label ?? 'none',
-            spotAddr: hotel.bkc_address ?? 'none',
-            hotelBookingUrl: hotel.bkc_url ?? 'none',
+            previewImg: await getThumbnailUrlFromIBPhotos(tp.photos),
+            spotName: tp.title ?? 'none',
+            spotAddr: tp.address ?? tp.roadAddress ?? 'none',
+            // placeId: tp.gl_place_id ?? 'none',
+            contact: 'none',
             // startDate: tp.checkin
             //   ? moment(tp.checkin).format('YYYY-MM-DD')
             //   : '',
@@ -3978,84 +4174,15 @@ export const getCandidateSchedule = async (
             //   : '',
             // night,
             // days,
-            checkin: hotel.bkc_checkin,
-            checkout: hotel.bkc_checkout,
-            price: hotel.bkc_min_total_price?.toString(),
-            rating: hotel.bkc_review_score
-              ? hotel.bkc_review_score / 2.0
-              : undefined,
-            lat: hotel.bkc_latitude ?? -1,
-            lng: hotel.bkc_longitude ?? -1,
-            imageList: [
-              {
-                id: '1',
-                url: hotel.bkc_main_photo_url ?? undefined,
-              },
-            ],
+            // price: tp.gl_price_level?.toString(),
+            rating: tp.rating ?? 0,
+            lat: tp.lat ?? -1,
+            lng: tp.lng ?? -1,
+            imageList: await getImgUrlListFromIBPhotos(tp.photos),
           };
-        }
-        if (vType.includes('GL_')) {
-          const googlePlace = tp;
-          return {
-            id: tp.id.toString(),
-            spotType: vType as string,
-            previewImg:
-              googlePlace.gl_photos.length > 0 && googlePlace.gl_photos[0].url
-                ? googlePlace.gl_photos[0].url
-                : 'none',
-            spotName: googlePlace.gl_name ?? 'none',
-            spotAddr:
-              googlePlace.gl_vicinity ??
-              googlePlace.gl_formatted_address ??
-              'none',
-            // contact: 'none',
-            placeId: googlePlace.gl_place_id ?? 'none',
-            // startDate: tp.checkin
-            //   ? moment(tp.checkin).format('YYYY-MM-DD')
-            //   : '',
-            // endDate: tp.checkout
-            //   ? moment(tp.checkout).format('YYYY-MM-DD')
-            //   : '',
-            // night,
-            // days,
-            price: googlePlace.gl_price_level?.toString(),
-            rating: googlePlace.gl_rating ?? undefined,
-            lat: googlePlace.gl_lat ?? -1,
-            lng: googlePlace.gl_lng ?? -1,
-            imageList: googlePlace.gl_photos.map(p => {
-              return {
-                id: p.id.toString(),
-                photo_reference: p.photo_reference,
-              };
-            }),
-          };
-        }
-
-        if (vType.includes('VISITJEJU_')) {
-          const visitJejuPlace = tp;
-          return {
-            id: tp.id.toString(),
-            spotType: vType as string,
-            previewImg: 'none',
-            spotName: visitJejuPlace.vj_title ?? 'none',
-            spotAddr: visitJejuPlace.vj_address ?? 'none',
-            // contact: 'none',
-            placeId: visitJejuPlace.vj_contentsid ?? 'none',
-            // startDate: tp.checkin
-            //   ? moment(tp.checkin).format('YYYY-MM-DD')
-            //   : '',
-            // endDate: tp.checkout
-            //   ? moment(tp.checkout).format('YYYY-MM-DD')
-            //   : '',
-            // night,
-            // days,
-            lat: visitJejuPlace.vj_latitude ?? -1,
-            lng: visitJejuPlace.vj_longitude ?? -1,
-          };
-        }
-        return undefined;
-      })
-      .filter(v => v !== undefined) as BriefScheduleType[];
+        }),
+      )
+    ).filter(v => v !== undefined) as BriefScheduleType[];
     const takedList =
       candidateList.length > skip + take
         ? candidateList.splice(skip, take)
@@ -4850,6 +4977,7 @@ export const refreshSchedule = async (
           tourPlace: {
             include: {
               gl_photos: true,
+              photos: true,
             },
           },
         },
@@ -4858,97 +4986,125 @@ export const refreshSchedule = async (
   );
 
   const spotList: Pick<RefreshScheduleRETParamPayload, 'spotList'> = {
-    spotList: refreshedList.map(v => {
-      if (!v.tourPlace) return undefined;
+    spotList: await Promise.all(
+      refreshedList.map(async v => {
+        if (!v.tourPlace) return undefined;
 
-      const vType: PlaceType = v.tourPlace.tourPlaceType;
-      const night = v.stayPeriod ?? 0;
-      const days = v.stayPeriod ? night + 1 : 0;
+        const vType: PlaceType = v.tourPlace.tourPlaceType;
+        const night = v.stayPeriod ?? 0;
+        const days = v.stayPeriod ? night + 1 : 0;
 
-      if (vType.includes('BKC_HOTEL')) {
-        const hotel = v.tourPlace;
+        if (vType.includes('BKC_HOTEL')) {
+          const hotel = v.tourPlace;
+          return {
+            id: v.id.toString(),
+            spotType: vType as string,
+            previewImg: hotel.bkc_main_photo_url ?? 'none',
+            spotName: hotel.bkc_hotel_name ?? 'none',
+            roomType: hotel.bkc_unit_configuration_label ?? 'none',
+            spotAddr: hotel.bkc_address ?? 'none',
+            contact: 'none',
+            hotelBookingUrl: hotel.bkc_url ?? 'none',
+            startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+            endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+            night,
+            days,
+            checkin: hotel.bkc_checkin,
+            checkout: hotel.bkc_checkout,
+            price: hotel.bkc_min_total_price?.toString(),
+            rating: hotel.bkc_review_score
+              ? hotel.bkc_review_score / 2.0
+              : undefined,
+            lat: hotel.bkc_latitude ?? -1,
+            lng: hotel.bkc_longitude ?? -1,
+            imageList: [
+              {
+                id: '1',
+                url: hotel.bkc_main_photo_url ?? undefined,
+              },
+            ],
+          };
+        }
+        // if (vType.includes('GL_')) {
+        //   const googlePlace = v.tourPlace;
+        //   return {
+        //     id: v.id.toString(),
+        //     spotType: vType as string,
+        //     previewImg:
+        //       googlePlace.gl_photos.length > 0 &&
+        //       googlePlace.gl_photos[0].photo_reference
+        //         ? googlePlace.gl_photos[0].photo_reference
+        //         : 'none',
+        //     spotName: googlePlace.gl_name ?? 'none',
+        //     spotAddr:
+        //       googlePlace.gl_vicinity ??
+        //       googlePlace.gl_formatted_address ??
+        //       'none',
+        //     // contact: 'none',
+        //     placeId: googlePlace.gl_place_id ?? 'none',
+        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+        //     night,
+        //     days,
+        //     price: googlePlace.gl_price_level?.toString(),
+        //     rating: googlePlace.gl_rating ?? undefined,
+        //     lat: googlePlace.gl_lat ?? -1,
+        //     lng: googlePlace.gl_lng ?? -1,
+        //     imageList: googlePlace.gl_photos.map(p => {
+        //       return {
+        //         id: p.id.toString(),
+        //         photo_reference: p.photo_reference,
+        //       };
+        //     }),
+        //   };
+        // }
+
+        // if (vType.includes('VISITJEJU_')) {
+        //   const visitJejuPlace = v.tourPlace;
+        //   return {
+        //     id: v.id.toString(),
+        //     spotType: vType as string,
+        //     previewImg: 'none',
+        //     spotName: visitJejuPlace.vj_title ?? 'none',
+        //     spotAddr: visitJejuPlace.vj_address ?? 'none',
+        //     // contact: 'none',
+        //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
+        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
+        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
+        //     night,
+        //     days,
+        //     lat: visitJejuPlace.vj_latitude ?? -1,
+        //     lng: visitJejuPlace.vj_longitude ?? -1,
+        //   };
+        // }
+        // return undefined;
+
+        /// Not Hotel Place
+        const { tourPlace } = v;
         return {
           id: v.id.toString(),
           spotType: vType as string,
-          previewImg: hotel.bkc_main_photo_url ?? 'none',
-          spotName: hotel.bkc_hotel_name ?? 'none',
-          roomType: hotel.bkc_unit_configuration_label ?? 'none',
-          spotAddr: hotel.bkc_address ?? 'none',
-          hotelBookingUrl: hotel.bkc_url ?? 'none',
-          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          checkin: hotel.bkc_checkin,
-          checkout: hotel.bkc_checkout,
-          price: hotel.bkc_min_total_price?.toString(),
-          rating: hotel.bkc_review_score
-            ? hotel.bkc_review_score / 2.0
-            : undefined,
-          lat: hotel.bkc_latitude ?? -1,
-          lng: hotel.bkc_longitude ?? -1,
-          imageList: [
-            {
-              id: '1',
-              url: hotel.bkc_main_photo_url ?? undefined,
-            },
-          ],
+          previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+          spotName: tourPlace.title ?? 'none',
+          spotAddr: tourPlace.address ?? tourPlace.roadAddress ?? 'none',
+          // placeId: tourPlace.gl_place_id ?? 'none',
+          contact: 'none',
+          // startDate: tourPlace.checkin
+          //   ? moment(tourPlace.checkin).format('YYYY-MM-DD')
+          //   : '',
+          // endDate: tourPlace.checkout
+          //   ? moment(tourPlace.checkout).format('YYYY-MM-DD')
+          //   : '',
+          // night,
+          // days,
+          // price: tourPlace.gl_price_level?.toString(),
+          rating: tourPlace.rating ?? 0,
+          lat: tourPlace.lat ?? -1,
+          lng: tourPlace.lng ?? -1,
+          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
-      }
-      if (vType.includes('GL_')) {
-        const googlePlace = v.tourPlace;
-        return {
-          id: v.id.toString(),
-          spotType: vType as string,
-          previewImg:
-            googlePlace.gl_photos.length > 0 &&
-            googlePlace.gl_photos[0].photo_reference
-              ? googlePlace.gl_photos[0].photo_reference
-              : 'none',
-          spotName: googlePlace.gl_name ?? 'none',
-          spotAddr:
-            googlePlace.gl_vicinity ??
-            googlePlace.gl_formatted_address ??
-            'none',
-          // contact: 'none',
-          placeId: googlePlace.gl_place_id ?? 'none',
-          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          price: googlePlace.gl_price_level?.toString(),
-          rating: googlePlace.gl_rating ?? undefined,
-          lat: googlePlace.gl_lat ?? -1,
-          lng: googlePlace.gl_lng ?? -1,
-          imageList: googlePlace.gl_photos.map(p => {
-            return {
-              id: p.id.toString(),
-              photo_reference: p.photo_reference,
-            };
-          }),
-        };
-      }
-
-      if (vType.includes('VISITJEJU_')) {
-        const visitJejuPlace = v.tourPlace;
-        return {
-          id: v.id.toString(),
-          spotType: vType as string,
-          previewImg: 'none',
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          // contact: 'none',
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-          endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-          night,
-          days,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-        };
-      }
-      return undefined;
-    }),
+      }),
+    ),
   };
 
   const retValue: RefreshScheduleRETParamPayload = {
