@@ -42,9 +42,9 @@ const creatorData: {
   profileImg: string;
   tripCreator: {
     nickName: string;
-    phone: string;
+    // phone: string;
     area: string;
-    proposal: string;
+    // proposal: string;
     domain: string;
   };
 }[] = [
@@ -58,9 +58,9 @@ const creatorData: {
     profileImg: 'public/user/profileImg/starbucks.png',
     tripCreator: {
       nickName: 'chimd',
-      phone: '+821012345678',
+      // phone: '+821012345678',
       area: '서울',
-      proposal: '거 크리에이터 함 시켜주쇼',
+      // proposal: '거 크리에이터 함 시켜주쇼',
       domain: '1,4',
     },
   },
@@ -74,9 +74,9 @@ const creatorData: {
     profileImg: 'public/user/profileImg/고양이.png',
     tripCreator: {
       nickName: 'yjshim',
-      phone: '+821012345678',
+      // phone: '+821012345678',
       area: '서울',
-      proposal: '크리에이터에용',
+      // proposal: '크리에이터에용',
       domain: '5,6,9,10',
     },
   },

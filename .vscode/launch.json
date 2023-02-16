@@ -36,6 +36,12 @@
       "name": "test seed:tripMemoryCategory",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn seed:shareTripMemory",
+      "name": "test seed:shareTripMemory",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

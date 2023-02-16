@@ -7,7 +7,9 @@ import {
   AddShareTripMemorySuccessResType,
 } from '@src/routes/tripNetwork/tripNetwork';
 import { PrismaClient } from '@prisma/client';
-import tripMemoryCategory from '../tripMemoryCategory';
+import tripMemoryCategory from '../tripMemoryCategory/tripMemoryCategory';
+import iBTravelTag from '../iBTravelTag/iBTravelTag';
+import userSeedModule from '../user/user';
 
 const prisma = new PrismaClient();
 
@@ -30,11 +32,20 @@ const seedData = [
 ];
 
 const login = async () => {
-  const userRawRes = await request(server).post('/auth/signIn').send({
+  let userRawRes = await request(server).post('/auth/signIn').send({
     id: 'hawaii@gmail.com',
     password: 'qwer1234',
   });
-  const userRes = userRawRes.body as SignInResponse;
+
+  let userRes = userRawRes.body as SignInResponse;
+  if (userRes.IBcode === '1000')
+    return userRes.IBparams as SaveScheduleResponsePayload;
+  await userSeedModule();
+  userRawRes = await request(server).post('/auth/signIn').send({
+    id: 'hawaii@gmail.com',
+    password: 'qwer1234',
+  });
+  userRes = userRawRes.body as SignInResponse;
   return userRes.IBparams as SaveScheduleResponsePayload;
 };
 
@@ -66,10 +77,11 @@ const createGroup = async (name: string, userId: number) => {
 async function main(): Promise<void> {
   const user = await login();
   await tripMemoryCategory();
+  await iBTravelTag();
   const memoryCategory = await prisma.tripMemoryCategory.findMany({
     where: {
       super: '관광',
-      name: '자연경관',
+      name: '기타',
     },
   });
   // eslint-disable-next-line no-restricted-syntax
