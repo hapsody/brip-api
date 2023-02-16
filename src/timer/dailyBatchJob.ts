@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { isNil } from 'lodash';
 import dataGatherList from './dataGatherList';
 
 // import { getAllTextSearchPages } from '@src/routes/schedule/schedule';
@@ -75,12 +76,17 @@ async function batchJob(): Promise<void> {
       data: {
         status: 'IN_USE',
         /// 통합 필수 필드
+        title: v.name,
         lat: geoLocation.lat,
         lng: geoLocation.lngt,
         address: v.formatted_address ?? v.vicinity ?? undefined,
+        roadAddress: undefined,
         openWeek: undefined,
-        postcode: undefined,
         contact: undefined,
+        postcode: undefined,
+        photos: undefined,
+        rating: isNil(v) ? undefined : v.rating,
+        desc: undefined,
 
         gl_icon: v.icon,
         gl_icon_background_color: v.icon_background_color,

@@ -851,12 +851,25 @@ export const getPlaceByGglTxtSrch = async (
               : 'GL_RESTAURANT',
 
           /// 통합 필수 필드
+          title: item.name,
           lat: item.geometry?.location?.lat,
           lng: item.geometry?.location?.lng,
           address: item.formatted_address ?? item.vicinity ?? undefined,
+          roadAddress: undefined,
           openWeek: undefined,
-          postcode: undefined,
           contact: undefined,
+          postcode: undefined,
+          photos: {
+            create: item.photos?.map(photo => {
+              return {
+                url:
+                  (photo as Partial<{ photo_reference: string }>)
+                    .photo_reference ?? '',
+              };
+            }),
+          },
+          rating: isNil(item.rating) ? 0 : item.rating,
+          desc: undefined,
 
           gl_lat: item.geometry?.location?.lat,
           gl_lng: item.geometry?.location?.lng,
@@ -1263,12 +1276,17 @@ export const getPlaceDataFromVJ = async (
                 : 'VISITJEJU_SPOT',
 
             /// 통합 필수 필드
+            title: item.title,
             lat: item.latitude,
             lng: item.longitude,
             address: item.address,
+            roadAddress: item.roadaddress,
             openWeek: undefined,
-            postcode: item.postcode,
             contact: item.phoneno,
+            postcode: item.postcode,
+            photos: undefined,
+            rating: undefined,
+            desc: item.introduction,
 
             vj_contentsid: item.contentsid as string,
             vj_contentscdLabel: item.contentscd?.label,
