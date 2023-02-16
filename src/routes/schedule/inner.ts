@@ -2127,6 +2127,17 @@ export const makeSchedule = async (
       status: true,
       gl_rating: true,
       gl_user_ratings_total: true,
+      title: true,
+      lat: true,
+      lng: true,
+      address: true,
+      roadAddress: true,
+      openWeek: true,
+      contact: true,
+      postcode: true,
+      photos: true,
+      rating: true,
+      desc: true,
     },
     orderBy: [
       {
@@ -2201,6 +2212,17 @@ export const makeSchedule = async (
       vj_longitude: true,
       status: true,
       gl_rating: true,
+      title: true,
+      lat: true,
+      lng: true,
+      address: true,
+      roadAddress: true,
+      openWeek: true,
+      contact: true,
+      postcode: true,
+      photos: true,
+      rating: true,
+      desc: true,
     },
     orderBy: [
       {
@@ -3307,7 +3329,11 @@ export const getSchedule = async (
     include: {
       visitSchedule: {
         include: {
-          tourPlace: true,
+          tourPlace: {
+            include: {
+              photos: true,
+            },
+          },
         },
       },
       metaScheduleInfo: true,
