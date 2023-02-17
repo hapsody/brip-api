@@ -635,7 +635,7 @@ export const sendSMSAuthCode = asyncWrapper(
 
       await prisma.sMSAuthCode.create({
         data: {
-          phone,
+          phone: `+${interCode}-${formattedPhone}`,
           code: authCode,
           userTokenId,
         },
