@@ -3413,6 +3413,8 @@ export const getScheduleList = async (
         tag: savedSchedule.hashTag.map(v => v.value),
         title: savedSchedule.title,
         createdAt: savedSchedule.createdAt.toISOString(),
+        startDate: q.startDate ?? '',
+        endDate: q.endDate ?? '',
         thumbnail: savedSchedule.thumbnail,
         // scheduleHash: savedSchedule.scheduleHash,
         planType: savedSchedule.planType.toLowerCase(),
