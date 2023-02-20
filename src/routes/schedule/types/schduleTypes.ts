@@ -624,6 +624,7 @@ export interface GetScheduleListRETParamPayload {
   tag: string[]; ///  태그 ex) "가족여행", "한달살기"
   title: string; /// 타이틀 ex) "하와이 가족여행"
   createdAt: string; /// 생성일 ex) '2020-09-20T00:00:000Z'
+  startDate: string; /// 여행일정 시작일, UTC 기준 시간으로 변환해서 시간은 버리고 날짜만 취한다. ex) '2023-02-03T15:00:00.000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
   // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
   planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
@@ -642,6 +643,8 @@ export interface SaveScheduleREQParam {
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
   planType: PlanType;
   queryParamsId: string; /// 저장할 schedule의 고유 Id
+  startDate: string; /// 유저 입력 여행 시작일
+  endDate: string; /// 유저 입력 여행 종료일
 }
 export interface SaveScheduleRETParamPayload {
   queryParamsId: string;
