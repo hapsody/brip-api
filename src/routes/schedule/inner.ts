@@ -3502,18 +3502,20 @@ export const saveSchedule = async (
         thumbnail:
           'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
         planType: planType.toUpperCase() as PlanType,
-        hashTag: {
-          connectOrCreate: keyword.map(k => {
-            return {
-              where: {
-                value: k,
-              },
-              create: {
-                value: k,
-              },
-            };
-          }),
-        },
+        ...(!isNil(keyword) && {
+          hashTag: {
+            connectOrCreate: keyword.map(k => {
+              return {
+                where: {
+                  value: k,
+                },
+                create: {
+                  value: k,
+                },
+              };
+            }),
+          },
+        }),
         userTokenId,
         queryParams: {
           connect: {
