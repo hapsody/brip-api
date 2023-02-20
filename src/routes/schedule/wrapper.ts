@@ -412,6 +412,22 @@ export const saveScheduleWrapper = asyncWrapper(
           });
           return;
         }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
         if (err.type === 'NOTEXISTDATA') {
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,

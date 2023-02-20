@@ -642,6 +642,8 @@ export interface SaveScheduleREQParam {
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
   planType: PlanType;
   queryParamsId: string; /// 저장할 schedule의 고유 Id
+  startDate: string; /// 유저 입력 여행 시작일
+  endDate: string; /// 유저 입력 여행 종료일
 }
 export interface SaveScheduleRETParamPayload {
   queryParamsId: string;

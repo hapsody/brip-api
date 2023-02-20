@@ -3434,19 +3434,22 @@ export const saveSchedule = async (
   param: SaveScheduleREQParam,
   ctx?: IBContext,
 ): Promise<SaveScheduleRETParamPayload> => {
-  const { title, keyword, planType, queryParamsId } = param;
+  const { title, keyword, planType, queryParamsId, startDate, endDate } = param;
   const userTokenId = ctx?.userTokenId ?? '';
 
   const queryParams = await prisma.queryParams.findFirst({
     where: {
       id: Number(queryParamsId),
     },
-    include: {
+    select: {
+      id: true,
+      period: true,
       savedSchedule: {
         select: {
           id: true,
         },
       },
+      userTokenId: true,
     },
   });
 
@@ -3457,39 +3460,69 @@ export const saveSchedule = async (
     });
   }
 
+  if (queryParams.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '다른 유저의 스케쥴에 저장을 시도할 수 없습니다.',
+    });
+  }
+
   if (queryParams.savedSchedule?.id) {
     throw new IBError({
       type: 'DUPLICATEDDATA',
       message: '이미 저장한 일정입니다.',
     });
   }
+  const mStartDate = moment(startDate).startOf('d');
+  const mEndDate = moment(endDate).startOf('d');
 
-  const createResult = await prisma.scheduleBank.create({
-    data: {
-      title,
-      thumbnail:
-        'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
-      planType: planType.toUpperCase() as PlanType,
-      hashTag: {
-        connectOrCreate: keyword.map(k => {
-          return {
-            where: {
-              value: k,
-            },
-            create: {
-              value: k,
-            },
-          };
-        }),
+  if (mEndDate.diff(mStartDate, 'd') !== queryParams.period) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'period 값과 startDate, endDate 사이 기간이 다릅니다.',
+    });
+  }
+
+  const createResult = await prisma.$transaction(async tx => {
+    await tx.queryParams.update({
+      where: {
+        id: Number(queryParamsId),
       },
-      userTokenId,
-      queryParams: {
-        connect: {
-          id: queryParams.id,
+      data: {
+        startDate: mStartDate.toISOString(),
+        endDate: mEndDate.toISOString(),
+      },
+    });
+
+    const cRes = await tx.scheduleBank.create({
+      data: {
+        title,
+        thumbnail:
+          'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+        planType: planType.toUpperCase() as PlanType,
+        hashTag: {
+          connectOrCreate: keyword.map(k => {
+            return {
+              where: {
+                value: k,
+              },
+              create: {
+                value: k,
+              },
+            };
+          }),
+        },
+        userTokenId,
+        queryParams: {
+          connect: {
+            id: queryParams.id,
+          },
         },
       },
-    },
+    });
+    return cRes;
   });
+
   return { queryParamsId: createResult.queryParamsId.toString() };
 };
 
