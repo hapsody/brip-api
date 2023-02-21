@@ -40,9 +40,9 @@ do
   then
     break
   else
-    run_process
     iterations=$((iterations+1))
     echo "try $iterations"
     sleep 60
+    run_process
   fi
 done
