@@ -4,7 +4,9 @@ Description=Brip API Server Init
 [Service]
 User=ubuntu
 Environment=HOME=/home/ubuntu
+ExecStartPre=/bin/sleep 3m
 ExecStart=/home/ubuntu/travelit-api/reboot-init/server-init-script.sh
+TimeoutStartSec=5m
 
 [Install]
 WantedBy=multi-user.target

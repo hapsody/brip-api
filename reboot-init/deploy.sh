@@ -1,4 +1,5 @@
 #!/bin/bash
+#sudo ./server-init-script.sh
 sudo cp ./brip-api-server-init.service /etc/systemd/system/
 cd /etc/systemd/system
 
