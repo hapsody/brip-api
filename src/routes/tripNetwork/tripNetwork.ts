@@ -643,6 +643,7 @@ export const getTripMemCategoryList = asyncWrapper(
 
 export interface AddShareTripMemoryRequestType {
   tripMemoryParam: AddTripMemoryRequestType;
+  tripMemoryId?: string; /// 이미 존재하는 tripMemory일 경우 id를 제공해야 한다. tripMemoryId가 제공되지 않을 경우 addShareTripMemory api 수행 과정중 tripMemory가 생성된다.
   recommendGrade: 'good' | 'notbad' | 'bad';
   categoryIds: string[];
   tourPlaceId?: string | null;
@@ -668,9 +669,16 @@ export const addShareTripMemory = asyncWrapper(
     res: Express.IBTypedResponse<AddShareTripMemoryResType>,
   ) => {
     try {
-      const { tripMemoryParam, recommendGrade, categoryIds, tourPlaceId } =
-        req.body;
+      const {
+        tripMemoryParam,
+        recommendGrade,
+        categoryIds,
+        tourPlaceId,
+        tripMemoryId,
+      } = req.body;
+
       const { title, comment, address, lat, lng, img } = tripMemoryParam;
+
       const { locals } = req;
       const { memberId, userTokenId } = (() => {
         if (locals && locals?.grade === 'member')
@@ -905,17 +913,28 @@ export const addShareTripMemory = asyncWrapper(
         }),
       };
 
-      const ctx = {
-        userTokenId,
-        memberId,
-      };
-      const createdTripMem = await addTripMemory(
-        {
-          ...tripMemoryParam,
-          tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
-        },
-        ctx,
-      );
+      const createdOrFoundTripMem = await (async () => {
+        if (isNil(tripMemoryId)) {
+          const ctx = {
+            userTokenId,
+            memberId,
+          };
+          const addResult = addTripMemory(
+            {
+              ...tripMemoryParam,
+              tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+            },
+            ctx,
+          );
+          return addResult;
+        }
+        const findResult = prisma.tripMemory.findUnique({
+          where: {
+            id: Number(tripMemoryId),
+          },
+        });
+        return findResult;
+      })();
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
@@ -939,7 +958,7 @@ export const addShareTripMemory = asyncWrapper(
           },
           tripMemory: {
             connect: {
-              id: createdTripMem.id,
+              id: createdOrFoundTripMem!.id,
             },
           },
           TourPlace: isNil(tourPlaceId)
