@@ -325,6 +325,7 @@ export const getHotelDataFromBKC = async (
     childrenNumber,
     categoriesFilterIds,
     store = false,
+    queryParamsId,
   } = param;
 
   if (childrenAges && childrenAges.length > 0 && !isNumber(childrenNumber)) {
@@ -516,6 +517,17 @@ export const getHotelDataFromBKC = async (
             bkc_max_photo_url: max_photo_url,
             bkc_hotel_facilities: hotel_facilities,
             // has_swimming_pool,
+
+            queryParams: {
+              connect: {
+                id: queryParamsId,
+              },
+            },
+            // queryParams: {
+            //   connect: {
+            //     id: 1,
+            //   },
+            // },
           },
         });
       });
@@ -4506,6 +4518,11 @@ export const getHotelList = async (
     },
     include: {
       validCluster: true,
+      tourPlace: {
+        where: {
+          tourPlaceType: 'BKC_HOTEL',
+        },
+      },
     },
   });
 
@@ -4631,7 +4648,6 @@ export const getHotelList = async (
         lat: avgLat,
         lng: avgLng,
       };
-
       const hotelSrchOpt = {
         orderBy: 'distance',
         adultsNumber: adult!,
@@ -4723,12 +4739,21 @@ export const getHotelList = async (
     stayPeriod: withHMetaData[tNo]!.stayPeriod,
     lat: withHMetaData[tNo]!.lat,
     lng: withHMetaData[tNo]!.lng,
-    hotels: await getHotelDataFromBKC({
-      ...withHMetaData[tNo]!.hotelSrchOpt,
-      checkinDate: moment(withHMetaData[tNo]!.checkin).toISOString(),
-      checkoutDate: moment(withHMetaData[tNo]!.checkout).toISOString(),
-      store: true,
-    }),
+    hotels: await (async () => {
+      if (!isNil(queryParams.tourPlace) && queryParams.tourPlace.length > 0) {
+        return {
+          hotelSearchCount: queryParams.tourPlace.length,
+          hotelSearchResult: queryParams.tourPlace,
+        };
+      }
+      return getHotelDataFromBKC({
+        ...withHMetaData[tNo]!.hotelSrchOpt,
+        checkinDate: moment(withHMetaData[tNo]!.checkin).toISOString(),
+        checkoutDate: moment(withHMetaData[tNo]!.checkout).toISOString(),
+        store: true,
+        queryParamsId: Number(queryParamsId),
+      });
+    })(),
   };
 };
 
