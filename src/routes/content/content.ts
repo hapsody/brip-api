@@ -1252,11 +1252,7 @@ export const getRandomCardImg = asyncWrapper(
       const { num = '10' } = req.query;
       const { locals } = req;
       const userTokenId = (() => {
-        if (
-          locals &&
-          locals?.grade === 'member' &&
-          !isEmpty(locals?.user?.tripCreator)
-        ) {
+        if (locals && locals?.grade === 'member') {
           return locals?.user?.userTokenId;
         }
 

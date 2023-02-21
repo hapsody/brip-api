@@ -18,24 +18,7 @@ function is_process_running {
   fi
 }
 
-# Wait for the process to start
-while [ $iterations -lt $max_iterations ]
-do
-  if is_process_running
-  then
-    break
-  else
-    iterations=$((iterations+1))
-    sleep 60
-  fi
-done
-
-# Check if the process is running
-if is_process_running
-then
-  exit 0
-else
-  # Run the startup script if the process is not running
+function run_process {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
   git checkout dev
@@ -43,6 +26,23 @@ else
   git pull upstream dev
   git fetch --tags
   yarn
-  yarn prisma db push -y
+  yarn prisma db push
   yarn restart
-fi
+}
+
+
+run_process
+
+# Wait for the process to start
+while [ $iterations -lt $max_iterations ]
+do
+  if is_process_running
+  then
+    break
+  else
+    run_process
+    iterations=$((iterations+1))
+    echo "try $iterations"
+    sleep 60
+  fi
+done
