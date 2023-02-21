@@ -7,6 +7,6 @@ git checkout -f
 git checkout dev
 git checkout -f
 git pull upstream dev
-yarn install
+yarn
 yarn prisma db push
 yarn restart
