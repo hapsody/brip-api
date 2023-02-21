@@ -18,48 +18,37 @@ jobs:
         node-version: [14.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
     steps:
-      # MySQL 데몬을 띄웁니다.
-      # service container를 쓸 수도 있습니다.
-      # - name: Setup MySQL
-      #   uses: mirromutth/mysql-action@v1.1
-      #   with:
-      #     host port: 3306
-      #     container port: 3306
-      #     mysql version: '8.0'
-      #     mysql database: test_db
-      #     mysql user: 'test'
-      #     mysql password: 'test1'
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: checkout master
-        uses: actions/checkout@v2
-      - name: setup docker MySQL
-        run: docker-compose up -d
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
-      - name: Install modules
-        run: yarn
-      - name: Set up Prisma migration and generate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
-        run: |
-          yarn migrate
-          yarn generate
-          yarn seed
-          yarn batch
-      - name: test
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          GCP_MAPS_APIKEY: ${{ secrets.GCP_MAPS_APIKEY }}
-          RAPID_API_KEY: ${{ secrets.RAPID_API_KEY }}
-        run: yarn test
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@v1
+      # - name: checkout master
+      #   uses: actions/checkout@v2
+      # - name: setup docker MySQL
+      #   run: docker-compose up -d
+      # - name: Use Node.js ${{ matrix.node-version }}
+      #   uses: actions/setup-node@v2
+      #   with:
+      #     node-version: ${{ matrix.node-version }}
+      #     cache: 'yarn'
+      # - name: Install modules
+      #   run: yarn
+      # - name: Set up Prisma migration and generate
+      #   env:
+      #     DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      #     SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+      #   run: |
+      #     yarn migrate
+      #     yarn generate
+      #     yarn seed
+      #     yarn batch
+      # - name: test
+      #   env:
+      #     DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      #     SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+      #     JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      #     GCP_MAPS_APIKEY: ${{ secrets.GCP_MAPS_APIKEY }}
+      #     RAPID_API_KEY: ${{ secrets.RAPID_API_KEY }}
+      #   run: yarn test
 
       # - name: Configure AWS credentials
       #   uses: aws-actions/configure-aws-credentials@v1
