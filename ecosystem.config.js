@@ -11,7 +11,7 @@ module.exports = {
       min_uptime: 5000,
       instance_var: 'INSTANCE_ID',
       env: {
-        PORT: 80,
+        PORT: 3000,
         NODE_ENV: 'development',
       },
       env_production: {

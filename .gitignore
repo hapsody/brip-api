@@ -3,4 +3,3 @@ node_modules
 .env
 dist/*
 coverage/*
-brip-api-server-init_log.txt
