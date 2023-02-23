@@ -6,14 +6,16 @@
   "license": "MIT",
   "scripts": {
     "pm2": "pm2",
-    "start:dev": "pm2 start ecosystem.config.js --env development",
-    "start:prod": "pm2 start ecosystem.config.js --env production",
-    "start": "yarn start:dev",
-    "stop": "pm2 delete $(exec pm2 list | awk '/travelit-api/ {print $2}')",
+    "start:dev": "pm2 start --only travelit-api-dev ecosystem.config.js --env development",
+    "start:prod": "pm2 start --only travelit-api-prod ecosystem.config.js --env production",
+    "start": "yarn start:prod",
+    "stop:dev": "pm2 delete $(exec pm2 list | awk '/travelit-api-dev/ {print $2}')",
+    "stop:prod": "pm2 delete $(exec pm2 list | awk '/travelit-api-prod/ {print $2}')",
+    "stop": "pm2 delete all",
     "restart": "yarn stop; yarn start",
     "eslint": "eslint --ext .js,.jsx,.ts,.tsx src",
     "format": "prettier --write \"src/**/*.{ts,tsx,js, json,html}\"",
-    "build": "tsc -p .",
+    "build": "rm -rf dist && tsc --skipLibCheck -p .",
     "prepare": "husky install",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
@@ -26,7 +28,8 @@
     "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
     "batch": "yarn batch:dataresource",
-    "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts"
+    "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
+    "prismastudio": "pm2 start --only prismastudio"
   },
   "husky": {
     "hooks": {
