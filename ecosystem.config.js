@@ -57,7 +57,7 @@ module.exports = {
     },
     {
       name: 'prismastudio',
-      script: 'prisma studio',
+      script: 'prisma studio --browser none',
       time: true,
       watch: true,
     },

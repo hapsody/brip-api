@@ -39,7 +39,7 @@ while [ $iterations -lt $max_iterations ]
 do
   if is_process_running
   then
-    sleep $wating_time
+    sleep $waiting_time
   else
     iterations=$((iterations+1))
     echo "try $iterations"
