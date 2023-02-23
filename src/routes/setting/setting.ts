@@ -992,20 +992,18 @@ export const setTravelTypeToUser = asyncWrapper(
     try {
       const { season, dest, trip, activity, companion } = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
-          return {
-            memberId: locals?.user?.id,
-            userTokenId: locals?.user?.userTokenId,
-          };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
 
-      if (!userTokenId || !memberId) {
+      if (!userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
@@ -1014,7 +1012,7 @@ export const setTravelTypeToUser = asyncWrapper(
 
       const user = await prisma.user.findUnique({
         where: {
-          id: memberId,
+          userTokenId,
         },
         include: {
           FavoriteTravelType: true,
@@ -1061,7 +1059,7 @@ export const setTravelTypeToUser = asyncWrapper(
 
       const updatedUser = await prisma.user.update({
         where: {
-          id: memberId,
+          id: user.id,
         },
         data: {
           FavoriteTravelType: {
