@@ -6,6 +6,7 @@ cd /home/ubuntu/travelit-api
 # Set the maximum number of iterations to perform
 max_iterations=10
 iterations=0
+waiting_time=60
 
 # Define a function to check if the process is running
 function is_process_running {
@@ -38,11 +39,11 @@ while [ $iterations -lt $max_iterations ]
 do
   if is_process_running
   then
-    break
+    sleep $wating_time
   else
     iterations=$((iterations+1))
     echo "try $iterations"
-    sleep 60
+    sleep $wating_time
     run_process
   fi
 done
