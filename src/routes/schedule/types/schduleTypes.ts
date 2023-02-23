@@ -551,6 +551,7 @@ export interface ContextMakeSchedule extends IBContext {
   hotels?: IHotelInMakeSchedule[];
   spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
   foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
+  // eslint-disable-next-line prettier/prettier
   paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
   spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
   foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과

@@ -233,10 +233,15 @@ export const signUp = asyncWrapper(
       return;
     }
 
+    const interCode = phone.split('-')[0].slice(1);
+    const formattedPhone = phone.split('-').reduce((acc, cur) => {
+      if (cur.includes('+')) return acc;
+      return `${acc}${cur}`;
+    }, '');
     const userWithoutPw = await prisma.$transaction(async tx => {
       const smsAuthCode = await tx.sMSAuthCode.findMany({
         where: {
-          phone,
+          phone: `+${interCode}-${formattedPhone}`,
           code: phoneAuthCode,
           userTokenId,
         },
