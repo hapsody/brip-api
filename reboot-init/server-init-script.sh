@@ -28,7 +28,9 @@ function run_process {
   git fetch --tags
   yarn
   yarn prisma db push
+  yarn build
   yarn restart
+  yarn prismastudio
 }
 
 
