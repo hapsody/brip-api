@@ -2005,43 +2005,43 @@ export const makeSchedule = async (
         const type = cur.toUpperCase();
         const typeDifficulty = { min: 9999, max: -1 };
         switch (type) {
-          case 'REST':
+          case 'REST': /// 휴식
             typeDifficulty.min = 1;
             typeDifficulty.max = 1;
             break;
-          case 'HEALING':
+          case 'HEALING': /// 힐링
             typeDifficulty.min = 1;
             typeDifficulty.max = 4;
             break;
-          case 'NATUREEXPERIENCE':
+          case 'NATUREEXPERIENCE': /// 자연체험
             typeDifficulty.min = 3;
             typeDifficulty.max = 8;
             break;
-          case 'LEARNINGEXPERIENCE':
+          case 'LEARNINGEXPERIENCE': /// 학습체험
             typeDifficulty.min = 3;
             typeDifficulty.max = 7;
             break;
-          case 'SIGHT':
+          case 'SIGHT': /// 시각
             typeDifficulty.min = 3;
             typeDifficulty.max = 7;
             break;
-          case 'MEETING':
+          case 'MEETING': /// 만남
             typeDifficulty.min = 2;
             typeDifficulty.max = 6;
             break;
-          case 'ACTIVITY':
+          case 'ACTIVITY': /// 액티비티
             typeDifficulty.min = 4;
             typeDifficulty.max = 9;
             break;
-          case 'LEARNING':
+          case 'LEARNING': /// 학습
             typeDifficulty.min = 1;
             typeDifficulty.max = 3;
             break;
-          case 'DELICIOUS':
+          case 'DELICIOUS': /// 미식여행
             typeDifficulty.min = 3;
             typeDifficulty.max = 7;
             break;
-          case 'EXPLORATION':
+          case 'EXPLORATION': /// 탐험
             typeDifficulty.min = 5;
             typeDifficulty.max = 10;
             break;
