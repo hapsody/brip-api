@@ -4802,7 +4802,7 @@ export const getScheduleCount = async (
     where: {
       userTokenId,
       savedSchedule: {
-        NOT: undefined,
+        NOT: [{ id: undefined }],
       },
     },
   });
