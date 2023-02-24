@@ -45,7 +45,7 @@ do
   else
     iterations=$((iterations+1))
     echo "try $iterations"
-    sleep $wating_time
+    sleep $waiting_time
     run_process
   fi
 done
