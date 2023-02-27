@@ -801,10 +801,17 @@ export type GetDetailScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 
 export type GglPlaceDetailType = {
   /// google place detail types...
+
+  photos?: {
+    height: number;
+    width: number;
+    html_attributions: string[];
+    photo_reference: string;
+  }[];
 };
 
 export type GetPlaceDetailRawData = {
-  result: GglPlaceDetailType[];
+  result: GglPlaceDetailType;
 };
 
 /**

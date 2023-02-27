@@ -105,6 +105,27 @@ import {
 /**
  * inner utils
  *  */
+/**
+ * google place/detail api 호출 후 결과값을 리턴하는 함수
+ */
+export const getPlaceDetail = async (params: {
+  placeId: string;
+}): Promise<GglPlaceDetailType> => {
+  try {
+    const { placeId } = params;
+    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
+      process.env.GCP_MAPS_APIKEY as string
+    }`;
+    const rawResponse = await axios.get(encodeURI(queryUrl));
+    const fetchedData = rawResponse.data as GetPlaceDetailRawData;
+    return fetchedData.result;
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `google place detail api 요청중 문제가 발생했습니다.`,
+    });
+  }
+};
 
 export const getTravelNights = (
   checkinDate: string,
@@ -879,13 +900,29 @@ export const getPlaceByGglTxtSrch = async (
           contact: undefined,
           postcode: undefined,
           photos: {
-            create: item.photos?.map(photo => {
-              return {
-                url:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+            create: await (async () => {
+              if (!isNil(item.photos) && !isEmpty(item.photos)) {
+                return item.photos?.map(photo => {
+                  return {
+                    url:
+                      (photo as Partial<{ photo_reference: string }>)
+                        .photo_reference ?? '',
+                  };
+                });
+              }
+
+              const detailData: GglPlaceDetailType = await getPlaceDetail({
+                placeId: item.place_id ?? '',
+              });
+
+              return isNil(detailData.photos)
+                ? undefined
+                : detailData.photos.map(v => {
+                    return {
+                      url: v.photo_reference,
+                    };
+                  });
+            })(),
           },
           rating: isNil(item.rating) ? 0 : item.rating,
           desc: undefined,
@@ -3773,28 +3810,6 @@ export const getDaySchedule = async (
     spotList: spotList.spotList,
   };
   return retValue;
-};
-
-/**
- * google place/detail api 호출 후 결과값을 리턴하는 함수
- */
-export const getPlaceDetail = async (params: {
-  placeId: string;
-}): Promise<GglPlaceDetailType> => {
-  try {
-    const { placeId } = params;
-    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
-      process.env.GCP_MAPS_APIKEY as string
-    }`;
-    const rawResponse = await axios.get(encodeURI(queryUrl));
-    const fetchedData = rawResponse.data as GetPlaceDetailRawData;
-    return fetchedData.result;
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `google place detail api 요청중 문제가 발생했습니다.`,
-    });
-  }
 };
 
 /**
