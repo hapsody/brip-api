@@ -1303,7 +1303,14 @@ export const getPlaceDataFromVJ = async (
             openWeek: undefined,
             contact: item.phoneno,
             postcode: item.postcode,
-            photos: undefined,
+            ...(item.reqPhoto?.photoid?.imgpath && {
+              photos: {
+                create: {
+                  url: item.reqPhoto?.photoid?.imgpath,
+                },
+              },
+            }),
+
             rating: undefined,
             desc: item.introduction,
 
