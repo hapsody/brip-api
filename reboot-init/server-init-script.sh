@@ -4,9 +4,9 @@ HOME=/home/ubuntu
 cd /home/ubuntu/travelit-api
 
 # Set the maximum number of iterations to perform
-max_iterations=10
+max_iterations=120
 iterations=0
-waiting_time=60
+waiting_time=5
 
 # Define a function to check if the process is running
 function is_process_running {
@@ -39,13 +39,15 @@ run_process
 # Wait for the process to start
 while [ $iterations -lt $max_iterations ]
 do
+  iterations=$((iterations+1))
+  sleep $waiting_time
+
   if is_process_running
   then
-    sleep $waiting_time
+    echo "try $iterations: live yet but keep watching..."
   else
-    iterations=$((iterations+1))
-    echo "try $iterations"
-    sleep $waiting_time
+    echo "try $iterations: re-launch script"
     run_process
+
   fi
 done
