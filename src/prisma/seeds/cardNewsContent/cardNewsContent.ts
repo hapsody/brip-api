@@ -245,7 +245,7 @@ async function main(): Promise<void> {
             content:
               '산 마르코 광장 동쪽 끝에 자리하고 있는 베네치아 여행자들에게 방문 필수 코스',
             bgPicUri:
-              'https://w.namu.la/s/cde3ec8b881f4cc96e9de05e6b69dae5c144123844fe297888eee84d4333ae578db62a3c77d45b83fe6b4d75c307a28e8991413153149440791795f396755bb3166e409ddab9cc0b10132c7599bf643ddf967b224f6973d7ea6625addc9bbbda8a29fa4511af1c7840c39b6bfcf3340d',
+              'https://ojsfile.ohmynews.com/STD_IMG_FILE/2015/1201/IE001899232_STD.JPG',
             cardTag: {
               connectOrCreate: [
                 {
