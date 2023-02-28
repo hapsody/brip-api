@@ -4852,11 +4852,53 @@ export const getScheduleCount = async (
 
 /**
  * 생성된 일정기반 일자별 유저 호텔 선택 결과를 서버에 알리는 api
+ * ex) ["5037","5037","5037","5037","5037", "5037","5037","5037","5037","5037", "5057","5057","5057","5077","5077" ]
  */
 export const fixHotel = async (
   param: FixHotelREQParam,
 ): Promise<FixHotelRETParamPayload> => {
   const { queryParamsId, hotelPerDay } = param;
+
+  const queryParams = await prisma.queryParams.findUnique({
+    where: {
+      id: Number(queryParamsId),
+    },
+  });
+
+  if (isNil(queryParams)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 일정입니다.',
+    });
+  }
+
+  if (
+    isNil(hotelPerDay) ||
+    isEmpty(hotelPerDay) ||
+    hotelPerDay.length < queryParams.period! - 1
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'hotelPerDay 가 파라미터는 string[] 형태로 반드시 제공되어야 합니다.',
+    });
+  }
+
+  if (hotelPerDay.length < queryParams.period! - 1) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message:
+        'hotelPerDay는 여행일수(period)-1 만큼 제공되어야 합니다. (마지막날은 숙소에 머물지 않기 때문)',
+    });
+  }
+
+  /// hotelPerDay가 숙소가 필요한 날(마지막날은 숙소가 없으므로: period - 1) 보다 많이 제공된다면 필요한 만큼만 남기고 뒤에는 잘라버린다.
+  if (hotelPerDay.length >= queryParams.period!) {
+    hotelPerDay.splice(
+      queryParams.period! - 1,
+      hotelPerDay.length - (queryParams.period! - 1),
+    );
+  }
 
   const removedDup = (() => {
     let prevTpId = -1;
