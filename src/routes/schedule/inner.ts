@@ -2356,8 +2356,11 @@ export const makeSchedule = async (
     ctx.hotelTransition = validSpotCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
-      validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
-      // validFoodCentroids = validFoodCentroids.splice(0, ctx.travelNights);
+      if (ctx.travelNights === 0) {
+        validSpotCentroids = validSpotCentroids.splice(0, 1);
+      } else {
+        validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
+      }
     }
 
     ctx.travelDays = Number(period);
@@ -2721,7 +2724,21 @@ export const makeSchedule = async (
             })
             .flat();
 
-        const rand = Math.floor(8 * Math.random()) % 3;
+        const maxNum = tempValidCents.length;
+
+        // if (maxNum === 0)
+        //   throw new IBError({
+        //     type: 'NOTMATCHEDDATA',
+        //     message:
+        //       '여행지 장소데이터가 부족하여 클러스터를 형성할수 없습니다.',
+        //   });
+
+        const topX = (() => {
+          if (maxNum >= 3) return 3;
+          return maxNum;
+        })();
+
+        const rand = Math.floor(maxNum * Math.random()) % topX;
         const firstCent = tempValidCents.sort(
           (a, b) =>
             b.centroidNHotel.cent!.numOfPointLessThanR -
