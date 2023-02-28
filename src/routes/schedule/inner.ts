@@ -3999,20 +3999,21 @@ export const getDetailSchedule = async (
           language: null,
           cityNameEN: null,
           // imageList: await getPlacePhoto(detailData),
-          imageList: (
-            detailData as {
-              photos: {
-                height: number;
-                width: number;
-                html_attributions: string[];
-                photo_reference: string;
-              }[];
-            }
-          ).photos.map(v => {
-            return {
-              reference: v.photo_reference,
-            };
-          }),
+          imageList:
+            (
+              detailData as {
+                photos: {
+                  height: number;
+                  width: number;
+                  html_attributions: string[];
+                  photo_reference: string;
+                }[];
+              }
+            )?.photos?.map(v => {
+              return {
+                reference: v.photo_reference,
+              };
+            }) ?? null,
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
