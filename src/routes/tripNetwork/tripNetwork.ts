@@ -919,7 +919,7 @@ export const addShareTripMemory = asyncWrapper(
             userTokenId,
             memberId,
           };
-          const addResult = addTripMemory(
+          const addResult = await addTripMemory(
             {
               ...tripMemoryParam,
               tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
@@ -928,7 +928,7 @@ export const addShareTripMemory = asyncWrapper(
           );
           return addResult;
         }
-        const findResult = prisma.tripMemory.findUnique({
+        const findResult = await prisma.tripMemory.findUnique({
           where: {
             id: Number(tripMemoryId),
           },
