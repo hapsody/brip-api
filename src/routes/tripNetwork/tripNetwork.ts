@@ -936,6 +936,15 @@ export const addShareTripMemory = asyncWrapper(
         return findResult;
       })();
 
+      const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
+        .map(v => {
+          if (v === null) return null;
+          return {
+            value: v,
+          };
+        })
+        .filter((v): v is { value: string } => v !== null);
+
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
           title,
@@ -975,16 +984,12 @@ export const addShareTripMemory = asyncWrapper(
                       key: img,
                     },
                   },
-                  ibTravelTag: {
-                    connect: categoryToIBTravelTag.ibTravelTagNames
-                      .map(v => {
-                        if (v === null) return null;
-                        return {
-                          value: v,
-                        };
-                      })
-                      .filter((v): v is { value: string } => v !== null),
-                  },
+                  ...(!isNil(ibTravelTagNames) &&
+                    !isEmpty(ibTravelTagNames) && {
+                      ibTravelTag: {
+                        connect: ibTravelTagNames,
+                      },
+                    }),
                 },
               }
             : {
