@@ -919,7 +919,7 @@ export const addShareTripMemory = asyncWrapper(
             userTokenId,
             memberId,
           };
-          const addResult = addTripMemory(
+          const addResult = await addTripMemory(
             {
               ...tripMemoryParam,
               tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
@@ -928,13 +928,22 @@ export const addShareTripMemory = asyncWrapper(
           );
           return addResult;
         }
-        const findResult = prisma.tripMemory.findUnique({
+        const findResult = await prisma.tripMemory.findUnique({
           where: {
             id: Number(tripMemoryId),
           },
         });
         return findResult;
       })();
+
+      const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
+        .map(v => {
+          if (v === null) return null;
+          return {
+            value: v,
+          };
+        })
+        .filter((v): v is { value: string } => v !== null);
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
@@ -975,16 +984,12 @@ export const addShareTripMemory = asyncWrapper(
                       key: img,
                     },
                   },
-                  ibTravelTag: {
-                    connect: categoryToIBTravelTag.ibTravelTagNames
-                      .map(v => {
-                        if (v === null) return null;
-                        return {
-                          value: v,
-                        };
-                      })
-                      .filter((v): v is { value: string } => v !== null),
-                  },
+                  ...(!isNil(ibTravelTagNames) &&
+                    !isEmpty(ibTravelTagNames) && {
+                      ibTravelTag: {
+                        connect: ibTravelTagNames,
+                      },
+                    }),
                 },
               }
             : {

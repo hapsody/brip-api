@@ -337,7 +337,7 @@ export interface VisitJejuResultRawData {
     longitude?: number; /// 경도 ex) 126.936424
     postcode?: string; /// 우편번호 ex) 63643
     phoneno?: string; /// 전화번호 ex) 064-783-0959
-    reqPhoto?: {
+    repPhoto?: {
       /// 대표 등록사진
       descseo?: string; /// 검색엔진 최적화 키워드, ex) 성산일출봉(UNESCO 세계자연유산)
       photoid?: {
@@ -801,10 +801,17 @@ export type GetDetailScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 
 export type GglPlaceDetailType = {
   /// google place detail types...
+
+  photos?: {
+    height: number;
+    width: number;
+    html_attributions: string[];
+    photo_reference: string;
+  }[];
 };
 
 export type GetPlaceDetailRawData = {
-  result: GglPlaceDetailType[];
+  result: GglPlaceDetailType;
 };
 
 /**

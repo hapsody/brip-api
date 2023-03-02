@@ -7,10 +7,12 @@ import dataGatherList from './dataGatherList';
 import {
   getPlaceByGglTxtSrch,
   getPlaceDataFromVJ,
+  getPlaceDetail,
 } from '../routes/schedule/inner';
 import {
   // GglTextSearchReqOpt,
   GglPlaceResultRawData,
+  GglPlaceDetailType,
 } from '../routes/schedule/types/schduleTypes';
 import dummyRestaurants from './restaurantDummyData';
 
@@ -84,7 +86,27 @@ async function batchJob(): Promise<void> {
         openWeek: undefined,
         contact: undefined,
         postcode: undefined,
-        photos: undefined,
+        photos: {
+          create: await (async () => {
+            if (!isNil(v.photoReference)) {
+              return {
+                url: v.photoReference,
+              };
+            }
+
+            const detailData: GglPlaceDetailType = await getPlaceDetail({
+              placeId: v.place_id ?? '',
+            });
+
+            return isNil(detailData.photos)
+              ? undefined
+              : detailData.photos.map(k => {
+                  return {
+                    url: k.photo_reference,
+                  };
+                });
+          })(),
+        },
         rating: isNil(v) ? undefined : v.rating,
         desc: undefined,
 

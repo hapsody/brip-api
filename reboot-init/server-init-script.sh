@@ -9,17 +9,17 @@ iterations=0
 waiting_time=5
 
 # Define a function to check if the process is running
-function is_process_running {
-  process_count=$(yarn pm2 list | awk '/travelit-api/' | wc -l)
+function is_process_running () {
+  process_count=$(yarn pm2 list | awk '/^│ 0\s+│ travelit-api/' | wc -l)
   if [[ $process_count -gt 0 ]]
   then
-    return 0
+    result=true
   else
-    return 1
+    result=false
   fi
 }
 
-function run_process {
+function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
   git checkout dev
@@ -33,7 +33,6 @@ function run_process {
   yarn prismastudio
 }
 
-
 run_process
 
 # Wait for the process to start
@@ -41,13 +40,14 @@ while [ $iterations -lt $max_iterations ]
 do
   iterations=$((iterations+1))
   sleep $waiting_time
+  is_process_running
 
-  if is_process_running
+  if [[ $result == true ]]
   then
     echo "try $iterations: live yet but keep watching..."
   else
     echo "try $iterations: re-launch script"
     run_process
-
+    iterations=0
   fi
 done

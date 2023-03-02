@@ -32,7 +32,7 @@ module.exports = {
       script:
         'node -r ts-node/register/transpile-only -r tsconfig-paths/register dist/server.js',
       time: true,
-      watch: true,
+      watch: false,
       // TZ: 'Asia/Seoul',
       // restart_delay: 5000,
       max_restarts: 3,

@@ -105,6 +105,27 @@ import {
 /**
  * inner utils
  *  */
+/**
+ * google place/detail api 호출 후 결과값을 리턴하는 함수
+ */
+export const getPlaceDetail = async (params: {
+  placeId: string;
+}): Promise<GglPlaceDetailType> => {
+  try {
+    const { placeId } = params;
+    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
+      process.env.GCP_MAPS_APIKEY as string
+    }`;
+    const rawResponse = await axios.get(encodeURI(queryUrl));
+    const fetchedData = rawResponse.data as GetPlaceDetailRawData;
+    return fetchedData.result;
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `google place detail api 요청중 문제가 발생했습니다.`,
+    });
+  }
+};
 
 export const getTravelNights = (
   checkinDate: string,
@@ -879,13 +900,29 @@ export const getPlaceByGglTxtSrch = async (
           contact: undefined,
           postcode: undefined,
           photos: {
-            create: item.photos?.map(photo => {
-              return {
-                url:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+            create: await (async () => {
+              if (!isNil(item.photos) && !isEmpty(item.photos)) {
+                return item.photos?.map(photo => {
+                  return {
+                    url:
+                      (photo as Partial<{ photo_reference: string }>)
+                        .photo_reference ?? '',
+                  };
+                });
+              }
+
+              const detailData: GglPlaceDetailType = await getPlaceDetail({
+                placeId: item.place_id ?? '',
+              });
+
+              return isNil(detailData.photos)
+                ? undefined
+                : detailData.photos.map(v => {
+                    return {
+                      url: v.photo_reference,
+                    };
+                  });
+            })(),
           },
           rating: isNil(item.rating) ? 0 : item.rating,
           desc: undefined,
@@ -1303,10 +1340,10 @@ export const getPlaceDataFromVJ = async (
             openWeek: undefined,
             contact: item.phoneno,
             postcode: item.postcode,
-            ...(item.reqPhoto?.photoid?.imgpath && {
+            ...(item.repPhoto?.photoid?.imgpath && {
               photos: {
                 create: {
-                  url: item.reqPhoto?.photoid?.imgpath,
+                  url: item.repPhoto?.photoid?.imgpath,
                 },
               },
             }),
@@ -2319,8 +2356,11 @@ export const makeSchedule = async (
     ctx.hotelTransition = validSpotCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
     if (ctx.travelNights < ctx.hotelTransition) {
-      validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
-      // validFoodCentroids = validFoodCentroids.splice(0, ctx.travelNights);
+      if (ctx.travelNights === 0) {
+        validSpotCentroids = validSpotCentroids.splice(0, 1);
+      } else {
+        validSpotCentroids = validSpotCentroids.splice(0, ctx.travelNights);
+      }
     }
 
     ctx.travelDays = Number(period);
@@ -2684,7 +2724,21 @@ export const makeSchedule = async (
             })
             .flat();
 
-        const rand = Math.floor(8 * Math.random()) % 3;
+        const maxNum = tempValidCents.length;
+
+        // if (maxNum === 0)
+        //   throw new IBError({
+        //     type: 'NOTMATCHEDDATA',
+        //     message:
+        //       '여행지 장소데이터가 부족하여 클러스터를 형성할수 없습니다.',
+        //   });
+
+        const topX = (() => {
+          if (maxNum >= 3) return 3;
+          return maxNum;
+        })();
+
+        const rand = Math.floor(maxNum * Math.random()) % topX;
         const firstCent = tempValidCents.sort(
           (a, b) =>
             b.centroidNHotel.cent!.numOfPointLessThanR -
@@ -3776,28 +3830,6 @@ export const getDaySchedule = async (
 };
 
 /**
- * google place/detail api 호출 후 결과값을 리턴하는 함수
- */
-export const getPlaceDetail = async (params: {
-  placeId: string;
-}): Promise<GglPlaceDetailType> => {
-  try {
-    const { placeId } = params;
-    const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
-      process.env.GCP_MAPS_APIKEY as string
-    }`;
-    const rawResponse = await axios.get(encodeURI(queryUrl));
-    const fetchedData = rawResponse.data as GetPlaceDetailRawData;
-    return fetchedData.result;
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `google place detail api 요청중 문제가 발생했습니다.`,
-    });
-  }
-};
-
-/**
  * google 의 priceLevel 숫자 코드를 읽을 수 있는 문자로 변환하는 함수
  */
 export const transPriceLevel = (
@@ -3984,20 +4016,21 @@ export const getDetailSchedule = async (
           language: null,
           cityNameEN: null,
           // imageList: await getPlacePhoto(detailData),
-          imageList: (
-            detailData as {
-              photos: {
-                height: number;
-                width: number;
-                html_attributions: string[];
-                photo_reference: string;
-              }[];
-            }
-          ).photos.map(v => {
-            return {
-              reference: v.photo_reference,
-            };
-          }),
+          imageList:
+            (
+              detailData as {
+                photos: {
+                  height: number;
+                  width: number;
+                  html_attributions: string[];
+                  photo_reference: string;
+                }[];
+              }
+            )?.photos?.map(v => {
+              return {
+                reference: v.photo_reference,
+              };
+            }) ?? null,
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
