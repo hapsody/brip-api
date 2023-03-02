@@ -867,9 +867,15 @@ export const changePassword = asyncWrapper(
         });
       }
 
+      const interCode = user.phone.split('-')[0].slice(1);
+      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
       const smsAuthCode = await prisma.sMSAuthCode.findMany({
         where: {
-          phone: user.phone,
+          phone: `+${interCode}-${formattedPhone}`,
           code: authCode,
           userTokenId,
         },
