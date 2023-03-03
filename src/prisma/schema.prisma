@@ -477,6 +477,7 @@ enum PlaceType {
   VISITJEJU_SPOT
   USER_SPOT
   USER_RESTAURANT
+  USER_PRIV_MEMORY_SPOT /// 유저 기억에서 개인적으로 저장한 장소
 }
 
 /// 문의사항

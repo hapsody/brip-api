@@ -20,7 +20,7 @@ import {
   ReplyForShareTripMemory,
   PlaceType,
 } from '@prisma/client';
-import { isEmpty, isNil } from 'lodash';
+import { isEmpty, isNil, isNull } from 'lodash';
 import moment from 'moment';
 
 const tripNetworkRouter: express.Application = express();
@@ -220,6 +220,20 @@ export interface AddTripMemoryRequestType {
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
   group: TripMemoryGroup;
+  TourPlace: {
+    title: string | null;
+    lat: number | null;
+    lng: number | null;
+    address: string | null;
+    roadAddress: string | null;
+    openWeek: string | null;
+    contact: string | null;
+    postcode: string | null;
+    photos: {
+      url: string | null;
+    }[];
+    desc: string | null;
+  } | null;
 }
 
 export type AddTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
@@ -307,6 +321,39 @@ const addTripMemory = async (
       },
     });
 
+    const createdOrFoundTP = await (async () => {
+      if (!isNil(tourPlaceId)) {
+        const matchedTP = await tx.tourPlace.findUnique({
+          where: {
+            id: Number(tourPlaceId),
+          },
+        });
+        if (isNull(matchedTP)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: '유효하지 않은 tourPlaceId 값입니다.',
+          });
+        }
+        return matchedTP;
+      }
+      const createdTP = await tx.tourPlace.create({
+        data: {
+          title,
+          lat: Number(lat),
+          lng: Number(lng),
+          address,
+          // tourPlaceType: 'USER_SPOT',
+          tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
+          photos: {
+            create: {
+              key: img,
+            },
+          },
+        },
+      });
+      return createdTP;
+    })();
+
     const createdOne = await tx.tripMemory.create({
       data: {
         title,
@@ -348,17 +395,38 @@ const addTripMemory = async (
               }),
             },
           }),
-        ...(!isNil(tourPlaceId) && {
-          TourPlace: {
-            connect: {
-              id: Number(tourPlaceId),
-            },
+
+        TourPlace: {
+          connect: {
+            id: Number(createdOrFoundTP.id),
           },
-        }),
+        },
       },
       include: {
         tag: true,
         group: true,
+        TourPlace: {
+          select: {
+            id: true,
+            title: true,
+            lat: true,
+            lng: true,
+            address: true,
+            roadAddress: true,
+            openWeek: true,
+            contact: true,
+            postcode: true,
+            rating: true,
+            desc: true,
+            photos: {
+              select: {
+                id: true,
+                key: true,
+                url: true,
+              },
+            },
+          },
+        },
       },
     });
     return createdOne;
@@ -2500,6 +2568,20 @@ export interface GetTripMemListSuccessResType {
     id: number;
     tourPlaceId: number | null;
   } | null;
+  TourPlace: {
+    title: string | null;
+    lat: number | null;
+    lng: number | null;
+    address: string | null;
+    roadAddress: string | null;
+    openWeek: string | null;
+    contact: string | null;
+    postcode: string | null;
+    photos: {
+      url: string | null;
+    }[];
+    desc: string | null;
+  } | null;
 }
 
 export type GetTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -2589,6 +2671,28 @@ export const getTripMemList = asyncWrapper(
                 tourPlaceId: true,
               },
             },
+            TourPlace: {
+              select: {
+                id: true,
+                title: true,
+                lat: true,
+                lng: true,
+                address: true,
+                roadAddress: true,
+                openWeek: true,
+                contact: true,
+                postcode: true,
+                rating: true,
+                desc: true,
+                photos: {
+                  select: {
+                    id: true,
+                    key: true,
+                    url: true,
+                  },
+                },
+              },
+            },
           },
         });
 
@@ -2622,6 +2726,33 @@ export const getTripMemList = asyncWrapper(
                     : await getS3SignedUrl(profileImg),
                 }),
               },
+              TourPlace: foundTripMem.TourPlace
+                ? {
+                    ...foundTripMem.TourPlace,
+                    photos:
+                      !isNil(foundTripMem.TourPlace?.photos) &&
+                      (await Promise.all(
+                        foundTripMem.TourPlace?.photos.map(async v => {
+                          if (!isNull(v.url)) {
+                            return {
+                              url: v.url,
+                            };
+                          }
+                          if (!isNull(v.key)) {
+                            return {
+                              url: await getS3SignedUrl(v.key),
+                            };
+                          }
+
+                          throw new IBError({
+                            type: 'INVALIDSTATUS',
+                            message:
+                              'photos의 url과 key값이 둘다 존재하지 않습니다.',
+                          });
+                        }),
+                      )),
+                  }
+                : null,
             },
           ],
         });
@@ -2695,6 +2826,28 @@ export const getTripMemList = asyncWrapper(
               tourPlaceId: true,
             },
           },
+          TourPlace: {
+            select: {
+              id: true,
+              title: true,
+              lat: true,
+              lng: true,
+              address: true,
+              roadAddress: true,
+              openWeek: true,
+              contact: true,
+              postcode: true,
+              rating: true,
+              desc: true,
+              photos: {
+                select: {
+                  id: true,
+                  key: true,
+                  url: true,
+                },
+              },
+            },
+          },
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {
           orderBy: {
@@ -2725,6 +2878,33 @@ export const getTripMemList = asyncWrapper(
                 ...v.user,
                 profileImg: userImg,
               },
+              TourPlace: v.TourPlace
+                ? {
+                    ...v.TourPlace,
+                    photos:
+                      !isNil(v.TourPlace?.photos) &&
+                      (await Promise.all(
+                        v.TourPlace?.photos.map(async k => {
+                          if (!isNull(k.url)) {
+                            return {
+                              url: k.url,
+                            };
+                          }
+                          if (!isNull(k.key)) {
+                            return {
+                              url: await getS3SignedUrl(k.key),
+                            };
+                          }
+
+                          throw new IBError({
+                            type: 'INVALIDSTATUS',
+                            message:
+                              'photos의 url과 key값이 둘다 존재하지 않습니다.',
+                          });
+                        }),
+                      )),
+                  }
+                : null,
             };
 
             return ret;
@@ -2824,6 +3004,20 @@ export interface GetTripMemListByGroupSuccessResType {
     ShareTripMemory: {
       id: number;
       tourPlaceId: number | null;
+    } | null;
+    TourPlace: {
+      title: string | null;
+      lat: number | null;
+      lng: number | null;
+      address: string | null;
+      roadAddress: string | null;
+      openWeek: string | null;
+      contact: string | null;
+      postcode: string | null;
+      photos: {
+        url: string | null;
+      }[];
+      desc: string | null;
     } | null;
   }[];
 }
@@ -2948,6 +3142,28 @@ export const getTripMemListByGroup = asyncWrapper(
                   tourPlaceId: true,
                 },
               },
+              TourPlace: {
+                select: {
+                  id: true,
+                  title: true,
+                  lat: true,
+                  lng: true,
+                  address: true,
+                  roadAddress: true,
+                  openWeek: true,
+                  contact: true,
+                  postcode: true,
+                  rating: true,
+                  desc: true,
+                  photos: {
+                    select: {
+                      id: true,
+                      key: true,
+                      url: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -2984,6 +3200,33 @@ export const getTripMemListByGroup = asyncWrapper(
                     img: k.img.includes('http')
                       ? k.img
                       : await getS3SignedUrl(k.img),
+                    TourPlace: k.TourPlace
+                      ? {
+                          ...k.TourPlace,
+                          photos:
+                            !isNil(k.TourPlace?.photos) &&
+                            (await Promise.all(
+                              k.TourPlace?.photos.map(async m => {
+                                if (!isNull(m.url)) {
+                                  return {
+                                    url: m.url,
+                                  };
+                                }
+                                if (!isNull(m.key)) {
+                                  return {
+                                    url: await getS3SignedUrl(m.key),
+                                  };
+                                }
+
+                                throw new IBError({
+                                  type: 'INVALIDSTATUS',
+                                  message:
+                                    'photos의 url과 key값이 둘다 존재하지 않습니다.',
+                                });
+                              }),
+                            )),
+                        }
+                      : null,
                   };
                 }),
               ),
