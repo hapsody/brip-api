@@ -108,22 +108,38 @@ import {
 /**
  * google place/detail api 호출 후 결과값을 리턴하는 함수
  */
-export const getPlaceDetail = async (params: {
-  placeId: string;
-}): Promise<GglPlaceDetailType> => {
+export const getPlaceDetail = async (
+  params: {
+    placeId: string;
+  },
+  retry: number = 0,
+): Promise<GglPlaceDetailType> => {
   try {
     const { placeId } = params;
     const queryUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${
       process.env.GCP_MAPS_APIKEY as string
     }`;
+
+    if (retry > 0) {
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, 500);
+      });
+    }
     const rawResponse = await axios.get(encodeURI(queryUrl));
     const fetchedData = rawResponse.data as GetPlaceDetailRawData;
     return fetchedData.result;
   } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `google place detail api 요청중 문제가 발생했습니다.`,
-    });
+    console.error(`${(err as Error).message}\n`);
+    console.error(`getPlacedetail retry: ${retry + 1}\n`);
+
+    const result = await getPlaceDetail(params, retry + 1);
+    return result;
+    // throw new IBError({
+    //   type: 'EXTERNALAPI',
+    //   message: `google place detail api 요청중 문제가 발생했습니다.`,
+    // });
   }
 };
 
@@ -690,35 +706,50 @@ export const qryPlaceDataToGglNrby = async (
  */
 export const qryPlaceDataToGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
+  retry: number = 0,
 ): Promise<GetPlaceByGglTxtSrchRETParamPayload> => {
-  const { pageToken, batchJobCtx } = param;
-  const keyword = (() => {
-    if (batchJobCtx) return batchJobCtx.keyword;
-    return param.keyword;
-  })();
+  try {
+    const { pageToken, batchJobCtx } = param;
+    const keyword = (() => {
+      if (batchJobCtx) return batchJobCtx.keyword;
+      return param.keyword;
+    })();
 
-  console.log('google textSearch');
-  const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
-    keyword ?? ''
-  }&language=ko&key=${process.env.GCP_MAPS_APIKEY as string}${
-    pageToken ? `&pagetoken=${pageToken}` : ''
-  }`;
-  console.log(queryUrl);
+    if (retry > 0) {
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, 500);
+      });
+    }
 
-  const response = await axios.get(encodeURI(queryUrl));
-  const results =
-    (
-      response.data as Partial<{
-        results: google.maps.places.IBPlaceResult[];
-      }>
-    ).results ?? [];
+    console.log('google textSearch');
+    const queryUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${
+      keyword ?? ''
+    }&language=ko&key=${process.env.GCP_MAPS_APIKEY as string}${
+      pageToken ? `&pagetoken=${pageToken}` : ''
+    }`;
+    console.log(queryUrl);
 
-  return {
-    placeSearchCount: results.length,
-    placeSearchResult: results,
-    nextPageToken: (response.data as { next_page_token?: string })
-      .next_page_token,
-  };
+    const response = await axios.get(encodeURI(queryUrl));
+    const results =
+      (
+        response.data as Partial<{
+          results: google.maps.places.IBPlaceResult[];
+        }>
+      ).results ?? [];
+    return {
+      placeSearchCount: results.length,
+      placeSearchResult: results,
+      nextPageToken: (response.data as { next_page_token?: string })
+        .next_page_token,
+    };
+  } catch (err) {
+    console.error(`${(err as Error).message} \n`);
+    console.log(`google TextSearch retry: ${retry + 1}`);
+    const result = await qryPlaceDataToGglTxtSrch(param, retry + 1);
+    return result;
+  }
 };
 
 /**
@@ -911,17 +942,20 @@ export const getPlaceByGglTxtSrch = async (
                 });
               }
 
-              const detailData: GglPlaceDetailType = await getPlaceDetail({
-                placeId: item.place_id ?? '',
-              });
+              if (item.place_id) {
+                const detailData: GglPlaceDetailType = await getPlaceDetail({
+                  placeId: item.place_id,
+                });
 
-              return isNil(detailData.photos)
-                ? undefined
-                : detailData.photos.map(v => {
-                    return {
-                      url: v.photo_reference,
-                    };
-                  });
+                return isNil(detailData?.photos)
+                  ? undefined
+                  : detailData?.photos.map(v => {
+                      return {
+                        url: v.photo_reference,
+                      };
+                    });
+              }
+              return undefined;
             })(),
           },
           rating: isNil(item.rating) ? 0 : item.rating,
