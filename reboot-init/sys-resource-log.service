@@ -4,7 +4,7 @@ Description=System Resource Monitoring Service
 [Service]
 User=ubuntu
 Environment=HOME=/home/ubuntu
-ExecStart=/bin/bash -c 'while sleep 15; do ps -eo user,pid,ppid,rss,size,vsize,pmem,pcpu,time,cmd --sort -rss | head -n 11 >> ~/sys-resource.log; done'
+ExecStart=/bin/bash -c 'while sleep 15; do date && ps -eo user,pid,ppid,rss,size,vsize,pmem,pcpu,time,cmd --sort -rss | head -n 11 >> ~/sys-resource.log; done'
 Restart=always
 
 [Install]
