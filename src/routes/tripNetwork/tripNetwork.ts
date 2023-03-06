@@ -19,6 +19,9 @@ import {
   TripMemoryCategory,
   ReplyForShareTripMemory,
   PlaceType,
+  IBPhotos,
+  User,
+  IBTravelTag,
 } from '@prisma/client';
 import { isEmpty, isNil, isNull } from 'lodash';
 import moment from 'moment';
@@ -217,23 +220,53 @@ export interface AddTripMemoryRequestType {
   groupId: string;
   tourPlaceId?: string;
 }
+export type TourPlaceCommonType = Pick<
+  TourPlace,
+  | 'id'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'title'
+  | 'status'
+  | 'tourPlaceType'
+  | 'lat'
+  | 'lng'
+  | 'address'
+  | 'roadAddress'
+  | 'openWeek'
+  | 'contact'
+  | 'postcode'
+  | 'desc'
+  | 'good'
+  | 'notBad'
+  | 'bad'
+  | 'like'
+> & {
+  photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[];
+  likeFrom: Pick<
+    User,
+    'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
+  >[];
+};
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
   group: TripMemoryGroup;
-  TourPlace: {
-    title: string | null;
-    lat: number | null;
-    lng: number | null;
-    address: string | null;
-    roadAddress: string | null;
-    openWeek: string | null;
-    contact: string | null;
-    postcode: string | null;
-    photos: {
-      url: string | null;
-    }[];
-    desc: string | null;
-  } | null;
+  TourPlace: TourPlaceCommonType | null;
+  // TourPlace: {
+  //   id: number;
+  //   title: string | null;
+  //   tourPlaceType: PlaceType;
+  //   lat: number | null;
+  //   lng: number | null;
+  //   address: string | null;
+  //   roadAddress: string | null;
+  //   openWeek: string | null;
+  //   contact: string | null;
+  //   postcode: string | null;
+  //   photos: {
+  //     url: string | null;
+  //   }[];
+  //   desc: string | null;
+  // } | null;
 }
 
 export type AddTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
@@ -321,7 +354,10 @@ const addTripMemory = async (
       },
     });
 
+    /// tourPlaceId가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
+    /// 반환된 tourPlace는 tripMemory 생성할때 connect해준다.
     const createdOrFoundTP = await (async () => {
+      /// 1. tourPlaceId가 제공되었을 경우
       if (!isNil(tourPlaceId)) {
         const matchedTP = await tx.tourPlace.findUnique({
           where: {
@@ -336,6 +372,8 @@ const addTripMemory = async (
         }
         return matchedTP;
       }
+
+      /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
       const createdTP = await tx.tourPlace.create({
         data: {
           title,
@@ -408,6 +446,10 @@ const addTripMemory = async (
         TourPlace: {
           select: {
             id: true,
+            createdAt: true,
+            updatedAt: true,
+            tourPlaceType: true,
+            status: true,
             title: true,
             lat: true,
             lng: true,
@@ -425,6 +467,19 @@ const addTripMemory = async (
                 url: true,
               },
             },
+            good: true,
+            notBad: true,
+            bad: true,
+            like: true,
+            likeFrom: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
           },
         },
       },
@@ -433,6 +488,34 @@ const addTripMemory = async (
   });
 
   return createdTripMem;
+};
+
+export const getAccessableUrl = async (url: string): Promise<string> => {
+  if (url.includes('http')) return url;
+  const result = await getS3SignedUrl(url);
+  return result;
+};
+
+export const getIBPhotoUrl = async (photo: {
+  id: number;
+  key: string | null;
+  url: string | null;
+}): Promise<{ url: string }> => {
+  if (!isNull(photo.url)) {
+    return {
+      url: photo.url,
+    };
+  }
+  if (!isNull(photo.key)) {
+    return {
+      url: await getS3SignedUrl(photo.key),
+    };
+  }
+
+  throw new IBError({
+    type: 'INVALIDSTATUS',
+    message: 'photos의 url과 key값이 둘다 존재하지 않습니다.',
+  });
 };
 
 export const addTripMemoryWrapper = asyncWrapper(
@@ -717,7 +800,7 @@ export interface AddShareTripMemoryRequestType {
   tourPlaceId?: string | null;
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
-  TourPlace: TourPlace | null;
+  TourPlace: TourPlaceCommonType | null;
   tripMemory:
     | (TripMemory & {
         tag: TripMemoryTag[];
@@ -789,38 +872,6 @@ export const addShareTripMemory = asyncWrapper(
           message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
         });
       }
-
-      // const categoryToIBTravelTag = tripMemoryCategory.map(v => {
-      //   interface CategoryToIBTravelTag {
-      //     categoryId?: number;
-      //     tourPlaceType?: PlaceType;
-      //     ibTravelTagName?: string;
-      //   }
-      //   let ret: CategoryToIBTravelTag | null = null;
-      //   switch (v.super) {
-      //     case 'food':
-      //     case 'cafe':
-      //       ret = {
-      //         categoryId: v.id,
-      //         tourPlaceType: 'USER_RESTAURANT' as PlaceType,
-      //         ibTravelTagName: v.name,
-      //       } as CategoryToIBTravelTag;
-      //       return ret;
-
-      //     case 'tour':
-      //     case 'activity':
-      //     case 'rest':
-      //       ret = {
-      //         categoryId: v.id,
-      //         tourPlaceType: 'USER_SPOT' as PlaceType,
-      //         ibTravelTagName: v.name,
-      //       } as CategoryToIBTravelTag;
-      //       return ret;
-      //     case 'lodge':
-      //     default:
-      //       return null;
-      //   }
-      // });
 
       const categoryToIBTravelTag = {
         tourPlaceType: (() => {
@@ -981,28 +1032,85 @@ export const addShareTripMemory = asyncWrapper(
         }),
       };
 
-      const createdOrFoundTripMem = await (async () => {
-        if (isNil(tripMemoryId)) {
-          const ctx = {
-            userTokenId,
-            memberId,
-          };
-          const addResult = await addTripMemory(
-            {
-              ...tripMemoryParam,
-              tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+      /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
+      /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
+      const createdOrFoundTripMem =
+        await (async (): Promise<AddTripMemorySuccessResType> => {
+          /// 1. tripMemoryId 제공되지 않았을 경우
+          if (isNil(tripMemoryId)) {
+            const ctx = {
+              userTokenId,
+              memberId,
+            };
+            const addResult = await addTripMemory(
+              {
+                ...tripMemoryParam,
+                /// 마찬가지로 tourPlaceId가 제공되었을 경우 addTripMemory를 호출하며 포워딩해준다.
+                /// tourPlaceId가 전달되지 않으면 addTripMemory 과정에서 tourPlace를 생성한다.
+                tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+              },
+              ctx,
+            );
+            return addResult;
+          }
+          /// 2. tripMemoryId 제공되었을 경우
+          const findResult = await prisma.tripMemory.findUnique({
+            where: {
+              id: Number(tripMemoryId),
             },
-            ctx,
-          );
-          return addResult;
-        }
-        const findResult = await prisma.tripMemory.findUnique({
-          where: {
-            id: Number(tripMemoryId),
-          },
-        });
-        return findResult;
-      })();
+            include: {
+              tag: true,
+              user: true,
+              group: true,
+              TourPlace: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                  updatedAt: true,
+                  status: true,
+                  tourPlaceType: true,
+                  title: true,
+                  lat: true,
+                  lng: true,
+                  address: true,
+                  roadAddress: true,
+                  openWeek: true,
+                  contact: true,
+                  postcode: true,
+                  rating: true,
+                  desc: true,
+                  photos: {
+                    select: {
+                      id: true,
+                      key: true,
+                      url: true,
+                    },
+                  },
+                  good: true,
+                  notBad: true,
+                  bad: true,
+                  like: true,
+                  likeFrom: {
+                    select: {
+                      id: true,
+                      nickName: true,
+                      profileImg: true,
+                      createdAt: true,
+                      updatedAt: true,
+                    },
+                  },
+                },
+              },
+            },
+          });
+          if (isNil(findResult)) {
+            throw new IBError({
+              type: 'INVALIDPARAMS',
+              message: '제공된 tripMemoryId에 해당하는 tripMemory가 없습니다.',
+            });
+          }
+          return findResult;
+        })();
 
       const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
         .map(v => {
@@ -1033,9 +1141,10 @@ export const addShareTripMemory = asyncWrapper(
               };
             }),
           },
+          /// tripMemory의 tourPlace와 동일한 tourPlace를 shareTripMemory와 connect한다.
           tripMemory: {
             connect: {
-              id: createdOrFoundTripMem!.id,
+              id: createdOrFoundTripMem.id,
             },
           },
           TourPlace: isNil(tourPlaceId)
@@ -1067,7 +1176,6 @@ export const addShareTripMemory = asyncWrapper(
               },
         },
         include: {
-          TourPlace: true,
           tripMemoryCategory: true,
           tripMemory: {
             include: {
@@ -1075,8 +1183,68 @@ export const addShareTripMemory = asyncWrapper(
               group: true,
             },
           },
+          TourPlace: {
+            select: {
+              id: true,
+              createdAt: true,
+              updatedAt: true,
+              tourPlaceType: true,
+              status: true,
+              title: true,
+              lat: true,
+              lng: true,
+              address: true,
+              roadAddress: true,
+              openWeek: true,
+              contact: true,
+              postcode: true,
+              rating: true,
+              desc: true,
+              photos: {
+                select: {
+                  id: true,
+                  key: true,
+                  url: true,
+                },
+              },
+              good: true,
+              notBad: true,
+              bad: true,
+              like: true,
+              likeFrom: {
+                select: {
+                  id: true,
+                  nickName: true,
+                  profileImg: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              },
+            },
+          },
         },
       });
+
+      /// case1: tourPlaceId 가 제공되지 않은 tourPlace의 신규 생성일 경우에는
+      /// shareTripMemory 생성 전 tripMemory의 생성단계에서 tourPlace가 같이 생성된다.
+      /// 이때는 나만 보는 '기억'에서 신규 생성한 장소이므로 tourPlace가 USER_PRIV_MEMORY_SPOT 갖는데
+      /// 생성된 tourPlace가 바로 공유가 되는 셈이므로 타입을 공개상태중 하나인 NEW로 바꿔준다.
+      /// case2: tourPlaceId 가 제공되었을 경우는 addTripMemory 단계를 거치면서
+      /// 기존에 있는 tourPlace가 tripMemory와 매칭되고 이 tourPlace를 반환했을 것이다.
+      /// 이 tourPlace는 IN_USE 상태일 것이므로 아래 타입 업데이트를 거치지 않는다.
+      if (
+        createdOrFoundTripMem.TourPlace?.tourPlaceType ===
+        ('USER_PRIV_MEMORY_SPOT' as PlaceType)
+      ) {
+        await prisma.tourPlace.update({
+          where: {
+            id: createdOrFoundTripMem.id,
+          },
+          data: {
+            tourPlaceType: categoryToIBTravelTag.tourPlaceType,
+          },
+        });
+      }
 
       const recommendUpdatePromise = (() => {
         if (recommendGrade === 'good') {
@@ -2031,14 +2199,15 @@ export interface GetShareTripMemListRequestType {
   categoryKeyword: string; /// 카테고리 검색 키워드
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
-  TourPlace: {
-    id: number;
-    gl_name: string | null;
-    vj_title: string | null;
-    title: string | null;
-    good: number;
-    like: number;
-  } | null;
+  // TourPlace: {
+  //   id: number;
+  //   gl_name: string | null;
+  //   vj_title: string | null;
+  //   title: string | null;
+  //   good: number;
+  //   like: number;
+  // } | null;
+  TourPlace: TourPlaceCommonType | null;
   user: {
     id: number;
     nickName: string;
@@ -2093,7 +2262,6 @@ export const getShareTripMemList = asyncWrapper(
             id: Number(shareTripMemoryId),
           },
           include: {
-            TourPlace: true,
             tripMemoryCategory: true,
             ReplyForShareTripMemory: {
               include: {
@@ -2108,6 +2276,45 @@ export const getShareTripMemList = asyncWrapper(
                 tripCreator: {
                   select: {
                     nickName: true,
+                  },
+                },
+              },
+            },
+            TourPlace: {
+              select: {
+                id: true,
+                tourPlaceType: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true,
+                title: true,
+                lat: true,
+                lng: true,
+                address: true,
+                roadAddress: true,
+                openWeek: true,
+                contact: true,
+                postcode: true,
+                rating: true,
+                desc: true,
+                photos: {
+                  select: {
+                    id: true,
+                    key: true,
+                    url: true,
+                  },
+                },
+                good: true,
+                notBad: true,
+                bad: true,
+                like: true,
+                likeFrom: {
+                  select: {
+                    id: true,
+                    nickName: true,
+                    profileImg: true,
+                    createdAt: true,
+                    updatedAt: true,
                   },
                 },
               },
@@ -2165,16 +2372,6 @@ export const getShareTripMemList = asyncWrapper(
         }),
         include: {
           tripMemoryCategory: true,
-          TourPlace: {
-            select: {
-              id: true,
-              gl_name: true,
-              vj_title: true,
-              title: true,
-              good: true,
-              like: true,
-            },
-          },
           user: {
             select: {
               id: true,
@@ -2183,6 +2380,45 @@ export const getShareTripMemList = asyncWrapper(
               tripCreator: {
                 select: {
                   nickName: true,
+                },
+              },
+            },
+          },
+          TourPlace: {
+            select: {
+              id: true,
+              tourPlaceType: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+              title: true,
+              lat: true,
+              lng: true,
+              address: true,
+              roadAddress: true,
+              openWeek: true,
+              contact: true,
+              postcode: true,
+              rating: true,
+              desc: true,
+              photos: {
+                select: {
+                  id: true,
+                  key: true,
+                  url: true,
+                },
+              },
+              good: true,
+              notBad: true,
+              bad: true,
+              like: true,
+              likeFrom: {
+                select: {
+                  id: true,
+                  nickName: true,
+                  profileImg: true,
+                  createdAt: true,
+                  updatedAt: true,
                 },
               },
             },
@@ -2218,19 +2454,24 @@ export const getShareTripMemList = asyncWrapper(
             const userImg = await (() => {
               const { profileImg } = v.user;
               if (!isNil(profileImg)) {
-                if (profileImg.includes('http')) return profileImg;
-                return getS3SignedUrl(profileImg);
+                return getAccessableUrl(profileImg);
+                // if (profileImg.includes('http')) return profileImg;
+                // return getS3SignedUrl(profileImg);
               }
               return null;
             })();
 
             const ret = {
               ...v,
-              img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              img: await getAccessableUrl(v.img),
               user: {
                 ...v.user,
                 profileImg: userImg,
               },
+              TourPlace:
+                isNil(v.TourPlace) || isNil(v.TourPlace.photos)
+                  ? null
+                  : await Promise.all(v.TourPlace?.photos.map(getIBPhotoUrl)),
             };
 
             // return omit(ret, ['TourPlace']);
@@ -2300,22 +2541,35 @@ export interface GetShareTripMemListByPlaceRequestType {
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
 }
-export interface GetShareTripMemListByPlaceSuccessResType {
-  id: number;
-  title: string | null;
-  shareTripMemory: (ShareTripMemory & {
+export interface GetShareTripMemListByPlaceSuccessResType
+  extends TourPlaceCommonType {
+  // id: number;
+  // title: string | null;
+  // shareTripMemory: (ShareTripMemory & {
+  //   user: {
+  //     id: number;
+  //     tripCreator: {
+  //       nickName: string;
+  //     }[];
+  //     nickName: string;
+  //     profileImg: string | null;
+  //   };
+  //   tripMemoryCategory: TripMemoryCategory[];
+  // })[];
+  // gl_name: string | null;
+  // vj_title: string | null;
+  ibTravelTag: IBTravelTag[];
+  shareTripMemory: ShareTripMemory & {
+    tripMemoryCategory: TripMemoryCategory[];
     user: {
       id: number;
-      tripCreator: {
-        nickName: string;
-      }[];
-      nickName: string;
+      nickName: string | null;
       profileImg: string | null;
+      tripCreator: {
+        nickName: string | null;
+      };
     };
-    tripMemoryCategory: TripMemoryCategory[];
-  })[];
-  gl_name: string | null;
-  vj_title: string | null;
+  };
 }
 
 export type GetShareTripMemListByPlaceResType = Omit<
@@ -2374,25 +2628,37 @@ export const getShareTripMemListByPlace = asyncWrapper(
             },
           },
         },
-        include: {
-          // id: true,
-          // gl_name: true,
-          // vj_title: true,
-          // title: true,
-          // lat: true,
-          // lng: true,
-          // address: true,
-          // gl_vicinity: true,
-          // gl_formatted_address: true,
-          // vj_roadaddress: true,
-          // vj_address: true,
-          // gl_photos: true,
-          // photos: true,
-          // openWeek: true,
-          // gl_opening_hours: true,
-          // contact: true,
-          // good: true,
-          // like: true,
+        select: {
+          id: true,
+          tourPlaceType: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          title: true,
+          lat: true,
+          lng: true,
+          address: true,
+          roadAddress: true,
+          openWeek: true,
+          contact: true,
+          postcode: true,
+          rating: true,
+          desc: true,
+          photos: true,
+          good: true,
+          notBad: true,
+          bad: true,
+          like: true,
+          likeFrom: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+
           ibTravelTag: true,
           shareTripMemory: {
             include: {
@@ -2568,20 +2834,7 @@ export interface GetTripMemListSuccessResType {
     id: number;
     tourPlaceId: number | null;
   } | null;
-  TourPlace: {
-    title: string | null;
-    lat: number | null;
-    lng: number | null;
-    address: string | null;
-    roadAddress: string | null;
-    openWeek: string | null;
-    contact: string | null;
-    postcode: string | null;
-    photos: {
-      url: string | null;
-    }[];
-    desc: string | null;
-  } | null;
+  TourPlace: TourPlaceCommonType | null;
 }
 
 export type GetTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -2674,6 +2927,10 @@ export const getTripMemList = asyncWrapper(
             TourPlace: {
               select: {
                 id: true,
+                tourPlaceType: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true,
                 title: true,
                 lat: true,
                 lng: true,
@@ -2689,6 +2946,19 @@ export const getTripMemList = asyncWrapper(
                     id: true,
                     key: true,
                     url: true,
+                  },
+                },
+                good: true,
+                notBad: true,
+                bad: true,
+                like: true,
+                likeFrom: {
+                  select: {
+                    id: true,
+                    nickName: true,
+                    profileImg: true,
+                    createdAt: true,
+                    updatedAt: true,
                   },
                 },
               },
@@ -2732,24 +3002,7 @@ export const getTripMemList = asyncWrapper(
                     photos:
                       !isNil(foundTripMem.TourPlace?.photos) &&
                       (await Promise.all(
-                        foundTripMem.TourPlace?.photos.map(async v => {
-                          if (!isNull(v.url)) {
-                            return {
-                              url: v.url,
-                            };
-                          }
-                          if (!isNull(v.key)) {
-                            return {
-                              url: await getS3SignedUrl(v.key),
-                            };
-                          }
-
-                          throw new IBError({
-                            type: 'INVALIDSTATUS',
-                            message:
-                              'photos의 url과 key값이 둘다 존재하지 않습니다.',
-                          });
-                        }),
+                        foundTripMem.TourPlace?.photos.map(getIBPhotoUrl),
                       )),
                   }
                 : null,
@@ -3005,20 +3258,21 @@ export interface GetTripMemListByGroupSuccessResType {
       id: number;
       tourPlaceId: number | null;
     } | null;
-    TourPlace: {
-      title: string | null;
-      lat: number | null;
-      lng: number | null;
-      address: string | null;
-      roadAddress: string | null;
-      openWeek: string | null;
-      contact: string | null;
-      postcode: string | null;
-      photos: {
-        url: string | null;
-      }[];
-      desc: string | null;
-    } | null;
+    TourPlace: TourPlaceCommonType | null;
+    // TourPlace: {
+    //   title: string | null;
+    //   lat: number | null;
+    //   lng: number | null;
+    //   address: string | null;
+    //   roadAddress: string | null;
+    //   openWeek: string | null;
+    //   contact: string | null;
+    //   postcode: string | null;
+    //   photos: {
+    //     url: string | null;
+    //   }[];
+    //   desc: string | null;
+    // } | null;
   }[];
 }
 
@@ -3145,6 +3399,10 @@ export const getTripMemListByGroup = asyncWrapper(
               TourPlace: {
                 select: {
                   id: true,
+                  tourPlaceType: true,
+                  status: true,
+                  createdAt: true,
+                  updatedAt: true,
                   title: true,
                   lat: true,
                   lng: true,
@@ -3160,6 +3418,19 @@ export const getTripMemListByGroup = asyncWrapper(
                       id: true,
                       key: true,
                       url: true,
+                    },
+                  },
+                  good: true,
+                  notBad: true,
+                  bad: true,
+                  like: true,
+                  likeFrom: {
+                    select: {
+                      id: true,
+                      nickName: true,
+                      profileImg: true,
+                      createdAt: true,
+                      updatedAt: true,
                     },
                   },
                 },
