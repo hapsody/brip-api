@@ -1,7 +1,7 @@
 #!/bin/bash
 #sudo ./server-init-script.sh
-sudo cp ./brip-api-server-init.service /etc/systemd/system/
-sudo cp ./sys-resource-log.service /etc/systemd/system/
+sudo cp /home/ubuntu/travelit-api/reboot-init/brip-api-server-init.service /etc/systemd/system/
+sudo cp /home/ubuntu/travelit-api/reboot-init/sys-resource-log.service /etc/systemd/system/
 cd /etc/systemd/system
 
 sudo systemctl daemon-reload
