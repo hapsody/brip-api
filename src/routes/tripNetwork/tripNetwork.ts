@@ -413,24 +413,29 @@ const addTripMemory = async (
         ...(hashTag &&
           !isEmpty(hashTag) && {
             tag: {
-              connectOrCreate: hashTag.map(tag => {
-                return {
-                  where: {
-                    name_userId: {
-                      name: tag,
-                      userId: ctx.memberId!,
-                    },
-                  },
-                  create: {
-                    name: tag,
-                    user: {
-                      connect: {
-                        id: ctx.memberId!,
+              connectOrCreate: hashTag
+                .map(tag => {
+                  return tag.split(',');
+                })
+                .flat()
+                .map(tag => {
+                  return {
+                    where: {
+                      name_userId: {
+                        name: tag,
+                        userId: ctx.memberId!,
                       },
                     },
-                  },
-                };
-              }),
+                    create: {
+                      name: tag,
+                      user: {
+                        connect: {
+                          id: ctx.memberId!,
+                        },
+                      },
+                    },
+                  };
+                }),
             },
           }),
 
