@@ -456,10 +456,12 @@ model VisitSchedule {
   checkin      DateTime? /// 해당 VisitSchedule이 호텔일 경우 해당 호텔에 checkin 하는 날짜.
   checkout     DateTime? /// 해당 VisitSchedule이 호텔일 경우 해당 호텔에 checkout 하는 날짜.
 
-  tourPlace     TourPlace?   @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tourPlaceId   Int?
-  queryParams   QueryParams? @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  queryParamsId Int?
+  tourPlace      TourPlace?    @relation(fields: [tourPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tourPlaceId    Int?
+  queryParams    QueryParams?  @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  queryParamsId  Int?
+  validCluster   ValidCluster? @relation(fields: [validClusterId], references: [id])
+  validClusterId Int?
 }
 
 /// 여행 경비에 따른 계획 분류 (deprecated)
@@ -586,9 +588,9 @@ model RModelBetweenTravelType {
 
 /// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델
 model ValidCluster {
-  id                      Int         @id @default(autoincrement())
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @default(now()) @updatedAt
+  id                      Int             @id @default(autoincrement())
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @default(now()) @updatedAt
   lat                     Float
   lng                     Float
   transitionNo            Int /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
@@ -597,9 +599,10 @@ model ValidCluster {
   checkout                DateTime /// 검색한 숙소에 체크아웃할 날짜
   numOfVisitSpotInCluster Int /// 해당 클러스터에서 체류 기간중 방문해야할 여행지 수
   ratio                   Float /// 해당 숙소에서(해당 클러스터에서) 방문할 여행지들이 전체 방문할 여행지들 수에서 차지하는 비율. 이 수치들을 군집별로 비교하여 전체 여행일정중 각각의 군집군에서 체류할 기간들을 결정한다. ex) 전체 일정 20일 중 ratio가 clusterA: 0.4, clusterB: 0.2, clusterC: 0.4일 경우 각각 8일, 4일, 8일을 머무르는 일정을 갖게 된다.
-  queryParams             QueryParams @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  queryParams             QueryParams     @relation(fields: [queryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   queryParamsId           Int
   tourPlace               TourPlace[]
+  visitSchedule           VisitSchedule[]
 }
 
 /// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델

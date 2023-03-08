@@ -3250,123 +3250,158 @@ export const makeSchedule = async (
   ctx.spotClusterRes!.validCentNSpots = backupValidCentNSpots;
 
   /// QueryParams, tourPlace, visitSchedule DB 생성
-  const queryParams = await prisma.queryParams.create({
-    data: {
-      ingNow: isNow,
-      companion,
-      familyOpt: familyOpt.toString(),
-      minFriend: Number(minFriend),
-      maxFriend: Number(maxFriend),
-      travelType: travelType.toString(),
-      period: Number(period),
-      adult: Number(adultsNumber),
-      travelHard: Number(travelHard),
-      destination,
-      tourPlace: {
-        connect: [
-          /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
-          // ...(() => {
-          //   const result = ctx
-          //     .hotels!.map(c => {
-          //       const hotelIds = c.hotels.hotelSearchResult
-          //         .map(h => {
-          //           if (h.id)
-          //             return {
-          //               id: h.id,
-          //             };
-          //           return undefined;
-          //         })
-          //         .filter((x): x is { id: number } => x !== undefined);
-          //       return hotelIds;
-          //     })
-          //     .flat();
-          //   return result;
-          // })(),
-          ...ctx.foods.map(v => {
-            return { id: v.id };
-          }),
-          ...ctx.spots.map(v => {
-            return { id: v.id };
-          }),
-        ],
-      },
-      userTokenId: ctx.userTokenId,
-      visitSchedule: {
-        createMany: {
-          data: flattenDeep(
-            visitSchedules.map(v => {
-              return v.titleList.map(t => {
-                const tmp =
-                  !t.data || isEmpty(t.data) ? undefined : t.data[0].id;
-                const ret = {
-                  dayNo: v.dayNo,
-                  orderNo: t.orderNo!,
-                  // planType: v.planType,
-                  placeType: t.placeType!,
-                  transitionNo: v.transitionNo,
-                  stayPeriod: v.stayPeriod,
-                  checkin: v.checkin,
-                  checkout: v.checkout,
-                  tourPlaceId: tmp,
-                  // queryParamsId
-                };
-
-                return ret;
-              });
+  const queryParams = await prisma.$transaction(async tx => {
+    const createdQueryParams = await tx.queryParams.create({
+      data: {
+        ingNow: isNow,
+        companion,
+        familyOpt: familyOpt.toString(),
+        minFriend: Number(minFriend),
+        maxFriend: Number(maxFriend),
+        travelType: travelType.toString(),
+        period: Number(period),
+        adult: Number(adultsNumber),
+        travelHard: Number(travelHard),
+        destination,
+        tourPlace: {
+          connect: [
+            /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
+            // ...(() => {
+            //   const result = ctx
+            //     .hotels!.map(c => {
+            //       const hotelIds = c.hotels.hotelSearchResult
+            //         .map(h => {
+            //           if (h.id)
+            //             return {
+            //               id: h.id,
+            //             };
+            //           return undefined;
+            //         })
+            //         .filter((x): x is { id: number } => x !== undefined);
+            //       return hotelIds;
+            //     })
+            //     .flat();
+            //   return result;
+            // })(),
+            ...ctx.foods!.map(v => {
+              return { id: v.id };
             }),
-          ),
+            ...ctx.spots!.map(v => {
+              return { id: v.id };
+            }),
+          ],
+        },
+        userTokenId: ctx.userTokenId,
+        visitSchedule: {
+          createMany: {
+            data: flattenDeep(
+              visitSchedules.map(v => {
+                return v.titleList.map(t => {
+                  const tmp =
+                    !t.data || isEmpty(t.data) ? undefined : t.data[0].id;
+                  const ret = {
+                    dayNo: v.dayNo,
+                    orderNo: t.orderNo!,
+                    // planType: v.planType,
+                    placeType: t.placeType!,
+                    transitionNo: v.transitionNo,
+                    stayPeriod: v.stayPeriod,
+                    checkin: v.checkin,
+                    checkout: v.checkout,
+                    tourPlaceId: tmp,
+                    // queryParamsId
+                  };
+
+                  return ret;
+                });
+              }),
+            ),
+          },
+        },
+        metaScheduleInfo: {
+          create: {
+            totalHotelSearchCount:
+              ctx.hotels![0].hotels?.hotelSearchResult.length,
+            totalRestaurantSearchCount: ctx.foods!.length,
+            totalSpotSearchCount: ctx.spots!.length,
+            spotPerDay: ctx.spotPerDay,
+            mealPerDay: ctx.mealPerDay,
+            mealSchedule: new MealOrder().mealOrder.toString(),
+            travelNights: ctx.travelNights,
+            travelDays: ctx.travelDays,
+            hotelTransition: ctx.hotelTransition,
+            transitionTerm: ctx
+              .spotClusterRes!.validCentNSpots!.map(
+                v => v.centroidNHotel.stayPeriod!,
+              )
+              .toString(),
+          },
+        },
+        validCluster: {
+          create: ctx.spotClusterRes?.validCentNSpots!.map(v => {
+            return {
+              lat: v.centroidNHotel.cent?.lat!,
+              lng: v.centroidNHotel.cent?.lng!,
+              transitionNo: v.centroidNHotel.transitionNo!,
+              stayPeriod: v.centroidNHotel.stayPeriod!,
+              checkin: v.centroidNHotel.checkin!,
+              checkout: v.centroidNHotel.checkout!,
+              numOfVisitSpotInCluster:
+                v.centroidNHotel.numOfVisitSpotInCluster!,
+              ratio: v.centroidNHotel.ratio!,
+              tourPlace: {
+                connect: [
+                  ...v.nearbyFoods.map(n => {
+                    return { id: n.id };
+                  }),
+                  ...v.nearbySpots.map(n => {
+                    return { id: n.id };
+                  }),
+                ],
+              },
+            };
+          }),
         },
       },
-      metaScheduleInfo: {
-        create: {
-          totalHotelSearchCount: ctx.hotels[0].hotels?.hotelSearchResult.length,
-          totalRestaurantSearchCount: ctx.foods.length,
-          totalSpotSearchCount: ctx.spots.length,
-          spotPerDay: ctx.spotPerDay,
-          mealPerDay: ctx.mealPerDay,
-          mealSchedule: new MealOrder().mealOrder.toString(),
-          travelNights: ctx.travelNights,
-          travelDays: ctx.travelDays,
-          hotelTransition: ctx.hotelTransition,
-          transitionTerm: ctx
-            .spotClusterRes!.validCentNSpots.map(
-              v => v.centroidNHotel.stayPeriod!,
-            )
-            .toString(),
+      include: {
+        visitSchedule: {
+          include: {
+            tourPlace: true,
+          },
         },
+        validCluster: true,
       },
-      validCluster: {
-        create: ctx.spotClusterRes?.validCentNSpots!.map(v => {
-          return {
-            lat: v.centroidNHotel.cent?.lat!,
-            lng: v.centroidNHotel.cent?.lng!,
-            transitionNo: v.centroidNHotel.transitionNo!,
-            stayPeriod: v.centroidNHotel.stayPeriod!,
-            checkin: v.centroidNHotel.checkin!,
-            checkout: v.centroidNHotel.checkout!,
-            numOfVisitSpotInCluster: v.centroidNHotel.numOfVisitSpotInCluster!,
-            ratio: v.centroidNHotel.ratio!,
-            tourPlace: {
-              connect: [
-                ...v.nearbyFoods.map(n => {
-                  return { id: n.id };
-                }),
-                ...v.nearbySpots.map(n => {
-                  return { id: n.id };
-                }),
-              ],
+    });
+
+    const { validCluster, visitSchedule } = createdQueryParams;
+
+    const hotelVS = visitSchedule.filter(vs => vs.placeType!.includes('HOTEL'));
+    /// visitSchedule <===> validCluster간 관계 형성
+    let restStayPeriod = 0;
+    let clusterIdx = -1;
+    await Promise.all(
+      hotelVS.map(vs => {
+        if (restStayPeriod <= 0) {
+          restStayPeriod = Number(vs.stayPeriod);
+          clusterIdx += 1;
+        }
+        restStayPeriod -= 1;
+        return tx.visitSchedule.update({
+          where: {
+            id: vs.id,
+          },
+          data: {
+            validCluster: {
+              connect: {
+                id: validCluster[clusterIdx].id,
+              },
             },
-          };
-        }),
-      },
-    },
-    include: {
-      visitSchedule: {
-        include: {
-          tourPlace: true,
-        },
-      },
-    },
+          },
+        });
+      }),
+    );
+
+    return createdQueryParams;
   });
 
   return {
@@ -4606,6 +4641,13 @@ export const getHotelList = async (
       message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
     });
 
+  if (isNil(transitionNo) || isEmpty(transitionNo)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'transitionNo는 필수 파라미터입니다',
+    });
+  }
+
   const {
     adult,
     maxFriend,
@@ -4903,6 +4945,29 @@ export const fixHotel = async (
     }, []);
   })();
 
+  if (isNil(queryParamsId) || isEmpty(queryParamsId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'queryParamsId는 필수 파라미터입니다',
+    });
+  }
+
+  const queryParams = await prisma.queryParams.findUnique({
+    where: {
+      id: Number(queryParamsId),
+    },
+    select: {
+      validCluster: true,
+    },
+  });
+
+  if (isNil(queryParams)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId에 해당하는 생성된 일정이 없습니다.',
+    });
+  }
+
   const updateList = await prisma.$transaction(async tx => {
     let estimatedCost = 0;
     const retList = await Promise.all(
@@ -4923,7 +4988,7 @@ export const fixHotel = async (
               },
             });
 
-            const uppdateRes = await tx.visitSchedule.update({
+            const updateRes = await tx.visitSchedule.update({
               where: {
                 id: vs.id,
               },
@@ -4940,7 +5005,7 @@ export const fixHotel = async (
             });
 
             estimatedCost += tp?.bkc_gross_amount_per_night ?? 0;
-            resolve(uppdateRes);
+            resolve(updateRes);
           })();
         });
 
@@ -4955,43 +5020,10 @@ export const fixHotel = async (
         estimatedCost,
       },
     });
+
     return retList;
   });
 
-  // const updateList = await Promise.all([
-  //   hotelPerDay.map((tpId, dayNo) => {
-  //     return prisma.$transaction(async tx => {
-  //       const [vs] = await tx.visitSchedule.findMany({
-  //         where: {
-  //           queryParamsId: Number(queryParamsId),
-  //           dayNo,
-  //           placeType: {
-  //             contains: 'HOTEL',
-  //           },
-  //         },
-  //         select: {
-  //           id: true,
-  //           tourPlace: {
-  //             select: {
-  //               bkc_gross_amount_per_night: true,
-  //             },
-  //           },
-  //         },
-  //       });
-  //       estimatedCost += vs.tourPlace?.bkc_gross_amount_per_night ?? 0;
-  //       const uppdateRes = await tx.visitSchedule.update({
-  //         where: {
-  //           id: vs.id,
-  //         },
-  //         data: {
-  //           tourPlaceId: Number(tpId),
-  //           transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
-  //         },
-  //       });
-  //       return uppdateRes;
-  //     });
-  //   }),
-  // ]);
   return { updateList };
 };
 
