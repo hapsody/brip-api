@@ -4847,14 +4847,16 @@ export const getHotelList = async (
   // const hotelData = await queryPromises;
 
   const tNo = Number(transitionNo);
-
+  const matchedHotelNMetaData = withHMetaData.find(
+    v => v!.transitionNo === tNo,
+  );
   return {
-    checkin: moment(withHMetaData[tNo]!.checkin).toISOString(),
-    checkout: moment(withHMetaData[tNo]!.checkout).toISOString(),
-    transitionNo: withHMetaData[tNo]!.transitionNo,
-    stayPeriod: withHMetaData[tNo]!.stayPeriod,
-    lat: withHMetaData[tNo]!.lat,
-    lng: withHMetaData[tNo]!.lng,
+    checkin: moment(matchedHotelNMetaData!.checkin).toISOString(),
+    checkout: moment(matchedHotelNMetaData!.checkout).toISOString(),
+    transitionNo: matchedHotelNMetaData!.transitionNo,
+    stayPeriod: matchedHotelNMetaData!.stayPeriod,
+    lat: matchedHotelNMetaData!.lat,
+    lng: matchedHotelNMetaData!.lng,
     hotels: await (async () => {
       if (!isNil(queryParams.tourPlace) && queryParams.tourPlace.length > 0) {
         return {
@@ -4863,9 +4865,9 @@ export const getHotelList = async (
         };
       }
       return getHotelDataFromBKC({
-        ...withHMetaData[tNo]!.hotelSrchOpt,
-        checkinDate: moment(withHMetaData[tNo]!.checkin).toISOString(),
-        checkoutDate: moment(withHMetaData[tNo]!.checkout).toISOString(),
+        ...matchedHotelNMetaData!.hotelSrchOpt,
+        checkinDate: moment(matchedHotelNMetaData!.checkin).toISOString(),
+        checkoutDate: moment(matchedHotelNMetaData!.checkout).toISOString(),
         store: true,
         queryParamsId: Number(queryParamsId),
       });
@@ -4970,6 +4972,7 @@ export const fixHotel = async (
 
   const updateList = await prisma.$transaction(async tx => {
     let estimatedCost = 0;
+    let validClusterId = -1;
     const retList = await Promise.all(
       hotelPerDay.map((tpId, dayNo) => {
         const promise = new Promise<VisitSchedule>(resolve => {
@@ -4985,18 +4988,32 @@ export const fixHotel = async (
               },
               select: {
                 id: true,
+                validCluster: true,
               },
             });
 
+            const transitionNo = removedDup.findIndex(v => v === Number(tpId));
             const updateRes = await tx.visitSchedule.update({
               where: {
                 id: vs.id,
               },
               data: {
                 tourPlaceId: Number(tpId),
-                transitionNo: removedDup.findIndex(v => v === Number(tpId)), /// -1은 존재할수 없는 상태값이다.
+                transitionNo, /// -1은 존재할수 없는 상태값이다.
               },
             });
+
+            if (validClusterId !== vs.validCluster!.id) {
+              validClusterId = vs.validCluster!.id;
+              await tx.validCluster.update({
+                where: {
+                  id: validClusterId,
+                },
+                data: {
+                  transitionNo,
+                },
+              });
+            }
 
             const tp = await tx.tourPlace.findUnique({
               where: {
