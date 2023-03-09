@@ -3588,11 +3588,14 @@ export const saveSchedule = async (
     select: {
       id: true,
       period: true,
+      startDate: true,
+      endDate: true,
       savedSchedule: {
         select: {
           id: true,
         },
       },
+      visitSchedule: true,
       userTokenId: true,
     },
   });
@@ -3628,15 +3631,53 @@ export const saveSchedule = async (
   }
 
   const createResult = await prisma.$transaction(async tx => {
+    const diffDate = mStartDate.diff(
+      moment(queryParams.visitSchedule[0].checkin),
+      'd',
+    );
+    /// queryParams의 전체 일정 날짜를 유저 입력 날짜들로 업데이트해준다.
     await tx.queryParams.update({
       where: {
         id: Number(queryParamsId),
       },
       data: {
-        startDate: mStartDate.toISOString(),
-        endDate: mEndDate.toISOString(),
+        startDate: moment(queryParams.startDate)
+          .add(diffDate, 'd')
+          .toISOString(),
+        endDate: moment(queryParams.endDate).add(diffDate, 'd').toISOString(),
       },
     });
+
+    /// visitSchedule도 기존에 임시 생성되어 있던 각 스케쥴별 날짜를 유저 입력 날짜들로 업데이트해준다.
+    const { visitSchedule: visitSchedules } = queryParams;
+    await Promise.all(
+      visitSchedules.map(async vs => {
+        const visitSchedule = await tx.visitSchedule.findUnique({
+          where: {
+            id: vs.id,
+          },
+          select: {
+            checkin: true,
+            checkout: true,
+          },
+        });
+
+        await tx.visitSchedule.update({
+          where: {
+            id: vs.id,
+          },
+          data: {
+            checkin: moment(visitSchedule!.checkin)
+              .add(diffDate, 'd')
+              .toISOString(),
+            checkout: moment(visitSchedule!.checkout)
+              .add(diffDate, 'd')
+              .toISOString(),
+          },
+        });
+        return null;
+      }),
+    );
 
     const cRes = await tx.scheduleBank.create({
       data: {
@@ -4937,16 +4978,27 @@ export const fixHotel = async (
 ): Promise<FixHotelRETParamPayload> => {
   const { queryParamsId, hotelPerDay } = param;
 
+  if (isNil(queryParamsId) || isEmpty(queryParamsId)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'queryParamsId는 필수 파라미터입니다',
+    });
+  }
+
   const queryParams = await prisma.queryParams.findUnique({
     where: {
       id: Number(queryParamsId),
+    },
+    select: {
+      period: true,
+      validCluster: true,
     },
   });
 
   if (isNil(queryParams)) {
     throw new IBError({
       type: 'NOTEXISTDATA',
-      message: '존재하지 않는 일정입니다.',
+      message: 'queryParamsId에 해당하는 생성된 일정이 없습니다.',
     });
   }
 
@@ -4989,28 +5041,14 @@ export const fixHotel = async (
     }, []);
   })();
 
-  if (isNil(queryParamsId) || isEmpty(queryParamsId)) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message: 'queryParamsId는 필수 파라미터입니다',
-    });
-  }
-
-  const queryParams = await prisma.queryParams.findUnique({
-    where: {
-      id: Number(queryParamsId),
-    },
-    select: {
-      validCluster: true,
-    },
-  });
-
-  if (isNil(queryParams)) {
-    throw new IBError({
-      type: 'NOTEXISTDATA',
-      message: 'queryParamsId에 해당하는 생성된 일정이 없습니다.',
-    });
-  }
+  // const queryParams = await prisma.queryParams.findUnique({
+  //   where: {
+  //     id: Number(queryParamsId),
+  //   },
+  //   select: {
+  //     validCluster: true,
+  //   },
+  // });
 
   const updateList = await prisma.$transaction(async tx => {
     let estimatedCost = 0;
