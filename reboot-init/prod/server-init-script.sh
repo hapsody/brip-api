@@ -22,9 +22,8 @@ function is_process_running () {
 function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
-  git checkout dev
-  git checkout -f
-  git pull upstream dev
+  git checkout prod
+  git pull upstream prod
   git fetch --tags
   yarn
   yarn prisma db push

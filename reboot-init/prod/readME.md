@@ -32,7 +32,7 @@ $ sudo ./reboot-init/deploy.sh
     sudo apt-get install -y awscli
 
     # Download file from S3 bucket
-    aws s3 cp s3://brip-dev/init_scripts/reboot-init/ /home/ubuntu/.brip_init_scripts/ --recursive
+    aws s3 cp s3://brip-dev/init_scripts/reboot-init/prod/ /home/ubuntu/.brip_init_scripts/ --recursive
 
     # Make file executable
     sudo chmod +x /home/ubuntu/.brip_init_scripts/deploy.sh
