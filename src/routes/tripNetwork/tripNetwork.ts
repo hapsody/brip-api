@@ -919,7 +919,7 @@ export const addShareTripMemory = asyncWrapper(
             case '다목적공간':
             case '힙한':
             case '핫플':
-              return '';
+              return null;
             case '조용한':
               if (v.super === '숙소') return '';
               return null;
