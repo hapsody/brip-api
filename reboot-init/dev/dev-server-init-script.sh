@@ -10,7 +10,7 @@ waiting_time=5
 
 # Define a function to check if the process is running
 function is_process_running () {
-  process_count=$(yarn pm2 list | awk '/^│ 0\s+│ travelit-api/' | wc -l)
+  process_count=$(yarn pm2 list | awk '/^│/ && /travelit-api/ && !/PM2.*current.*/{count++} END{print count}')
   if [[ $process_count -gt 0 ]]
   then
     result=true
