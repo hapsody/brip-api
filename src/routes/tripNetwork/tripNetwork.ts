@@ -730,20 +730,18 @@ export const getTripMemCategoryList = asyncWrapper(
     try {
       const { skip, take, superCategory, name } = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
-          return {
-            memberId: locals?.user?.id,
-            userTokenId: locals?.user?.userTokenId,
-          };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
 
-      if (!userTokenId || !memberId) {
+      if (!userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
@@ -2241,20 +2239,19 @@ export const getShareTripMemList = asyncWrapper(
         categoryKeyword = '',
       } = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
-          return {
-            memberId: locals?.user?.id,
-            userTokenId: locals?.user?.userTokenId,
-          };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
 
-      if (!userTokenId || !memberId) {
+      if (!userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
@@ -2598,20 +2595,19 @@ export const getShareTripMemListByPlace = asyncWrapper(
         categoryKeyword = '',
       } = req.body;
       const { locals } = req;
-      const { memberId, userTokenId } = (() => {
+      const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
-          return {
-            memberId: locals?.user?.id,
-            userTokenId: locals?.user?.userTokenId,
-          };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
 
-      if (!userTokenId || !memberId) {
+      if (!userTokenId) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
