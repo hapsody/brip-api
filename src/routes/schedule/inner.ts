@@ -4976,7 +4976,8 @@ export const getScheduleCount = async (
 export const fixHotel = async (
   param: FixHotelREQParam,
 ): Promise<FixHotelRETParamPayload> => {
-  const { queryParamsId, hotelPerDay } = param;
+  const { queryParamsId, hotelPerDay: inputHotelPerDay } = param;
+  const hotelPerDay = inputHotelPerDay;
 
   if (isNil(queryParamsId) || isEmpty(queryParamsId)) {
     throw new IBError({
@@ -5014,6 +5015,7 @@ export const fixHotel = async (
     });
   }
 
+  /// 생성할때 잡힌 여행일수 - 1보다(여행 마지막날은 숙소 없음) 제공된 파라미터의 숙소값 수가 적으면 에러
   if (hotelPerDay.length < queryParams.period! - 1) {
     throw new IBError({
       type: 'INVALIDPARAMS',
@@ -5023,11 +5025,18 @@ export const fixHotel = async (
   }
 
   /// hotelPerDay가 숙소가 필요한 날(마지막날은 숙소가 없으므로: period - 1) 보다 많이 제공된다면 필요한 만큼만 남기고 뒤에는 잘라버린다.
-  if (hotelPerDay.length >= queryParams.period!) {
+  if (hotelPerDay.length > queryParams.period!) {
     hotelPerDay.splice(
-      queryParams.period! - 1,
-      hotelPerDay.length - (queryParams.period! - 1),
+      queryParams.period!,
+      hotelPerDay.length - queryParams.period!,
     );
+  }
+
+  /// 마지막 날 숙소는 사용하지 않기 때문에 의미가 없지만 프론트에서 편의상 일괄적으로 여행 마지막날을 전날의 숙소와 동일하게 맞춰달라는 요구가 있어서 처리함
+  if (hotelPerDay.length === queryParams.period!) {
+    hotelPerDay[hotelPerDay.length - 1] = hotelPerDay[hotelPerDay.length - 2];
+  } else if (hotelPerDay.length === queryParams.period! - 1) {
+    hotelPerDay.push(hotelPerDay[hotelPerDay.length - 1]);
   }
 
   const removedDup = (() => {
@@ -5101,7 +5110,10 @@ export const fixHotel = async (
               },
             });
 
-            estimatedCost += tp?.bkc_gross_amount_per_night ?? 0;
+            if (dayNo !== queryParams.period! - 1) {
+              estimatedCost += tp?.bkc_gross_amount_per_night ?? 0;
+            }
+
             resolve(updateRes);
           })();
         });
