@@ -78,6 +78,10 @@ export const uploadToS3 = asyncWrapper(
             return `public/tripNetwork/shareTripMemory/${fileName}`;
           case 'SETTING/CHANGEPROFILEIMG':
             return `public/user/profileImg/${fileName}`;
+          case 'CONTENT/ADDCARDGRP/THUMBNAILURL':
+            return `public/content/cardNewsGroup/${fileName}`;
+          case 'CONTENT/ADDCARDGRP/CARDNEWSCONTENT/BGPICURI':
+            return `public/content/cardNewsContent/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
@@ -193,6 +197,10 @@ export const getSignedUrlForFileUpload = asyncWrapper(
             return `private/tripNetwork/shareTripMemory/${fileName}`;
           case 'SETTING/CHANGEPROFILEIMG':
             return `public/user/profileImg/${fileName}`;
+          case 'CONTENT/ADDCARDGRP/THUMBNAILURL':
+            return `public/content/cardNewsGroup/${fileName}`;
+          case 'CONTENT/ADDCARDGRP/CARDNEWSCONTENT/BGPICURI':
+            return `public/content/cardNewsContent/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
