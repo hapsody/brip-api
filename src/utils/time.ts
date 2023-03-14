@@ -1,8 +1,11 @@
 import moment from 'moment';
 
-export const getToday = (): Date => {
-  return new Date(moment().startOf('d').format());
+export const getToday = (): string => {
+  return moment(moment().startOf('d')).toISOString();
 };
-export const getTomorrow = (): Date => {
-  return new Date(moment().add(1, 'day').startOf('d').format());
+export const getTomorrow = (): string => {
+  return moment(moment().add(1, 'day').startOf('d')).toISOString();
+};
+export const getNDaysLater = (n: number): string => {
+  return moment(moment().add(n, 'day').startOf('d')).toISOString();
 };

@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>클러스터링 시각화 테스트</title>
+    <meta charset="utf-8" />
+    <!-- 오픈API -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script>
+      let canvas, ctx;
+
+      let gData; /// makeSchedule 전체 결과값
+      let gIBparams; /// makeSchedule raw 결과값
+      let gVisitSchedules; /// 생성된 일정
+      let gSpots; /// makeSchedule 결과 검색된 여행지 배열
+      let gCentroids; /// 최종 전체 클러스터링 결과들
+      let gRadius; /// 클러스터링 반경값, 여행강도와 여행타입에 따라 영향받아 결정된다.
+      let gNonDupCentroids; /// 클러스터링 전체 결과중 (gCentroids) 충분히 가까운값은 하나의 클러스터링으로 간주하고 버린 결과. 즉 미중복 클러스터들이다.
+      let gValidCentroids; /// nonDupCentroids 결과중 해당 클러스터에서 머무는 기간동안 방문해야할 여행지수보다 충분히 큰 여행지를 보유한 결과만을 유효한 클러스터로 간주하고 나머지는 버린결과. 결국 최종적으로 이 값위에 여행 일정이 짜여진다.
+      /// spot data 들의 최소 최대 lat(=y), lng(=x) 를 찾아 넣는다.
+      let gSpotsGeoLocation, gFoodsGeoLocation;
+      let gSpotClusterRes, gFoodClusterRes;
+      let gMaxX, gMinX, gMaxY, gMinY;
+      let gSuperCentroids;
+      /// 여행지 점 크기
+      let spotPointSize = 2;
+      /// 클러스터 중심점 크기
+      let centPointSize = spotPointSize * 2;
+      let radiusCircleSize = 0;
+      /// 보여줄 항목 요소들 최소 최대값 바깥으로 캔버스 여백을 더해주기 위한 파라미터들
+      const blankMultiplier = 20; // 높을수록 캔버스 여백 비율이 작아진다.
+      let blankSizeX, blankSizeY;
+      let gDistributionThickness;
+      /// 캔버스 크기
+      const canvasWidth = 4800.0;
+      const canvasHeight = 4800.0;
+      /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
+      const clipMinLat = 33.109684; // 제주 지역만 필터링
+      const clipMaxLat = 33.650946;
+      const clipMinLng = 126.032175;
+      const clipMaxLng = 127.048411;
+      // const clipMinLat = 37.483403; // 서울 지역만 필터링
+      // const clipMaxLat = 37.655385;
+      // const clipMinLng = 126.796251;
+      // const clipMaxLng = 127.230211;
+      let gRDistToPxLength;
+      let gPlayMode = {
+        /// 직전 load 또는 play 함수 실행할때 어떤 옵션으로 수행했었는가를 기록 이 값에 따라 clickCanvas 실행할때 결과값을 보고 있는 화면의 결과에 맞게 뿌려줌.
+        spot: false,
+        centroid: false,
+        history: false,
+        stageNo: false,
+        centId: false,
+        nonDup: false,
+      };
+      let gFilteredRes = {}; /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링하여 저장하고 있는 객체 변수
+      let gResetOpt = true;
+      let gResultMode = '<%= type %>'; ///'spot' or 'food'
+      let gIntervalIds = [];
+
+      const palette = [
+        'brown',
+        'yellow',
+        'purple',
+        'darkgreen',
+        'aqua',
+        'gray',
+      ];
+
+      /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링 반환하는 함수
+      function clickCanvas(event) {
+        clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        const clickX = event.pageX;
+        const clickY = event.pageY;
+
+        /// 클릭지점으로부터 반경 r의 원을 그린다.
+        clickCheckCtx.beginPath();
+        clickCheckCtx.arc(clickX, clickY, centPointSize, 0, 2 * Math.PI);
+        clickCheckCtx.arc(clickX, clickY, radiusCircleSize, 0, 2 * Math.PI);
+        clickCheckCtx.globalAlpha = 0.6;
+        clickCheckCtx.strokeStyle = 'black';
+        clickCheckCtx.stroke();
+        clickCheckCtx.closePath();
+
+        const { lng, lat } = coordToGeoLoc({ x: clickX, y: clickY });
+        gFilteredRes = {
+          x: clickX,
+          y: clickY,
+          lat,
+          lng,
+        };
+
+        function sortByDistFromCenter(arr, gFilteredRes) {
+          return [...arr]
+            .map(v => {
+              return {
+                ...v,
+                pxFromCent: (() => {
+                  let ptx, pty;
+                  if (v.x === undefined || v.y === undefined) {
+                    const { x, y } = geoLocToCoord(v);
+                    ptx = x;
+                    pty = y;
+                  } else {
+                    ptx = v.x;
+                    pty = v.y;
+                  }
+
+                  return Math.sqrt(
+                    (ptx - gFilteredRes.x) ** 2 + (pty - gFilteredRes.y) ** 2,
+                  );
+                })(),
+                meterFromCent: Math.round(
+                  degreeToMeter(
+                    v.lng,
+                    v.lat,
+                    gFilteredRes.lng,
+                    gFilteredRes.lat,
+                  ),
+                ),
+              };
+            })
+            .sort((a, b) => a.pxFromCent - b.pxFromCent);
+        }
+
+        // function sortByDistFromCenter(arr, gFilteredRes) {
+        //   const v = this.valueOf();
+        //   return (v => {
+        //     return {
+        //       ...v,
+        //       pxFromCent: Math.sqrt(
+        //         (v.x - gFilteredRes.x) ** 2 + (v.y - gFilteredRes.y) ** 2,
+        //       ),
+        //       meterFromCent: Math.round(
+        //         degreeToMeter(v.lng, v.lat, gFilteredRes.lng, gFilteredRes.lat),
+        //       ),
+        //     };
+        //   }).sort((a, b) => a.pxFromCent - b.pxFromCent);
+        // }
+
+        if (gPlayMode.spot) {
+          /// 반경안에 속한 여행지를 찾아 gFilteredRes에 넣는다.
+          gFilteredRes = {
+            ...gFilteredRes,
+            searchedSpot: sortByDistFromCenter(gSpots, gFilteredRes).filter(
+              v => {
+                return v.pxFromCent < gRDistToPxLength;
+              },
+            ),
+          };
+        }
+        if (gPlayMode.centroid) {
+          /// 반경안에 속한 클러스터를 찾아 gFilteredRes에 넣는다.
+          gFilteredRes = {
+            ...gFilteredRes,
+            searchedNonDupCent: sortByDistFromCenter(
+              gNonDupCentroids,
+              gFilteredRes,
+            ).filter(v => {
+              return v.pxFromCent < gRDistToPxLength;
+            }),
+            /// 반경안에 속한 여행지를 찾아 gFilteredRes에 넣는다, 여기에서 배열 인덱스값은 해당 클러스터 형성의 스테이지이다.
+            searchedCent: gHistories.map((history, i) => {
+              const { centroids } = history;
+              return {
+                description: '반경에 포함되는 클러스터',
+                stageNo: i,
+                centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                  v => {
+                    return v.pxFromCent < gRDistToPxLength;
+                  },
+                ),
+              };
+            }),
+          };
+        }
+
+        /// 화면에 play한 그림이 특정 클러스터id만이면 캔버스를 클릭해서 반경안에 속한 클러스터 정보를 구할때 그 특정 클러스터만을 대상으로한다.
+        if (gPlayMode.centId) {
+          gFilteredRes = {
+            ...gFilteredRes,
+            clusterResWithPrintMode: gHistories.map((history, i) => {
+              const { centroids } = history;
+              return {
+                description: '반경에 포함되는 클러스터',
+                stageNo: i,
+                centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                  v => {
+                    return v.pxFromCent < gRDistToPxLength;
+                  },
+                ),
+              };
+            }),
+          };
+        } else if (gPlayMode.stageNo) {
+          /// 화면에 play한 그림이 특정 스테이지면 캔버스를 클릭해서 반경안에 속한 클러스터 정보를 구할때 그 스테이지만을 대상으로한다.
+          const stageNo = gPlayMode.stageNo;
+          const history = gHistories[stageNo];
+
+          let centroids = history.centroids;
+
+          gFilteredRes = {
+            ...gFilteredRes,
+            clusterResWithPrintMode: {
+              description: `반경에 포함되는 클러스터들의 stage: ${stageNo}`,
+              stageNo,
+              centroids: sortByDistFromCenter(centroids, gFilteredRes).filter(
+                v => {
+                  return v.pxFromCent < gRDistToPxLength;
+                },
+              ),
+            },
+          };
+        }
+        console.log(gFilteredRes);
+      }
+
+      const startTime = new Date().getTime();
+      let endTime, diffTime;
+      $.ajax({
+        type: 'post',
+        url: 'http://localhost:3000/schedule/makeSchedule',
+        async: true,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im5vbk1lbWJlciIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjY0NTIwMzU4fQ.t_Bqt3yqDlInUZ29g6tFc3FVGcQ3pE6A47eqerPoJpw',
+        },
+        // data: JSON.stringify({
+        //   ingNow: 'ing',
+        //   companion: 'alone',
+        //   period: '30',
+        //   travelType: ['rest', 'healing', 'exploration'],
+        //   destination: 'recommend',
+        //   travelHard: '5',
+        // }),
+        data: JSON.stringify({
+          ingNow: 'ing',
+          companion: 'alone',
+          period: '15',
+          travelType: ['rest', 'meeting', 'activity'],
+          destination: 'recommend',
+          travelHard: '8',
+        }),
+        success: async function (result) {
+          endTime = new Date().getTime();
+          diffTime = endTime - startTime;
+          console.log(`time diff: ${diffTime / 1000}s`);
+          gIBparams = result.IBparams;
+          gVisitSchedules = gIBparams.visitSchedules;
+          gResultMode = /// default spot
+            !gResultMode || gResultMode.length === 0 ? 'spot' : gResultMode;
+          console.log(gResultMode);
+          if (gResultMode === 'food') {
+            gData = result.IBparams.foodClusterRes;
+            gFoodsGeoLocation = gData.foodsGeoLocation;
+          } else {
+            gData = result.IBparams.spotClusterRes;
+            gSpotsGeoLocation = gData.spotsGeoLocation;
+          }
+          gFoodClusterRes = result.IBparams.foodClusterRes;
+          gSpotClusterRes = result.IBparams.spotClusterRes;
+
+          const {
+            centroids,
+            centHistoryByStage,
+            r,
+            nonDupCentroids,
+            validCentNSpots,
+            visitSchedules,
+          } = gData;
+
+          // gSpots = spotsGeoLocation;
+          // console.log(gSpots);
+          // gCentroids = centroids;
+          // gHistories = centHistoryByStage;
+          // gNonDupCentroids = nonDupCentroids;
+          gSpots = (
+            gResultMode === 'spot' ? gSpotsGeoLocation : gFoodsGeoLocation
+          ).filter(
+            v =>
+              v.lat >= clipMinLat &&
+              v.lat < clipMaxLat &&
+              v.lng >= clipMinLng &&
+              v.lng < clipMaxLng,
+          );
+          console.log(gSpots);
+          gCentroids = centroids;
+          gHistories = centHistoryByStage;
+          gNonDupCentroids = nonDupCentroids;
+          gValidCentroids = result.IBparams.spotClusterRes.validCentNSpots; /// foodClusterRes는 validCentNFoods가 없다.. validCent는 여행지를 기준으로만 한다. 호텔 검색이 여행지 기준이기 때문.
+          gSuperCentroids = result.IBparams.spotClusterRes.superCentroids;
+          console.log(gValidCentroids);
+
+          // gCentroids = centroids.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
+          // gHistories = centHistoryByStage.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
+          // gNonDupCentroids = nonDupCentroids.filter(
+          //   v =>
+          //     v.lat >= clipMinLat &&
+          //     v.lat < clipMaxLat &&
+          //     v.lng >= clipMinLng &&
+          //     v.lng < clipMaxLng,
+          // );
+          gRadius = r;
+
+          const { maxX, minX, maxY, minY } = await gSpots.reduce(
+            (result, spot) => {
+              const x = spot.lng;
+              const y = spot.lat;
+              const newRes = { ...result };
+              if (x >= newRes.maxX) newRes.maxX = x;
+              if (x < newRes.minX) newRes.minX = x;
+              if (y >= newRes.maxY) newRes.maxY = y;
+              if (y < newRes.minY) newRes.minY = y;
+              return newRes;
+            },
+            {
+              maxX: -9999,
+              minX: 9999,
+              maxY: -9999,
+              minY: 9999,
+            },
+          );
+          console.log(
+            `maxX:${maxX}, maxY:${maxY} \nminX:${minX}, minY:${minY}`,
+          );
+
+          blankSizeX = (maxX - minX) / blankMultiplier;
+          blankSizeY = (maxY - minY) / blankMultiplier;
+
+          gMaxX = maxX + blankSizeX;
+          gMinX = minX - blankSizeX;
+          gMaxY = maxY + blankSizeY;
+          gMinY = minY - blankSizeY;
+
+          gDistributionThickness = (() => {
+            /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
+            if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
+              return gMaxX - gMinX;
+            } else {
+              return gMaxY - gMinY;
+            }
+          })();
+
+          const geo = await estGeoLocFromMeter(gRadius);
+          const { x } = geoLocToCoord(geo);
+          console.log(x);
+          radiusCircleSize = x;
+          // both();
+        },
+        error: function (request, status, error) {
+          console.log(error);
+        },
+      });
+    </script>
+
+    <script>
+      /// 두 위경도 값의 차이를 미터 단위로 환산하여 리턴하는 함수, 위도에 따른 지구 곡률 보정이 포함되어 있다.
+      function degreeToMeter(lat1, lon1, lat2, lon2) {
+        // generally used geo measurement function
+        const R = 6378.137; // Radius of earth in KM
+        const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;
+        const dLon = (lon2 * Math.PI) / 180 - (lon1 * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c;
+        return d * 1000; // meters
+      }
+
+      /// 입력한 거리(실제 미터)에 대응하는 경도 값을 최소 경도값에서 떨어진 경도 위치로 반환한다.(축척 표시용))
+      async function estGeoLocFromMeter(targetMeter) {
+        let estMeter = degreeToMeter(gMinX, gMinY, gMaxX, gMinY);
+        let rightX = gMaxX - gMinX;
+        let estX = rightX;
+        let deltaMeter;
+        let delta;
+
+        let down = 0;
+        let up = 0;
+        let cnt = 0;
+        const pro = new Promise(resolve => {
+          while (Math.abs(targetMeter - estMeter) > 0.1 && cnt < 1000) {
+            cnt++;
+            delta = rightX / 2;
+            deltaMeter = degreeToMeter(0, gMinY, delta, gMinY);
+            if (estMeter > targetMeter) {
+              estX -= delta;
+              down++;
+            } else {
+              estX += delta;
+              up++;
+            }
+            estMeter = degreeToMeter(0, gMinY, estX, gMinY);
+            rightX /= 2;
+          }
+          // console.log(`down ${down}, up:${up}`);
+          resolve(true);
+        });
+
+        await pro;
+
+        return {
+          lng: estX + gMinX,
+          lat: gMinY,
+          cnt,
+        };
+      }
+
+      /// 위경도를 캔버스 x,y좌표로 변환하는 함수
+      function geoLocToCoord(geo) {
+        const { lng, lat } = geo;
+
+        if (lng === undefined || lat === undefined) return { x: -1, y: -1 };
+        /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
+        const transToCanvasX =
+          ((lng - gMinX) * canvasWidth) / gDistributionThickness;
+        const transToCanvasY =
+          canvasHeight -
+          ((lat - gMinY) * canvasHeight) / gDistributionThickness;
+        return { x: transToCanvasX, y: transToCanvasY };
+      }
+
+      function coordToGeoLoc(coord) {
+        const { x, y } = coord;
+        const transToLng = (x * gDistributionThickness) / canvasWidth + gMinX;
+        const transToLat =
+          ((canvasHeight - y) * gDistributionThickness) / canvasHeight + gMinY;
+        return { lng: transToLng, lat: transToLat };
+      }
+
+      /// canvas에 표시하는 함수
+      const drawItems = (type, option) => {
+        const stageNo = option?.stageNo;
+        const historyLength = option?.historyLength;
+        const nonDup = option?.nonDup ?? false;
+
+        return (item, i) => {
+          const { size, color } = (() => {
+            switch (type) {
+              case 'spot':
+              default:
+                return { size: spotPointSize, color: 'gray' };
+              case 'centroid':
+                return { size: centPointSize, color: 'red' };
+              case 'history':
+                return {
+                  size: Math.round(spotPointSize * 1.5),
+                  color: palette[i % palette.length],
+                };
+              case 'stageNo':
+                return {
+                  size: Math.round(spotPointSize * 1.5),
+                  color: palette[i % palette.length],
+                };
+            }
+          })();
+          const p = new Promise(resolve => {
+            const { x, y } = geoLocToCoord(item);
+            item.x = x;
+            item.y = y;
+            /// 반경 표시 써클
+            if (
+              (type === 'history' || type === 'stageNo') &&
+              (gNonDupCentroids.find(v => v.idx === i) || nonDup === false)
+            ) {
+              historyCtx.beginPath();
+
+              historyCtx.arc(x, y, size, 0, 2 * Math.PI);
+              historyCtx.stroke();
+              historyCtx.fillStyle = color;
+              historyCtx.fill();
+              historyCtx.font = '25px Comic Sans MS';
+              historyCtx.fillText(`${item.idx}[${stageNo}]`, x, y);
+              historyCtx.closePath();
+
+              historyCtx.beginPath();
+              historyCtx.arc(x, y, radiusCircleSize, 0, 2 * Math.PI);
+              historyCtx.globalAlpha = 0.6;
+              historyCtx.strokeStyle = color;
+
+              /// 마지막 스테이지일 경우에는 반경에 색깔 채우기 효과
+              if (stageNo < historyLength - 1) {
+                historyCtx.stroke();
+              } else {
+                historyCtx.stroke();
+                historyCtx.globalAlpha = 0.03;
+                historyCtx.fill();
+              }
+              historyCtx.closePath();
+              historyCtx.globalAlpha = 1;
+            } else {
+              ctx.beginPath();
+              ctx.arc(x, y, size, 0, 2 * Math.PI);
+              ctx.stroke();
+              ctx.strokeStyle = 'black';
+              ctx.fillStyle = color;
+              ctx.fill();
+              ctx.closePath();
+            }
+            resolve(true);
+          });
+          return p;
+        };
+      };
+
+      const getLatLng = spot => {
+        if (spot.gl_lat && spot.gl_lng)
+          return {
+            lat: spot.gl_lat,
+            lng: spot.gl_lng,
+          };
+        if (spot.vj_latitude && spot.vj_longitude)
+          return {
+            lat: spot.vj_latitude,
+            lng: spot.vj_longitude,
+          };
+        if (spot.bkc_longitude && spot.bkc_latitude) {
+          return {
+            lat: spot.bkc_latitude,
+            lng: spot.bkc_longitude,
+          };
+        }
+        return {
+          lat: undefined,
+          lng: undefined,
+        };
+      };
+      let prevData;
+
+      const drawLinedItems = item => {
+        return new Promise(resolve => {
+          const dayNo = item.dayNo;
+          const orderNo = item.orderNo;
+          const data = item.data?.at(0);
+          const size = spotPointSize * gWinZoom + 5;
+          const color = palette[dayNo % palette.length];
+          const transitionNo = item.transitionNo;
+
+          if (data) {
+            const geo = getLatLng(data);
+            console.log(`[dayNo:${dayNo}:::orderNo:${orderNo}]`, data);
+            const { x, y } = geoLocToCoord(geo);
+
+            const { prevX, prevY } = (() => {
+              if (prevData) {
+                const prevGeo = getLatLng(prevData);
+                const { x: prevX, y: prevY } = geoLocToCoord(prevGeo);
+                return {
+                  prevX,
+                  prevY,
+                };
+              }
+              return {
+                prevX: undefined,
+                prevY: undefined,
+              };
+            })();
+
+            historyCtx.beginPath();
+            historyCtx.arc(x, y, size, 0, 2 * Math.PI);
+            historyCtx.strokeStyle = color;
+            historyCtx.lineWidth = size / 10 + 0.5;
+            historyCtx.stroke();
+            historyCtx.font = `${Math.floor(25)}px Comic Sans MS`;
+            historyCtx.fillText(`${transitionNo}[${dayNo},${orderNo}]`, x, y);
+            // historyCtx.fillStyle = color;
+            // historyCtx.fill();
+            historyCtx.closePath();
+
+            if (prevX && prevY) {
+              historyCtx.beginPath();
+              historyCtx.moveTo(prevX, prevY);
+              historyCtx.lineTo(x, y);
+              historyCtx.stroke();
+              historyCtx.closePath();
+            }
+            prevData = data;
+            console.log(prevX, prevY);
+          }
+          resolve(true);
+        });
+        /// hotel case
+      };
+
+      /// 여행지와 마지막 클러스터 결과(중복 포함) 중심점 표시
+      async function load() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        clickCheckCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        console.log(`radius:${gRadius}`);
+        const geo = await estGeoLocFromMeter(gRadius);
+        const { x: rulerX, y: rulerY } = geoLocToCoord(geo);
+        gRDistToPxLength = rulerX;
+        console.log(`geo:${JSON.stringify(geo)}`);
+        console.log(`rulerX:${rulerX}, rulerY:${rulerY}`);
+        console.log(`estMeter: ${degreeToMeter(gMinX, gMinY, geo.lng, gMinY)}`);
+
+        /// mean-Shift 알고리즘 연산반경(radius) 축척 표시
+        ctx.beginPath();
+        ctx.moveTo(50, canvasHeight - 50);
+        ctx.lineTo(rulerX + 50, rulerY - 50);
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 2;
+        ctx.font = '30px Comic Sans MS';
+        ctx.fillText(`radius: ${gRadius}m`, 50, canvasHeight - 15);
+        ctx.stroke();
+
+        const spotsPromises = gSpots.map(drawItems('spot'));
+        const centroidPromises = gCentroids.map(drawItems('centroid'));
+
+        gPlayMode = {
+          spot: true,
+          centroid: true,
+          history: false,
+          stageNo: false,
+          centId: false,
+          nonDup: false,
+        };
+        await Promise.all([...spotsPromises, ...centroidPromises]);
+      }
+
+      /// 클러스터 표시 함수
+      /// ex) 전체 클러스터 형성과정 표시 => play() <---  전체 centroids 들의 stage 별 변화 play(default 옵션)
+      /// ex) 미중복 클러스터의 형성과정 표시 => play({nonDup: true}) <--- 중복되지 않는 centroids 결과값만 보여줌
+      /// ex) 특정 클러스터의 형성과정 표시 => play({centId: 2})
+      /// ex) 특정 스테이지의 클러스터 상태만 표시 => play({stageNo: 22});
+      /// ex) 미중복이자 특정 스테이지 클러스터상태만 보여줌 => play({nonDup: true, stageNo: 22})
+      async function play(options) {
+        const { nonDup, stageNo, centId } = (() => {
+          if (!options) {
+            return {
+              nonDup: undefined,
+              stageNo: undefined,
+              centId: undefined,
+            };
+          }
+          const { nonDup, stageNo, centId } = options;
+          return {
+            nonDup,
+            stageNo,
+            centId,
+          };
+        })();
+        gPlayMode = {
+          ...gPlayMode,
+          stageNo: false,
+          history: false,
+          nonDup: nonDup ? true : false,
+          centId: false,
+        };
+
+        if (gResetOpt) historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        /// 특정 스테이지의 클러스터 상태만 표시
+        if (typeof stageNo === 'number') {
+          gPlayMode = {
+            ...gPlayMode,
+            stageNo,
+          };
+          let { centroids } = gHistories[stageNo];
+
+          /// 특정 클러스터의 특정 스테이지만 표시
+          if (typeof centId === 'number') {
+            gPlayMode = {
+              ...gPlayMode,
+              centId,
+            };
+            centroids = [centroids[centId]];
+          }
+
+          const promises = centroids.map(
+            drawItems('stageNo', {
+              stageNo,
+              historyLength: stageNo,
+              nonDup,
+            }),
+          );
+          await Promise.all(promises);
+          return;
+        }
+
+        /// 모든 클러스터 형성과정 표시
+        for await (const stage of gHistories) {
+          const pro = new Promise(resolve => {
+            setTimeout(async () => {
+              const { stageNo } = stage;
+              let centroids = stage.centroids;
+
+              /// centId가 있다면 centId에 해당하는 클러스터만 표시하도록 표본을 조정
+              if (typeof centId === 'number') {
+                gPlayMode = {
+                  ...gPlayMode,
+                  centId,
+                };
+                console.log(`stageNo:${stageNo}`, centroids[centId]);
+                centroids = [centroids[centId]];
+              } else {
+                gPlayMode = {
+                  ...gPlayMode,
+                  history: true,
+                };
+                console.log(stage);
+              }
+
+              const promises = centroids.map(
+                drawItems('history', {
+                  stageNo,
+                  historyLength: gHistories.length,
+                  nonDup,
+                }),
+              );
+              await Promise.all(promises);
+              resolve(true);
+            }, 200);
+          });
+          await pro;
+        }
+      }
+
+      /// 클러스터 형성과정중 n번 이상 포함하는 요소의 수가 변한 클러스터 배열을 리턴하는 테스트 함수
+      function manyChangedCentroids(n) {
+        return gCentroids.filter(v => {
+          const arr = v.histories.split('-');
+          let prevNumber = 'start';
+          const diffNum = arr.filter(c => {
+            if (prevNumber === 'start' || prevNumber === c) {
+              prevNumber = c;
+              return false;
+            }
+            prevNumber = c;
+            return true;
+          });
+          return diffNum.length >= n;
+        });
+      }
+
+      /// 클러스터 형성과정중 여행지 요소 수가 감소한적이 있는 클러스터를 배열로 리턴
+      function decreasedCaseCentoirds() {
+        return gCentroids.filter(v => {
+          const arr = v.histories.split('-');
+          let prevNumber = 'start';
+          const diffNum = arr.filter(c => {
+            if (prevNumber === 'start' || Number(prevNumber) <= Number(c)) {
+              prevNumber = c;
+              return false;
+            }
+            prevNumber = c;
+            return true;
+          });
+          return diffNum.length >= 1;
+        });
+      }
+
+      /// 특정 위경도 점으로 표시
+      async function drawPoint({
+        lng,
+        lat,
+        color,
+        size,
+        text,
+        alpha,
+        blink = true,
+      }) {
+        const { x, y } = geoLocToCoord({ lat, lng });
+        console.log(`draw point (${x}, ${y})`);
+        let isMarked = false;
+        function mark() {
+          markPointCtx.beginPath();
+          if (text) {
+            markPointCtx.font = '25px Comic Sans MS';
+            markPointCtx.fillText(`${text}`, x, y);
+          }
+
+          markPointCtx.arc(x, y, size ?? centPointSize * 5, 0, 2 * Math.PI);
+          markPointCtx.globalAlpha = alpha ?? 1;
+          markPointCtx.stroke();
+          markPointCtx.strokeStyle = 'black';
+          markPointCtx.fillStyle = color ?? 'red';
+          markPointCtx.fill();
+
+          markPointCtx.closePath();
+        }
+
+        function unmark() {
+          markPointCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        }
+
+        let intervalId;
+        let intervalCnt = 0;
+        /// 깜박임
+        if (blink) {
+          const promise = new Promise(resolve => {
+            intervalId = setInterval(() => {
+              if (intervalCnt > 800) resolve(true);
+              if (isMarked) unmark();
+              else mark();
+              isMarked = !isMarked;
+              intervalCnt++;
+            }, 500);
+            gIntervalIds.push(intervalId);
+          });
+          await promise;
+          unmark();
+          clearInterval(intervalId);
+        } else {
+          mark();
+        }
+      }
+
+      /// 특정 위경도 점으로 표시
+      async function drawPointOnHistoryCanvas({
+        lng,
+        lat,
+        color,
+        size,
+        text,
+        alpha,
+        blink = true,
+      }) {
+        const { x, y } = geoLocToCoord({ lat, lng });
+        console.log(`draw point (${x}, ${y})`);
+        let isMarked = false;
+        function mark() {
+          historyCtx.beginPath();
+          if (text) {
+            historyCtx.font = '25px Comic Sans MS';
+            historyCtx.fillText(`${text}`, x, y);
+          }
+
+          historyCtx.arc(x, y, size ?? centPointSize * 5, 0, 2 * Math.PI);
+          historyCtx.globalAlpha = alpha ?? 1;
+          historyCtx.stroke();
+          historyCtx.strokeStyle = 'black';
+          historyCtx.fillStyle = color ?? 'red';
+          historyCtx.fill();
+
+          historyCtx.closePath();
+        }
+
+        function unmark() {
+          historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        }
+
+        let intervalId;
+        let intervalCnt = 0;
+        /// 깜박임
+        if (blink) {
+          const promise = new Promise(resolve => {
+            intervalId = setInterval(() => {
+              if (intervalCnt > 800) resolve(true);
+              if (isMarked) unmark();
+              else mark();
+              isMarked = !isMarked;
+              intervalCnt++;
+            }, 500);
+          });
+          await promise;
+          unmark();
+          clearInterval(intervalId);
+        } else {
+          mark();
+        }
+      }
+
+      /// play() 실행할때 미리 그려진 클러스터들을 지우고 할것인지(gResetOpt === true)
+      function changeResetOpt() {
+        gResetOpt = !gResetOpt;
+        console.log(gResetOpt);
+      }
+
+      async function markValidCentroids() {
+        const promises = gValidCentroids
+          .map(v => v.centroidNHotel.cent)
+          .map(v => {
+            const promise = new Promise(async resolve => {
+              await drawPoint(v);
+              resolve(true);
+            });
+          });
+      }
+
+      async function markVisitSchedule(options) {
+        const dayNo = options?.dayNo;
+        historyCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        console.log(typeof dayNo, dayNo && dayNo >= 0);
+        prevData = undefined;
+        if (dayNo !== undefined && dayNo >= 0) {
+          console.log(`***********************`);
+          console.log(`***** dayNo: ${dayNo} *****`);
+          console.log(`***********************`);
+          for await (const orderData of gVisitSchedules[dayNo].titleList) {
+            await drawLinedItems(orderData);
+          }
+        } else {
+          for await (const dayData of gVisitSchedules) {
+            console.log(`******************`);
+            console.log(`***** dayNo: ${dayData.dayNo} *****`);
+            console.log(`******************`);
+            for await (const orderData of dayData.titleList) {
+              await drawLinedItems(orderData);
+            }
+          }
+        }
+      }
+      async function markSuperCentroids() {
+        let i = 0;
+
+        for await (const s of gSuperCentroids) {
+          drawPointOnHistoryCanvas({
+            lat: s.superCent.lat,
+            lng: s.superCent.lng,
+            color: 'green',
+            size: 30,
+            text: `${i++}`,
+            blink: false,
+          });
+
+          const radiusGeo = await estGeoLocFromMeter(s.superCent.maxDistance);
+          const { x: superCentRadius } = geoLocToCoord(radiusGeo);
+
+          // drawPointOnHistoryCanvas({
+          //   lat: s.superCent.lat,
+          //   lng: s.superCent.lng,
+          //   color: 'green',
+          //   size: superCentRadius ? superCentRadius : 30,
+          //   text: `${i++}`,
+          //   alpha: 1,
+          //   blink: false,
+          // });
+        }
+      }
+
+      function both() {
+        load();
+        markValidCentroids();
+        markVisitSchedule();
+        markSuperCentroids();
+      }
+
+      function stop() {
+        gIntervalIds.forEach(id => {
+          clearInterval(id);
+        });
+      }
+    </script>
+  </head>
+  <body style="margin: 0">
+    <canvas id="spotCanvas" width="4800" height="4800" margin> </canvas>
+    <canvas
+      id="clickCheckCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+    >
+    </canvas>
+    <canvas
+      id="markPointCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+    >
+    </canvas>
+    <canvas
+      id="historyCanvas"
+      width="4800"
+      height="4800"
+      style="position: absolute; top: 0; left: 0"
+      onClick="clickCanvas(window.event)"
+    >
+    </canvas>
+
+    <script>
+      spotCanvas = document.getElementById('spotCanvas'); /// 요소가 표시되는 캔버스
+      historyCanvas = document.getElementById('historyCanvas'); /// 클러스터 관련 캔버스
+      clickCheckCanvas = document.getElementById('clickCheckCanvas'); /// 마우스
+      markPointCanvas = document.getElementById('markPointCanvas'); /// 마우스 클릭과 관련된 캔버스
+      ctx = spotCanvas.getContext('2d');
+      historyCtx = historyCanvas.getContext('2d');
+      clickCheckCtx = clickCheckCanvas.getContext('2d');
+      markPointCtx = markPointCanvas.getContext('2d');
+      console.log(clickCheckCtx);
+      console.log(`
+  ####    #####    #######    ##     ####     ######   ####      #####    #####   ##   ## 
+   ##      ## ##    ##   #   ####     ##       ##  ##   ##      ##   ##  ##   ##  ### ### 
+   ##      ##  ##   ## #    ##  ##    ##       ##  ##   ##      ##   ##  ##   ##  ####### 
+   ##      ##  ##   ####    ##  ##    ##       #####    ##      ##   ##  ##   ##  ####### 
+   ##      ##  ##   ## #    ######    ##   #   ##  ##   ##   #  ##   ##  ##   ##  ## # ## 
+   ##      ## ##    ##   #  ##  ##    ##  ##   ##  ##   ##  ##  ##   ##  ##   ##  ##   ## 
+  ####    #####    #######  ##  ##   #######  ######   #######   #####    #####   ##   ## 
+                                                                                          \n  ## brip 클러스터링 테스트 및 시각화 툴 ##
+`);
+      console.log(
+        `
+  ## how to use
+  ## A. 함수
+    1. $ load() <-- spot, food 값중 한 종류를 세팅된 모드에따라 캔버스에 출력한다. 클러스터링 결과들의 중심은 조금 크고 다른 색의 점으로 표현함. 기본적으로 load하면 화면에 표시된 모든 요소를 지우고 다시 그린다.
+    
+    2. play() <-- 생성한 클러스터링들의 생성과정을 모두 출력한다. play를 호출하면 요소를 제외한 클러스터만 지우고 다시그린다.
+      a. 함수 Option 
+        - centId: 특정 클러스터만 표시하려면 centId 프로퍼티를 넣어준다.
+          ex) $ play({centId: 11})
+        - stageNo: 클러스터 생성과정중 특정 단계만 보고싶으면 stageNo를 넣어준다.
+          ex) $ play({stageNo: 22}) # 전체 클러스터 스테이지를 확인하려면 gHistories를 보자.
+        - nonDup: 생성한 클러스터들중 가까운 곳끼리의 클러스터들은 여러개중 하나만 살려서 미중복 클러스터로 표시한다. 
+          ex) play({nonDup: true}) 
+      b. 각 옵션은 조합하여 사용이 가능하다. ex) $ play({centId: 111, stageNo: 22}), play({nonDup: true, stageNo:15 })...
+    3. drawPoint() <-- 표시하고픈 위경도를 노란색 점으로 깜박임 표시해준다.
+    ex) drawPoint({lat: 33.2748192, lng: 125.8128831823}) 
+    4. degreeToMeter()  <-- 두 위경도 사이의 거리를 미터로 반환한다.
+      ex) degreeToMeter(33.1234, 126.1234, 34.1234, 126.1234)
+    5. coordToGeoLoc({x: 1271, y:4112})  <-- 캔버스상의 좌표를 위경도로 환산하여 반환
+    6. manyChangedCentroids(n) <--  클러스터에 포함된 요소의 수가  n번이상 바뀐 클러스터를 반환한다.
+    7. decreasedCaseCentoirds() <-- 클러스터 형성과정중 포함한 요소의 수가 감소한적이 있는 클러스터를 반환한다.
+    8. changeResetOpt() <-- play() 함수는 gResetOpt를 보고 true일 경우(default) 캔버스에 그렸던 클러스터 관련 오브젝트들을 지우고 다시 그린다. changeResetOpt를 통해 gResetOpt를 변경하므로써 이미 그려진 클러스터 관련 오브젝트를 지우지 않고 더하여 그린다.
+  
+    ## B. 마우스 클릭 기능
+    마우스 클릭을 통해 클러스터 형성시 조건인 '반경'을 그려서 확인해볼수 있으며 반경안에 속한 클러스터 또는 요소들의 정보를 거리 오름차순으로 확인해볼수 있다.
+    1. searchedCent: 클러스터 형성과정중에 거쳐갔던 흔적 클러스터들 중 일부가 클릭한곳 주변에 있을 경우 거리 오름차순 형태의 배열로 반환한다.
+    2. searchedNonDupCent: 1번과 동일하나 최종적으로 미중복 클러스터들 중 일부가 클릭한곳 주변에 있을 경우 거리 오름차순 형태의 배열로 반환한다.
+    3. searchedSpot: 검색된 요소(여행지, 식당)들중 반경안에 드는 요소를 거리 오름차순으로 반환한다.
+    4. clusterResWithPrintMode: play() 함수를 실행한적이 있다면 실행한 프린트 모드에 맞는 결과를 출력한다. 
+      ex) play({centId: 15})등으로 centId와 관련한 실행을 했을 경우 clusterResWithPrintMode에 실리는 데이터는 id 15번 클러스터가 생성된 과정인 모든 스테이지별 클러스터가 클릭한 곳 주변에 있는지를 찾는다.
+      ex) play({stageNo: 9}) stageNo를 통한 실행일 경우는 해당 스테이지 클러스터중 클릭한곳 주변에 위치한것이 있는지를 찾는다.
+  `,
+      );
+    </script>
+
+    <script>
+      let gWinZoom;
+      window.addEventListener('resize', getSizes, false);
+      function getSizes() {
+        gWinZoom = (window.innerHeight / canvasHeight + 1) ** 7;
+        // console.log(
+        //   `ratio:: ${window.innerHeight / canvasHeight + 1}, size:: ${
+        //     gWinZoom * spotPointSize
+        //   }`,
+        // );
+      }
+
+      getSizes();
+    </script>
+  </body>
+</html>

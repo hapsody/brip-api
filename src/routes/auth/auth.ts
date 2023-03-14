@@ -7,24 +7,51 @@ import {
   IBResFormat,
   accessTokenValidCheck,
   IBError,
-  UserTokenPayload,
+  AccessTokenPayload,
+  RefreshTokenPayload,
 } from '@src/utils';
-import _, { isEmpty } from 'lodash';
+import _, { isEmpty, isEqual } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User } from '@prisma/client';
+import { User, TripCreator } from '@prisma/client';
+import axios, { Method } from 'axios';
+import CryptoJS from 'crypto-js';
+import moment from 'moment';
+import { compare } from 'bcrypt';
 
 const authRouter: express.Application = express();
 
+export interface SaveScheduleResponsePayload {
+  token: string;
+  refreshToken: string;
+  nickName: string;
+  userId: number;
+  email: string;
+  isCreator: boolean;
+}
+
+export interface SignInRequest {
+  email: string;
+  password: string;
+}
+
+export type SignInResponse = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SaveScheduleResponsePayload | {};
+};
+
 export const signIn = (
-  req: Express.IBTypedReqBody<{ email: string; password: string }>,
-  res: Express.IBTypedResponse<IBResFormat>,
+  req: Express.IBTypedReqBody<SignInRequest>,
+  res: Express.IBTypedResponse<SignInResponse>,
   next: NextFunction,
 ): void => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   passport.authenticate(
     'local',
-    (err: Error, user: User, info: { message: string }) => {
+    (
+      err: Error,
+      user: User & { tripCreator: TripCreator[] },
+      info: { message: string },
+    ) => {
       if (err) {
         console.error(err);
         res.status(500).json({
@@ -65,24 +92,31 @@ export const signIn = (
         return;
       }
 
-      const randNo = Math.random().toString().substr(2, 6);
-      const userTokenPayload: UserTokenPayload = {
+      // const randNo = Math.random().toString().substr(2, 6);
+      const accessTokenPayload: AccessTokenPayload = {
         grade: 'member',
         email: user.email,
         tokenId: user.userTokenId,
       };
       const accessToken = jwt.sign(
         // { email: user.email, randNo },
-        userTokenPayload,
+        accessTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '14d',
+          // expiresIn: '1s',
         },
       );
 
+      const refreshTokenPayload: RefreshTokenPayload = {
+        email: user.email,
+        refTk: true,
+        // randNo
+      };
+
       // const expiration = 1000;
       const refreshToken = jwt.sign(
-        { email: user.email, randNo },
+        refreshTokenPayload,
         process.env.JWT_SECRET || 'test_secret',
         {
           expiresIn: '60d',
@@ -102,8 +136,10 @@ export const signIn = (
         IBparams: {
           token: accessToken,
           refreshToken,
+          nickName: user.nickName,
           userId: user.id,
           email: user.email,
+          isCreator: !isEmpty(user.tripCreator),
         },
       });
     },
@@ -122,7 +158,7 @@ export type SignUpRequestType = {
   // userToken: string;
 };
 export type SignUpResponseType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: User | {};
+  IBparams: Omit<User, 'password'> | {};
 };
 
 export const signUp = asyncWrapper(
@@ -150,6 +186,19 @@ export const signUp = asyncWrapper(
         // userToken,
       },
     } = req;
+
+    const userTokenId = (() => {
+      if (locals && locals?.grade === 'member')
+        return locals?.user?.userTokenId;
+      return locals?.tokenId;
+    })();
+
+    if (!userTokenId) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      });
+    }
 
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
@@ -184,17 +233,50 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    const createdUser = await prisma.user.create({
-      data: {
-        email,
-        password: hash,
-        phone,
-        nickName,
-        countryCode,
-        userTokenId: locals?.tokenId?.toString() ?? 'error',
-      },
+    const interCode = phone.split('-')[0].slice(1);
+    const formattedPhone = phone.split('-').reduce((acc, cur) => {
+      if (cur.includes('+')) return acc;
+      return `${acc}${cur}`;
+    }, '');
+    const userWithoutPw = await prisma.$transaction(async tx => {
+      const smsAuthCode = await tx.sMSAuthCode.findMany({
+        where: {
+          phone: `+${interCode}-${formattedPhone}`,
+          code: phoneAuthCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      await tx.sMSAuthCode.deleteMany({
+        where: {
+          OR: [{ phone }, { userTokenId }],
+        },
+      });
+
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          password: hash,
+          phone,
+          nickName,
+          countryCode,
+          userTokenId: locals?.tokenId?.toString() ?? 'error',
+        },
+      });
+      const user = _.omit(createdUser, ['password']);
+      return user;
     });
-    const userWithoutPw = _.omit(createdUser, ['password']);
 
     res.json({
       ...ibDefs.SUCCESS,
@@ -212,6 +294,12 @@ export type ReqNonMembersUserTokenResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqNonMembersUserTokenSuccessResType | {};
 };
 
+/**
+ * 비회원일 경우도 DB에 저장되는 모든 데이터들의 소유자를 특정할수 있도록
+ * tokenId를 payload로 갖는 일종의 accessToken을 부여하는데
+ * reqNonMembersUserToken을 통해 유저 레벨의 api함수를 사용하기 위해
+ * 비회원이 사용할수 있는 비회원용 고유 토큰을 요청한다.
+ */
 export const reqNonMembersUserToken = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<ReqNonMembersUserTokenRequestType>,
@@ -226,12 +314,12 @@ export const reqNonMembersUserToken = asyncWrapper(
         data: {},
       });
 
-      const userTokenPayload: UserTokenPayload = {
+      const accessTokenPayload: AccessTokenPayload = {
         grade: 'nonMember',
         tokenId: newOne.id.toString(),
       };
       const userToken = jwt.sign(
-        userTokenPayload,
+        accessTokenPayload,
         process.env.JWT_SECRET as string,
       );
 
@@ -246,6 +334,429 @@ export const reqNonMembersUserToken = asyncWrapper(
         if (err.type === 'INVALIDENVPARAMS') {
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type RefreshAccessTokenRequestType = {
+  userId: string;
+  refreshToken: string;
+};
+export interface RefreshAccessTokenSuccessResType {
+  token: string;
+  userId: number;
+  email: string;
+  nickName: string;
+}
+
+export type RefreshAccessTokenResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: RefreshAccessTokenSuccessResType | {};
+};
+
+/**
+ * 비회원일 경우도 DB에 저장되는 모든 데이터들의 소유자를 특정할수 있도록
+ * tokenId를 payload로 갖는 일종의 accessToken을 부여하는데
+ * reqNonMembersUserToken을 통해 유저 레벨의 api함수를 사용하기 위해
+ * 비회원이 사용할수 있는 비회원용 고유 토큰을 요청한다.
+ */
+export const refreshAccessToken = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RefreshAccessTokenRequestType>,
+    res: Express.IBTypedResponse<RefreshAccessTokenResType>,
+  ) => {
+    try {
+      if (isEmpty(process.env.JWT_SECRET)) {
+        throw new IBError({ type: 'INVALIDENVPARAMS', message: '' });
+      }
+
+      const { userId, refreshToken } = req.body;
+      if (isEmpty(userId) || isEmpty(refreshToken)) {
+        res.json({
+          ...ibDefs.INVALIDPARAMS,
+        });
+
+        throw new IBError({
+          type: 'INVALIDENVPARAMS',
+          message: 'userId와 refreshToken 파라미터가 필요합니다.',
+        });
+      }
+
+      let payload: RefreshTokenPayload | {} = {};
+      try {
+        payload = jwt.verify(refreshToken, process.env.JWT_SECRET as string);
+      } catch (e) {
+        if (isEqual((e as Error).name, 'TokenExpiredError')) {
+          throw new IBError({
+            type: 'TOKENEXPIRED',
+            message: '',
+          });
+        }
+      }
+
+      if (isEmpty(payload) || !(payload as RefreshTokenPayload).refTk) {
+        throw new IBError({
+          type: 'NOTREFRESHTOKEN',
+          message: 'refreshToken이 아닙니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          email: (payload as RefreshTokenPayload).email,
+        },
+      });
+
+      if (isEmpty(user)) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message:
+            'refreshToken payload에 실린 email은 존재하지 않는 email 이거나, refreshToken과 유저 email 정보가 일치하지 않습니다.',
+        });
+      }
+
+      const accessTokenPayload: AccessTokenPayload = {
+        grade: 'member',
+        email: user.email,
+        tokenId: user.userTokenId,
+      };
+      const accessToken = jwt.sign(
+        // { email: user.email, randNo },
+        accessTokenPayload,
+        process.env.JWT_SECRET || 'test_secret',
+        {
+          expiresIn: '14d',
+        },
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          token: accessToken,
+          userId: user.id,
+          email: user.email,
+          nickName: user.nickName,
+        },
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDENVPARAMS') {
+          res.status(500).json({
+            ...ibDefs.INVALIDENVPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'TOKENEXPIRED') {
+          res.status(401).json({
+            ...ibDefs.TOKENEXPIRED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTREFRESHTOKEN') {
+          res.status(401).json({
+            ...ibDefs.NOTREFRESHTOKEN,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTMATCHEDDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type SendSMSAuthCodeREQParam = {
+  phone: string;
+};
+export interface SendSMSAuthCodeRETParamPayload {}
+
+export type SendSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SendSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 문자 인증번호 발송
+ *
+ */
+export const sendSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SendSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SendSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { phone } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '파라미터가 제공되지 않았습니다',
+        });
+      }
+
+      if (!phone.includes('+')) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '국제코드가 포함되어야 합니다.',
+        });
+      }
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const randNum = Math.random().toString().substring(2, 8);
+      const authCode =
+        randNum.length < 6
+          ? `${randNum}${Array<number>(6 - randNum.length)
+              .fill(0)
+              .reduce(
+                (acc: string, cur: number) => `${acc}${cur.toString()}`,
+                '' as string,
+              )}`
+          : randNum;
+      const timestamp = `${new Date().getTime().toString()}`; // current timestamp (epoch)
+      const makeSignature = () => {
+        const space = ' '; // one space
+        const newLine = '\n'; // new line
+        const method = 'POST'; // method
+        const url = `/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`; // url (include query string)
+        // const timestamp = `${new Date().getTime()}`; // current timestamp (epoch)
+        const accessKey = `${process.env.NAVER_PLATFORM_ACCESS_KEY as string}`; // access key id (from portal or Sub Account)
+        const secretKey = `${process.env.NAVER_PLATFORM_SECRET_KEY as string}`; // secret key (from portal or Sub Account)
+
+        const hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, secretKey);
+        hmac.update(method);
+        hmac.update(space);
+        hmac.update(url);
+        hmac.update(newLine);
+        hmac.update(timestamp);
+        hmac.update(newLine);
+        hmac.update(accessKey);
+        const hash = hmac.finalize();
+        const signature = hash.toString(CryptoJS.enc.Base64);
+        return signature;
+      };
+
+      const signature = makeSignature();
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsResult: Partial<{
+        name: string;
+        config: {
+          data: string;
+          headers: object;
+        };
+        status: number;
+        statusText: string;
+        data: {
+          requestId: string;
+          requestTime: string;
+          statusCode: string;
+          statusName: string;
+        };
+      }> = await axios.request({
+        method: 'POST' as Method,
+        url: `https://sens.apigw.ntruss.com/sms/v2/services/${
+          process.env.NAVER_SENS_SERVICE_ID as string
+        }/messages`,
+
+        headers: {
+          'Content-Type': 'application/json',
+          'x-ncp-iam-access-key': `${
+            process.env.NAVER_PLATFORM_ACCESS_KEY as string
+          }`,
+          'x-ncp-apigw-signature-v2': signature,
+          'x-ncp-apigw-timestamp': timestamp,
+        },
+        data: {
+          type: 'SMS',
+          contentType: 'COMM',
+          countryCode: interCode,
+          from: `${process.env.NAVER_SENS_CALLING_NUMBER as string}`,
+          content: `brip SMS 문자인증 코드: ${authCode}`,
+          messages: [
+            {
+              to: formattedPhone,
+              subject: 'brip SMS 문자인증 코드',
+              content: `brip SMS 문자인증 코드: ${authCode}`,
+            },
+          ],
+        },
+      });
+
+      const { status, statusText } = smsResult;
+      if (status !== 202 || statusText !== 'Accepted') {
+        throw new IBError({
+          type: 'EXTERNALAPI',
+          message: `SMS API 호출 에러`,
+        });
+      }
+
+      await prisma.sMSAuthCode.create({
+        data: {
+          phone: `+${interCode}-${formattedPhone}`,
+          code: authCode,
+          userTokenId,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type SubmitSMSAuthCodeREQParam = {
+  phone: string;
+  authCode: string;
+};
+export interface SubmitSMSAuthCodeRETParamPayload {}
+
+export type SubmitSMSAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SubmitSMSAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 문자 인증번호 제출
+ *
+ */
+export const submitSMSAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubmitSMSAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SubmitSMSAuthCodeRETParam>,
+  ) => {
+    try {
+      const { phone, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: `+${interCode}-${formattedPhone}`,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -279,6 +790,169 @@ export const authGuardTest = (
   });
 };
 
+export type ChangePasswordREQParam = {
+  password: string;
+  newPassword: string;
+  authCode: string;
+};
+export interface ChangePasswordRETParamPayload {}
+
+export type ChangePasswordRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangePasswordRETParamPayload | {};
+};
+
+/**
+ * 비밀번호 변경
+ *
+ */
+export const changePassword = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangePasswordREQParam>,
+    res: Express.IBTypedResponse<ChangePasswordRETParam>,
+  ) => {
+    try {
+      const { password, newPassword, authCode } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return null;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 userTokenId가 아니거나 정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          userTokenId,
+        },
+        include: {
+          UserPasswordHistory: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 회원입니다.',
+        });
+      }
+
+      const compareResult: Boolean = await compare(password, user.password);
+      if (!compareResult) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: '기존 password가 일치하지 않습니다.',
+        });
+      }
+
+      const checkHistory = await (async () => {
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const history of user.UserPasswordHistory) {
+          const compareRes = await compare(newPassword, history.password);
+          if (compareRes) return true;
+        }
+        return false;
+      })();
+
+      if (checkHistory) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '사용하였던 password입니다.',
+        });
+      }
+
+      const interCode = user.phone.split('-')[0].slice(1);
+      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: `+${interCode}-${formattedPhone}`,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      const hash = genBcryptHash(newPassword);
+
+      await prisma.$transaction(async tx => {
+        await tx.user.update({
+          where: {
+            userTokenId,
+          },
+          data: {
+            password: hash,
+          },
+        });
+
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone: user.phone }, { userTokenId }],
+          },
+        });
+
+        await tx.userPasswordHistory.create({
+          data: {
+            password: user.password,
+            userId: user.id,
+          },
+        });
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -303,5 +977,9 @@ authRouter.post('/signIn', signIn);
 authRouter.post('/signUp', accessTokenValidCheck, signUp);
 authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
+authRouter.post('/refreshAccessToken', refreshAccessToken);
+authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
+authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
+authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 
 export default authRouter;

@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { User, TripCreator } from '@prisma/client';
 
 export class IBError extends Error {
   type: keyof IBResFormats;
@@ -24,6 +24,15 @@ export interface IBResFormat {
   IBmessage: string;
   IBdetail: string;
   IBparams: object | {};
+}
+
+/**
+ * 함수-함수 전달시 함수간 전달해야할 내부 변수들
+ */
+export interface IBContext {
+  queryParamsId?: string;
+  userTokenId?: string;
+  memberId?: number;
 }
 
 // export interface IBTypedReqBody<T> extends Express.Request {
@@ -65,7 +74,7 @@ export interface IBResFormats {
   NOTAUTHORIZED: IBResFormat; // 403
   KAKAOTOKENERROR: IBResFormat; // 401
   DBTRANSACTIONERROR: IBResFormat; // 500
-  NOTEXISTDATA: IBResFormat; // 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
+  NOTEXISTDATA: IBResFormat; // 202, 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
   NOTMATCHEDDATA: IBResFormat; // 404, 서버가 정상적으로 요청을 수신했으나 DB가 존재하지 않는 정상상황이다.
   DUPLICATEDDATA: IBResFormat; // 409
   EXPIREDDATA: IBResFormat; // 400
@@ -189,14 +198,21 @@ export const ibDefs: IBResFormats = {
 };
 
 export type MemberGrade = 'nonMember' | 'member';
-export interface UserTokenPayload {
+export interface AccessTokenPayload {
   grade: MemberGrade;
   email?: string; // grade가 member 일 경우 존재
   tokenId: string;
 }
 
+export interface RefreshTokenPayload {
+  email: string;
+  refTk: boolean;
+}
+
 export interface GuardRes {
   grade: MemberGrade;
   tokenId?: string;
-  user?: User;
+  user?: User & {
+    tripCreator: TripCreator[];
+  };
 }

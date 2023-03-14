@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "command": "yarn stop;yarn start",
+      "command": "yarn stop;yarn start:dev",
       "name": "terminal debug",
       "request": "launch",
       "type": "node-terminal"
@@ -19,8 +19,27 @@
     },
 
     {
-      "command": "yarn test signUp",
-      "name": "test signUp",
+      "command": "yarn seed",
+      "name": "seed",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+
+    {
+      "command": "yarn batch",
+      "name": "test batch",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "yarn seed:tripMemoryCategory",
+      "name": "test seed:tripMemoryCategory",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "yarn seed:shareTripMemory",
+      "name": "test seed:shareTripMemory",
       "request": "launch",
       "type": "node-terminal"
     }

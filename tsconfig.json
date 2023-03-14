@@ -27,8 +27,8 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/prisma/seeds/user.js",
-    "src/prisma/seeds/user.js"
+    // "src/prisma/seeds/user.js",
+    "src/routes/schedule/__test__/.test.ts"
   ],
   "exclude": ["node_modules"]
 }
