@@ -4,9 +4,9 @@ HOME=/home/ubuntu
 cd /home/ubuntu/travelit-api
 
 # Set the maximum number of iterations to perform
-max_iterations=1200
+#max_iterations=1200
 iterations=0
-waiting_time=5
+waiting_time=10
 
 # Define a function to check if the process is running
 function is_process_running () {
@@ -23,7 +23,7 @@ function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
   git checkout prod
-  git pull upstream prod
+  git pull upstream prod --no-edit
   git fetch --tags
   yarn
   yarn prisma db push
@@ -35,7 +35,7 @@ function run_process () {
 run_process
 
 # Wait for the process to start
-while [ $iterations -lt $max_iterations ]
+while true
 do
   iterations=$((iterations+1))
   sleep $waiting_time

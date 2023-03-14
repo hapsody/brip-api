@@ -23,7 +23,7 @@ function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
   git checkout dev
-  git pull upstream dev
+  git pull upstream dev --no-edit
   git fetch --tags
   yarn
   yarn prisma db push
@@ -37,7 +37,7 @@ function run_process () {
 run_process
 
 # Wait for the process to start
-while [ $iterations -lt $max_iterations ]
+while true
 do
   iterations=$((iterations+1))
   sleep $waiting_time
