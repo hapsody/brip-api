@@ -3641,10 +3641,8 @@ export const saveSchedule = async (
         id: Number(queryParamsId),
       },
       data: {
-        startDate: moment(queryParams.startDate)
-          .add(diffDate, 'd')
-          .toISOString(),
-        endDate: moment(queryParams.endDate).add(diffDate, 'd').toISOString(),
+        startDate,
+        endDate,
       },
     });
 
