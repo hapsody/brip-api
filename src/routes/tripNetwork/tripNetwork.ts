@@ -1126,11 +1126,11 @@ export const addShareTripMemory = asyncWrapper(
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
-          title,
-          lat: Number(lat),
-          lng: Number(lng),
-          address,
-          img,
+          title: createdOrFoundTripMem.title,
+          lat: createdOrFoundTripMem.lat,
+          lng: createdOrFoundTripMem.lng,
+          address: createdOrFoundTripMem.address,
+          img: createdOrFoundTripMem.img,
           comment,
           user: {
             connect: {
