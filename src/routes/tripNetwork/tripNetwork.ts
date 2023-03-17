@@ -2472,9 +2472,7 @@ export const getShareTripMemList = asyncWrapper(
         }),
         ...(orderBy.toUpperCase().includes('LIKE') && {
           orderBy: {
-            TourPlace: {
-              like: 'desc',
-            },
+            like: 'desc',
           },
         }),
       });
@@ -2574,6 +2572,9 @@ export interface GetShareTripMemListByPlaceRequestType {
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 tourPlace id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
+  shareTripMemory?: {
+    orderBy: string; /// 좋아요순(like), 최신순(latest) 정렬 default 최신순
+  };
 }
 export interface GetShareTripMemListByPlaceSuccessResType
   extends TourPlaceCommonType {
@@ -2625,6 +2626,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         lastId,
         take = '10',
         categoryKeyword = '',
+        shareTripMemory,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -2709,6 +2711,20 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 },
               },
             },
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LIKE') && {
+                orderBy: {
+                  like: 'desc',
+                },
+              }),
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LATEST') && {
+                orderBy: {
+                  id: 'desc',
+                },
+              }),
           },
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {
