@@ -662,6 +662,8 @@ model TripMemory {
   userId      Int
 
   ShareTripMemory ShareTripMemory?
+
+  @@unique([title, img])
 }
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
@@ -687,6 +689,8 @@ model ShareTripMemory {
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeFrom                        User[]                            @relation(name: "likeFrom")
+
+  @@unique([title, img])
 }
 
 /// 대댓글 기능을 지원하는 자기참조 모델

@@ -309,6 +309,22 @@ const addTripMemory = async (
     });
 
   const createdTripMem = await prisma.$transaction(async tx => {
+    const alreadyExist = await tx.tripMemory.findUnique({
+      where: {
+        title_img: {
+          title,
+          img,
+        },
+      },
+    });
+
+    if (!isNil(alreadyExist)) {
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: '이미 기억 데이터가 존재합니다.',
+      });
+    }
+
     const prevStartDate = !isNil(tripMemoryGroup.startDate)
       ? tripMemoryGroup.startDate
       : moment().startOf('d').toISOString();
@@ -851,6 +867,22 @@ export const addShareTripMemory = asyncWrapper(
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const alreadyExist = await prisma.shareTripMemory.findUnique({
+        where: {
+          title_img: {
+            title,
+            img,
+          },
+        },
+      });
+
+      if (!isNil(alreadyExist)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 공유기억 데이터가 존재합니다.',
         });
       }
 
