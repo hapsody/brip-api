@@ -6,7 +6,7 @@ cd /home/ubuntu/travelit-api
 # Set the maximum number of iterations to perform
 #max_iterations=1200
 iterations=0
-waiting_time=10
+waiting_time=20
 
 # Define a function to check if the process is running
 function is_process_running () {
@@ -32,7 +32,7 @@ function run_process () {
   # yarn prismastudio
 }
 
-run_process
+#run_process
 
 # Wait for the process to start
 while true

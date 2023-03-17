@@ -6,10 +6,12 @@ cd /etc/systemd/system
 
 sudo systemctl daemon-reload
 
+sudo systemctl stop brip-dev-api-server-init.service
 sudo systemctl disable brip-dev-api-server-init.service
 sudo systemctl enable brip-dev-api-server-init.service
 sudo systemctl start brip-dev-api-server-init.service
 
+sudo systemctl stop dev-sys-resource-log.service
 sudo systemctl disable dev-sys-resource-log.service
 sudo systemctl enable dev-sys-resource-log.service
 sudo systemctl start dev-sys-resource-log.service
