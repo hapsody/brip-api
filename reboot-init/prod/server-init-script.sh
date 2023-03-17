@@ -27,7 +27,7 @@ function run_process () {
   git fetch --tags
   yarn
   yarn build
-  yarn prisma db push
+  yarn prisma db push --accept-data-loss
   yarn restart
   # yarn prismastudio
 }
