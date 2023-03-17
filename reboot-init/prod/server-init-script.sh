@@ -26,10 +26,10 @@ function run_process () {
   git pull upstream prod --no-edit
   git fetch --tags
   yarn
-  yarn prisma db push
   yarn build
+  yarn prisma db push
   yarn restart
-  yarn prismastudio
+  # yarn prismastudio
 }
 
 run_process

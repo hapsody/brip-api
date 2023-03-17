@@ -309,6 +309,22 @@ const addTripMemory = async (
     });
 
   const createdTripMem = await prisma.$transaction(async tx => {
+    const alreadyExist = await tx.tripMemory.findUnique({
+      where: {
+        title_img: {
+          title,
+          img,
+        },
+      },
+    });
+
+    if (!isNil(alreadyExist)) {
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: '이미 기억 데이터가 존재합니다.',
+      });
+    }
+
     const prevStartDate = !isNil(tripMemoryGroup.startDate)
       ? tripMemoryGroup.startDate
       : moment().startOf('d').toISOString();
@@ -854,6 +870,22 @@ export const addShareTripMemory = asyncWrapper(
         });
       }
 
+      const alreadyExist = await prisma.shareTripMemory.findUnique({
+        where: {
+          title_img: {
+            title,
+            img,
+          },
+        },
+      });
+
+      if (!isNil(alreadyExist)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 공유기억 데이터가 존재합니다.',
+        });
+      }
+
       const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
         where: {
           id: {
@@ -1126,11 +1158,11 @@ export const addShareTripMemory = asyncWrapper(
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
-          title,
-          lat: Number(lat),
-          lng: Number(lng),
-          address,
-          img,
+          title: createdOrFoundTripMem.title,
+          lat: createdOrFoundTripMem.lat,
+          lng: createdOrFoundTripMem.lng,
+          address: createdOrFoundTripMem.address,
+          img: createdOrFoundTripMem.img,
           comment,
           user: {
             connect: {
@@ -2440,9 +2472,7 @@ export const getShareTripMemList = asyncWrapper(
         }),
         ...(orderBy.toUpperCase().includes('LIKE') && {
           orderBy: {
-            TourPlace: {
-              like: 'desc',
-            },
+            like: 'desc',
           },
         }),
       });
@@ -2542,6 +2572,9 @@ export interface GetShareTripMemListByPlaceRequestType {
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 tourPlace id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
+  shareTripMemory?: {
+    orderBy: string; /// 좋아요순(like), 최신순(latest) 정렬 default 최신순
+  };
 }
 export interface GetShareTripMemListByPlaceSuccessResType
   extends TourPlaceCommonType {
@@ -2593,6 +2626,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         lastId,
         take = '10',
         categoryKeyword = '',
+        shareTripMemory,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -2677,6 +2711,20 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 },
               },
             },
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LIKE') && {
+                orderBy: {
+                  like: 'desc',
+                },
+              }),
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LATEST') && {
+                orderBy: {
+                  id: 'desc',
+                },
+              }),
           },
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {

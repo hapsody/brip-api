@@ -4,9 +4,9 @@ HOME=/home/ubuntu
 cd /home/ubuntu/travelit-api
 
 # Set the maximum number of iterations to perform
-max_iterations=1200
+#max_iterations=1200
 iterations=0
-waiting_time=5
+waiting_time=10
 
 # Define a function to check if the process is running
 function is_process_running () {
