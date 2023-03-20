@@ -27,7 +27,8 @@ function run_process () {
   git fetch --tags
   yarn
   yarn build
-  yarn prisma db push --accept-data-loss
+  # yarn prisma db push --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다.
+
   yarn restart
   # yarn prismastudio
 }
