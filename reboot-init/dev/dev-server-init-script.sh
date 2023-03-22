@@ -29,7 +29,7 @@ function run_process () {
   yarn prisma db push
   # yarn build
   # yarn restart
-  yarn stop:dev
+  yarn stop
   yarn start:dev
   yarn prismastudio
 }
