@@ -1,8 +1,8 @@
 Arguments: 
-  /Users/hjkang/.nvm/versions/node/v17.9.1/bin/node /Users/hjkang/.yarn/bin/yarn.js add @aws-sdk/s3-requirest-presigner
+  /Users/hjkang/.nvm/versions/node/v17.9.1/bin/node /Users/hjkang/.yarn/bin/yarn.js add @fortaine/openai/stream
 
 PATH: 
-  /Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin
+  /opt/homebrew/opt/mysql-client/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/opt/homebrew/opt/mysql-client/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin
 
 Yarn version: 
   1.22.19
@@ -14,8 +14,8 @@ Platform:
   darwin arm64
 
 Trace: 
-  Error: https://registry.yarnpkg.com/@aws-sdk%2fs3-requirest-presigner: Not found
-      at Request.params.callback [as _callback] (/Users/hjkang/.yarn/lib/cli.js:66145:18)
+  Error: https://registry.yarnpkg.com/@fortaine%2fopenai/stream: Request "https://registry.yarnpkg.com/@fortaine%2fopenai/stream" returned a 405
+      at Request.params.callback [as _callback] (/Users/hjkang/.yarn/lib/cli.js:66154:18)
       at Request.self.callback (/Users/hjkang/.yarn/lib/cli.js:140890:22)
       at Request.emit (node:events:527:28)
       at Request.<anonymous> (/Users/hjkang/.yarn/lib/cli.js:141862:10)
@@ -35,21 +35,31 @@ npm manifest:
     "license": "MIT",
     "scripts": {
       "pm2": "pm2",
-      "start:dev": "pm2 start ecosystem.config.js --env development",
-      "start:prod": "pm2 start ecosystem.config.js --env production",
-      "start": "yarn start:dev",
-      "stop": "pm2 delete $(exec pm2 list | awk '/travelit-api/ {print $2}')",
+      "start:dev": "pm2 start --only travelit-api-dev ecosystem.config.js --env development",
+      "start:prod": "pm2 start --only travelit-api-prod ecosystem.config.js --env production",
+      "start": "yarn start:prod",
+      "stop:dev": "pm2 delete $(exec pm2 list | awk '/travelit-api-dev/ {print $2}')",
+      "stop:prod": "pm2 delete $(exec pm2 list | awk '/travelit-api-prod/ {print $2}')",
+      "stop": "pm2 delete all",
       "restart": "yarn stop; yarn start",
       "eslint": "eslint --ext .js,.jsx,.ts,.tsx src",
       "format": "prettier --write \"src/**/*.{ts,tsx,js, json,html}\"",
-      "build": "tsc -p .",
+      "build": "rm -rf dist && tsc --skipLibCheck -p .",
       "prepare": "husky install",
       "migrate": "prisma migrate dev",
       "generate": "prisma generate",
       "seed": "ts-node  -r tsconfig-paths/register ./src/prisma/seeds",
+      "seed:user": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/user",
+      "seed:faqList": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/faqList",
+      "seed:cardNewsContent": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/cardNewsContent",
+      "seed:tripMemoryCategory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/tripMemoryCategory",
+      "seed:shareTripMemory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/shareTripMemory",
+      "seed:tourPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/tourPlace",
+      "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
       "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
       "batch": "yarn batch:dataresource",
-      "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts"
+      "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
+      "prismastudio": "pm2 start --only prismastudio"
     },
     "husky": {
       "hooks": {
@@ -91,6 +101,7 @@ npm manifest:
     },
     "dependencies": {
       "@aws-sdk/client-s3": "^3.258.0",
+      "@aws-sdk/s3-request-presigner": "^3.258.0",
       "@aws-sdk/types": "^3.257.0",
       "@prisma/client": "3.11.1",
       "@types/async": "^3.2.15",
@@ -136,10 +147,12 @@ npm manifest:
       "morgan": "^1.10.0",
       "multer": "^1.4.5-lts.1",
       "nodemailer": "^6.8.0",
+      "openai": "^3.2.1",
       "passport": "^0.5.2",
       "passport-jwt": "^4.0.0",
       "passport-local": "^1.0.0",
       "randomstring": "^1.2.3",
+      "stream": "^0.0.2",
       "supertest": "^6.2.2",
       "ts-jest": "^27.1.4",
       "uuid": "^9.0.0"
@@ -865,6 +878,21 @@ Lockfile:
       "@aws-sdk/types" "3.257.0"
       tslib "^2.3.1"
   
+  "@aws-sdk/s3-request-presigner@^3.258.0":
+    version "3.258.0"
+    resolved "https://registry.yarnpkg.com/@aws-sdk/s3-request-presigner/-/s3-request-presigner-3.258.0.tgz#2bf288d8a3d03bda9f9b56625e89c79682a30b32"
+    integrity sha512-uwOrsuOOilvtCDBhCNeYqawq2zGKi9Vhsv4x8tkoF//e5HLG0oeuklx7Iu55wvFCqatyLa2sWGolZn6VRiwenw==
+    dependencies:
+      "@aws-sdk/middleware-endpoint" "3.257.0"
+      "@aws-sdk/middleware-sdk-s3" "3.257.0"
+      "@aws-sdk/protocol-http" "3.257.0"
+      "@aws-sdk/signature-v4-multi-region" "3.257.0"
+      "@aws-sdk/smithy-client" "3.257.0"
+      "@aws-sdk/types" "3.257.0"
+      "@aws-sdk/util-create-request" "3.257.0"
+      "@aws-sdk/util-format-url" "3.257.0"
+      tslib "^2.3.1"
+  
   "@aws-sdk/service-error-classification@3.257.0":
     version "3.257.0"
     resolved "https://registry.yarnpkg.com/@aws-sdk/service-error-classification/-/service-error-classification-3.257.0.tgz#a374e811ac587b9beb6e3fda77f2249570da7a8e"
@@ -982,6 +1010,16 @@ Lockfile:
     dependencies:
       tslib "^2.3.1"
   
+  "@aws-sdk/util-create-request@3.257.0":
+    version "3.257.0"
+    resolved "https://registry.yarnpkg.com/@aws-sdk/util-create-request/-/util-create-request-3.257.0.tgz#f50c2fef93997d6ccd9f031acf14c6d6c1dfbfd6"
+    integrity sha512-2s1/LuNtauhwULdYTDMlLCKKmaYZTO8AcAVGOU5n8rCe9eQYWV77xITcf0iB7ilKq/nXBstIpYsbuldq4AIqXQ==
+    dependencies:
+      "@aws-sdk/middleware-stack" "3.257.0"
+      "@aws-sdk/smithy-client" "3.257.0"
+      "@aws-sdk/types" "3.257.0"
+      tslib "^2.3.1"
+  
   "@aws-sdk/util-defaults-mode-browser@3.257.0":
     version "3.257.0"
     resolved "https://registry.yarnpkg.com/@aws-sdk/util-defaults-mode-browser/-/util-defaults-mode-browser-3.257.0.tgz#80a7ae3618040a236df6faac8d353cb939ffea7e"
@@ -1009,6 +1047,15 @@ Lockfile:
     resolved "https://registry.yarnpkg.com/@aws-sdk/util-endpoints/-/util-endpoints-3.257.0.tgz#40cc8f67b996f8ea173f43d0e58e57ca8c244e67"
     integrity sha512-3bvmRn5XGYzPPWjLuvHBKdJOb+fijnb8Ungu9bfXnTYFsng/ndHUWeHC22O/p8w3OWoRYUIMaZHxdxe27BFozg==
     dependencies:
+      "@aws-sdk/types" "3.257.0"
+      tslib "^2.3.1"
+  
+  "@aws-sdk/util-format-url@3.257.0":
+    version "3.257.0"
+    resolved "https://registry.yarnpkg.com/@aws-sdk/util-format-url/-/util-format-url-3.257.0.tgz#d7e9720fc184f139ce036f430b956868481af410"
+    integrity sha512-Q/c1BLoEZLvnjagAE0nQryhQlFoC/a8ZrXJn4XljWPeFcFAVLpCoSzcTbQM1N4oQvDIgMvl5gBeGzp0BiW30QA==
+    dependencies:
+      "@aws-sdk/querystring-builder" "3.257.0"
       "@aws-sdk/types" "3.257.0"
       tslib "^2.3.1"
   
@@ -2562,7 +2609,7 @@ Lockfile:
     dependencies:
       follow-redirects "^1.14.0"
   
-  axios@^0.26.1:
+  axios@^0.26.0, axios@^0.26.1:
     version "0.26.1"
     resolved "https://registry.yarnpkg.com/axios/-/axios-0.26.1.tgz#1ede41c51fcf51bbbd6fd43669caaa4f0495aaa9"
     integrity sha512-fPwcX4EvnSHuInCMItEhAGnaSEXRBjtzh9fOtsE6E1G6p7vl7edEeZe11QHf18+6+9gR5PbKV/sGKNaD8YaMeA==
@@ -3344,6 +3391,11 @@ Lockfile:
     version "1.4.284"
     resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.284.tgz#61046d1e4cab3a25238f6bf7413795270f125592"
     integrity sha512-M8WEXFuKXMYMVr45fo8mq0wUrrJHheiKZf6BArTKk9ZBYCKJEOU5H8cdWgDT+qCVZf7Na4lVUaZsA+h6uA9+PA==
+  
+  emitter-component@^1.1.1:
+    version "1.1.1"
+    resolved "https://registry.yarnpkg.com/emitter-component/-/emitter-component-1.1.1.tgz#065e2dbed6959bf470679edabeaf7981d1003ab6"
+    integrity sha512-G+mpdiAySMuB7kesVRLuyvYRqDmshB7ReKEVuyBPkzQlmiDiLrt7hHHIy4Aff552bgknVN7B2/d3lzhGO5dvpQ==
   
   emitter-listener@^1.1.1:
     version "1.1.2"
@@ -5687,6 +5739,14 @@ Lockfile:
     dependencies:
       mimic-fn "^2.1.0"
   
+  openai@^3.2.1:
+    version "3.2.1"
+    resolved "https://registry.yarnpkg.com/openai/-/openai-3.2.1.tgz#1fa35bdf979cbde8453b43f2dd3a7d401ee40866"
+    integrity sha512-762C9BNlJPbjjlWZi4WYK9iM2tAVAv0uUp1UmI34vb0CN5T2mjB/qM6RYBmNKMh/dN9fC+bxqPwWJZUTWW052A==
+    dependencies:
+      axios "^0.26.0"
+      form-data "^4.0.0"
+  
   optionator@^0.8.1:
     version "0.8.3"
     resolved "https://registry.yarnpkg.com/optionator/-/optionator-0.8.3.tgz#84fa1d036fe9d3c7e21d99884b601167ec8fb495"
@@ -6563,6 +6623,13 @@ Lockfile:
     integrity sha512-rT00SPnTVyRsaSz5zgSPma/aHSOic5U1prhYdRy5HS2kTZviFpmDgzilbtsJsxiroqACmayynDN/9VzIbX5DOw==
     dependencies:
       duplexer "~0.1.1"
+  
+  stream@^0.0.2:
+    version "0.0.2"
+    resolved "https://registry.yarnpkg.com/stream/-/stream-0.0.2.tgz#7f5363f057f6592c5595f00bc80a27f5cec1f0ef"
+    integrity sha512-gCq3NDI2P35B2n6t76YJuOp7d6cN/C7Rt0577l91wllh0sY9ZBuw9KaSGqH/b0hzn3CWWJbpbW0W0WvQ1H/Q7g==
+    dependencies:
+      emitter-component "^1.1.1"
   
   streamsearch@^1.1.0:
     version "1.1.0"
