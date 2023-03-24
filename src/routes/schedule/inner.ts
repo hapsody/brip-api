@@ -17,6 +17,7 @@ import {
   VisitSchedule,
   PlaceType,
   IBPhotos,
+  IBTravelTag,
 } from '@prisma/client';
 import {
   isNumber,
@@ -26,6 +27,7 @@ import {
   isUndefined,
   omit,
   flattenDeep,
+  isNull,
 } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -1048,54 +1050,80 @@ export const getPlaceByGglTxtSrch = async (
                 const {
                   ibType: { typePath, minDifficulty, maxDifficulty },
                 } = batchJobCtx;
-                const types = typePath.split('>');
+                const types = typePath.split('>').reverse();
                 // const leafType = types[types.length - 1];
-                let lastCreatedId = 0;
-                let superTypeId: number = -1;
+                let firstCreatedId = 0;
+                let subType: IBTravelTag | null = null;
+
                 // eslint-disable-next-line no-restricted-syntax
                 for await (const type of types) {
-                  let curIBTType = await prisma.iBTravelTag.findUnique({
-                    where: {
-                      value: type,
-                    },
-                  });
-                  if (!curIBTType) {
-                    curIBTType = await prisma.iBTravelTag.create({
-                      data: {
-                        value: type,
-                        minDifficulty,
-                        maxDifficulty,
-                      },
-                    });
-                  }
-                  if (superTypeId > -1) {
-                    curIBTType = await prisma.iBTravelTag.update({
-                      where: {
-                        id: curIBTType.id,
-                      },
-                      data: {
-                        related: {
-                          connectOrCreate: {
-                            where: {
-                              fromId_toId: {
-                                fromId: curIBTType.id,
-                                toId: superTypeId,
-                              },
-                            },
-                            create: {
-                              toId: superTypeId,
-                            },
-                          },
+                  const curIBTType = await prisma.$transaction(
+                    // eslint-disable-next-line @typescript-eslint/no-loop-func
+                    async tx => {
+                      let cur = await tx.iBTravelTag.findUnique({
+                        where: {
+                          value: type,
                         },
-                      },
-                    });
-                  }
-                  superTypeId = curIBTType.id;
+                      });
+                      if (!cur) {
+                        cur = await tx.iBTravelTag.create({
+                          data: {
+                            value: type,
+                            minDifficulty,
+                            maxDifficulty,
+                          },
+                        });
+                        console.log(cur);
+                      }
+
+                      /// firstCreated는 가장 먼저 처리된 말단 태그(가장 세분류 태그 ex) oceanActivity>beach 이면 beach 태그)
+                      if (firstCreatedId === 0) {
+                        firstCreatedId = cur.id;
+                      }
+
+                      /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
+                      /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
+                      if (subType !== null) {
+                        cur = await tx.iBTravelTag.update({
+                          where: {
+                            id: cur.id,
+                          },
+                          data: {
+                            minDifficulty:
+                              cur.minDifficulty! > subType.minDifficulty!
+                                ? subType.minDifficulty
+                                : cur.minDifficulty,
+                            maxDifficulty:
+                              cur.maxDifficulty! < subType.maxDifficulty!
+                                ? subType.maxDifficulty
+                                : cur.maxDifficulty,
+                            ...(!isNull(subType) && {
+                              related: {
+                                connectOrCreate: {
+                                  where: {
+                                    fromId_toId: {
+                                      fromId: cur.id,
+                                      toId: subType.id,
+                                    },
+                                  },
+                                  create: {
+                                    toId: subType.id,
+                                  },
+                                },
+                              },
+                            }),
+                          },
+                        });
+                      }
+                      return cur;
+                    },
+                  );
+                  subType = curIBTType!;
                 }
-                lastCreatedId = superTypeId;
+                // lastCreatedId = subType!.id;
                 return {
                   connect: {
-                    id: lastCreatedId,
+                    id: firstCreatedId,
                   },
                 };
               })(),
@@ -1330,7 +1358,12 @@ export const getPlaceDataFromVJ = async (
 
   /// store data to db
   if (param.store) {
-    const { items } = jejuRes;
+    const { items: rawItems } = jejuRes;
+
+    /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
+    const items = rawItems!.filter(
+      v => !v.contentscd?.label.includes('숙박') ?? false,
+    );
 
     /// 배치 스크립트로 store 옵션과 함께 실행되면
     /// 기존 사용중인 데이터는 ARCHIVED가 되고
