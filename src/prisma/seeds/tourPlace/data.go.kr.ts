@@ -48,7 +48,7 @@ export const value = {
       관리기관전화번호: '033-450-5534',
       관리기관명: '철원군청 관광과',
       데이터기준일자: '10/21/2021',
-      카테고리: 'naturalSpot',
+      카테고리: ['naturalSpot>etc'],
       이미지: ['public/tourPlace/고석정.jpeg'],
     },
     {
@@ -69,7 +69,7 @@ export const value = {
       관리기관전화번호: '033-450-5534',
       관리기관명: '철원군청 관광과',
       데이터기준일자: '10/21/2021',
-      카테고리: 'naturalSpot',
+      카테고리: ['naturalSpot>etc'],
       이미지: ['public/tourPlace/직탕.jpeg'],
     },
     {
@@ -90,7 +90,7 @@ export const value = {
       관리기관전화번호: '033-440-2562',
       관리기관명: '화천군청',
       데이터기준일자: '08/10/2018',
-      카테고리: 'valley',
+      카테고리: ['naturalSpot>etc'],
       이미지: ['public/tourPlace/광덕계곡관광지.jpeg'],
     },
     {
@@ -111,7 +111,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: 'beach',
+      카테고리: ['naturalSpot>beach'],
       이미지: ['public/tourPlace/옥계해변관광지.jpeg'],
     },
     {
@@ -133,7 +133,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: 'beach',
+      카테고리: ['naturalSpot>beach'],
       이미지: ['public/tourPlace/주문진해변관광지.jpeg'],
     },
     {
@@ -154,7 +154,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: 'beach',
+      카테고리: ['naturalSpot>beach'],
       이미지: ['public/tourPlace/연곡해변관광지.jpeg'],
     },
     {
@@ -176,7 +176,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: 'beach',
+      카테고리: ['naturalSpot>beach'],
       이미지: ['public/tourPlace/등명해변관광지.jpeg'],
     },
     {
@@ -196,7 +196,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: '',
+      카테고리: ['naturalSpot>forest'],
       이미지: [
         'public/tourPlace/대관령어흘리관광지.jpeg',
         'public/tourPlace/대관령어흘리관광지2.jpeg',
@@ -224,6 +224,8 @@ export const value = {
       관리기관전화번호: '033-460-2083',
       관리기관명: '강원도 인제군청',
       데이터기준일자: '06/07/2022',
+      카테고리: ['naturalSpot>forest', 'naturalSpot>garden', 'naturalSpot>etc'],
+      이미지: ['public/tourPlace/용대관광지.jpeg'],
     },
     {
       관광지명: '방동관광지',

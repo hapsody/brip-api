@@ -213,14 +213,6 @@ const seedData = [
       maxDifficulty: 8,
     },
   },
-  {
-    /// new
-    ibType: {
-      typePath: 'mountainActivity>creek',
-      minDifficulty: 3,
-      maxDifficulty: 7,
-    },
-  },
   /// Natural spot
   {
     ibType: {

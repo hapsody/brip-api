@@ -2167,12 +2167,23 @@ export const makeSchedule = async (
       { min: 9999, max: -1 },
     );
 
-    return Number(travelHard) <= uInputTypeLevel.max
-      ? {
-          ...uInputTypeLevel,
-          max: Number(travelHard),
-        }
-      : uInputTypeLevel;
+    /// 유저 입력 여행강도가 여행 타입들로 정해진 여행강도값의 최대값보다 크면 최대 범위를 넓혀준다.
+    if (Number(travelHard) > uInputTypeLevel.max) {
+      return {
+        ...uInputTypeLevel,
+        max: Number(travelHard),
+      };
+    }
+
+    /// 유저 입력 여행강도가 여행 타입들로 정해진 여행강도값의 최소값보다 작으면 최소 범위를 넓혀준다.
+    if (Number(travelHard) < uInputTypeLevel.min) {
+      return {
+        ...uInputTypeLevel,
+        min: Number(travelHard),
+      };
+    }
+
+    return uInputTypeLevel;
   })();
 
   const paramByAvgCalibLevel =
@@ -2190,9 +2201,21 @@ export const makeSchedule = async (
     where: {
       ibTravelTag: {
         some: {
-          AND: [
-            { minDifficulty: { gte: calibUserLevel.min } },
-            { maxDifficulty: { lte: calibUserLevel.max } },
+          OR: [
+            {
+              AND: [
+                /// 유저가 원하는 여행강도 범위안에 완전히 포함되거나
+                { minDifficulty: { gte: calibUserLevel.min } },
+                { maxDifficulty: { lte: calibUserLevel.max } },
+              ],
+            },
+            {
+              AND: [
+                /// 유저가 원하는 여행강도 범위를 완전히 포함할수 있는 넓은 범위의 장소들
+                { minDifficulty: { lt: calibUserLevel.min } },
+                { maxDifficulty: { gt: calibUserLevel.max } },
+              ],
+            },
           ],
         },
       },
