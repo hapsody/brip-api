@@ -42,6 +42,12 @@
       "name": "test seed:shareTripMemory",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn seed:tourPlace",
+      "name": "test seed:tourPlace",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

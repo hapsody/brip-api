@@ -122,9 +122,9 @@ model TourPlace {
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
   status                                DataStageStatus @default(NEW)
-  evalScore                             Int             @default(0)
-  minDifficulty                         Int? /// deprecated(?) ibTravelTag의 minDifficulty가 대신하고 있는것으로 보임
-  maxDifficulty                         Int? /// deprecated(?) ibTravelTag의 maxDifficulty가 대신하고 있는것으로 보임
+  evalScore                             Int             @default(0) /// deprecated
+  minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
+  maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
   ibTravelTag                           IBTravelTag[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
@@ -182,7 +182,7 @@ model TourPlace {
   gl_types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
   gl_user_ratings_total    Int? /// 별점을 준 유저수
   gl_vicinity              String? /// nearbySearch 검색시에 주소
-  gl_formatted_address     String? /// textSearch 검색시에 주소
+  gl_formatted_address     String?                  @db.Text /// textSearch 검색시에 주소
   gl_photos                GglPhotos[]              @relation("GooglePhotos") /// 장소 사진 url
 
   /// visitJeju result format
@@ -480,6 +480,8 @@ enum PlaceType {
   USER_SPOT
   USER_RESTAURANT
   USER_PRIV_MEMORY_SPOT /// 유저 기억에서 개인적으로 저장한 장소
+  PUBLICDATAPORTAL_RESTAURANT /// 공공데이터 포탈 식당
+  PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
 }
 
 /// 문의사항

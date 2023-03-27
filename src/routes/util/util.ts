@@ -10,6 +10,13 @@ import {
   putS3SignedUrl,
 } from '@src/utils';
 import { isNil, isEmpty } from 'lodash';
+import {
+  ValueType,
+  value as tpRawData,
+} from 'src/prisma/seeds/tourPlace/data.go.kr';
+
+import fs from 'fs';
+import axios from 'axios';
 
 const upload = multer();
 
@@ -250,6 +257,306 @@ export const getSignedUrlForFileUpload = asyncWrapper(
     }
   },
 );
+
+export interface OpenaiRequestType {
+  msg: string;
+}
+export interface OpenaiSuccessResType {}
+
+export type OpenaiResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: OpenaiSuccessResType | {};
+};
+
+export const requestToOpenai = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<OpenaiRequestType>,
+    res: Express.IBTypedResponse<OpenaiResType>,
+  ) => {
+    try {
+      // const { msg } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async (): Promise<void> => {
+        // eslint-disable-next-line no-restricted-syntax
+        for await (const record of Object.entries(tpRawData)) {
+          const [, vList]: [string, ValueType[]] = record;
+          // eslint-disable-next-line no-restricted-syntax
+          for await (const v of vList) {
+            const data = {
+              title: v.관광지명,
+              lat: v.위도,
+              lng: v.경도,
+              desc: v.관광지소개 ?? null,
+            };
+
+            let fail = false;
+            console.log(`\n${v.관광지명}...`);
+            do {
+              try {
+                fail = false;
+                // eslint-disable-next-line no-await-in-loop
+                const result = await axios.post(
+                  'https://api.openai.com/v1/chat/completions',
+                  {
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                      {
+                        role: 'user',
+                        content: `다음 json 형식으로 주어진 관광지 데이터를 내가 주는 카테고리 리스트들 중 가장 올바르다고 생각하는 하나만 선택해서 분류를 하고 싶어. 
+    \`\`\`관광지 데이터: ${JSON.stringify(data)}\`\`\`
+    \`\`\`카티고리 리스트: 
+    oceanActivity
+    beach
+    snorkeling
+    fishing
+    sailing
+    jetBoat
+    surfing
+    paddleBoard
+    kayak
+    cruise
+    landActivity
+    cartRacing
+    ATV
+    horseRiding
+    farm
+    ticket
+    cableCar
+    golf
+    lugeRacing
+    mountainActivity
+    climbing
+    groupHiking
+    rockClimbing
+    MTB
+    UTV
+    zipTrack
+    paragliding
+    ski
+    snowBoard
+    naturalSpot
+    shoreline
+    oreum
+    circumferenceTrail
+    rocks
+    forest
+    arboreteum
+    river
+    mountain
+    hill
+    island
+    park
+    garden
+    ocean
+    nationalPark
+    etc
+    historicalSpot
+    themePark
+    amusementPark
+    waterPark
+    museum
+    aquarium
+    shopping
+    \`\`\`
+
+    답변은 관광지 
+    
+    "관광지 이름": "카테고리"
+    
+    의 배열로 줬으면 좋겠어, 이 포맷을 제외한 다른 형태의 문장식 답변은 필요없어
+    다음은 답변의 예시야 
+    
+    "고석정": "naturalSpot"
+
+    `,
+                      },
+                    ],
+                    temperature: 0.2,
+                  },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${
+                        process.env.OPENAI_API_KEY as string
+                      }`,
+                    },
+                  },
+                );
+
+                console.log(JSON.stringify(result.data, null, 2));
+                fs.writeFileSync(
+                  'category_result.txt',
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                  `${result.data.choices[0].message.content as string}`,
+                  { flag: 'as+' },
+                );
+                // rList.push(result.data as string);
+              } catch (error) {
+                console.log('retry');
+                fail = true;
+              }
+
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise(resolve => {
+                setTimeout(() => {
+                  resolve(true);
+                }, 10000);
+              });
+            } while (fail);
+          }
+        }
+      })().then(() => {});
+
+      // const rList: string[] = [];
+      // // eslint-disable-next-line no-restricted-syntax
+      // for await (const record of Object.entries(tpRawData)) {
+      //   const [, vList]: [string, ValueType[]] = record;
+      //   // eslint-disable-next-line no-restricted-syntax
+      //   for await (const v of vList) {
+      //     const data = {
+      //       title: v.관광지명,
+      //       lat: v.위도,
+      //       lng: v.경도,
+      //       desc: v.관광지소개 ?? null,
+      //     };
+
+      //     const result = await axios.post(
+      //       'https://api.openai.com/v1/chat/completions',
+      //       {
+      //         model: 'gpt-3.5-turbo',
+      //         messages: [
+      //           {
+      //             role: 'user',
+      //             content: `다음 json 형식으로 주어진 관광지 데이터를 내가 주는 카테고리 리스트들 중 선택해서(다중선택 가능) 분류를 하고 싶어.
+      //             \`\`\`관광지 데이터: ${JSON.stringify(data)}\`\`\`
+      //             \`\`\`카티고리 리스트:
+      //             oceanActivity
+      //             beach
+      //             snorkeling
+      //             fishing
+      //             sailing
+      //             jetBoat
+      //             surfing
+      //             paddleBoard
+      //             kayak
+      //             cruise
+      //             landActivity
+      //             cartRacing
+      //             ATV
+      //             horseRiding
+      //             farm
+      //             ticket
+      //             cableCar
+      //             golf
+      //             lugeRacing
+      //             mountainActivity
+      //             climbing
+      //             groupHiking
+      //             rockClimbing
+      //             MTB
+      //             UTV
+      //             zipTrack
+      //             paragliding
+      //             ski
+      //             snowBoard
+      //             naturalSpot
+      //             shoreline
+      //             oreum
+      //             circumferenceTrail
+      //             rocks
+      //             forest
+      //             arboreteum
+      //             river
+      //             mountain
+      //             hill
+      //             island
+      //             park
+      //             garden
+      //             ocean
+      //             nationalPark
+      //             etc
+      //             historicalSpot
+      //             themePark
+      //             amusementPark
+      //             waterPark
+      //             museum
+      //             aquarium
+      //             shopping
+      //             \`\`\`
+
+      //             답변은 관광지
+
+      //             "관광지 이름": "카테고리 1", "카테고리 2", ...
+
+      //             의 배열로 줬으면 좋겠어, 이 포맷을 제외한 다른 형태의 문장식 답변은 필요없어
+      //             다음은 답변의 예시야
+
+      //             "고석정": "naturalSpot"
+
+      //             `,
+      //           },
+      //         ],
+      //         temperature: 0.2,
+      //       },
+      //       {
+      //         headers: {
+      //           Authorization: `Bearer ${process.env.OPENAI_API_KEY as string}`,
+      //         },
+      //       },
+      //     );
+
+      //     console.log(JSON.stringify(result.data, null, 2));
+      //     fs.writeFileSync(
+      //       'category_result.txt',
+      //       result.data.choices[0].message.content as string,
+      //       { flag: 'a+' },
+      //     );
+      //     rList.push(result.data as string);
+
+      //     await new Promise(resolve => {
+      //       setTimeout(() => {
+      //         resolve(true);
+      //       }, 10000);
+      //     });
+      //   }
+      // }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          // answer: rList as Object,
+        },
+      });
+    } catch (err) {
+      console.error(JSON.stringify(err, null, 2));
+
+      throw err;
+    }
+  },
+);
+
 tripNetworkRouter.post(
   '/uploadToS3',
   accessTokenValidCheck,
@@ -261,6 +568,12 @@ tripNetworkRouter.post(
   '/getSignedUrlForFileUpload',
   accessTokenValidCheck,
   getSignedUrlForFileUpload,
+);
+
+tripNetworkRouter.post(
+  '/requestToOpenai',
+  accessTokenValidCheck,
+  requestToOpenai,
 );
 
 export default tripNetworkRouter;

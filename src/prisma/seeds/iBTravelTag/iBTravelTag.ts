@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, IBTravelTag } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -213,6 +213,14 @@ const seedData = [
       maxDifficulty: 8,
     },
   },
+  {
+    /// new
+    ibType: {
+      typePath: 'mountainActivity>creek',
+      minDifficulty: 3,
+      maxDifficulty: 7,
+    },
+  },
   /// Natural spot
   {
     ibType: {
@@ -385,57 +393,121 @@ async function main(): Promise<void> {
       const {
         ibType: { typePath, minDifficulty, maxDifficulty },
       } = seed;
-      const types = typePath.split('>');
+      const types = typePath.split('>').reverse();
       // const leafType = types[types.length - 1];
       // let lastCreatedId = 0;
-      let superTypeId: number = -1;
+      let subType: IBTravelTag | null = null;
+
       // eslint-disable-next-line no-restricted-syntax
       for await (const type of types) {
-        let curIBTType = await prisma.iBTravelTag.findUnique({
-          where: {
-            value: type,
-          },
-        });
-        if (!curIBTType) {
-          curIBTType = await prisma.iBTravelTag.create({
-            data: {
-              value: type,
-              minDifficulty,
-              maxDifficulty,
-            },
-          });
-          console.log(curIBTType);
-        }
-        if (superTypeId > -1) {
-          curIBTType = await prisma.iBTravelTag.update({
+        // eslint-disable-next-line @typescript-eslint/no-loop-func
+        const curIBTType = await prisma.$transaction(async tx => {
+          let cur = await tx.iBTravelTag.findUnique({
             where: {
-              id: curIBTType.id,
-            },
-            data: {
-              related: {
-                connectOrCreate: {
-                  where: {
-                    fromId_toId: {
-                      fromId: curIBTType.id,
-                      toId: superTypeId,
-                    },
-                  },
-                  create: {
-                    toId: superTypeId,
-                  },
-                },
-              },
+              value: type,
             },
           });
-        }
-        superTypeId = curIBTType.id;
+          if (!cur) {
+            cur = await tx.iBTravelTag.create({
+              data: {
+                value: type,
+                minDifficulty,
+                maxDifficulty,
+              },
+            });
+            console.log(cur);
+          }
+
+          /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
+          /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
+          if (subType !== null) {
+            cur = await tx.iBTravelTag.update({
+              where: {
+                id: cur.id,
+              },
+              data: {
+                minDifficulty:
+                  cur.minDifficulty! > subType.minDifficulty!
+                    ? subType.minDifficulty
+                    : cur.minDifficulty,
+                maxDifficulty:
+                  cur.maxDifficulty! < subType.maxDifficulty!
+                    ? subType.maxDifficulty
+                    : cur.maxDifficulty,
+              },
+            });
+          }
+          return cur;
+        });
+
+        subType = curIBTType!;
       }
-      // lastCreatedId = superTypeId;
-      // return {
-      //   connect: {
-      //     id: lastCreatedId,
-      //   },
-      // };
+
+      // // eslint-disable-next-line no-restricted-syntax
+      // for await (const type of types) {
+      //   let curIBTType = await prisma.iBTravelTag.findUnique({
+      //     where: {
+      //       value: type,
+      //     },
+      //   });
+      //   if (!curIBTType) {
+      //     curIBTType = await prisma.iBTravelTag.create({
+      //       data: {
+      //         value: type,
+      //         minDifficulty,
+      //         maxDifficulty,
+      //       },
+      //     });
+      //     console.log(curIBTType);
+      //   }
+      //   if (superTypeId > -1) {
+      //     curIBTType = await prisma.iBTravelTag.update({
+      //       where: {
+      //         id: curIBTType.id,
+      //       },
+      //       data: {
+      //         related: {
+      //           connectOrCreate: {
+      //             where: {
+      //               fromId_toId: {
+      //                 fromId: curIBTType.id,
+      //                 toId: superTypeId,
+      //               },
+      //             },
+      //             create: {
+      //               toId: superTypeId,
+      //             },
+      //           },
+      //         },
+      //       },
+      //     });
+
+      //     /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
+      //     /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
+      //     const superTag = await prisma.iBTravelTag.findUnique({
+      //       where: {
+      //         id: superTypeId,
+      //       },
+      //     });
+
+      //     await prisma.iBTravelTag.update({
+      //       where: {
+      //         id: superTypeId,
+      //       },
+      //       data: {
+      //         minDifficulty:
+      //           Number(superTag!.minDifficulty) > minDifficulty
+      //             ? minDifficulty
+      //             : Number(superTag!.minDifficulty),
+      //         maxDifficulty:
+      //           Number(superTag!.maxDifficulty) < maxDifficulty
+      //             ? maxDifficulty
+      //             : Number(superTag!.maxDifficulty),
+      //       },
+      //     });
+      //   }
+      //   superTypeId = curIBTType.id;
+      // }
     })();
   }
 

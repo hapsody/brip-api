@@ -2,7 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'travelit-api-dev',
-      script: 'ts-node -r tsconfig-paths/register ./src/server.ts',
+      script:
+        'ts-node -r tsconfig-paths/register ./src/server.ts  --ignore-watch=category_result.txt',
+      ignore_watch: ['category_result.txt', 'node_modules'],
       time: true,
       watch: true,
       // TZ: 'Asia/Seoul',
