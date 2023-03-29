@@ -1832,7 +1832,36 @@ export const getReplyListByShareTripMem = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: found,
+        IBparams: await Promise.all(
+          found.map(async v => {
+            return {
+              ...v,
+              user: {
+                ...v.user,
+                ...(!isNil(v.user!.profileImg) && {
+                  profileImg: v.user!.profileImg.includes('http')
+                    ? v.user!.profileImg
+                    : await getS3SignedUrl(v.user!.profileImg),
+                }),
+              },
+              childrenReplies: await Promise.all(
+                v.childrenReplies.map(async v2 => {
+                  return {
+                    ...v2,
+                    user: {
+                      ...v2.user,
+                      ...(!isNil(v2.user!.profileImg) && {
+                        profileImg: v2.user!.profileImg.includes('http')
+                          ? v2.user!.profileImg
+                          : await getS3SignedUrl(v2.user!.profileImg),
+                      }),
+                    },
+                  };
+                }),
+              ),
+            };
+          }),
+        ),
       });
     } catch (err) {
       if (err instanceof IBError) {
