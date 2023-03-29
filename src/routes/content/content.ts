@@ -27,6 +27,7 @@ export interface GetContentListRequestType {
   skip: number;
   take: number;
   orderBy: string; /// 최신순(latest), 오래된 순(oldest)
+  groupId: string;
 }
 export interface GetContentListSuccessResType {
   groupNo: number;
@@ -59,21 +60,26 @@ export const getContentList = asyncWrapper(
     res: Express.IBTypedResponse<GetContentListResType>,
   ) => {
     try {
-      const { keyword, take, skip, orderBy } = req.query;
+      const { keyword, take, skip, orderBy, groupId } = req.query;
       const foundNewsGrp = await prisma.cardNewsGroup.findMany({
         where: {
-          OR: [
-            { title: { contains: keyword } },
+          AND: [
+            { id: Number(groupId) },
             {
-              cardNewsContent: {
-                some: {
-                  cardTag: {
+              OR: [
+                { title: { contains: keyword } },
+                {
+                  cardNewsContent: {
                     some: {
-                      value: { contains: keyword },
+                      cardTag: {
+                        some: {
+                          value: { contains: keyword },
+                        },
+                      },
                     },
                   },
                 },
-              },
+              ],
             },
           ],
         },
