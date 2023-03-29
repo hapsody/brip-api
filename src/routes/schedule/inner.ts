@@ -103,6 +103,8 @@ import {
   VisitPlaceType,
   GetEstimatedCostREQParam,
   GetEstimatedCostRETParamPayload,
+  ChangeScheduleTitleREQParam,
+  ChangeScheduleTitleRETParamPayload,
 } from './types/schduleTypes';
 
 /**
@@ -3785,15 +3787,11 @@ export const delSchedule = async (
     },
     select: {
       id: true,
-      // period: true,
-      // startDate: true,
-      // endDate: true,
       savedSchedule: {
         select: {
           id: true,
         },
       },
-      // visitSchedule: true,
       userTokenId: true,
     },
   });
@@ -3824,6 +3822,64 @@ export const delSchedule = async (
       id: Number(queryParamsId),
     },
   });
+};
+
+/**
+ * 생성된 스케쥴 이름 변경
+ */
+export const changeScheduleTitle = async (
+  param: ChangeScheduleTitleREQParam,
+  ctx?: IBContext,
+): Promise<ChangeScheduleTitleRETParamPayload> => {
+  const { queryParamsId, title } = param;
+  const userTokenId = ctx?.userTokenId ?? '';
+
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    select: {
+      id: true,
+      savedSchedule: {
+        select: {
+          id: true,
+        },
+      },
+      userTokenId: true,
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  if (queryParams.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '다른 유저의 저장 스케쥴에 변경을 시도할 수 없습니다.',
+    });
+  }
+
+  if (isNil(queryParams.savedSchedule)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '저장되지 않은 일정입니다.',
+    });
+  }
+
+  const uRes = await prisma.scheduleBank.update({
+    where: {
+      id: Number(queryParams.savedSchedule.id),
+    },
+    data: {
+      title,
+    },
+  });
+
+  return { updatedScheduleBank: uRes };
 };
 
 /**

@@ -6,6 +6,7 @@ import {
   VisitSchedule,
   PlaceType,
   MetaScheduleInfo,
+  ScheduleBank,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -668,6 +669,21 @@ export interface DelScheduleREQParam {
 
 export type DelScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
+};
+
+/**
+ * changeScheduleTitle
+ */
+export interface ChangeScheduleTitleREQParam {
+  queryParamsId: string; /// 변경할할 schedule의 queryParams 고유 Id
+  title: string; /// 변경할 schedule의 title
+}
+export interface ChangeScheduleTitleRETParamPayload {
+  updatedScheduleBank: ScheduleBank;
+}
+
+export type ChangeScheduleTitleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangeScheduleTitleRETParamPayload | {};
 };
 
 /**
