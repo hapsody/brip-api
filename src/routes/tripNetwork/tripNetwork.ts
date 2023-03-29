@@ -1341,6 +1341,15 @@ export const addShareTripMemory = asyncWrapper(
           return;
         }
 
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
         if (err.type === 'DBTRANSACTIONERROR') {
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
