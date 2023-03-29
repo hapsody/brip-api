@@ -21,13 +21,13 @@ import {
 } from '@prisma/client';
 import {
   isNumber,
-  isNil,
   isEmpty,
   isNaN,
   isUndefined,
   omit,
   flattenDeep,
   isNull,
+  isNil,
 } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -64,6 +64,7 @@ import {
   GetScheduleListRETParamPayload,
   SaveScheduleREQParam,
   SaveScheduleRETParamPayload,
+  DelScheduleREQParam,
   GetDayScheduleREQParam,
   GetDayScheduleRETParamPayload,
   GetDetailScheduleREQParam,
@@ -3765,6 +3766,64 @@ export const saveSchedule = async (
   });
 
   return { queryParamsId: createResult.queryParamsId.toString() };
+};
+
+/**
+ * 저장된 일정을 지우는 기능을 담당하는 api
+ * queryParamsId와 관계된 일체가 삭제된다. (visitSchedule, scheduleBank, metaScheduleInfo, validCluster) tourPlace는 삭제 안됨
+ */
+export const delSchedule = async (
+  param: DelScheduleREQParam,
+  ctx?: IBContext,
+): Promise<void> => {
+  const { queryParamsId } = param;
+  const userTokenId = ctx?.userTokenId ?? '';
+
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    select: {
+      id: true,
+      // period: true,
+      // startDate: true,
+      // endDate: true,
+      savedSchedule: {
+        select: {
+          id: true,
+        },
+      },
+      // visitSchedule: true,
+      userTokenId: true,
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  if (queryParams.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '다른 유저의 저장 스케쥴의 삭제를 시도할 수 없습니다.',
+    });
+  }
+
+  if (isNil(queryParams.savedSchedule)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '저장되지 않은 일정입니다.',
+    });
+  }
+
+  await prisma.queryParams.delete({
+    where: {
+      id: Number(queryParamsId),
+    },
+  });
 };
 
 /**

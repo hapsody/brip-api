@@ -660,6 +660,17 @@ export type SaveScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
+ * delSchedule
+ */
+export interface DelScheduleREQParam {
+  queryParamsId: string; /// 삭제할 schedule의 queryParams 고유 Id
+}
+
+export type DelScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+/**
  * getDaySchedule
  */
 export interface GetDayScheduleREQParam {

@@ -6,6 +6,7 @@ import scheduleRouter, {
   getScheduleWrapper,
   getScheduleListWrapper,
   saveScheduleWrapper,
+  delScheduleWrapper,
   getDayScheduleWrapper,
   getDetailScheduleWrapper,
   getCandidateScheduleWrapper,
@@ -43,6 +44,8 @@ scheduleRouter.post(
   accessTokenValidCheck,
   saveScheduleWrapper,
 );
+
+scheduleRouter.post('/delSchedule', accessTokenValidCheck, delScheduleWrapper);
 
 scheduleRouter.post(
   '/getDaySchedule',

@@ -40,6 +40,8 @@ import {
   RefreshScheduleRETParam,
   GetEstimatedCostREQParam,
   GetEstimatedCostRETParam,
+  DelScheduleREQParam,
+  DelScheduleRETParam,
 } from './types/schduleTypes';
 
 import {
@@ -49,6 +51,7 @@ import {
   getSchedule,
   getScheduleList,
   saveSchedule,
+  delSchedule,
   getDaySchedule,
   getDetailSchedule,
   getCandidateSchedule,
@@ -423,6 +426,87 @@ export const saveScheduleWrapper = asyncWrapper(
         if (err.type === 'NOTAUTHORIZED') {
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+/**
+ * 생성된 일정중 유저가 저장하기를 요청할때 호출하는 api
+ *
+ */
+export const delScheduleWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DelScheduleREQParam>,
+    res: Express.IBTypedResponse<DelScheduleRETParam>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const param = req.body;
+      const ctx: IBContext = {
+        userTokenId,
+      };
+      await delSchedule(param, ctx);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
