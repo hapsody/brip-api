@@ -22,6 +22,16 @@ const upload = multer();
 
 const authRouter: express.Application = express();
 
+/**
+ * 컨텐츠 검색 api
+ * https://www.figma.com/file/4hamONEjUfNCjbZAxC6iW3/Travelit?node-id=311:8047
+ * 만약 groupId와 keyword를 같이 넣는다면 groupId가 우선한다.
+ * @param keyword required, string # 검색어, 제목 또는 카드태그를 기준으로 검색함 ex) 몰디브
+ * @param skip required, string, # 수정일을 기준으로 최근일을 기준 내림차순 정렬하였을때 pagination을 위해 건너뛸 항목 수, skip 수 이후 take 수만큼 취하여 결과를 응답한다. ex) "0"
+ * @param take required, string, # 수정일을 기준으로 최근일을 기준으로 내림차순 정렬하였을때 pagintation을 위해 한번에 취할 항목 수, skip 수 이후 take 수만큼 취하여 결과를 응답한다. ex) "10"
+ * @param groupId optional, string # cardNewsId이다. 그룹 Id에 속하는 컨텐츠들을 요청할때 기입.
+ */
+
 export interface GetContentListRequestType {
   keyword: string;
   skip: number;
@@ -61,11 +71,11 @@ export const getContentList = asyncWrapper(
   ) => {
     try {
       const { keyword, take, skip, orderBy, groupId } = req.query;
-      const foundNewsGrp = await prisma.cardNewsGroup.findMany({
-        where: {
-          AND: [
-            { id: Number(groupId) },
-            {
+
+      const foundNewsGrp = await (async () => {
+        if (isNil(groupId)) {
+          const resByKeyword = await prisma.cardNewsGroup.findMany({
+            where: {
               OR: [
                 { title: { contains: keyword } },
                 {
@@ -81,37 +91,64 @@ export const getContentList = asyncWrapper(
                 },
               ],
             },
-          ],
-        },
-        take: Number(take),
-        skip: Number(skip),
-        include: {
-          cardNewsContent: {
+            take: Number(take),
+            skip: Number(skip),
             include: {
-              cardTag: true,
-            },
-          },
-          creator: {
-            select: {
-              id: true,
-              userId: true,
-              nickName: true,
-              user: {
+              cardNewsContent: {
+                include: {
+                  cardTag: true,
+                },
+              },
+              creator: {
                 select: {
-                  profileImg: true,
+                  id: true,
+                  userId: true,
+                  nickName: true,
+                  user: {
+                    select: {
+                      profileImg: true,
+                    },
+                  },
+                },
+              },
+            },
+
+            ...(!isNil(orderBy) &&
+              !isEmpty(orderBy) && {
+                orderBy: {
+                  id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
+                },
+              }),
+          });
+          return resByKeyword;
+        }
+
+        const resByGroupId = await prisma.cardNewsGroup.findUnique({
+          where: {
+            id: Number(groupId),
+          },
+          include: {
+            cardNewsContent: {
+              include: {
+                cardTag: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                userId: true,
+                nickName: true,
+                user: {
+                  select: {
+                    profileImg: true,
+                  },
                 },
               },
             },
           },
-        },
-
-        ...(!isNil(orderBy) &&
-          !isEmpty(orderBy) && {
-            orderBy: {
-              id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
-            },
-          }),
-      });
+        });
+        return resByGroupId ? [resByGroupId] : [];
+      })();
 
       const retCardGroups = await Promise.all(
         foundNewsGrp.map(async group => {

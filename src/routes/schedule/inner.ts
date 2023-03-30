@@ -766,7 +766,7 @@ export const qryPlaceDataToGglTxtSrch = async (
  * 이때 사용할 끝 페이지까지 계속해서 자동으로 TextSearch를를 요청하는 함수
  *
  * (구) getAllTextSearchPages
- * @param
+ * updatedScheduleBank
  * @returns
  */
 // export const getAllPlaceDataFromGGLPlaceAPI = async (
