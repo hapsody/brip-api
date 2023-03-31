@@ -1,8 +1,17 @@
 import { PrismaClient, IBTravelTag } from '@prisma/client';
+import { isNull } from 'lodash';
 
 const prisma = new PrismaClient();
 
-const seedData = [
+export type IBTravelTagList = {
+  ibType: {
+    typePath: string;
+    minDifficulty: number;
+    maxDifficulty: number;
+  };
+};
+
+export const seedData: IBTravelTagList[] = [
   /// oceanActivity
   {
     ibType: {
@@ -313,10 +322,50 @@ const seedData = [
     },
   },
   {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>valley',
+      minDifficulty: 2,
+      maxDifficulty: 6,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>hotSpring',
+      minDifficulty: 1,
+      maxDifficulty: 3,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>cave',
+      minDifficulty: 3,
+      maxDifficulty: 5,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>lake',
+      minDifficulty: 1,
+      maxDifficulty: 2,
+    },
+  },
+  {
     ibType: {
       typePath: 'naturalSpot>etc',
       minDifficulty: 3,
       maxDifficulty: 7,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'culturalSpot>temple',
+      minDifficulty: 1,
+      maxDifficulty: 3,
     },
   },
 
@@ -426,6 +475,21 @@ async function main(): Promise<void> {
                   cur.maxDifficulty! < subType.maxDifficulty!
                     ? subType.maxDifficulty
                     : cur.maxDifficulty,
+                ...(!isNull(subType) && {
+                  related: {
+                    connectOrCreate: {
+                      where: {
+                        fromId_toId: {
+                          fromId: cur.id,
+                          toId: subType.id,
+                        },
+                      },
+                      create: {
+                        toId: subType.id,
+                      },
+                    },
+                  },
+                }),
               },
             });
           }

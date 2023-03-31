@@ -48,7 +48,7 @@ export const value = {
       관리기관전화번호: '033-450-5534',
       관리기관명: '철원군청 관광과',
       데이터기준일자: '10/21/2021',
-      카테고리: ['naturalSpot>etc'],
+      카테고리: ['naturalSpot>rocks', 'naturalSpot>river', 'naturalSpot>etc'],
       이미지: ['public/tourPlace/고석정.jpeg'],
     },
     {
@@ -69,7 +69,7 @@ export const value = {
       관리기관전화번호: '033-450-5534',
       관리기관명: '철원군청 관광과',
       데이터기준일자: '10/21/2021',
-      카테고리: ['naturalSpot>etc'],
+      카테고리: ['naturalSpot>valley'],
       이미지: ['public/tourPlace/직탕.jpeg'],
     },
     {
@@ -90,7 +90,7 @@ export const value = {
       관리기관전화번호: '033-440-2562',
       관리기관명: '화천군청',
       데이터기준일자: '08/10/2018',
-      카테고리: ['naturalSpot>etc'],
+      카테고리: ['naturalSpot>vavalley'],
       이미지: ['public/tourPlace/광덕계곡관광지.jpeg'],
     },
     {
@@ -111,7 +111,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: ['naturalSpot>beach'],
+      카테고리: ['oceanActivity>beach'],
       이미지: ['public/tourPlace/옥계해변관광지.jpeg'],
     },
     {
@@ -133,7 +133,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: ['naturalSpot>beach'],
+      카테고리: ['oceanActivity>beach'],
       이미지: ['public/tourPlace/주문진해변관광지.jpeg'],
     },
     {
@@ -154,7 +154,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: ['naturalSpot>beach'],
+      카테고리: ['oceanActivity>beach'],
       이미지: ['public/tourPlace/연곡해변관광지.jpeg'],
     },
     {
@@ -176,7 +176,7 @@ export const value = {
       관리기관전화번호: '033-640-5685',
       관리기관명: '강원도 강릉시청',
       데이터기준일자: '04/25/2022',
-      카테고리: ['naturalSpot>beach'],
+      카테고리: ['oceanActivity>beach'],
       이미지: ['public/tourPlace/등명해변관광지.jpeg'],
     },
     {
@@ -224,7 +224,11 @@ export const value = {
       관리기관전화번호: '033-460-2083',
       관리기관명: '강원도 인제군청',
       데이터기준일자: '06/07/2022',
-      카테고리: ['naturalSpot>forest', 'naturalSpot>garden', 'naturalSpot>etc'],
+      카테고리: [
+        'naturalSpot>forest',
+        'naturalSpot>garden',
+        'naturalSpot>valley',
+      ],
       이미지: ['public/tourPlace/용대관광지.jpeg'],
     },
     {
@@ -247,6 +251,8 @@ export const value = {
       관리기관전화번호: '033-460-2083',
       관리기관명: '강원도 인제군청',
       데이터기준일자: '06/07/2022',
+      카테고리: ['naturalSpot>forest', 'naturalSpot>valley'],
+      이미지: ['public/tourPlace/방동관광지.jpeg'],
     },
     {
       관광지명: '오토테마파크',
@@ -268,6 +274,8 @@ export const value = {
       관리기관전화번호: '033-460-2385',
       관리기관명: '강원도 인제군청',
       데이터기준일자: '06/07/2022',
+      카테고리: ['themePark'],
+      이미지: ['public/tourPlace/오토테마파크.jpeg'],
     },
     {
       관광지명: '속초해수욕장',
@@ -290,6 +298,8 @@ export const value = {
       관리기관전화번호: '033-639-2544',
       관리기관명: '강원도 속초시청',
       데이터기준일자: '07/06/2022',
+      카테고리: ['occeanActivity>beach'],
+      이미지: ['public/tourPlace/속초해수욕장.jpeg'],
     },
     {
       관광지명: '척산온천',
@@ -312,28 +322,37 @@ export const value = {
       관리기관전화번호: '033-639-2544',
       관리기관명: '강원도 속초시청',
       데이터기준일자: '07/06/2022',
+      카테고리: ['naturalSpot>hotSpring'],
+      이미지: [
+        'public/tourPlace/척산온천.jpeg',
+        'public/tourPlace/척산온천2.jpeg',
+        'public/tourPlace/척산온천3.jpeg',
+        'public/tourPlace/척산온천4.jpeg',
+      ],
     },
-    {
-      관광지명: '설악한화리조트',
-      관광지구분: '관광단지',
-      소재지도로명주소: '강원도 속초시 미시령로 2983번길 111',
-      소재지지번주소: '속초시 장사동 24-1',
-      위도: 38.21030027,
-      경도: 128.5287216,
-      면적: 1314100,
-      공공편익시설정보: '주차장+배수지+변전소+도로',
-      숙박시설정보: '휴양콘도미니엄3',
-      운동및오락시설정보: '골프장+플라잉폭스',
-      휴양및문화시설정보: '온천장+드라마세트장',
-      지정일자: '10/08/2010',
-      수용인원수: 10000,
-      주차가능수: 2000,
-      관광지소개:
-        '천연 온천수를 이용한 온천시설과 물놀이 시설을 갖춘 종합 테마파크이며, 설악 워터피아 등 다양한 부대시설은 완비하고 있다.',
-      관리기관전화번호: '033-639-2544',
-      관리기관명: '강원도 속초시청',
-      데이터기준일자: '07/06/2022',
-    },
+    // {
+    //   관광지명: '설악한화리조트',
+    //   관광지구분: '관광단지',
+    //   소재지도로명주소: '강원도 속초시 미시령로 2983번길 111',
+    //   소재지지번주소: '속초시 장사동 24-1',
+    //   위도: 38.21030027,
+    //   경도: 128.5287216,
+    //   면적: 1314100,
+    //   공공편익시설정보: '주차장+배수지+변전소+도로',
+    //   숙박시설정보: '휴양콘도미니엄3',
+    //   운동및오락시설정보: '골프장+플라잉폭스',
+    //   휴양및문화시설정보: '온천장+드라마세트장',
+    //   지정일자: '10/08/2010',
+    //   수용인원수: 10000,
+    //   주차가능수: 2000,
+    //   관광지소개:
+    //     '천연 온천수를 이용한 온천시설과 물놀이 시설을 갖춘 종합 테마파크이며, 설악 워터피아 등 다양한 부대시설은 완비하고 있다.',
+    //   관리기관전화번호: '033-639-2544',
+    //   관리기관명: '강원도 속초시청',
+    //   데이터기준일자: '07/06/2022',
+    //   카테고리: ['waterPark', 'themePark', 'landActivity>golf'],
+    //   이미지: ['public/tourPlace/설악한화리조트.jpeg'],
+    // },
     {
       관광지명: '삼척해수욕장',
       관광지구분: '관광지',
@@ -351,6 +370,11 @@ export const value = {
       관리기관전화번호: '033-570-3547',
       관리기관명: '강원도 삼척시청',
       데이터기준일자: '06/23/2022',
+      카테고리: ['oceanActivity>beach'],
+      이미지: [
+        'public/tourPlace/삼척해수욕장.jpeg',
+        'public/tourPlace/삼척해수욕장2.jpeg',
+      ],
     },
     {
       관광지명: '맹방관광지',
@@ -371,6 +395,12 @@ export const value = {
       관리기관전화번호: '033-570-3547',
       관리기관명: '강원도 삼척시청',
       데이터기준일자: '06/23/2022',
+      카테고리: ['oceanActivity>beach'],
+      이미지: [
+        'public/tourPlace/맹방관광지.jpeg',
+        'public/tourPlace/맹방관광지2.jpeg',
+        'public/tourPlace/맹방관광지3.jpeg',
+      ],
     },
     {
       관광지명: '장호관광지',
@@ -391,6 +421,18 @@ export const value = {
       관리기관전화번호: '033-570-3547',
       관리기관명: '강원도 삼척시청',
       데이터기준일자: '06/23/2022',
+      카테고리: [
+        'oceanActivity>beach',
+        'oceanActivity>kayak',
+        'oceanActivity>snorkeling',
+      ],
+      이미지: [
+        'public/tourPlace/장호관광지.jpeg',
+        'public/tourPlace/장호관광지2.jpeg',
+        'public/tourPlace/장호관광지3.jpeg',
+        'public/tourPlace/장호관광지4.jpeg',
+        'public/tourPlace/장호관광지5.jpeg',
+      ],
     },
     {
       관광지명: '초당관광지',
@@ -410,6 +452,8 @@ export const value = {
       관리기관전화번호: '033-570-3547',
       관리기관명: '강원도 삼척시청',
       데이터기준일자: '06/23/2022',
+      카테고리: ['landActivity>golf'],
+      이미지: ['public/tourPlace/초당관광지.jpeg'],
     },
     {
       관광지명: '오색관광지',
@@ -429,6 +473,11 @@ export const value = {
       관리기관전화번호: '033-670-2724',
       관리기관명: '강원도 양양군청',
       데이터기준일자: '07/14/2022',
+      카테고리: ['landActivity>etc'],
+      이미지: [
+        'public/tourPlace/오색관광지.jpeg',
+        'public/tourPlace/오색관광지2.jpeg',
+      ],
     },
     {
       관광지명: '지경관광지',
@@ -448,26 +497,28 @@ export const value = {
       관리기관전화번호: '033-670-2724',
       관리기관명: '강원도 양양군청',
       데이터기준일자: '07/14/2022',
+      카테고리: ['oceanActivity>beach'],
+      이미지: [],
     },
-    {
-      관광지명: '설해원(양양국제공항)',
-      관광지구분: '관광단지',
-      소재지지번주소: '강원도 양양군 손양면 동호리 510-28',
-      위도: 38.05555608,
-      경도: 128.6641979,
-      면적: 2730584,
-      공공편익시설정보: '주차장+경비실+직원숙소',
-      숙박시설정보: '관광호텔+휴양콘도미니엄+생활형숙박시설',
-      운동및오락시설정보: '골프장+체육관',
-      휴양및문화시설정보: '박물관+힐링가든+미술관',
-      지정일자: '12/23/2019',
-      수용인원수: 5000,
-      주차가능수: 2500,
-      관광지소개: '장기체류형 종합 스포츠레저단지',
-      관리기관전화번호: '033-670-2724',
-      관리기관명: '강원도 양양군청',
-      데이터기준일자: '07/14/2022',
-    },
+    // {
+    //   관광지명: '설해원(양양국제공항)',
+    //   관광지구분: '관광단지',
+    //   소재지지번주소: '강원도 양양군 손양면 동호리 510-28',
+    //   위도: 38.05555608,
+    //   경도: 128.6641979,
+    //   면적: 2730584,
+    //   공공편익시설정보: '주차장+경비실+직원숙소',
+    //   숙박시설정보: '관광호텔+휴양콘도미니엄+생활형숙박시설',
+    //   운동및오락시설정보: '골프장+체육관',
+    //   휴양및문화시설정보: '박물관+힐링가든+미술관',
+    //   지정일자: '12/23/2019',
+    //   수용인원수: 5000,
+    //   주차가능수: 2500,
+    //   관광지소개: '장기체류형 종합 스포츠레저단지',
+    //   관리기관전화번호: '033-670-2724',
+    //   관리기관명: '강원도 양양군청',
+    //   데이터기준일자: '07/14/2022',
+    // },
     {
       관광지명: '어답산관광지',
       관광지구분: '관광지',
@@ -487,6 +538,8 @@ export const value = {
       관리기관전화번호: '033-340-5981',
       관리기관명: '강원도 횡성군',
       데이터기준일자: '07/18/2022',
+      카테고리: ['naturalSpot>valley', 'naturalSpot>mountain'],
+      이미지: ['public/tourPlace/어답산관광지.jpeg'],
     },
     {
       관광지명: '유현문화관광지',
@@ -505,6 +558,13 @@ export const value = {
       관리기관전화번호: '033-340-5986',
       관리기관명: '강원도 횡성군',
       데이터기준일자: '07/18/2022',
+      카테고리: ['historicalSpot'],
+      이미지: [
+        'public/tourPlace/유현문화관광지.jpeg',
+        'public/tourPlace/유현문화관광지2.jpeg',
+        'public/tourPlace/유현문화관광지3.jpeg',
+        'public/tourPlace/유현문화관광지4.jpeg',
+      ],
     },
     {
       관광지명: '웰리힐리파크 관광단지',
@@ -525,6 +585,8 @@ export const value = {
       관리기관전화번호: '1544-8833',
       관리기관명: '신안종합리조트',
       데이터기준일자: '07/18/2022',
+      카테고리: ['mountainActivity>ski', 'mountainActivity>snowBoard'],
+      이미지: ['public/tourPlace/웰리힐리파크 관광단지.jpeg'],
     },
     {
       관광지명: '두타연',
@@ -543,6 +605,8 @@ export const value = {
       관리기관전화번호: '033-480-7266',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['naturalSpot>valley', 'naturalSpot>river'],
+      이미지: ['public/tourPlace/두타연.jpeg', 'public/tourPlace/두타연2.jpeg'],
     },
     {
       관광지명: '한반도섬',
@@ -562,6 +626,12 @@ export const value = {
       관리기관전화번호: '033-480-7267',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: [
+        'naturalSpot>river',
+        'naturalSpot>park',
+        'mountainActivity>zipTrack',
+      ],
+      이미지: ['public/tourPlace/한반도섬.jpeg'],
     },
     {
       관광지명: '국토정중앙천문대',
@@ -581,6 +651,8 @@ export const value = {
       관리기관전화번호: '033-480-7255',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/국토정중앙천문대.jpeg'],
     },
     {
       관광지명: '을지전망대',
@@ -599,6 +671,8 @@ export const value = {
       관리기관전화번호: '033-480-7251',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['naturalSpot>etc'],
+      이미지: ['public/tourPlace/을지전망대.jpeg'],
     },
     {
       관광지명: '제4땅굴',
@@ -618,6 +692,8 @@ export const value = {
       관리기관전화번호: '033-480-7251',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['naturalSpot>etc', 'historicalSpot'],
+      이미지: ['public/tourPlace/제4땅굴.jpeg'],
     },
     {
       관광지명: '양구 DMZ 조이나믹 체험장',
@@ -638,6 +714,12 @@ export const value = {
       관리기관전화번호: '033-480-7253',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['themePark'],
+      이미지: [
+        'public/tourPlace/양구DMZ조이나믹체험장.jpeg',
+        'public/tourPlace/양구DMZ조이나믹체험장2.jpeg',
+        'public/tourPlace/양구DMZ조이나믹체험장3.jpeg',
+      ],
     },
     {
       관광지명: '양구 통일관',
@@ -656,6 +738,8 @@ export const value = {
       관리기관전화번호: '033-480-7251',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/양구 통일관.jpeg'],
     },
     {
       관광지명: '양구수목원',
@@ -674,6 +758,8 @@ export const value = {
       관리기관전화번호: '033-480-7391',
       관리기관명: '강원도 양구군청',
       데이터기준일자: '08/31/2022',
+      카테고리: ['naturalSpot>arboreteum'],
+      이미지: ['public/tourPlace/양구수목원.jpeg'],
     },
     {
       관광지명: '무이예술관',
@@ -694,6 +780,11 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: ['museum'],
+      이미지: [
+        'public/tourPlace/무이예술관.jpeg',
+        'public/tourPlace/무이예술관2.jpeg',
+      ],
     },
     {
       관광지명: '백룡동굴',
@@ -712,6 +803,8 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: ['naturalSpot>cave'],
+      이미지: ['public/tourPlace/백룡동굴.jpeg'],
     },
     {
       관광지명: '이효석문화예술촌',
@@ -733,6 +826,8 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: ['themePark', 'museum'],
+      이미지: ['public/tourPlace/이효석문화예술촌.jpeg'],
     },
     {
       관광지명: '평창돌문화체험관',
@@ -754,28 +849,32 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/평창돌문화체험관.jpeg'],
     },
-    {
-      관광지명: '마하생태관광지',
-      관광지구분: '관광지',
-      소재지지번주소: '강원도 평창군 미탄면 마하리 일원',
-      위도: 37.2924471,
-      경도: 128.5419693,
-      면적: 29841,
-      공공편익시설정보: '주차장',
-      숙박시설정보: '생태체험민박',
-      휴양및문화시설정보:
-        '생태주택관+명상의정원+여울광장+자연학습장+담소원+산속학습장+광장6야영장',
-      접객시설정보: '휴게음식점',
-      지정일자: '04/28/2009',
-      수용인원수: 300,
-      주차가능수: 199,
-      관광지소개:
-        '마하리 본동 지구 및 마하리 문희마을 지구로 이루어져 있으며 백룡동굴의 생태관광 체험을 할 수 있다. 또한 주차장+관리사무소 등 공공편익시설과 휴게음식점+매점 등 숙박+상가시설 및 자연학습장+명상의 정원 등 휴양 문화시설이 함께 조성되어있다.',
-      관리기관전화번호: '033-330-2742',
-      관리기관명: '강원도 평창군청',
-      데이터기준일자: '09/29/2022',
-    },
+    // {
+    //   관광지명: '마하생태관광지',
+    //   관광지구분: '관광지',
+    //   소재지지번주소: '강원도 평창군 미탄면 마하리 일원',
+    //   위도: 37.2924471,
+    //   경도: 128.5419693,
+    //   면적: 29841,
+    //   공공편익시설정보: '주차장',
+    //   숙박시설정보: '생태체험민박',
+    //   휴양및문화시설정보:
+    //     '생태주택관+명상의정원+여울광장+자연학습장+담소원+산속학습장+광장6야영장',
+    //   접객시설정보: '휴게음식점',
+    //   지정일자: '04/28/2009',
+    //   수용인원수: 300,
+    //   주차가능수: 199,
+    //   관광지소개:
+    //     '마하리 본동 지구 및 마하리 문희마을 지구로 이루어져 있으며 백룡동굴의 생태관광 체험을 할 수 있다. 또한 주차장+관리사무소 등 공공편익시설과 휴게음식점+매점 등 숙박+상가시설 및 자연학습장+명상의 정원 등 휴양 문화시설이 함께 조성되어있다.',
+    //   관리기관전화번호: '033-330-2742',
+    //   관리기관명: '강원도 평창군청',
+    //   데이터기준일자: '09/29/2022',
+    //   카테고리: ['museum'],
+    //   이미지: [],
+    // },
     {
       관광지명: '용평관광단지',
       관광지구분: '관광단지',
@@ -795,6 +894,13 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: [
+        'waterPark',
+        'landActivity>golf',
+        'mountainActivity>ski',
+        'mountainActivity>snowBoard',
+      ],
+      이미지: ['public/tourPlace/용평관광단지.jpeg'],
     },
     {
       관광지명: '알펜시아관광단지',
@@ -818,6 +924,12 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: [
+        'landActivity>golf',
+        'mountainActivity>ski',
+        'mountainActivity>snowBoard',
+      ],
+      이미지: ['public/tourPlace/알펜시아관광단지.jpeg'],
     },
     {
       관광지명: '휘닉스파크관광단지',
@@ -840,6 +952,13 @@ export const value = {
       관리기관전화번호: '033-330-2742',
       관리기관명: '강원도 평창군청',
       데이터기준일자: '09/29/2022',
+      카테고리: [
+        'waterPark',
+        'landActivity>golf',
+        'mountainActivity>ski',
+        'mountainActivity>snowBoard',
+      ],
+      이미지: ['public/tourPlace/휘닉스파크관광단지.jpeg'],
     },
     {
       관광지명: '무릉계곡',
@@ -862,6 +981,8 @@ export const value = {
       관리기관전화번호: '033-530-2234',
       관리기관명: '강원도 동해시청',
       데이터기준일자: '10/20/2022',
+      카테고리: ['naturalSpot>valley', 'naturalSpot>rocks'],
+      이미지: ['public/tourPlace/무릉계곡.jpeg'],
     },
     {
       관광지명: '망상',
@@ -885,6 +1006,8 @@ export const value = {
       관리기관전화번호: '033-530-2234',
       관리기관명: '강원도 동해시청',
       데이터기준일자: '10/20/2022',
+      카테고리: ['naturalSpot>beach'],
+      이미지: ['public/tourPlace/망상.jpeg'],
     },
     {
       관광지명: '추암',
@@ -907,6 +1030,8 @@ export const value = {
       관리기관전화번호: '033-530-2234',
       관리기관명: '강원도 동해시청',
       데이터기준일자: '10/20/2022',
+      카테고리: ['naturalSpot>rocks', 'naturalSpot>beach', 'naturalSpot>park'],
+      이미지: ['public/tourPlace/추암.jpeg'],
     },
     {
       관광지명: '간현관광지',
@@ -928,6 +1053,12 @@ export const value = {
       관리기관전화번호: '033-737-4765',
       관리기관명: '강원도 원주시청',
       데이터기준일자: '11/23/2022',
+      카테고리: ['naturalSpot>river'],
+      이미지: [
+        'public/tourPlace/간현관광지.jpeg',
+        'public/tourPlace/간현관광지2.jpeg',
+        'public/tourPlace/간현관광지3.jpeg',
+      ],
     },
     {
       관광지명: '구문소 관광지',
@@ -947,6 +1078,8 @@ export const value = {
       관리기관전화번호: '033-550-1360',
       관리기관명: '강원도 태백시청',
       데이터기준일자: '11/02/2022',
+      카테고리: ['naturalSpot>river, museum'],
+      이미지: ['public/tourPlace/구문소관광지.jpeg'],
     },
     {
       관광지명: '용연동굴',
@@ -965,6 +1098,8 @@ export const value = {
       관리기관전화번호: '033-553-8584',
       관리기관명: '강원도 태백시청',
       데이터기준일자: '11/02/2022',
+      카테고리: ['naturalSpot>cave'],
+      이미지: ['public/tourPlace/용연동굴.jpeg'],
     },
     {
       관광지명: '철암탄광역사촌',
@@ -983,6 +1118,8 @@ export const value = {
       관리기관전화번호: '033-582-8070',
       관리기관명: '강원도 태백시청',
       데이터기준일자: '11/02/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/철암탄광역사촌.jpeg'],
     },
     {
       관광지명: '석탄박물관',
@@ -1001,6 +1138,8 @@ export const value = {
       관리기관전화번호: '033-552-7720',
       관리기관명: '강원도 태백시청',
       데이터기준일자: '11/02/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/석탄박물관.jpeg'],
     },
     {
       관광지명: '태백고생대자연사박물관',
@@ -1019,6 +1158,8 @@ export const value = {
       관리기관전화번호: '033-581-8181',
       관리기관명: '강원도 태백시청',
       데이터기준일자: '11/02/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/태백고생대자연사박물관.jpeg'],
     },
     {
       관광지명: '통일전망대',
@@ -1037,6 +1178,8 @@ export const value = {
       관리기관전화번호: '033-682-0088',
       관리기관명: '강원도 고성군청',
       데이터기준일자: '12/01/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/통일전망대.jpeg'],
     },
     {
       관광지명: '화진포역사안보전시관',
@@ -1055,6 +1198,13 @@ export const value = {
       관리기관전화번호: '033-682-0500',
       관리기관명: '국군복지단',
       데이터기준일자: '12/01/2022',
+      카테고리: ['museum', 'historicalSpot'],
+      이미지: [
+        'public/tourPlace/화진포역사안보전시관.jpeg',
+        'public/tourPlace/화진포역사안보전시관2.jpeg',
+        'public/tourPlace/화진포역사안보전시관3.jpeg',
+        'public/tourPlace/화진포역사안보전시관4.jpeg',
+      ],
     },
     {
       관광지명: '화진포해양박물관',
@@ -1073,6 +1223,12 @@ export const value = {
       관리기관전화번호: '033-680-3361',
       관리기관명: '강원도 고성군청',
       데이터기준일자: '12/01/2022',
+      카테고리: ['museum', 'aquarium'],
+      이미지: [
+        'public/tourPlace/화진포해양박물관.jpeg',
+        'public/tourPlace/화진포생태박물관.jpeg',
+        'public/tourPlace/화진포해양박물관3.jpeg',
+      ],
     },
     {
       관광지명: '화진포 생태박물관',
@@ -1091,6 +1247,12 @@ export const value = {
       관리기관전화번호: '033-680-3361',
       관리기관명: '강원도 고성군청',
       데이터기준일자: '12/01/2022',
+      카테고리: ['museum', 'aquarium'],
+      이미지: [
+        'public/tourPlace/화진포생태박물관.jpeg',
+        'public/tourPlace/화진포생태박물관2.jpeg',
+        'public/tourPlace/화진포생태박물관3.jpeg',
+      ],
     },
     {
       관광지명: '송지호 관망타워',
@@ -1109,6 +1271,12 @@ export const value = {
       관리기관전화번호: '033-680-3361',
       관리기관명: '강원도 고성군청',
       데이터기준일자: '12/01/2022',
+      카테고리: ['museum', 'naturalSpot>lake'],
+      이미지: [
+        'public/tourPlace/송지호관망타워.jpeg',
+        'public/tourPlace/송지호관망타워2.jpeg',
+        'public/tourPlace/송지호관망타워3.jpeg',
+      ],
     },
     {
       관광지명: '고씨굴 관광지',
@@ -1129,6 +1297,12 @@ export const value = {
       관리기관전화번호: '033-375-6556',
       관리기관명: '영월군시설관리공단',
       데이터기준일자: '11/30/2022',
+      카테고리: ['naturalSpot>cave', 'naturalSpot>mountain'],
+      이미지: [
+        'public/tourPlace/고씨굴관광지.jpeg',
+        'public/tourPlace/고씨굴관광지2.jpeg',
+        'public/tourPlace/고씨굴관광지3.jpeg',
+      ],
     },
     {
       관광지명: '화암관광지',
@@ -1148,6 +1322,12 @@ export const value = {
       관리기관전화번호: '033-560-2145',
       관리기관명: '강원도 정선군청',
       데이터기준일자: '11/25/2022',
+      카테고리: ['naturalSpot>cave', 'themePark', 'museum', 'historicalSpot'],
+      이미지: [
+        'public/tourPlace/화암관광지.jpeg',
+        'public/tourPlace/화암관광지2.jpeg',
+        'public/tourPlace/화암관광지3.jpeg',
+      ],
     },
     {
       관광지명: '아우라지 관광지',
@@ -1167,6 +1347,17 @@ export const value = {
       관리기관전화번호: '033-560-2145',
       관리기관명: '강원도 정선군청',
       데이터기준일자: '11/25/2022',
+      카테고리: [
+        'naturalSpot>river',
+        'naturalSpot>mountain',
+        'museum',
+        'historicalSpot',
+      ],
+      이미지: [
+        'public/tourPlace/아우라지관광지.jpeg',
+        'public/tourPlace/아우라지관광지2.jpeg',
+        'public/tourPlace/아우라지관광지3.jpeg',
+      ],
     },
     {
       관광지명: '구곡폭포',
@@ -1189,6 +1380,12 @@ export const value = {
       관리기관전화번호: '033-250-3668',
       관리기관명: '강원도 춘천시청',
       데이터기준일자: '01/12/2023',
+      카테고리: ['naturalSpot>valley', 'naturalSpot>mountain'],
+      이미지: [
+        'public/tourPlace/구곡폭포.jpeg',
+        'public/tourPlace/구곡폭포2.jpeg',
+        'public/tourPlace/구곡폭포3.jpeg',
+      ],
     },
     {
       관광지명: '춘천호반',
@@ -1211,6 +1408,8 @@ export const value = {
       관리기관전화번호: '033-245-2211',
       관리기관명: '강원도 춘천시청',
       데이터기준일자: '01/12/2023',
+      카테고리: ['naturalSpot>river'],
+      이미지: [],
     },
     {
       관광지명: '청평사(춘천)',
@@ -1233,6 +1432,8 @@ export const value = {
       관리기관전화번호: '033-244-1095',
       관리기관명: '강원도 춘천시청',
       데이터기준일자: '01/12/2023',
+      카테고리: ['culturalSpot>temple'],
+      이미지: ['public/tourPlace/청평사(춘천).jpeg'],
     },
     {
       관광지명: '신영',
@@ -1256,6 +1457,8 @@ export const value = {
       관리기관전화번호: '033-269-8888',
       관리기관명: '신영종합개발(주)',
       데이터기준일자: '01/12/2023',
+      카테고리: ['landActivity>golf'],
+      이미지: [],
     },
     {
       관광지명: '라비에벨',
@@ -1280,6 +1483,8 @@ export const value = {
       관리기관전화번호: '033-245-7000',
       관리기관명: '코오롱글로벌㈜',
       데이터기준일자: '01/12/2023',
+      카테고리: ['landActivity>golf'],
+      이미지: ['public/tourPlace/라비에텔.jpeg'],
     },
     {
       관광지명: '팔봉산관광지',
@@ -1300,6 +1505,11 @@ export const value = {
       관리기관전화번호: '033-430-2471',
       관리기관명: '강원도 홍천군청',
       데이터기준일자: '02/06/2023',
+      카테고리: ['naturalSpot>mountain', 'mountainActivity>climbing'],
+      이미지: [
+        'public/tourPlace/팔봉산관광지.jpeg',
+        'public/tourPlace/팔봉산관광지2.jpeg',
+      ],
     },
     {
       관광지명: '소노벨비발디파크',
@@ -1321,6 +1531,12 @@ export const value = {
       관리기관전화번호: '033-430-2471',
       관리기관명: '강원도 홍천군청',
       데이터기준일자: '02/06/2023',
+      카테고리: [
+        'landActivity>golf',
+        'mountainActivity>ski',
+        'mountainActivity>snowBoard',
+      ],
+      이미지: [],
     },
   ],
   경기도: [
@@ -1340,6 +1556,11 @@ export const value = {
       관리기관전화번호: '031-559-8018',
       관리기관명: '경기도 남양주시청',
       데이터기준일자: '03/01/2022',
+      카테고리: ['naturalSpot>valley', 'themePark'],
+      이미지: [
+        'public/tourPlace/수동관광지.jpeg',
+        'public/tourPlace/수동관광지2.jpeg',
+      ],
     },
     {
       관광지명: '장흥관광지',
@@ -1360,6 +1581,13 @@ export const value = {
       관리기관전화번호: '031-8082-5664',
       관리기관명: '경기도 양주시청',
       데이터기준일자: '05/10/2022',
+      카테고리: [
+        'themePark',
+        'museum',
+        'mountainActivity>climbing',
+        'naturalSpot>valley',
+      ],
+      이미지: ['public/tourPlace/장흥관광지.jpeg'],
     },
     {
       관광지명: '임진각관광지',
@@ -1382,6 +1610,8 @@ export const value = {
       관리기관전화번호: '031-950-1871',
       관리기관명: '파주도시관광공사',
       데이터기준일자: '04/29/2022',
+      카테고리: ['historicalSpot', 'museum', 'themePark'],
+      이미지: ['public/tourPlace/임진각관광지.jpeg'],
     },
     {
       관광지명: '공릉관광지',
@@ -1402,6 +1632,12 @@ export const value = {
       관리기관전화번호: '031-945-2250',
       관리기관명: '㈜성원레저',
       데이터기준일자: '04/29/2022',
+      카테고리: ['naturalSpot>lake', 'amusementPark'],
+      이미지: [
+        'public/tourPlace/공릉관광지.jpeg',
+        'public/tourPlace/공릉관광지2.jpeg',
+        'public/tourPlace/공릉관광지3.jpeg',
+      ],
     },
     {
       관광지명: '용문산 관광지',
@@ -1424,6 +1660,12 @@ export const value = {
       관리기관전화번호: '031-770-2491',
       관리기관명: '경기도 양평군청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['amusementPark', 'naturalSpot>park'],
+      이미지: [
+        'public/tourPlace/용문산관광지.jpeg',
+        'public/tourPlace/용문산관광지2.jpeg',
+        'public/tourPlace/용문산관광지3.jpeg',
+      ],
     },
     {
       관광지명: '두물머리',
@@ -1443,6 +1685,12 @@ export const value = {
       관리기관전화번호: '031-770-2568',
       관리기관명: '경기도 양평군청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['naturalSpot>river', 'naturalSpot>park'],
+      이미지: [
+        'public/tourPlace/두물머리.jpeg',
+        'public/tourPlace/두물머리2.jpeg',
+        'public/tourPlace/두물머리3.jpeg',
+      ],
     },
     {
       관광지명: '세미원',
@@ -1461,6 +1709,8 @@ export const value = {
       관리기관전화번호: '031-770-2568',
       관리기관명: '경기도 양평군청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['naturalSpot>garden'],
+      이미지: [],
     },
     {
       관광지명: '쉬자파크',
@@ -1482,6 +1732,11 @@ export const value = {
       관리기관전화번호: '031-770-2417',
       관리기관명: '경기도 양평군청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['naturalSpot>forest', 'naturalSpot>garden'],
+      이미지: [
+        'public/tourPlace/쉬자파크.jpeg',
+        'public/tourPlace/쉬자파크2.jpeg',
+      ],
     },
     {
       관광지명: '고구려대장간마을',
@@ -1500,6 +1755,8 @@ export const value = {
       관리기관전화번호: '031-550-8355',
       관리기관명: '경기도 구리시청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['themePark'],
+      이미지: ['public/tourPlace/고구려대장간마을.jpeg'],
     },
     {
       관광지명: '동구릉',
@@ -1518,6 +1775,8 @@ export const value = {
       관리기관전화번호: '031-563-2909',
       관리기관명: '문화재청',
       데이터기준일자: '06/02/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/동구릉.jpeg'],
     },
     {
       관광지명: '한탄강관광지',
@@ -1539,6 +1798,12 @@ export const value = {
       관리기관전화번호: '031-839-2061',
       관리기관명: '경기도연천군청',
       데이터기준일자: '07/07/2022',
+      카테고리: ['naturalSpot>river'],
+      이미지: [
+        'public/tourPlace/한탄강관광지.jpeg',
+        'public/tourPlace/한탄강관광지2.jpeg',
+        'public/tourPlace/한탄강관광지3.jpeg',
+      ],
     },
     {
       관광지명: '연천재인폭포',
@@ -1556,6 +1821,8 @@ export const value = {
       관리기관전화번호: '031-839-2277',
       관리기관명: '경기도연천군청',
       데이터기준일자: '07/07/2022',
+      카테고리: ['naturalSpot>valley'],
+      이미지: ['public/tourPlace/연천재인폭포.jpeg'],
     },
     {
       관광지명: '연천호로고루',
@@ -1574,6 +1841,8 @@ export const value = {
       관리기관전화번호: '031-839-2144',
       관리기관명: '경기도연천군청',
       데이터기준일자: '07/07/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/연천호로고루.jpeg'],
     },
     {
       관광지명: '당포성',
@@ -1590,6 +1859,8 @@ export const value = {
       관리기관전화번호: '031-839-2144',
       관리기관명: '경기도연천군청',
       데이터기준일자: '07/07/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/당포성.jpeg'],
     },
     {
       관광지명: '연천전곡리유적',
@@ -1609,6 +1880,8 @@ export const value = {
       관리기관전화번호: '031-839-2565',
       관리기관명: '경기도연천군청',
       데이터기준일자: '07/07/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/연천전곡리유적.jpeg'],
     },
     {
       관광지명: '추사박물관',
@@ -1628,6 +1901,8 @@ export const value = {
       관리기관전화번호: '02-2150-3650',
       관리기관명: '경기도 과천시청',
       데이터기준일자: '08/05/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/추사박물관.jpeg'],
     },
     {
       관광지명: '소요산관광지',
@@ -1649,6 +1924,11 @@ export const value = {
       관리기관전화번호: '031-860-2065',
       관리기관명: '경기도 동두천시청 관광휴양과',
       데이터기준일자: '09/01/2022',
+      카테고리: ['naturalSpot>mountain', 'mountainActivity>climbing'],
+      이미지: [
+        'public/tourPlace/소요산관광지.jpeg',
+        'public/tourPlace/소요산관광지2.jpeg',
+      ],
     },
     {
       관광지명: '광명동굴',
@@ -1670,6 +1950,8 @@ export const value = {
       관리기관전화번호: '070-4277-8902',
       관리기관명: '경기도 광명도시공사',
       데이터기준일자: '10/07/2022',
+      카테고리: ['naturalSpot>cave'],
+      이미지: ['public/tourPlace/광명동굴.jpeg'],
     },
     {
       관광지명: '반월호수',
@@ -1688,6 +1970,8 @@ export const value = {
       관리기관전화번호: '031-392-3000',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>lake'],
+      이미지: ['public/tourPlace/반월호수.jpeg'],
     },
     {
       관광지명: '초막골 생태공원',
@@ -1706,6 +1990,8 @@ export const value = {
       관리기관전화번호: '031-392-3000',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>park'],
+      이미지: ['public/tourPlace/초막골생태공원.jpeg'],
     },
     {
       관광지명: '수리산 도립공원',
@@ -1742,6 +2028,8 @@ export const value = {
       관리기관전화번호: '031-392-3000',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>mountain', 'mountainActivity>climbing'],
+      이미지: ['public/tourPlace/수리산도립공원.jpeg'],
     },
     {
       관광지명: '철쭉동산',
@@ -1760,6 +2048,8 @@ export const value = {
       관리기관전화번호: '031-392-3000',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>hill', 'themePark'],
+      이미지: ['public/tourPlace/철쭉동산.jpeg'],
     },
     {
       관광지명: '수리사',
@@ -1778,6 +2068,8 @@ export const value = {
       관리기관전화번호: '031-438-1823',
       관리기관명: '수리사',
       데이터기준일자: '09/30/2022',
+      카테고리: ['culturalSpot>temple'],
+      이미지: ['public/tourPlace/수리사.jpeg'],
     },
     {
       관광지명: '물누리체험관',
@@ -1795,6 +2087,8 @@ export const value = {
       관리기관전화번호: '031-390-8688',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/물누리체험관.jpeg'],
     },
     {
       관광지명: '누리천문대',
@@ -1813,6 +2107,8 @@ export const value = {
       관리기관전화번호: '031-504-7100',
       관리기관명: '경기도 군포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/누리천문대.jpeg'],
     },
     {
       관광지명: '김포평화누리길 1코스',
@@ -1833,6 +2129,8 @@ export const value = {
       관리기관전화번호: '031-980-5108',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>circumferenceTrail'],
+      이미지: ['public/tourPlace/김포평화누리길1코스.jpeg'],
     },
     {
       관광지명: '김포평화누리길 2코스',
@@ -1852,6 +2150,11 @@ export const value = {
       관리기관전화번호: '031-980-5108',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>circumferenceTrail'],
+      이미지: [
+        'public/tourPlace/김포평화누리길2코스.jpeg',
+        'public/tourPlace/김포평화누리길2코스2.jpeg',
+      ],
     },
     {
       관광지명: '김포평화누리길 3코스',
@@ -1870,6 +2173,11 @@ export const value = {
       관리기관전화번호: '031-980-5108',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['naturalSpot>circumferenceTrail'],
+      이미지: [
+        'public/tourPlace/김포평화누리길3코스.jpeg',
+        'public/tourPlace/김포평화누리길3코스2.jpeg',
+      ],
     },
     {
       관광지명: '김포 장릉',
@@ -1889,6 +2197,8 @@ export const value = {
       관리기관전화번호: '031-984-2897',
       관리기관명: '문화재청 장릉관리소',
       데이터기준일자: '09/30/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/김포장릉.jpeg'],
     },
     {
       관광지명: '애기봉 평화생태공원',
@@ -1909,6 +2219,8 @@ export const value = {
       관리기관전화번호: '031-989-6034',
       관리기관명: '김포문화재단',
       데이터기준일자: '09/30/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/애기봉평화생태공원.jpeg'],
     },
     {
       관광지명: '문수산성',
@@ -1929,6 +2241,8 @@ export const value = {
       관리기관전화번호: '031-980-2483',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/문수산성.jpeg'],
     },
     {
       관광지명: '김포함상공원',
@@ -1948,6 +2262,8 @@ export const value = {
       관리기관전화번호: '031-987-4097',
       관리기관명: '김포도시관리공사',
       데이터기준일자: '09/30/2022',
+      카테고리: ['historicalSpot', 'themePark'],
+      이미지: ['public/tourPlace/김포함상공원.jpeg'],
     },
     {
       관광지명: '덕포진',
@@ -1967,6 +2283,8 @@ export const value = {
       관리기관전화번호: '031-989-8580',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['historicalSpot'],
+      이미지: ['public/tourPlace/덕포진.jpeg'],
     },
     {
       관광지명: '덕포진교육박물관',
@@ -1986,6 +2304,8 @@ export const value = {
       관리기관전화번호: '031-980-2483',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['historicalSpot', 'museum'],
+      이미지: ['public/tourPlace/덕포진교육박물관.jpeg'],
     },
     {
       관광지명: '다도박물관',
@@ -2005,6 +2325,8 @@ export const value = {
       관리기관전화번호: '031-998-1000',
       관리기관명: '경기도 김포시청',
       데이터기준일자: '09/30/2022',
+      카테고리: ['museum'],
+      이미지: ['public/tourPlace/다도박물관.jpeg'],
     },
     {
       관광지명: '김포국제조각공원',
@@ -2026,6 +2348,12 @@ export const value = {
       관리기관전화번호: '031-984-5167',
       관리기관명: '김포문화재단',
       데이터기준일자: '09/30/2022',
+      카테고리: ['themePark', 'museum'],
+      이미지: [
+        'public/tourPlace/김포국제조각공원.jpeg',
+        'public/tourPlace/김포국제조각공원2.jpeg',
+        'public/tourPlace/김포국제조각공원3.jpeg',
+      ],
     },
     {
       관광지명: '아트빌리지(한옥마을)',
@@ -2048,6 +2376,8 @@ export const value = {
       관리기관전화번호: '031-996-6836',
       관리기관명: '김포문화재단',
       데이터기준일자: '09/30/2022',
+      카테고리: ['themePark'],
+      이미지: ['public/tourPlace/아트빌리지(한옥마을).jpeg'],
     },
     {
       관광지명: '산정호수',
@@ -2066,6 +2396,8 @@ export const value = {
       관리기관전화번호: '031-538-3363',
       관리기관명: '경기도 포천시청 관광사업과',
       데이터기준일자: '10/31/2022',
+      카테고리: ['naturalSpot>lake'],
+      이미지: ['public/tourPlace/산정호수.jpeg'],
     },
     {
       관광지명: '백운계곡',
@@ -2084,6 +2416,8 @@ export const value = {
       관리기관전화번호: '031-538-3363',
       관리기관명: '경기도 포천시청 관광사업과',
       데이터기준일자: '10/31/2022',
+      카테고리: ['naturalSpot>valley'],
+      이미지: ['public/tourPlace/백운계곡.jpeg'],
     },
     {
       관광지명: '대성관광지',
@@ -2107,6 +2441,8 @@ export const value = {
       관리기관전화번호: '031-580-4633',
       관리기관명: '경기도 가평군청 관광과',
       데이터기준일자: '11/29/2022',
+      카테고리: ['naturalSpot>lake'],
+      이미지: ['public/tourPlace/대성관광지.jpeg'],
     },
     {
       관광지명: '산장관광지',
@@ -2131,6 +2467,14 @@ export const value = {
       관리기관전화번호: '031-580-2516',
       관리기관명: '경기도 가평군청 관광과',
       데이터기준일자: '11/29/2022',
+      카테고리: ['naturalSpot>circumferenceTrail', 'naturalSpot>forest'],
+      이미지: [
+        'public/tourPlace/산장관광지.jpeg',
+        'public/tourPlace/산장관광지2.jpeg',
+        'public/tourPlace/산장관광지3.jpeg',
+        'public/tourPlace/산장관광지4.jpeg',
+        'public/tourPlace/산장관광지5.jpeg',
+      ],
     },
     {
       관광지명: '신륵사관광지',
@@ -2152,6 +2496,19 @@ export const value = {
       관리기관전화번호: '031-887-2070',
       관리기관명: '경기도 여주시청',
       데이터기준일자: '11/01/2022',
+      카테고리: [
+        'culturalSpot>temple',
+        'naturalSpot>river',
+        'museum',
+        'landActivity>ticket',
+        'oceanActivity>jetBoat',
+        'oceanActivity>sailing',
+      ],
+      이미지: [
+        'public/tourPlace/신륵사관광지.jpeg',
+        'public/tourPlace/신륵사관광지2.jpeg',
+        'public/tourPlace/신륵사관광지3.jpeg',
+      ],
     },
     {
       관광지명: '고양관광정보센터',
@@ -2176,6 +2533,8 @@ export const value = {
       관리기관전화번호: '031-905-8396',
       관리기관명: '경기도 고양시청 관광과',
       데이터기준일자: '11/22/2022',
+      카테고리: ['landActivity>ticket', 'shopping'],
+      이미지: ['public/tourPlace/고양관광정보센터.jpeg'],
     },
     {
       관광지명: '에버랜드',
@@ -2194,6 +2553,8 @@ export const value = {
       관리기관전화번호: '031-324-2117',
       관리기관명: '용인시청 관광과',
       데이터기준일자: '01/27/2023',
+      카테고리: ['amusementPark', 'shopping'],
+      이미지: ['public/tourPlace/에버랜드.jpeg'],
     },
     {
       관광지명: '한국민속촌',
@@ -2212,6 +2573,8 @@ export const value = {
       관리기관전화번호: '031-324-2117',
       관리기관명: '용인시청 관광과',
       데이터기준일자: '01/27/2023',
+      카테고리: ['amusementPark', 'themePark'],
+      이미지: ['public/tourPlace/한국민속촌.jpeg'],
     },
     {
       관광지명: '평택호관광단지',
@@ -2234,6 +2597,8 @@ export const value = {
       관리기관전화번호: '031-8024-8687',
       관리기관명: '경기도 평택시청',
       데이터기준일자: '02/28/2023',
+      카테고리: ['naturalSpot>lake', 'naturalSpot>park'],
+      이미지: ['public/tourPlace/평택호관광지.jpeg'],
     },
   ],
   충청북도: [
@@ -2259,6 +2624,8 @@ export const value = {
       관리기관전화번호: '043-830-3820',
       관리기관명: '충청북도 괴산군',
       데이터기준일자: '06/28/2021',
+      카테고리: ['naturalSpot>river'],
+      이미지: ['public/tourPlace/괴강.jpeg'],
     },
     {
       관광지명: '수옥정',
@@ -2283,6 +2650,8 @@ export const value = {
       관리기관전화번호: '043-830-2683',
       관리기관명: '충청북도 괴산군',
       데이터기준일자: '06/28/2021',
+      카테고리: ['naturalSpot>valley'],
+      이미지: ['public/tourPlace/수옥정.jpeg', 'public/tourPlace/수옥정2.jpeg'],
     },
     {
       관광지명: '세계무술공원',
@@ -2304,6 +2673,12 @@ export const value = {
       관리기관전화번호: '043-850-6751',
       관리기관명: '충청북도 충주시청',
       데이터기준일자: '05/31/2022',
+      카테고리: ['themePark', 'naturalSpot>circumferenceTrail'],
+      이미지: [
+        'public/tourPlace/세계무술공원.jpeg',
+        'public/tourPlace/세계무술공원2.jpeg',
+        'public/tourPlace/세계무술공원3.jpeg',
+      ],
     },
     {
       관광지명: '충주호체험',
@@ -2324,6 +2699,11 @@ export const value = {
       관리기관전화번호: '043-850-6731',
       관리기관명: '충청북도 충주시청',
       데이터기준일자: '05/31/2022',
+      카테고리: ['oceanActivity>kayak'],
+      이미지: [
+        'public/tourPlace/충주호체험.jpeg',
+        'public/tourPlace/충주호체험2.jpeg',
+      ],
     },
     {
       관광지명: '능암온천',
@@ -2342,6 +2722,8 @@ export const value = {
       관리기관전화번호: '043-850-6742',
       관리기관명: '충청북도 충주시청',
       데이터기준일자: '05/31/2022',
+      카테고리: ['naturalSpot>hotSpring'],
+      이미지: ['public/tourPlace/능암온천.jpeg'],
     },
     {
       관광지명: '충온온천',
