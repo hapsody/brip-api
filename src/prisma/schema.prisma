@@ -482,6 +482,8 @@ enum PlaceType {
   USER_PRIV_MEMORY_SPOT /// 유저 기억에서 개인적으로 저장한 장소
   PUBLICDATAPORTAL_RESTAURANT /// 공공데이터 포탈 식당
   PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
+  TOUR4_SPOT ///한국 관광공사 Tour4.0 api 데이터 
+  TOUR4_RESTAURANT
 }
 
 /// 문의사항
