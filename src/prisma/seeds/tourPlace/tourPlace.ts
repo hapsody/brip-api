@@ -1,8 +1,5 @@
 import axios from 'axios';
-import {
-  isNil,
-  // isEmpty
-} from 'lodash';
+import { isNil } from 'lodash';
 import * as dotenv from 'dotenv';
 import {
   PrismaClient,
@@ -1010,6 +1007,7 @@ async function main(): Promise<void> {
       numOfRows: '60000',
     });
 
+    // let dupCheckData: { title?: string; lat?: number; lng?: number } = {};
     const dataForCreate = tour4InfoItems.reduce((acc, v) => {
       const tourPlaceType = (() => {
         switch (v.cat1) {
@@ -1291,42 +1289,57 @@ async function main(): Promise<void> {
             return null;
         }
       })();
-      if (!isNil(ibTTTypePath) && !isNil(tourPlaceType)) {
-        return [
-          ...acc,
-          {
-            tourPlaceType: tourPlaceType as PlaceType,
-            status: 'NEW' as DataStageStatus,
-            ibTravelTag: {
-              connect: ibTTTypePath.map(k => {
-                const leafTag = k.split('>').pop();
-                return {
-                  value: leafTag,
-                };
-              }),
-            },
-            title: v.title,
-            lat: Number(v.mapy),
-            lng: Number(v.mapx),
-            roadAddress: v.addr1,
-            // address: v.addr2,
-            // openWeek
-            contact: v.tel,
-            postcode: v.zipcode,
-            photos: {
-              createMany: {
-                data: [
-                  {
-                    url: v.firstimage,
-                  },
-                  {
-                    url: v.firstimage2,
-                  },
-                ],
-              },
+
+      const isDup = () => {
+        // if (
+        //   !isNil(dupCheckData) &&
+        //   dupCheckData.title === v.title &&
+        //   dupCheckData.lat === Number(v.mapy) &&
+        //   dupCheckData.lng === Number(v.mapx)
+        // ) {
+        //   /// duplicated data...
+        //   return true;
+        // }
+        // return false;
+
+        return false;
+      };
+
+      if (!isNil(ibTTTypePath) && !isNil(tourPlaceType) && !isDup()) {
+        const newOne = {
+          tourPlaceType: tourPlaceType as PlaceType,
+          status: 'NEW' as DataStageStatus,
+          ibTravelTag: {
+            connect: ibTTTypePath.map(k => {
+              const leafTag = k.split('>').pop();
+              return {
+                value: leafTag,
+              };
+            }),
+          },
+          title: v.title,
+          lat: Number(v.mapy),
+          lng: Number(v.mapx),
+          roadAddress: v.addr1,
+          // address: v.addr2,
+          // openWeek
+          contact: v.tel,
+          postcode: v.zipcode,
+          photos: {
+            createMany: {
+              data: [
+                {
+                  url: v.firstimage,
+                },
+                {
+                  url: v.firstimage2,
+                },
+              ],
             },
           },
-        ];
+        };
+        // dupCheckData = { ...newOne };
+        return [...acc, newOne];
       }
       return acc;
     }, []);
@@ -1387,6 +1400,8 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error(error);
   }
+
+  await prisma.$disconnect();
 }
 
 export default main;
