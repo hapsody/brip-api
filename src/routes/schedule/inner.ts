@@ -9,6 +9,7 @@ import {
   getNDaysLater,
   IBContext,
   getS3SignedUrl,
+  ibTravelTagCategorize,
 } from '@src/utils';
 import axios, { Method } from 'axios';
 import {
@@ -17,7 +18,6 @@ import {
   VisitSchedule,
   PlaceType,
   IBPhotos,
-  IBTravelTag,
 } from '@prisma/client';
 import {
   isNumber,
@@ -26,7 +26,6 @@ import {
   isUndefined,
   omit,
   flattenDeep,
-  isNull,
   isNil,
 } from 'lodash';
 import {
@@ -1049,87 +1048,11 @@ export const getPlaceByGglTxtSrch = async (
                   },
                 },
               },
-              ibTravelTag: await (async () => {
-                const {
-                  ibType: { typePath, minDifficulty, maxDifficulty },
-                } = batchJobCtx;
-                const types = typePath.split('>').reverse();
-                // const leafType = types[types.length - 1];
-                let firstCreatedId = 0;
-                let subType: IBTravelTag | null = null;
-
-                // eslint-disable-next-line no-restricted-syntax
-                for await (const type of types) {
-                  const curIBTType = await prisma.$transaction(
-                    // eslint-disable-next-line @typescript-eslint/no-loop-func
-                    async tx => {
-                      let cur = await tx.iBTravelTag.findUnique({
-                        where: {
-                          value: type,
-                        },
-                      });
-                      if (!cur) {
-                        cur = await tx.iBTravelTag.create({
-                          data: {
-                            value: type,
-                            minDifficulty,
-                            maxDifficulty,
-                          },
-                        });
-                        console.log(cur);
-                      }
-
-                      /// firstCreated는 가장 먼저 처리된 말단 태그(가장 세분류 태그 ex) oceanActivity>beach 이면 beach 태그)
-                      if (firstCreatedId === 0) {
-                        firstCreatedId = cur.id;
-                      }
-
-                      /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
-                      /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
-                      if (subType !== null) {
-                        cur = await tx.iBTravelTag.update({
-                          where: {
-                            id: cur.id,
-                          },
-                          data: {
-                            minDifficulty:
-                              cur.minDifficulty! > subType.minDifficulty!
-                                ? subType.minDifficulty
-                                : cur.minDifficulty,
-                            maxDifficulty:
-                              cur.maxDifficulty! < subType.maxDifficulty!
-                                ? subType.maxDifficulty
-                                : cur.maxDifficulty,
-                            ...(!isNull(subType) && {
-                              related: {
-                                connectOrCreate: {
-                                  where: {
-                                    fromId_toId: {
-                                      fromId: cur.id,
-                                      toId: subType.id,
-                                    },
-                                  },
-                                  create: {
-                                    toId: subType.id,
-                                  },
-                                },
-                              },
-                            }),
-                          },
-                        });
-                      }
-                      return cur;
-                    },
-                  );
-                  subType = curIBTType!;
-                }
-                // lastCreatedId = subType!.id;
-                return {
-                  connect: {
-                    id: firstCreatedId,
-                  },
-                };
-              })(),
+              ibTravelTag: {
+                connect: {
+                  id: await ibTravelTagCategorize(batchJobCtx),
+                },
+              },
             }),
         },
       });
