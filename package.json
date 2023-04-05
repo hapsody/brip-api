@@ -27,6 +27,7 @@
     "seed:shareTripMemory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/shareTripMemory",
     "seed:tourPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/tourPlace",
     "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
+    "seed:iBEventPromotion": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBEventPromotion",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
     "batch": "yarn batch:dataresource",
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",

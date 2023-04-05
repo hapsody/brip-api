@@ -43,6 +43,7 @@ model User {
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
   likeTourPlace                   TourPlace[]
+  IBEventApplication              IBEventApplication[]
 }
 
 model FavoriteTravelType {
@@ -755,4 +756,58 @@ model NotiNewCommentOnShareTripMemory {
   userChecked       Boolean         @default(false) /// 유저가 노티를 확인했는지 
 
   @@index([userId, shareTripMemoryId])
+}
+
+enum IBEventStatus {
+  OPENED /// 이벤트중
+  EXPIRED /// 이벤트만료. 2차 3차로 다시 할수도 있음
+  STOPPED /// 이벤트중 중단
+  PREPARING /// 이벤트 준비중
+  TERMINATED /// 이벤트 완전종료
+}
+
+enum Currency {
+  USD /// 미국 달러
+  KRW /// 한국 원
+  JPY /// 일본 엔
+  CNY /// 중국 위안
+  EUR /// 유럽연합 유로
+}
+
+enum IBEventPayType {
+  PERIODIC_DAY
+  PERIODIC_WEEK
+  PERIODIC_MONTH
+  PERIODIC_YEAR
+  ONCE
+  FREE
+}
+
+/// 아이디얼블룸 이벤트 프로모션 
+model IBEventPromotion {
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  status             IBEventStatus        @default(OPENED) /// 이벤트 상태
+  name               String               @db.Text /// 이벤트명
+  desc               String               @db.LongText /// 이벤트 설명
+  price              Int                  @default(0) /// 이벤트가격
+  currency           Currency             @default(KRW) /// 이벤트 가격 통화
+  payType            IBEventPayType       @default(ONCE) /// 이벤트 가격 지불 방식 (주기적, 일시불, 무료)
+  startDate          DateTime             @default(now()) ///  이벤트 시작시각 UTC기준
+  endDate            DateTime? /// 이벤트 종료시각 UTC기준 null이면 무제한
+  byWhom             String? /// 프로모션 진행 주체
+  IBEventApplication IBEventApplication[]
+}
+
+///  이벤트 프로모션 참여 신청서 목록
+model IBEventApplication {
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+  content     String            @db.Text /// 전체 신청 내용을 String 형태로 Serialize 해서 저장
+  promotion   IBEventPromotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  promotionId Int?
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  userId      Int?
 }
