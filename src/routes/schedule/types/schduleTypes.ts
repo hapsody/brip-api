@@ -507,8 +507,10 @@ export interface MakeScheduleREQParam {
 // }
 export type TourPlaceGeoLoc = Omit<
   Partial<TourPlace>,
-  'gl_lat | gl_lng | vj_latitude | vj_longitude'
+  'lat | lng | gl_lat | gl_lng | vj_latitude | vj_longitude'
 > & {
+  lat: number | null;
+  lng: number | null;
   gl_lat: number | null;
   gl_lng: number | null;
   vj_latitude: number | null;

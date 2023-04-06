@@ -1756,6 +1756,8 @@ export const degreeToMeter = (
 };
 
 const getLatLng = (spot: {
+  lat: number | null;
+  lng: number | null;
   gl_lat: number | null;
   gl_lng: number | null;
   vj_latitude: number | null;
@@ -1772,8 +1774,8 @@ const getLatLng = (spot: {
       lng: spot.vj_longitude,
     };
   return {
-    lat: spot.vj_latitude as number,
-    lng: spot.vj_longitude as number,
+    lat: spot.lat as number,
+    lng: spot.lng as number,
   };
 };
 
@@ -1981,9 +1983,9 @@ export const makeCluster = (
       spotsGeoLocation: items.map(v => {
         return {
           id: v.id ?? -1,
-          name: v.gl_name ?? v.vj_title ?? '',
-          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+          name: v.title ?? v.gl_name ?? v.vj_title ?? '',
+          lat: v.lat ?? v.gl_lat ?? v.vj_latitude ?? -9999,
+          lng: v.lng ?? v.gl_lng ?? v.vj_longitude ?? -9999,
         };
       }),
     }),
@@ -1991,9 +1993,9 @@ export const makeCluster = (
       foodsGeoLocation: items.map(v => {
         return {
           id: v.id ?? -1,
-          name: v.gl_name ?? v.vj_title ?? '',
-          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+          name: v.title ?? v.gl_name ?? v.vj_title ?? '',
+          lat: v.lat ?? v.gl_lat ?? v.vj_latitude ?? -9999,
+          lng: v.lng ?? v.gl_lng ?? v.vj_longitude ?? -9999,
         };
       }),
     }),
@@ -2149,20 +2151,38 @@ export const makeSchedule = async (
         /// 제주 클리핑
         {
           AND: [
-            { vj_latitude: { gte: 33.109684 } },
-            { vj_latitude: { lt: 33.650946 } },
-            { vj_longitude: { gte: 126.032175 } },
-            { vj_longitude: { lt: 127.048411 } },
+            { lat: { gte: 33.109684 } },
+            { lat: { lt: 33.650946 } },
+            { lng: { gte: 126.032175 } },
+            { lng: { lt: 127.048411 } },
           ],
         },
-        {
-          AND: [
-            { gl_lat: { gte: 33.109684 } },
-            { gl_lat: { lt: 33.650946 } },
-            { gl_lng: { gte: 126.032175 } },
-            { gl_lng: { lt: 127.048411 } },
-          ],
-        },
+
+        // /// 한국 클리핑
+        // {
+        //   AND: [
+        //     { lat: { gte: 34.01941 } },
+        //     { lat: { lt: 38.81498 } },
+        //     { lng: { gte: 125.350506 } },
+        //     { lng: { lt: 131.282937 } },
+        //   ],
+        // },
+        // {
+        //   AND: [
+        //     { vj_latitude: { gte: 33.109684 } },
+        //     { vj_latitude: { lt: 33.650946 } },
+        //     { vj_longitude: { gte: 126.032175 } },
+        //     { vj_longitude: { lt: 127.048411 } },
+        //   ],
+        // },
+        // {
+        //   AND: [
+        //     { gl_lat: { gte: 33.109684 } },
+        //     { gl_lat: { lt: 33.650946 } },
+        //     { gl_lng: { gte: 126.032175 } },
+        //     { gl_lng: { lt: 127.048411 } },
+        //   ],
+        // },
       ],
       // OR: [ /// 서울 클리핑
       //   {
@@ -2183,7 +2203,9 @@ export const makeSchedule = async (
       //   },
       // ],
       status: 'IN_USE',
-      tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
+      tourPlaceType: {
+        in: ['TOUR4_SPOT', 'GL_SPOT', 'VISITJEJU_SPOT'],
+      },
     },
     select: {
       id: true,
@@ -2232,25 +2254,44 @@ export const makeSchedule = async (
   const foods = await prisma.tourPlace.findMany({
     where: {
       status: 'IN_USE',
-      tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'GL_RESTAURANT'] },
+      tourPlaceType: {
+        in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
+      },
       OR: [
         /// 제주 클리핑
         {
           AND: [
-            { vj_latitude: { gte: 33.109684 } },
-            { vj_latitude: { lt: 33.650946 } },
-            { vj_longitude: { gte: 126.032175 } },
-            { vj_longitude: { lt: 127.048411 } },
+            { lat: { gte: 33.109684 } },
+            { lat: { lt: 33.650946 } },
+            { lng: { gte: 126.032175 } },
+            { lng: { lt: 127.048411 } },
           ],
         },
-        {
-          AND: [
-            { gl_lat: { gte: 33.109684 } },
-            { gl_lat: { lt: 33.650946 } },
-            { gl_lng: { gte: 126.032175 } },
-            { gl_lng: { lt: 127.048411 } },
-          ],
-        },
+        // /// 한국 클리핑
+        // {
+        //   AND: [
+        //     { lat: { gte: 34.01941 } },
+        //     { lat: { lt: 38.81498 } },
+        //     { lng: { gte: 125.350506 } },
+        //     { lng: { lt: 131.282937 } },
+        //   ],
+        // },
+        // {
+        //   AND: [
+        //     { vj_latitude: { gte: 33.109684 } },
+        //     { vj_latitude: { lt: 33.650946 } },
+        //     { vj_longitude: { gte: 126.032175 } },
+        //     { vj_longitude: { lt: 127.048411 } },
+        //   ],
+        // },
+        // {
+        //   AND: [
+        //     { gl_lat: { gte: 33.109684 } },
+        //     { gl_lat: { lt: 33.650946 } },
+        //     { gl_lng: { gte: 126.032175 } },
+        //     { gl_lng: { lt: 127.048411 } },
+        //   ],
+        // },
       ],
       // OR: [ /// 서울 클리핑
       //   {
@@ -3417,6 +3458,7 @@ export const makeSchedule = async (
                   t.data &&
                   t.data.length > 0
                 ) {
+                  if (t.data[0].title) return t.data[0].title;
                   if (t.data[0].gl_name) return t.data[0].gl_name;
                   if (t.data[0].vj_title) return t.data[0].vj_title;
                 }

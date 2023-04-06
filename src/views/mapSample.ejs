@@ -42,6 +42,10 @@
       // const clipMaxLat = 37.655385;
       // const clipMinLng = 126.796251;
       // const clipMaxLng = 127.230211;
+      // const clipMinLat = 34.01941; // 한국 전국 지역 필터링
+      // const clipMaxLat = 38.81498;
+      // const clipMinLng = 125.350506;
+      // const clipMaxLng = 131.282937;
       let gRDistToPxLength;
       let gPlayMode = {
         /// 직전 load 또는 play 함수 실행할때 어떤 옵션으로 수행했었는가를 기록 이 값에 따라 clickCanvas 실행할때 결과값을 보고 있는 화면의 결과에 맞게 뿌려줌.
@@ -537,8 +541,8 @@
           };
         }
         return {
-          lat: undefined,
-          lng: undefined,
+          lat: spot.lat,
+          lng: spot.lng,
         };
       };
       let prevData;
