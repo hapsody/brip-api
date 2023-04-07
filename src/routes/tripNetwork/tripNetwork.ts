@@ -2270,6 +2270,7 @@ export interface GetShareTripMemListRequestType {
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
+  userId: string; /// 특정하고자 하는 userId
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
   // TourPlace: {
@@ -2307,6 +2308,7 @@ export const getShareTripMemList = asyncWrapper(
         lastId,
         take = '10',
         categoryKeyword = '',
+        userId,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -2432,6 +2434,7 @@ export const getShareTripMemList = asyncWrapper(
               },
             },
           },
+          userId: Number(userId),
         },
         ...(isNil(lastId) && {
           take: Number(take),
