@@ -240,10 +240,11 @@
         data: JSON.stringify({
           ingNow: 'ing',
           companion: 'alone',
-          period: '15',
-          travelType: ['rest', 'meeting', 'activity'],
+          period: '5',
+          // travelType: ['activity'],
+          travelType: ['rest', 'healing'],
           destination: 'recommend',
-          travelHard: '8',
+          travelHard: '2',
         }),
         success: async function (result) {
           endTime = new Date().getTime();

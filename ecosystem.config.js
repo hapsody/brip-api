@@ -47,7 +47,7 @@ module.exports = {
       exec_mode: 'cluster',
       // exec_iterpreter: 'ts-node',
       interpreter_args: '-r tsconfig-paths/register',
-      instances: 2,
+      instances: -1,
     },
     {
       name: 'travelit-api-prod',

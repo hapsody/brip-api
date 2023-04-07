@@ -19,6 +19,13 @@ import {
   IBTravelTagList,
   ibTravelTagCategorize,
 } from './ibTravelTagCategorize';
+import {
+  degreeToMeter,
+  estGeoLocFromMeter,
+  BoundingBox,
+  getBoundingBox,
+  getDistFromTwoGeoLoc,
+} from './geoLocation';
 
 export {
   ibDefs,
@@ -43,4 +50,9 @@ export {
   IBContext,
   IBTravelTagList,
   ibTravelTagCategorize,
+  degreeToMeter,
+  estGeoLocFromMeter,
+  BoundingBox,
+  getBoundingBox,
+  getDistFromTwoGeoLoc,
 };

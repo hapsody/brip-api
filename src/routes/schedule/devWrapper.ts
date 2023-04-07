@@ -10,6 +10,7 @@ import {
 } from '@src/utils';
 import axios, { Method } from 'axios';
 import { isNumber, isNil, isEmpty } from 'lodash';
+import { getBoundingBox, getDistFromTwoGeoLoc } from '@src/utils/geoLocation';
 import {
   AddMockBKCHotelResourceREQParam,
   defaultBKCHotelReqParams,
@@ -627,45 +628,26 @@ export const makeScheduleWrapper = asyncWrapper(
 /**
  * 테스트용
  */
-export const prismaTestWrapper = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<{ tags: string[] }>,
-    res: Express.IBTypedResponse<IBResFormat>,
-  ) => {
-    const param = req.body;
-    const { tags } = param;
-    const result = await prisma.tourPlace.findMany({
-      where: {
-        ibTravelTag: {
-          some: {
-            value: { in: tags },
-          },
-        },
-      },
-      select: {
-        id: true,
-        gl_name: true,
-        vj_title: true,
-        ibTravelTag: {
-          where: {
-            value: { in: tags },
-          },
-          select: {
-            id: true,
-            value: true,
-            related: {
-              include: {
-                to: true,
-              },
-            },
-          },
-        },
-      },
-    });
+export const prismaTestWrapper = (
+  req: Express.IBTypedReqBody<{ tags: string[] }>,
+  res: Express.IBTypedResponse<IBResFormat>,
+): void => {
+  // const result = getBoundingBox(98, 127, 2.5);
 
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: result,
-    });
-  },
-);
+  // 위경도 값
+  const sss = getBoundingBox(33.0, 127.3, 2500);
+
+  const result = getDistFromTwoGeoLoc({
+    aLat: sss.minLat,
+    aLng: sss.minLng,
+    bLat: sss.minLat,
+    bLng: sss.maxLng,
+  });
+  res.json({
+    ...ibDefs.SUCCESS,
+    IBparams: {
+      cent: sss,
+      distance: result,
+    },
+  });
+};
