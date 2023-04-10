@@ -123,9 +123,9 @@ model TourPlace {
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
   status                                DataStageStatus @default(NEW)
-  evalScore                             Int             @default(0) /// deprecated
-  minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
-  maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
+  // evalScore                             Int             @default(0) /// deprecated
+  // minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
+  // maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
   ibTravelTag                           IBTravelTag[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds

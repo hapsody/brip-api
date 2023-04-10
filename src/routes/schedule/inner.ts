@@ -3546,34 +3546,35 @@ export const makeSchedule = async (
         adult: Number(adultsNumber),
         travelHard: Number(travelHard),
         destination,
-        tourPlace: {
-          connect: [
-            /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
-            // ...(() => {
-            //   const result = ctx
-            //     .hotels!.map(c => {
-            //       const hotelIds = c.hotels.hotelSearchResult
-            //         .map(h => {
-            //           if (h.id)
-            //             return {
-            //               id: h.id,
-            //             };
-            //           return undefined;
-            //         })
-            //         .filter((x): x is { id: number } => x !== undefined);
-            //       return hotelIds;
-            //     })
-            //     .flat();
-            //   return result;
-            // })(),
-            ...ctx.foods!.map(v => {
-              return { id: v.id };
-            }),
-            ...ctx.spots!.map(v => {
-              return { id: v.id };
-            }),
-          ],
-        },
+        // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
+        // tourPlace: {
+        //   connect: [
+        //     /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
+        //     // ...(() => {
+        //     //   const result = ctx
+        //     //     .hotels!.map(c => {
+        //     //       const hotelIds = c.hotels.hotelSearchResult
+        //     //         .map(h => {
+        //     //           if (h.id)
+        //     //             return {
+        //     //               id: h.id,
+        //     //             };
+        //     //           return undefined;
+        //     //         })
+        //     //         .filter((x): x is { id: number } => x !== undefined);
+        //     //       return hotelIds;
+        //     //     })
+        //     //     .flat();
+        //     //   return result;
+        //     // })(),
+        //     ...ctx.foods!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //     ...ctx.spots!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //   ],
+        // },
         userTokenId: ctx.userTokenId,
         visitSchedule: {
           createMany: {
