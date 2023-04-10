@@ -238,8 +238,9 @@ model TourPlace {
   notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
   bad    Int @default(0) /// 추천하지 않아요를 받은 누적 숫자
   like   Int @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  // @@index([gl_place_id, vj_contentsid])
 
-  @@index([gl_place_id, vj_contentsid])
+  @@index([lat, lng, id])
 }
 
 model BatchQueryParams {
@@ -576,6 +577,8 @@ model IBTravelTag {
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
+
+  @@index([minDifficulty, maxDifficulty, id])
 }
 
 /// IBTravelTag 간에 관계 정의
