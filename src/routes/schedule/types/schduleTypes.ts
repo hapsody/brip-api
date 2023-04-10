@@ -533,7 +533,7 @@ export interface IValidCentResources {
     };
   };
   nearbySpots: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 여행지
-  nearbyFoods: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 식당
+  // nearbyFoods: TourPlaceGeoLoc[]; /// 해당 군집군에 속한 식당
 }
 
 export interface IHotelInMakeSchedule {
