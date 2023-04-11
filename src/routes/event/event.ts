@@ -5,7 +5,7 @@ import {
   asyncWrapper,
   IBResFormat,
   IBError,
-  accessTokenValidCheck,
+  // accessTokenValidCheck,
 } from '@src/utils';
 import { isNil, isEmpty } from 'lodash';
 
@@ -33,14 +33,14 @@ export const hawaiiEnglishCamp = asyncWrapper(
     try {
       const param = req.body;
       const { locals } = req;
-      const { userTokenId, userId } = (() => {
+      const { userId } = (() => {
         if (locals && locals?.grade === 'member')
           return {
-            userTokenId: locals?.user?.userTokenId,
+            // userTokenId: locals?.user?.userTokenId,
             userId: locals?.user?.id,
           };
         return {
-          userTokenId: locals?.tokenId,
+          // userTokenId: locals?.tokenId,
           userId: null,
         };
         // throw new IBError({
@@ -48,12 +48,12 @@ export const hawaiiEnglishCamp = asyncWrapper(
         //   message: 'member 등급만 접근 가능합니다.',
         // });
       })();
-      if (!userTokenId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
+      // if (!userTokenId) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      //   });
+      // }
 
       if (isNil(param.childrenAges) || isEmpty(param.childrenAges)) {
         throw new IBError({
@@ -202,14 +202,14 @@ export const hawaiiHoneymoonPack = asyncWrapper(
     try {
       const param = req.body;
       const { locals } = req;
-      const { userTokenId, userId } = (() => {
+      const { userId } = (() => {
         if (locals && locals?.grade === 'member')
           return {
-            userTokenId: locals?.user?.userTokenId,
+            // userTokenId: locals?.user?.userTokenId,
             userId: locals?.user?.id,
           };
         return {
-          userTokenId: locals?.tokenId,
+          // userTokenId: locals?.tokenId,
           userId: null,
         };
         // throw new IBError({
@@ -217,12 +217,12 @@ export const hawaiiHoneymoonPack = asyncWrapper(
         //   message: 'member 등급만 접근 가능합니다.',
         // });
       })();
-      if (!userTokenId) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
-        });
-      }
+      // if (!userTokenId) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+      //   });
+      // }
 
       if (isNil(param.startDate) || isEmpty(param.startDate)) {
         throw new IBError({
@@ -345,15 +345,7 @@ export const hawaiiHoneymoonPack = asyncWrapper(
   },
 );
 
-settingRouter.post(
-  '/hawaiiEnglishCamp',
-  accessTokenValidCheck,
-  hawaiiEnglishCamp,
-);
-settingRouter.post(
-  '/hawaiiHoneymoonPack',
-  accessTokenValidCheck,
-  hawaiiHoneymoonPack,
-);
+settingRouter.post('/hawaiiEnglishCamp', hawaiiEnglishCamp);
+settingRouter.post('/hawaiiHoneymoonPack', hawaiiHoneymoonPack);
 
 export default settingRouter;
