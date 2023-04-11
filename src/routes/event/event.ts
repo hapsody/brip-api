@@ -39,11 +39,14 @@ export const hawaiiEnglishCamp = asyncWrapper(
             userTokenId: locals?.user?.userTokenId,
             userId: locals?.user?.id,
           };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+        return {
+          userTokenId: locals?.tokenId,
+          userId: null,
+        };
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
       if (!userTokenId) {
         throw new IBError({
@@ -123,11 +126,13 @@ export const hawaiiEnglishCamp = asyncWrapper(
                   },
                 },
               }),
-          user: {
-            connect: {
-              id: userId,
+          ...(!isNil(userId) && {
+            user: {
+              connect: {
+                id: userId,
+              },
             },
-          },
+          }),
         },
       });
 
@@ -203,11 +208,14 @@ export const hawaiiHoneymoonPack = asyncWrapper(
             userTokenId: locals?.user?.userTokenId,
             userId: locals?.user?.id,
           };
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
+        return {
+          userTokenId: locals?.tokenId,
+          userId: null,
+        };
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
       })();
       if (!userTokenId) {
         throw new IBError({
@@ -287,11 +295,13 @@ export const hawaiiHoneymoonPack = asyncWrapper(
                   },
                 },
               }),
-          user: {
-            connect: {
-              id: userId,
+          ...(!isNil(userId) && {
+            user: {
+              connect: {
+                id: userId,
+              },
             },
-          },
+          }),
         },
       });
 
