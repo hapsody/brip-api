@@ -563,6 +563,17 @@ export const getHotelDataFromBKC = async (
             bkc_hotel_facilities: hotel_facilities,
             // has_swimming_pool,
 
+            title: hotel_name,
+            lat: latitude,
+            lng: longitude,
+            address,
+            rating: review_score,
+            // coordinates: {
+            //   // 경도와 위도 값을 넣어줍니다.
+            //   // 예: 경도 126.9784, 위도 37.5665
+            //   set: [longitude, latitude],
+            // },
+
             queryParams: {
               connect: {
                 id: queryParamsId,
@@ -2127,6 +2138,56 @@ export const makeSchedule = async (
   let stopWatch = moment();
   let trackRecord = '';
 
+  // async function findLocationsWithinRange(longitude, latitude, rangeInMeters) {
+  //   const locations = await prisma.location.findMany({
+  //     where: {
+  //       // SRID 4326은 WGS84 좌표계를 나타냅니다
+  //       // 이 예제에서는 지구상의 위도와 경도를 사용하여 검색합니다
+  //       point: {
+  //         // ST_CONTAINS 함수는 지정된 기하학적 객체가 다른 기하학적 객체 내부에 포함되는지 여부를 검사합니다
+  //         // 이 함수는 MySQL 5.7.6 이상에서 사용할 수 있습니다
+  //         // https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-contains
+  //         // 검색 범위(range)를 나타내는 Polygon과 위도(latitude)와 경도(longitude)를 좌표로 포함하는 point를 비교합니다
+  //         // Polygon은 검색 범위 내부의 영역을 나타내는 기하학적 객체입니다
+  //         // 이 함수는 MySQL Spatial Extension에서 제공하는 함수 중 하나입니다
+  //         // Prisma는 MySQL Spatial Extension의 함수를 모두 지원합니다
+  //         point: {
+  //           st_contains: {
+  //             $geometry: {
+  //               type: 'Polygon',
+  //               coordinates: [
+  //                 [
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude + rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude + rangeInMeters / 111319.9,
+  //                     latitude + rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude + rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                 ],
+  //               ],
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   });
+  //   return locations;
+  // }
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
@@ -2159,7 +2220,6 @@ export const makeSchedule = async (
             { lng: { lt: 127.048411 } },
           ],
         },
-
         // /// 한국 클리핑
         // {
         //   AND: [
