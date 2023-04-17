@@ -95,6 +95,7 @@ enum DataStageStatus {
   APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
   IN_USE ///  사용중인 데이터
   ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+  DUPLICATED /// 중복 검사시점에 IN_USE 데이터들과 중복으로 판정되어 상태변경된 레코드
 }
 
 /// idealbloom 이미지 
