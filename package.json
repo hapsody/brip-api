@@ -33,6 +33,7 @@
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
     "batch": "yarn batch:dataresource",
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
+    "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceDupChecker.ts",
     "prismastudio": "pm2 start --only prismastudio"
   },
   "husky": {

@@ -40,7 +40,6 @@ export const hawaiiEnglishCamp = asyncWrapper(
             userId: locals?.user?.id,
           };
         return {
-          // userTokenId: locals?.tokenId,
           userId: null,
         };
         // throw new IBError({

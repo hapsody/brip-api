@@ -95,6 +95,7 @@ enum DataStageStatus {
   APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
   IN_USE ///  사용중인 데이터
   ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+  DUPLICATED /// 중복 검사시점에 IN_USE 데이터들과 중복으로 판정되어 상태변경된 레코드
 }
 
 /// idealbloom 이미지 
@@ -123,9 +124,9 @@ model TourPlace {
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
   status                                DataStageStatus @default(NEW)
-  evalScore                             Int             @default(0) /// deprecated
-  minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
-  maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
+  // evalScore                             Int             @default(0) /// deprecated
+  // minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
+  // maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
   ibTravelTag                           IBTravelTag[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
@@ -238,8 +239,9 @@ model TourPlace {
   notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
   bad    Int @default(0) /// 추천하지 않아요를 받은 누적 숫자
   like   Int @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  // @@index([gl_place_id, vj_contentsid])
 
-  @@index([gl_place_id, vj_contentsid])
+  @@index([lat, lng, id])
 }
 
 model BatchQueryParams {
@@ -576,6 +578,8 @@ model IBTravelTag {
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
+
+  @@index([minDifficulty, maxDifficulty, id])
 }
 
 /// IBTravelTag 간에 관계 정의

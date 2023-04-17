@@ -563,6 +563,17 @@ export const getHotelDataFromBKC = async (
             bkc_hotel_facilities: hotel_facilities,
             // has_swimming_pool,
 
+            title: hotel_name,
+            lat: latitude,
+            lng: longitude,
+            address,
+            rating: review_score,
+            // coordinates: {
+            //   // 경도와 위도 값을 넣어줍니다.
+            //   // 예: 경도 126.9784, 위도 37.5665
+            //   set: [longitude, latitude],
+            // },
+
             queryParams: {
               connect: {
                 id: queryParamsId,
@@ -1776,17 +1787,19 @@ export const makeCluster = (
 ): MakeClusterRETParam | undefined => {
   const { spots, foods, paramByAvgCalibLevel } = ctx;
 
-  let items: TourPlaceGeoLoc[] | undefined;
+  let temp: TourPlaceGeoLoc[] | undefined;
 
   if (type === 'spot') {
     /// spot일경우
     if (!spots || !paramByAvgCalibLevel) return undefined;
-    items = spots;
+    temp = [...spots];
   } else {
     /// food일 경우
     if (!foods || !paramByAvgCalibLevel) return undefined;
-    items = foods;
+    temp = [...foods];
   }
+
+  const items = temp.sort(() => Math.random() - 0.5).splice(0, 1000); /// 성능문제로 랜덤 최대 1000개까지 뽑아서 클러스터링
 
   /// 뽑힌 지점들 그룹화
   const r = (paramByAvgCalibLevel.maxDist * 1.5) / 5;
@@ -1825,7 +1838,7 @@ export const makeCluster = (
       const initCenterLatLng = c;
 
       /// 각 스테이지(index)의 클러스터 중심과 요소들간 거리를 비교해서 반경안에 있는 요소수를 확인
-      const center = items!.reduce(
+      const center = items.reduce(
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
@@ -2121,7 +2134,60 @@ export const makeSchedule = async (
 
   ctx.numOfWholeTravelSpot = Math.ceil(ctx.spotPerDay * Number(period)); /// 전체 방문해야할 목표 여행지 수
 
-  console.log(`\n\n[1. Get Spots]`);
+  console.log(`\n\n[1. Get Spots from DB Scan]`);
+  let stopWatch = moment();
+  let trackRecord = '';
+
+  // async function findLocationsWithinRange(longitude, latitude, rangeInMeters) {
+  //   const locations = await prisma.location.findMany({
+  //     where: {
+  //       // SRID 4326은 WGS84 좌표계를 나타냅니다
+  //       // 이 예제에서는 지구상의 위도와 경도를 사용하여 검색합니다
+  //       point: {
+  //         // ST_CONTAINS 함수는 지정된 기하학적 객체가 다른 기하학적 객체 내부에 포함되는지 여부를 검사합니다
+  //         // 이 함수는 MySQL 5.7.6 이상에서 사용할 수 있습니다
+  //         // https://dev.mysql.com/doc/refman/8.0/en/spatial-convenience-functions.html#function_st-contains
+  //         // 검색 범위(range)를 나타내는 Polygon과 위도(latitude)와 경도(longitude)를 좌표로 포함하는 point를 비교합니다
+  //         // Polygon은 검색 범위 내부의 영역을 나타내는 기하학적 객체입니다
+  //         // 이 함수는 MySQL Spatial Extension에서 제공하는 함수 중 하나입니다
+  //         // Prisma는 MySQL Spatial Extension의 함수를 모두 지원합니다
+  //         point: {
+  //           st_contains: {
+  //             $geometry: {
+  //               type: 'Polygon',
+  //               coordinates: [
+  //                 [
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude + rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude + rangeInMeters / 111319.9,
+  //                     latitude + rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude + rangeInMeters / 111319.9,
+  //                   ],
+  //                   [
+  //                     longitude - rangeInMeters / 111319.9,
+  //                     latitude - rangeInMeters / 111319.9,
+  //                   ],
+  //                 ],
+  //               ],
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   });
+  //   return locations;
+  // }
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
@@ -2154,7 +2220,6 @@ export const makeSchedule = async (
             { lng: { lt: 127.048411 } },
           ],
         },
-
         // /// 한국 클리핑
         // {
         //   AND: [
@@ -2247,6 +2312,11 @@ export const makeSchedule = async (
     // ],
     // take: ctx.numOfWholeTravelSpot,
   });
+
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 1. Get Spots DB Scan end !!!]: duration: ${trackRecord}ms, spots.length = ${spots.length}`,
+  );
 
   // console.log(`\n\n[2. Get Food Data]`);
   // const foods = await prisma.tourPlace.findMany({
@@ -2371,13 +2441,13 @@ export const makeSchedule = async (
   ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
 
   /// spots clustering part
-  console.log(`[!!! spots clustering part start !!!]`);
-  let stopWatch = moment();
-  let trackRecord = '';
+  console.log(`\n\n[2. spots clustering part]`);
+  stopWatch = moment();
   ctx.spotClusterRes = makeCluster(ctx, 'spot');
   trackRecord = moment().diff(stopWatch, 'ms').toString();
   console.log(
-    `[!!! spots clustering part end !!!]: duration: ${trackRecord}ms`,
+    `[!!! 2. spots clustering part end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length = `,
+    ctx.spotClusterRes?.nonDupCentroids.length,
   );
 
   let validSpotCentroids =
@@ -2402,7 +2472,8 @@ export const makeSchedule = async (
       ],
     };
   });
-  console.log(`\n\n[2. Get Food Data]`);
+  console.log(`\n\n[3. Get Food Data from DB Scan]`);
+  stopWatch = moment();
   const foods = await prisma.tourPlace.findMany({
     where: {
       status: 'IN_USE',
@@ -2506,13 +2577,21 @@ export const makeSchedule = async (
     //   },
     // ],
   });
-  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
-  console.log(`[!!! foods clustering part start !!!]`);
-  stopWatch = moment();
-  ctx.foodClusterRes = makeCluster(ctx, 'food');
   trackRecord = moment().diff(stopWatch, 'ms').toString();
   console.log(
-    `[!!! foods clustering part end !!!]: duration: ${trackRecord}ms`,
+    `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length: ${foods.length}`,
+  );
+
+  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
+  console.log(`\n\n[4. foods clustering part start ]`);
+  stopWatch = moment();
+
+  /// 푸드 클러스터 절차 삭제테스트
+  // ctx.foodClusterRes = makeCluster(ctx, 'food');
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 4. foods clustering part end !!!]: duration: ${trackRecord}ms, food NonDupCentroid.length : `,
+    ctx.foodClusterRes?.nonDupCentroids.length,
   );
 
   const {
@@ -2530,10 +2609,12 @@ export const makeSchedule = async (
     //   ctx.spotClusterRes?.nonDupCentroids
     //     // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
     //     .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
-    const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
-      ctx.foodClusterRes?.nonDupCentroids
-        // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
-        .filter(v => v.numOfPointLessThanR > 3) ?? [];
+
+    /// 푸드 클러스터 절차 삭제테스트
+    // const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
+    //   ctx.foodClusterRes?.nonDupCentroids
+    //     // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+    //     .filter(v => v.numOfPointLessThanR > 3) ?? [];
 
     if (validSpotCentroids.length === 0) {
       throw new IBError({
@@ -2592,76 +2673,76 @@ export const makeSchedule = async (
         const clusteredSpot = [...ctx.spots!]
           .map(rangedFromSpot)
           .filter(v => v) as TourPlaceGeoLoc[]; /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
-        // const clusteredFood = [...ctx.foods!].filter(rangedCond);
+        /// /// 푸드 클러스터 절차 삭제테스트
+        // // const clusteredFood = [...ctx.foods!].filter(rangedCond);
+        // /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
+        // const closestFoodCluster = (() => {
+        //   const foodCluster = validFoodCentroids.map(fCent => {
+        //     /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
+        //     /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
+        //     const foodLatLng = { lat: fCent.lat, lng: fCent.lng };
+        //     // const distWithSpotCent = degreeToMeter(
+        //     //   foodLatLng.lat,
+        //     //   foodLatLng.lng,
+        //     //   cent.lat,
+        //     //   cent.lng,
+        //     // );
+        //     const distWithSpotCent = getDistFromTwoGeoLoc({
+        //       aLat: foodLatLng.lat,
+        //       aLng: foodLatLng.lng,
+        //       bLat: cent.lat,
+        //       bLng: cent.lng,
+        //     });
+        //     return {
+        //       ...fCent,
+        //       distWithSpotCent,
+        //     };
+        //   });
+        //   const closest =
+        //     foodCluster.length === 0
+        //       ? {
+        //           distWithSpotCent: -99999,
+        //           lat: -999,
+        //           lng: -999,
+        //           idx: -1,
+        //           numOfPointLessThanR: 0,
+        //           randNum: -1,
+        //         }
+        //       : foodCluster.sort((a, b) => {
+        //           /// 2. 식당 클러스터와 여행지 클러스터간 중심거리가 가까운순으로 정렬
+        //           return a.distWithSpotCent - b.distWithSpotCent;
+        //         })[0];
+        //   return closest;
+        // })();
 
-        /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
-        const closestFoodCluster = (() => {
-          const foodCluster = validFoodCentroids.map(fCent => {
-            /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
-            /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
-            const foodLatLng = { lat: fCent.lat, lng: fCent.lng };
-            // const distWithSpotCent = degreeToMeter(
-            //   foodLatLng.lat,
-            //   foodLatLng.lng,
-            //   cent.lat,
-            //   cent.lng,
-            // );
-            const distWithSpotCent = getDistFromTwoGeoLoc({
-              aLat: foodLatLng.lat,
-              aLng: foodLatLng.lng,
-              bLat: cent.lat,
-              bLng: cent.lng,
-            });
-            return {
-              ...fCent,
-              distWithSpotCent,
-            };
-          });
-          const closest =
-            foodCluster.length === 0
-              ? {
-                  distWithSpotCent: -99999,
-                  lat: -999,
-                  lng: -999,
-                  idx: -1,
-                  numOfPointLessThanR: 0,
-                  randNum: -1,
-                }
-              : foodCluster.sort((a, b) => {
-                  /// 2. 식당 클러스터와 여행지 클러스터간 중심거리가 가까운순으로 정렬
-                  return a.distWithSpotCent - b.distWithSpotCent;
-                })[0];
-          return closest;
-        })();
+        // const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
+        //   const spotLatLng = getLatLng(curFood);
+        //   if (!spotLatLng) return null;
+        //   // const dist = degreeToMeter(
+        //   //   spotLatLng.lat,
+        //   //   spotLatLng.lng,
+        //   //   closestFoodCluster.lat,
+        //   //   closestFoodCluster.lng,
+        //   // );
+        //   const dist = getDistFromTwoGeoLoc({
+        //     aLat: spotLatLng.lat,
+        //     aLng: spotLatLng.lng,
+        //     bLat: closestFoodCluster.lat,
+        //     bLng: closestFoodCluster.lng,
+        //   });
+        //   if (dist <= ctx.spotClusterRes!.r)
+        //     return {
+        //       distFromSpotCent: dist,
+        //       inFoodCentroid: closestFoodCluster,
+        //       ...curFood,
+        //     };
+        //   return null;
+        // };
 
-        const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
-          const spotLatLng = getLatLng(curFood);
-          if (!spotLatLng) return null;
-          // const dist = degreeToMeter(
-          //   spotLatLng.lat,
-          //   spotLatLng.lng,
-          //   closestFoodCluster.lat,
-          //   closestFoodCluster.lng,
-          // );
-          const dist = getDistFromTwoGeoLoc({
-            aLat: spotLatLng.lat,
-            aLng: spotLatLng.lng,
-            bLat: closestFoodCluster.lat,
-            bLng: closestFoodCluster.lng,
-          });
-          if (dist <= ctx.spotClusterRes!.r)
-            return {
-              distFromSpotCent: dist,
-              inFoodCentroid: closestFoodCluster,
-              ...curFood,
-            };
-          return null;
-        };
-
-        /// 가장 가까운 식당 클러스터 안에 속하는 식당들 리스트 구하기
-        const clusteredFood = [...ctx.foods!]
-          .map(rangedFromFood)
-          .filter(v => v) as TourPlaceGeoLoc[];
+        // /// 가장 가까운 식당 클러스터 안에 속하는 식당들 리스트 구하기
+        // const clusteredFood = [...ctx.foods!]
+        //   .map(rangedFromFood)
+        //   .filter(v => v) as TourPlaceGeoLoc[];
 
         return {
           centroidNHotel: {
@@ -2673,7 +2754,7 @@ export const makeSchedule = async (
             cent,
           },
           nearbySpots: clusteredSpot,
-          nearbyFoods: clusteredFood,
+          // nearbyFoods: clusteredFood,
         } as IValidCentResources | null;
       });
       return ret;
@@ -2797,6 +2878,8 @@ export const makeSchedule = async (
     //   });
     // })();
 
+    console.log(`\n\n[5. create intermediate data(hotel query data)]`);
+    stopWatch = moment();
     const hWithoutData = (() => {
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
@@ -2886,6 +2969,13 @@ export const makeSchedule = async (
           return v !== null;
         });
     })();
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 5. create intermediate data(hotel query data) End !!!]: duration: ${trackRecord}ms`,
+    );
+
+    console.log(`\n\n[6. determining visit order]`);
+    stopWatch = moment();
 
     let tempValidCents = /// 클러스터간 거리를 측정하고 이를 바탕으로 클러스터 방문 순서를 결정하기 위해 클러스터별 메타데이터(stayPeriod, numOfVisitSpotInClusteer, ...)를 클러스터에 넣고
       /// 위에서 null 표시된 클러스터는 제외하고 (클러스터내 포함된 여행지가 너무 적어 (=해당 클러스터에서 머무를 여행일정이 너무 적어))
@@ -3051,6 +3141,15 @@ export const makeSchedule = async (
         },
       };
     });
+
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 6. determining visit order End !!!]: duration: ${trackRecord}ms, ctx.spotClusterRes!.validCentNSpots.length`,
+      ctx.spotClusterRes!.validCentNSpots.length,
+    );
+
+    console.log(`\n\n[7. determining visit order]`);
+    stopWatch = moment();
 
     /// super clustering (클러스터링 결과의 상위 그룹화)
     (() => {
@@ -3285,12 +3384,20 @@ export const makeSchedule = async (
             : undefined,
           ...v.centroidNHotel,
         },
-        nearbyFoods: [...v.nearbyFoods],
+        /// 푸드 클러스터링 절차 삭제 테스트
+        // nearbyFoods: [...v.nearbyFoods],
         nearbySpots: [...v.nearbySpots],
       };
     }),
   ];
 
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! determining visit order End !!!]: duration: ${trackRecord}ms`,
+  );
+
+  console.log(`\n\n[8. visitSchedule 데이터 생성 (DB x)]`);
+  stopWatch = moment();
   /// 여행일수에 따른 visitSchedule 배열 생성
   const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
@@ -3302,6 +3409,7 @@ export const makeSchedule = async (
         .numOfVisitSpotInCluster!;
     let curRestDay =
       ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
+    const copiedFoods = [...ctx.foods];
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -3343,8 +3451,10 @@ export const makeSchedule = async (
               const curResources =
                 ctx.spotClusterRes!.validCentNSpots![clusterNo];
 
-              const { nearbySpots, nearbyFoods } = curResources;
-
+              const {
+                nearbySpots,
+                // nearbyFoods
+              } = curResources;
               let ret: Partial<IVisitOneSchedule> = {
                 orderNo,
               };
@@ -3375,28 +3485,55 @@ export const makeSchedule = async (
 
               /// 레스토랑
               if (nextMealOrder === orderNo) {
-                nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc));
-                let data = nearbyFoods.shift();
-                if (isUndefined(data)) {
-                  if (
-                    isUndefined(
-                      ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
-                    ) ||
-                    isEmpty(
-                      ctx.spotClusterRes!.validCentNSpots![clusterNo + 1]
-                        .nearbyFoods,
-                    )
-                  )
-                    return null;
+                /// 푸드 클러스터링 절차 삭제 테스트
+                // nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc));
+                // let data = nearbyFoods.shift();
+                // if (isUndefined(data)) {
+                //   if (
+                //     isUndefined(
+                //       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
+                //     ) ||
+                //     isEmpty(
+                //       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1]
+                //         .nearbyFoods,
+                //     )
+                //   )
+                //     return null;
 
-                  clusterNo += 1;
-                  /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
-                  /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
-                  data = ctx
-                    .spotClusterRes!.validCentNSpots![
-                      clusterNo
-                    ].nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc))
-                    .shift();
+                //   clusterNo += 1;
+                //   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
+                //   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
+                //   data = ctx
+                //     .spotClusterRes!.validCentNSpots![
+                //       clusterNo
+                //     ].nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc))
+                //     .shift();
+                // }
+
+                /// 레스토랑
+                let data: TourPlaceGeoLoc | undefined;
+                if (nextMealOrder === orderNo) {
+                  const { idx } = copiedFoods.reduce(
+                    (min, n, index) => {
+                      const newDist = getDistFromTwoGeoLoc({
+                        aLat: n.lat!,
+                        aLng: n.lng!,
+                        bLat: prevGeoLoc.lat,
+                        bLng: prevGeoLoc.lng,
+                      });
+                      if (newDist < min.dist)
+                        return { dist: newDist, idx: index };
+
+                      return min;
+                    },
+                    { idx: -1, dist: 9999999999 },
+                  );
+                  const food = copiedFoods.splice(idx, 1);
+                  if (isEmpty(food)) {
+                    return null;
+                  }
+
+                  [data] = food;
                 }
 
                 ret = {
@@ -3448,10 +3585,15 @@ export const makeSchedule = async (
   })();
   ctx.visitSchedules = visitSchedules;
   ctx.spotClusterRes!.validCentNSpots = backupValidCentNSpots;
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 8. visitSchedule 데이터 생성 (DB x) End !!!]: duration: ${trackRecord}ms`,
+  );
 
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.$transaction(async tx => {
-    console.log(`\n\n[3. create QueryParams]`);
+    console.log(`\n\n[9. create QueryParams to DB]`);
+    stopWatch = moment();
     const createdQueryParams = await tx.queryParams.create({
       data: {
         ingNow: isNow,
@@ -3464,34 +3606,35 @@ export const makeSchedule = async (
         adult: Number(adultsNumber),
         travelHard: Number(travelHard),
         destination,
-        tourPlace: {
-          connect: [
-            /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
-            // ...(() => {
-            //   const result = ctx
-            //     .hotels!.map(c => {
-            //       const hotelIds = c.hotels.hotelSearchResult
-            //         .map(h => {
-            //           if (h.id)
-            //             return {
-            //               id: h.id,
-            //             };
-            //           return undefined;
-            //         })
-            //         .filter((x): x is { id: number } => x !== undefined);
-            //       return hotelIds;
-            //     })
-            //     .flat();
-            //   return result;
-            // })(),
-            ...ctx.foods!.map(v => {
-              return { id: v.id };
-            }),
-            ...ctx.spots!.map(v => {
-              return { id: v.id };
-            }),
-          ],
-        },
+        // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
+        // tourPlace: {
+        //   connect: [
+        //     /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
+        //     // ...(() => {
+        //     //   const result = ctx
+        //     //     .hotels!.map(c => {
+        //     //       const hotelIds = c.hotels.hotelSearchResult
+        //     //         .map(h => {
+        //     //           if (h.id)
+        //     //             return {
+        //     //               id: h.id,
+        //     //             };
+        //     //           return undefined;
+        //     //         })
+        //     //         .filter((x): x is { id: number } => x !== undefined);
+        //     //       return hotelIds;
+        //     //     })
+        //     //     .flat();
+        //     //   return result;
+        //     // })(),
+        //     ...ctx.foods!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //     ...ctx.spots!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //   ],
+        // },
         userTokenId: ctx.userTokenId,
         visitSchedule: {
           createMany: {
@@ -3552,9 +3695,10 @@ export const makeSchedule = async (
               ratio: v.centroidNHotel.ratio!,
               tourPlace: {
                 connect: [
-                  ...v.nearbyFoods.map(n => {
-                    return { id: n.id };
-                  }),
+                  /// 푸드 클러스터링 절차 삭제 테스트
+                  // ...v.nearbyFoods.map(n => {
+                  //   return { id: n.id };
+                  // }),
                   ...v.nearbySpots.map(n => {
                     return { id: n.id };
                   }),
@@ -3573,13 +3717,18 @@ export const makeSchedule = async (
         validCluster: true,
       },
     });
-
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 9. create QueryParams to DB End !!!]: duration: ${trackRecord}ms`,
+    );
     const { validCluster, visitSchedule } = createdQueryParams;
 
     const hotelVS = visitSchedule.filter(vs => vs.placeType!.includes('HOTEL'));
     /// visitSchedule <===> validCluster간 관계 형성
     let restStayPeriod = 0;
     let clusterIdx = -1;
+    console.log(`\n\n[10. update visitSchedule to DB]`);
+    stopWatch = moment();
     await Promise.all(
       hotelVS.map(vs => {
         if (restStayPeriod <= 0) {
@@ -3587,7 +3736,6 @@ export const makeSchedule = async (
           clusterIdx += 1;
         }
         restStayPeriod -= 1;
-        console.log(`\n\n[4. update visitSchedule]`);
         return tx.visitSchedule.update({
           where: {
             id: vs.id,
@@ -3603,6 +3751,10 @@ export const makeSchedule = async (
       }),
     );
 
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 10. update visitSchedule to DB End !!!]: duration: ${trackRecord}ms`,
+    );
     return createdQueryParams;
   });
 
