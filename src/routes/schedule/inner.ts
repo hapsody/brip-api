@@ -2243,6 +2243,7 @@ export const makeSchedule = async (
     travelType,
     destination,
     travelHard,
+    scanRange,
   } = param;
 
   /// spot  search part
@@ -2337,6 +2338,7 @@ export const makeSchedule = async (
   let stopWatch = moment();
   let trackRecord = '';
 
+  console.log(calibUserLevel);
   // async function findLocationsWithinRange(longitude, latitude, rangeInMeters) {
   //   const locations = await prisma.location.findMany({
   //     where: {
@@ -2387,6 +2389,24 @@ export const makeSchedule = async (
   //   return locations;
   // }
 
+  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다.
+  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
+  /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
+  /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
+  const isValidScanRange =
+    !isNil(scanRange) &&
+    scanRange.every(range => {
+      if (
+        !isEmpty(range.minLat) &&
+        !isEmpty(range.maxLat) &&
+        !isEmpty(range.minLng) &&
+        !isEmpty(range.maxLng)
+      ) {
+        return true;
+      }
+      return false;
+    });
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
@@ -2409,57 +2429,58 @@ export const makeSchedule = async (
           ],
         },
       },
-      OR: [
-        /// 제주 클리핑
-        {
-          AND: [
-            { lat: { gte: 33.109684 } },
-            { lat: { lt: 33.650946 } },
-            { lng: { gte: 126.032175 } },
-            { lng: { lt: 127.048411 } },
-          ],
-        },
-        // /// 한국 클리핑
-        // {
-        //   AND: [
-        //     { lat: { gte: 34.01941 } },
-        //     { lat: { lt: 38.81498 } },
-        //     { lng: { gte: 125.350506 } },
-        //     { lng: { lt: 131.282937 } },
-        //   ],
-        // },
-        // {
-        //   AND: [
-        //     { vj_latitude: { gte: 33.109684 } },
-        //     { vj_latitude: { lt: 33.650946 } },
-        //     { vj_longitude: { gte: 126.032175 } },
-        //     { vj_longitude: { lt: 127.048411 } },
-        //   ],
-        // },
-        // {
-        //   AND: [
-        //     { gl_lat: { gte: 33.109684 } },
-        //     { gl_lat: { lt: 33.650946 } },
-        //     { gl_lng: { gte: 126.032175 } },
-        //     { gl_lng: { lt: 127.048411 } },
-        //   ],
-        // },
-      ],
-      // OR: [ /// 서울 클리핑
+      ...(isValidScanRange && !isEmpty(scanRange)
+        ? {
+            OR: scanRange.map(v => {
+              return {
+                AND: [
+                  { lat: { gte: Number(v.minLat) } },
+                  { lat: { lt: Number(v.maxLat) } },
+                  { lng: { gte: Number(v.minLng) } },
+                  { lng: { lt: Number(v.maxLng) } },
+                ],
+              };
+            }),
+          }
+        : {
+            /// default 제주도
+            OR: [
+              {
+                AND: [
+                  { lat: { gte: 33.109684 } },
+                  { lat: { lt: 33.650946 } },
+                  { lng: { gte: 126.032175 } },
+                  { lng: { lt: 127.048411 } },
+                ],
+              },
+            ],
+          }),
+      // OR: [
+      //   // /// 제주 클리핑
+      //   // {
+      //   //   AND: [
+      //   //     { lat: { gte: 33.109684 } },
+      //   //     { lat: { lt: 33.650946 } },
+      //   //     { lng: { gte: 126.032175 } },
+      //   //     { lng: { lt: 127.048411 } },
+      //   //   ],
+      //   // },
+      //   /// 한국 클리핑
+      //   // {
+      //   //   AND: [
+      //   //     { lat: { gte: 34.01941 } },
+      //   //     { lat: { lt: 38.81498 } },
+      //   //     { lng: { gte: 125.350506 } },
+      //   //     { lng: { lt: 131.282937 } },
+      //   //   ],
+      //   // },
+      //   /// 서울 클리핑
       //   {
       //     AND: [
-      //       { vj_latitude: { gte: 37.483403 } },
-      //       { vj_latitude: { lt: 37.655385 } },
-      //       { vj_longitude: { gte: 126.796251 } },
-      //       { vj_longitude: { lt: 127.230211 } },
-      //     ],
-      //   },
-      //   {
-      //     AND: [
-      //       { gl_lat: { gte: 37.483403 } },
-      //       { gl_lat: { lt: 37.655385 } },
-      //       { gl_lng: { gte: 126.796251 } },
-      //       { gl_lng: { lt: 127.230211 } },
+      //       { lat: { gte: 37.483403 } },
+      //       { lat: { lt: 37.655385 } },
+      //       { lng: { gte: 126.796251 } },
+      //       { lng: { lt: 127.230211 } },
       //     ],
       //   },
       // ],
@@ -2626,7 +2647,7 @@ export const makeSchedule = async (
     throw new IBError({
       type: 'NOTEXISTDATA',
       message: `조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.
-        (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length})`,
+        (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length}, 유저 최소 여행강도: ${calibUserLevel.min}, 유저 최대 여행강도: ${calibUserLevel.max})`,
     });
 
   // if (foods.length < Number(period) * 2)
@@ -2649,150 +2670,6 @@ export const makeSchedule = async (
     ctx.spotClusterRes?.nonDupCentroids.length,
   );
 
-  let validSpotCentroids =
-    ctx.spotClusterRes?.nonDupCentroids
-      // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
-      .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
-
-  const nonDupCentroidClipList = validSpotCentroids.map(v => {
-    // /// spot NonDupCluster 기준 근처식당만 찾도록 클리핑
-    const { minLat, minLng, maxLat, maxLng } = getBoundingBox(
-      v.lat,
-      v.lng,
-      ctx.spotClusterRes!.r,
-    );
-
-    return {
-      AND: [
-        { lat: { gte: minLat } },
-        { lat: { lt: maxLat } },
-        { lng: { gte: minLng } },
-        { lng: { lt: maxLng } },
-      ],
-    };
-  });
-  console.log(`\n\n[3. Get Food Data from DB Scan]`);
-  stopWatch = moment();
-  const foods = await prisma.tourPlace.findMany({
-    where: {
-      status: 'IN_USE',
-      tourPlaceType: {
-        in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
-      },
-      OR: nonDupCentroidClipList,
-      // OR: [
-      //   /// 제주 클리핑
-      //   {
-      //     AND: [
-      //       { lat: { gte: 33.109684 } },
-      //       { lat: { lt: 33.650946 } },
-      //       { lng: { gte: 126.032175 } },
-      //       { lng: { lt: 127.048411 } },
-      //     ],
-      //   },
-      //   // /// 한국 클리핑
-      //   // {
-      //   //   AND: [
-      //   //     { lat: { gte: 34.01941 } },
-      //   //     { lat: { lt: 38.81498 } },
-      //   //     { lng: { gte: 125.350506 } },
-      //   //     { lng: { lt: 131.282937 } },
-      //   //   ],
-      //   // },
-      //   // {
-      //   //   AND: [
-      //   //     { vj_latitude: { gte: 33.109684 } },
-      //   //     { vj_latitude: { lt: 33.650946 } },
-      //   //     { vj_longitude: { gte: 126.032175 } },
-      //   //     { vj_longitude: { lt: 127.048411 } },
-      //   //   ],
-      //   // },
-      //   // {
-      //   //   AND: [
-      //   //     { gl_lat: { gte: 33.109684 } },
-      //   //     { gl_lat: { lt: 33.650946 } },
-      //   //     { gl_lng: { gte: 126.032175 } },
-      //   //     { gl_lng: { lt: 127.048411 } },
-      //   //   ],
-      //   // },
-      // ],
-      // OR: [ /// 서울 클리핑
-      //   {
-      //     AND: [
-      //       { vj_latitude: { gte: 37.483403 } },
-      //       { vj_latitude: { lt: 37.655385 } },
-      //       { vj_longitude: { gte: 126.796251 } },
-      //       { vj_longitude: { lt: 127.230211 } },
-      //     ],
-      //   },
-      //   {
-      //     AND: [
-      //       { gl_lat: { gte: 37.483403 } },
-      //       { gl_lat: { lt: 37.655385 } },
-      //       { gl_lng: { gte: 126.796251 } },
-      //       { gl_lng: { lt: 127.230211 } },
-      //     ],
-      //   },
-      // ],
-    },
-    select: {
-      id: true,
-      gl_name: true,
-      vj_title: true,
-      ibTravelTag: {
-        select: {
-          value: true,
-          minDifficulty: true,
-          maxDifficulty: true,
-        },
-      },
-      gl_vicinity: true,
-      gl_formatted_address: true,
-      vj_address: true,
-      gl_lat: true,
-      gl_lng: true,
-      vj_latitude: true,
-      vj_longitude: true,
-      status: true,
-      gl_rating: true,
-      title: true,
-      lat: true,
-      lng: true,
-      address: true,
-      roadAddress: true,
-      openWeek: true,
-      contact: true,
-      postcode: true,
-      photos: true,
-      rating: true,
-      desc: true,
-    },
-    // orderBy: [
-    //   {
-    //     gl_user_ratings_total: 'desc',
-    //   },
-    //   {
-    //     gl_rating: 'desc',
-    //   },
-    // ],
-  });
-  trackRecord = moment().diff(stopWatch, 'ms').toString();
-  console.log(
-    `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length: ${foods.length}`,
-  );
-
-  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
-  console.log(`\n\n[4. foods clustering part start ]`);
-  stopWatch = moment();
-
-  /// 푸드 클러스터 절차 삭제테스트
-  // ctx.foodClusterRes = makeCluster(ctx, 'food');
-  trackRecord = moment().diff(stopWatch, 'ms').toString();
-  console.log(
-    `[!!! 4. foods clustering part end !!!]: duration: ${trackRecord}ms, food NonDupCentroid.length : `,
-    ctx.foodClusterRes?.nonDupCentroids.length,
-  );
-
   const {
     childrenNumber,
     childrenAges,
@@ -2803,11 +2680,11 @@ export const makeSchedule = async (
   } = getBKCHotelSrchOpts({ companion, familyOpt, maxFriend, period });
 
   /// hotel search part
-  (() => {
-    // let validSpotCentroids = // validSpotCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validSpotCentroids 의 위치를 바탕으로 숙소를 검색한다.
-    //   ctx.spotClusterRes?.nonDupCentroids
-    //     // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
-    //     .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
+  await (async () => {
+    let validSpotCentroids = // validSpotCentroids: 적당히 많은 수의(spotPerDay * 2)  관광지 군집. validSpotCentroids 의 위치를 바탕으로 숙소를 검색한다.
+      ctx.spotClusterRes?.nonDupCentroids
+        // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
+        .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
 
     /// 푸드 클러스터 절차 삭제테스트
     // const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
@@ -3119,10 +2996,10 @@ export const makeSchedule = async (
         const { ratio, numOfNrbySpot } = v;
 
         const numOfVisitSpotInCluster = Math.round(
-          (restSpot * ratio) / restSumOfRatio,
+          (restSpot! * ratio) / restSumOfRatio,
         ); /// 해당 클러스터에서 방문해야할 여행지 수
         restSumOfRatio -= ratio;
-        restSpot -= numOfVisitSpotInCluster;
+        restSpot! -= numOfVisitSpotInCluster;
         return {
           numOfNrbySpot,
           ratio,
@@ -3345,6 +3222,147 @@ export const makeSchedule = async (
     console.log(
       `[!!! 6. determining visit order End !!!]: duration: ${trackRecord}ms, ctx.spotClusterRes!.validCentNSpots.length`,
       ctx.spotClusterRes!.validCentNSpots.length,
+    );
+
+    const nonDupCentroidClipList = ctx.spotClusterRes!.validCentNSpots.map(
+      v => {
+        // /// spot NonDupCluster 기준 근처식당만 찾도록 클리핑
+        const { minLat, minLng, maxLat, maxLng } = getBoundingBox(
+          v.centroidNHotel.cent!.lat,
+          v.centroidNHotel.cent!.lng,
+          ctx.spotClusterRes!.r * 2, /// 클러스터안에 적절한 식당이 없을수도 있어서  반경 두배로 검색해본다.
+        );
+
+        return {
+          AND: [
+            { lat: { gte: minLat } },
+            { lat: { lt: maxLat } },
+            { lng: { gte: minLng } },
+            { lng: { lt: maxLng } },
+          ],
+        };
+      },
+    );
+    console.log(`\n\n[3. Get Food Data from DB Scan]`);
+    stopWatch = moment();
+    const foods = await prisma.tourPlace.findMany({
+      where: {
+        status: 'IN_USE',
+        tourPlaceType: {
+          in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
+        },
+        OR: nonDupCentroidClipList,
+        // OR: [
+        //   /// 제주 클리핑
+        //   {
+        //     AND: [
+        //       { lat: { gte: 33.109684 } },
+        //       { lat: { lt: 33.650946 } },
+        //       { lng: { gte: 126.032175 } },
+        //       { lng: { lt: 127.048411 } },
+        //     ],
+        //   },
+        //   // /// 한국 클리핑
+        //   // {
+        //   //   AND: [
+        //   //     { lat: { gte: 34.01941 } },
+        //   //     { lat: { lt: 38.81498 } },
+        //   //     { lng: { gte: 125.350506 } },
+        //   //     { lng: { lt: 131.282937 } },
+        //   //   ],
+        //   // },
+        //   // {
+        //   //   AND: [
+        //   //     { vj_latitude: { gte: 33.109684 } },
+        //   //     { vj_latitude: { lt: 33.650946 } },
+        //   //     { vj_longitude: { gte: 126.032175 } },
+        //   //     { vj_longitude: { lt: 127.048411 } },
+        //   //   ],
+        //   // },
+        //   // {
+        //   //   AND: [
+        //   //     { gl_lat: { gte: 33.109684 } },
+        //   //     { gl_lat: { lt: 33.650946 } },
+        //   //     { gl_lng: { gte: 126.032175 } },
+        //   //     { gl_lng: { lt: 127.048411 } },
+        //   //   ],
+        //   // },
+        // ],
+        // OR: [ /// 서울 클리핑
+        //   {
+        //     AND: [
+        //       { vj_latitude: { gte: 37.483403 } },
+        //       { vj_latitude: { lt: 37.655385 } },
+        //       { vj_longitude: { gte: 126.796251 } },
+        //       { vj_longitude: { lt: 127.230211 } },
+        //     ],
+        //   },
+        //   {
+        //     AND: [
+        //       { gl_lat: { gte: 37.483403 } },
+        //       { gl_lat: { lt: 37.655385 } },
+        //       { gl_lng: { gte: 126.796251 } },
+        //       { gl_lng: { lt: 127.230211 } },
+        //     ],
+        //   },
+        // ],
+      },
+      select: {
+        id: true,
+        gl_name: true,
+        vj_title: true,
+        ibTravelTag: {
+          select: {
+            value: true,
+            minDifficulty: true,
+            maxDifficulty: true,
+          },
+        },
+        gl_vicinity: true,
+        gl_formatted_address: true,
+        vj_address: true,
+        gl_lat: true,
+        gl_lng: true,
+        vj_latitude: true,
+        vj_longitude: true,
+        status: true,
+        gl_rating: true,
+        title: true,
+        lat: true,
+        lng: true,
+        address: true,
+        roadAddress: true,
+        openWeek: true,
+        contact: true,
+        postcode: true,
+        photos: true,
+        rating: true,
+        desc: true,
+      },
+      // orderBy: [
+      //   {
+      //     gl_user_ratings_total: 'desc',
+      //   },
+      //   {
+      //     gl_rating: 'desc',
+      //   },
+      // ],
+    });
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length: ${foods.length}`,
+    );
+
+    ctx.foods = foods && foods.length > 0 ? [...foods] : [];
+    console.log(`\n\n[4. foods clustering part start ]`);
+    stopWatch = moment();
+
+    /// 푸드 클러스터 절차 삭제테스트
+    // ctx.foodClusterRes = makeCluster(ctx, 'food');
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 4. foods clustering part end !!!]: duration: ${trackRecord}ms, food NonDupCentroid.length : `,
+      ctx.foodClusterRes?.nonDupCentroids.length,
     );
 
     console.log(`\n\n[7. determining visit order]`);
@@ -3575,7 +3593,7 @@ export const makeSchedule = async (
 
   /// visitSchedules 생성중 validCentNSpots.nearbyFoods, validCentNSpots.nearbySpots의 구성에 변경이 가해져 원본 유지를 위해 백업함
   const backupValidCentNSpots = [
-    ...ctx.spotClusterRes!.validCentNSpots.map(v => {
+    ...ctx.spotClusterRes!.validCentNSpots!.map(v => {
       return {
         centroidNHotel: {
           cent: v.centroidNHotel.cent
@@ -3602,13 +3620,14 @@ export const makeSchedule = async (
     /// 직전 위치와 가까운 순서대로 정렬
 
     let clusterNo = 0; /// 스케쥴 생성루프에서 참조해야할 군집번호
-    let acc = ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
+    let acc =
+      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel.stayPeriod!; /// 일자별 루프에서 해당 일자에서 참조해야할 군집 번호를 파악하기 위해 현재까지 거쳐온 군집배열마다 머무를 일수를 누적시켜 놓은 값. dayNo와 비교하여 이 값보다 크면 다음 군집 번호로 넘어가고 이 값에 더하여 누적한 값으로 업데이트한다.
     let curRestSpot =
-      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel
+      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel
         .numOfVisitSpotInCluster!;
     let curRestDay =
-      ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
-    const copiedFoods = [...ctx.foods];
+      ctx.spotClusterRes!.validCentNSpots![0].centroidNHotel.stayPeriod!;
+    const copiedFoods = [...ctx.foods!];
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {

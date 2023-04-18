@@ -1350,11 +1350,11 @@ async function main(): Promise<void> {
         const createResult = await prisma.$transaction(async tx => {
           await tx.tourPlace.updateMany({
             where: {
-              tourPlaceType: {
-                in: ['TOUR4_RESTAURANT', 'TOUR4_SPOT'],
-              },
+              lat: buffer.lat,
+              lng: buffer.lng,
               title: buffer.title,
               status: 'IN_USE',
+              tourPlaceType: { in: ['TOUR4_RESTAURANT', 'TOUR4_SPOT'] },
             },
             data: {
               status: 'ARCHIVED',

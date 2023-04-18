@@ -497,6 +497,13 @@ export interface MakeScheduleREQParam {
   travelType: string[];
   destination: string;
   travelHard: string;
+  scanRange?: {
+    cityCode?: string;
+    minLat: string;
+    minLng: string;
+    maxLat: string;
+    maxLng: string;
+  }[];
 }
 
 // export interface MakeScheduleRETParamPayload extends QueryParams {
