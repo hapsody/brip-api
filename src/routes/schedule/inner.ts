@@ -1233,6 +1233,7 @@ export const getVisitJejuData = async (
   }`;
   const jejuRawRes = await axios.get(option);
   console.log(option);
+
   const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
 
   return jejuRes;
@@ -1246,40 +1247,238 @@ export const getAllPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   console.log(param);
-  const { loadAll } = param;
+  const { loadAll, batchJobCtx } = param;
 
   let curRes = await getVisitJejuData(param);
-  let nextPage = (curRes.currentPage ?? 1) + 1;
+  // let nextPage = (curRes.currentPage ?? 1) + 1;
   const allRes: GetPlaceDataFromVJRETParamPayload = { ...curRes };
 
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let nextPage = (curRes.currentPage ?? 1) + 1;
+      return {
+        async next() {
+          // eslint-disable-next-line no-await-in-loop
+          const nextRes = await getVisitJejuData({
+            ...param,
+            page: nextPage,
+          });
+          nextPage += 1;
+
+          if (
+            curRes.currentPage &&
+            curRes.pageCount &&
+            curRes.currentPage < curRes.pageCount
+          ) {
+            return { value: nextRes, done: false };
+          }
+          return { value: nextRes, done: true };
+        },
+      };
+    },
+  };
+
   if (loadAll) {
-    while (
-      curRes.currentPage &&
-      curRes.pageCount &&
-      curRes.currentPage < curRes.pageCount
-    ) {
-      // eslint-disable-next-line no-await-in-loop
-      const nextRes = await getVisitJejuData({
-        ...param,
-        page: nextPage,
-      });
+    // while (
+    //   curRes.currentPage &&
+    //   curRes.pageCount &&
+    //   curRes.currentPage < curRes.pageCount
+    // ) {
+    // // eslint-disable-next-line no-await-in-loop
+    // const nextRes = await getVisitJejuData({
+    //   ...param,
+    //   page: nextPage,
+    // });
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const nextRes of asyncIterable) {
       if (
         allRes.items &&
         allRes.items.length > 0 &&
         nextRes.items &&
         nextRes.items.length > 0
       ) {
-        allRes.items = [...allRes.items, ...nextRes.items];
-        if (allRes.resultCount) {
-          allRes.resultCount += nextRes.resultCount ?? 0;
-        }
-        if (allRes.currentPage) {
-          allRes.currentPage = nextRes.currentPage ?? 1;
-        }
+        if (param.store) {
+          const { items: rawItems } = curRes;
 
-        curRes = { ...nextRes };
-        nextPage += 1;
+          /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
+          const items = rawItems!.filter(
+            v => !v.contentscd?.label.includes('숙박') ?? false,
+          );
+
+          /// 배치 스크립트로 store 옵션과 함께 실행되면
+          /// 기존 사용중인 데이터는 ARCHIVED가 되고
+          /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+          if (batchJobCtx && !isEmpty(batchJobCtx)) {
+            const updatedPromises =
+              items &&
+              items.map(item => {
+                const promise = prisma.tourPlace.updateMany({
+                  where: {
+                    vj_contentsid: item.contentsid,
+                    status: 'IN_USE',
+                    tourPlaceType: {
+                      in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'],
+                    },
+                  },
+                  data: {
+                    status: 'ARCHIVED',
+                  },
+                });
+                return promise;
+              });
+            // eslint-disable-next-line no-await-in-loop
+            if (updatedPromises) {
+              await prisma.$transaction(updatedPromises);
+            }
+          }
+
+          console.log(
+            `visitJeju page의 항목과 동일한 DB가 있는지 대조하여 상태값을 업데이트 완료.. in ${
+              curRes.currentPage ?? 'undefined'
+            } page `,
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await Promise.all([
+            new Promise<void>(resolve => {
+              setTimeout(() => {
+                resolve();
+              }, 50);
+            }),
+          ]);
+
+          const createPromises =
+            items &&
+            items.map(item => {
+              const promise = prisma.tourPlace.create({
+                data: {
+                  status:
+                    batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
+                  tourPlaceType:
+                    item.contentscd?.label === '음식점'
+                      ? 'VISITJEJU_RESTAURANT'
+                      : 'VISITJEJU_SPOT',
+
+                  /// 통합 필수 필드
+                  title: item.title,
+                  lat: item.latitude,
+                  lng: item.longitude,
+                  address: item.address,
+                  roadAddress: item.roadaddress,
+                  openWeek: undefined,
+                  contact: item.phoneno,
+                  postcode: item.postcode,
+                  ...(item.repPhoto?.photoid?.imgpath && {
+                    photos: {
+                      create: {
+                        url: item.repPhoto?.photoid?.imgpath,
+                      },
+                    },
+                  }),
+
+                  rating: undefined,
+                  desc: item.introduction,
+
+                  vj_contentsid: item.contentsid as string,
+                  vj_contentscdLabel: item.contentscd?.label,
+                  vj_contentscdValue: item.contentscd?.value,
+                  vj_contentscdRefId: item.contentscd?.refId,
+                  vj_title: item.title,
+                  vj_region1cdLabel: item.region1cd?.label,
+                  vj_region1cdValue: item.region1cd?.value,
+                  vj_region1cdRefId: item.region1cd?.refId,
+                  vj_region2cdLabel: item.region2cd?.label,
+                  vj_region2cdValue: item.region2cd?.value,
+                  vj_region2cdRefId: item.region2cd?.refId,
+                  vj_address: item.address,
+                  vj_roadaddress: item.roadaddress,
+                  vj_tag: {
+                    ...(item.tag && {
+                      connectOrCreate: item.tag.split(',').map(v => {
+                        return {
+                          where: {
+                            value: v,
+                          },
+                          create: {
+                            value: v,
+                          },
+                        };
+                      }),
+                    }),
+                  },
+                  vj_introduction: item.introduction,
+                  vj_latitude: item.latitude,
+                  vj_longitude: item.longitude,
+                  vj_postcode: item.postcode,
+                  vj_phoneno: item.phoneno,
+                  ...(batchJobCtx &&
+                    batchJobCtx.batchQueryParamsId && {
+                      batchQueryParams: {
+                        connectOrCreate: {
+                          where: {
+                            id: batchJobCtx.batchQueryParamsId,
+                          },
+                          create: {
+                            // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                            latitude: undefined,
+                            longitude: undefined,
+                            radius: undefined,
+                            searchkeyword: {
+                              connectOrCreate: {
+                                where: {
+                                  keyword: '',
+                                },
+                                create: {
+                                  keyword: '',
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    }),
+                },
+              });
+              return promise;
+            });
+
+          const createdList =
+            // eslint-disable-next-line no-await-in-loop
+            createPromises && (await prisma.$transaction(createPromises));
+
+          console.log(
+            `visitJeju page의 항목을 DB에 생성 완료 in ${
+              curRes.currentPage ?? 'undefined'
+            } page `,
+          );
+
+          // eslint-disable-next-line no-await-in-loop
+          await Promise.all([
+            new Promise<void>(resolve => {
+              setTimeout(() => {
+                resolve();
+              }, 50);
+            }),
+          ]);
+
+          if (!createdList) {
+            console.error('반환된 visitJeju searchList 결과값이 없습니다.');
+          }
+        }
+        // curRes = { ...nextRes };
+
+        // allRes.items = [...allRes.items, ...nextRes.items];
+        // if (allRes.resultCount) {
+        //   allRes.resultCount += nextRes.resultCount ?? 0;
+        // }
+        // if (allRes.currentPage) {
+        //   allRes.currentPage = nextRes.currentPage ?? 1;
+        // }
+
+        // curRes = { ...nextRes };
+        // nextPage += 1;
       }
+      curRes = { ...nextRes };
     }
   }
 
@@ -1293,144 +1492,144 @@ export const getAllPlaceDataFromVJ = async (
 export const getPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
-  const { batchJobCtx } = param;
+  // const { batchJobCtx } = param;
 
   const jejuRes = await getAllPlaceDataFromVJ(param);
 
-  /// store data to db
-  if (param.store) {
-    const { items: rawItems } = jejuRes;
+  // /// store data to db
+  // if (param.store) {
+  //   const { items: rawItems } = jejuRes;
 
-    /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
-    const items = rawItems!.filter(
-      v => !v.contentscd?.label.includes('숙박') ?? false,
-    );
+  //   /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
+  //   const items = rawItems!.filter(
+  //     v => !v.contentscd?.label.includes('숙박') ?? false,
+  //   );
 
-    /// 배치 스크립트로 store 옵션과 함께 실행되면
-    /// 기존 사용중인 데이터는 ARCHIVED가 되고
-    /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
-    if (batchJobCtx && !isEmpty(batchJobCtx)) {
-      const updatedPromises =
-        items &&
-        items.map(item => {
-          const promise = prisma.tourPlace.updateMany({
-            where: {
-              vj_contentsid: item.contentsid,
-              status: 'IN_USE',
-              tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'] },
-            },
-            data: {
-              status: 'ARCHIVED',
-            },
-          });
-          return promise;
-        });
-      if (updatedPromises) await prisma.$transaction(updatedPromises);
-    }
+  //   /// 배치 스크립트로 store 옵션과 함께 실행되면
+  //   /// 기존 사용중인 데이터는 ARCHIVED가 되고
+  //   /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+  //   if (batchJobCtx && !isEmpty(batchJobCtx)) {
+  //     const updatedPromises =
+  //       items &&
+  //       items.map(item => {
+  //         const promise = prisma.tourPlace.updateMany({
+  //           where: {
+  //             vj_contentsid: item.contentsid,
+  //             status: 'IN_USE',
+  //             tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'] },
+  //           },
+  //           data: {
+  //             status: 'ARCHIVED',
+  //           },
+  //         });
+  //         return promise;
+  //       });
+  //     if (updatedPromises) await prisma.$transaction(updatedPromises);
+  //   }
 
-    const createPromises =
-      items &&
-      items.map(item => {
-        const promise = prisma.tourPlace.create({
-          data: {
-            status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
-            tourPlaceType:
-              item.contentscd?.label === '음식점'
-                ? 'VISITJEJU_RESTAURANT'
-                : 'VISITJEJU_SPOT',
+  //   const createPromises =
+  //     items &&
+  //     items.map(item => {
+  //       const promise = prisma.tourPlace.create({
+  //         data: {
+  //           status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
+  //           tourPlaceType:
+  //             item.contentscd?.label === '음식점'
+  //               ? 'VISITJEJU_RESTAURANT'
+  //               : 'VISITJEJU_SPOT',
 
-            /// 통합 필수 필드
-            title: item.title,
-            lat: item.latitude,
-            lng: item.longitude,
-            address: item.address,
-            roadAddress: item.roadaddress,
-            openWeek: undefined,
-            contact: item.phoneno,
-            postcode: item.postcode,
-            ...(item.repPhoto?.photoid?.imgpath && {
-              photos: {
-                create: {
-                  url: item.repPhoto?.photoid?.imgpath,
-                },
-              },
-            }),
+  //           /// 통합 필수 필드
+  //           title: item.title,
+  //           lat: item.latitude,
+  //           lng: item.longitude,
+  //           address: item.address,
+  //           roadAddress: item.roadaddress,
+  //           openWeek: undefined,
+  //           contact: item.phoneno,
+  //           postcode: item.postcode,
+  //           ...(item.repPhoto?.photoid?.imgpath && {
+  //             photos: {
+  //               create: {
+  //                 url: item.repPhoto?.photoid?.imgpath,
+  //               },
+  //             },
+  //           }),
 
-            rating: undefined,
-            desc: item.introduction,
+  //           rating: undefined,
+  //           desc: item.introduction,
 
-            vj_contentsid: item.contentsid as string,
-            vj_contentscdLabel: item.contentscd?.label,
-            vj_contentscdValue: item.contentscd?.value,
-            vj_contentscdRefId: item.contentscd?.refId,
-            vj_title: item.title,
-            vj_region1cdLabel: item.region1cd?.label,
-            vj_region1cdValue: item.region1cd?.value,
-            vj_region1cdRefId: item.region1cd?.refId,
-            vj_region2cdLabel: item.region2cd?.label,
-            vj_region2cdValue: item.region2cd?.value,
-            vj_region2cdRefId: item.region2cd?.refId,
-            vj_address: item.address,
-            vj_roadaddress: item.roadaddress,
-            vj_tag: {
-              ...(item.tag && {
-                connectOrCreate: item.tag.split(',').map(v => {
-                  return {
-                    where: {
-                      value: v,
-                    },
-                    create: {
-                      value: v,
-                    },
-                  };
-                }),
-              }),
-            },
-            vj_introduction: item.introduction,
-            vj_latitude: item.latitude,
-            vj_longitude: item.longitude,
-            vj_postcode: item.postcode,
-            vj_phoneno: item.phoneno,
-            ...(batchJobCtx &&
-              batchJobCtx.batchQueryParamsId && {
-                batchQueryParams: {
-                  connectOrCreate: {
-                    where: {
-                      id: batchJobCtx.batchQueryParamsId,
-                    },
-                    create: {
-                      // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                      latitude: undefined,
-                      longitude: undefined,
-                      radius: undefined,
-                      searchkeyword: {
-                        connectOrCreate: {
-                          where: {
-                            keyword: '',
-                          },
-                          create: {
-                            keyword: '',
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              }),
-          },
-        });
-        return promise;
-      });
+  //           vj_contentsid: item.contentsid as string,
+  //           vj_contentscdLabel: item.contentscd?.label,
+  //           vj_contentscdValue: item.contentscd?.value,
+  //           vj_contentscdRefId: item.contentscd?.refId,
+  //           vj_title: item.title,
+  //           vj_region1cdLabel: item.region1cd?.label,
+  //           vj_region1cdValue: item.region1cd?.value,
+  //           vj_region1cdRefId: item.region1cd?.refId,
+  //           vj_region2cdLabel: item.region2cd?.label,
+  //           vj_region2cdValue: item.region2cd?.value,
+  //           vj_region2cdRefId: item.region2cd?.refId,
+  //           vj_address: item.address,
+  //           vj_roadaddress: item.roadaddress,
+  //           vj_tag: {
+  //             ...(item.tag && {
+  //               connectOrCreate: item.tag.split(',').map(v => {
+  //                 return {
+  //                   where: {
+  //                     value: v,
+  //                   },
+  //                   create: {
+  //                     value: v,
+  //                   },
+  //                 };
+  //               }),
+  //             }),
+  //           },
+  //           vj_introduction: item.introduction,
+  //           vj_latitude: item.latitude,
+  //           vj_longitude: item.longitude,
+  //           vj_postcode: item.postcode,
+  //           vj_phoneno: item.phoneno,
+  //           ...(batchJobCtx &&
+  //             batchJobCtx.batchQueryParamsId && {
+  //               batchQueryParams: {
+  //                 connectOrCreate: {
+  //                   where: {
+  //                     id: batchJobCtx.batchQueryParamsId,
+  //                   },
+  //                   create: {
+  //                     // keyword: queryReqParams?.textSearchReqParams?.keyword,
+  //                     latitude: undefined,
+  //                     longitude: undefined,
+  //                     radius: undefined,
+  //                     searchkeyword: {
+  //                       connectOrCreate: {
+  //                         where: {
+  //                           keyword: '',
+  //                         },
+  //                         create: {
+  //                           keyword: '',
+  //                         },
+  //                       },
+  //                     },
+  //                   },
+  //                 },
+  //               },
+  //             }),
+  //         },
+  //       });
+  //       return promise;
+  //     });
 
-    const createdList =
-      createPromises && (await prisma.$transaction(createPromises));
+  //   const createdList =
+  //     createPromises && (await prisma.$transaction(createPromises));
 
-    if (!createdList)
-      throw new IBError({
-        type: 'EXTERNALAPI',
-        message: '반환된 visitJeju searchList 결과값이 없습니다.',
-      });
-  }
+  //   if (!createdList)
+  //     throw new IBError({
+  //       type: 'EXTERNALAPI',
+  //       message: '반환된 visitJeju searchList 결과값이 없습니다.',
+  //     });
+  // }
   return jejuRes;
 };
 
