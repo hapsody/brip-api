@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import tourPlace from '@src/prisma/seeds/tourPlace';
+import tourPlace from '@src/prisma/seeds/tourPlace/tourPlace';
 // import { isNil } from 'lodash';
 // import dataGatherList from './dataGatherList';
 
