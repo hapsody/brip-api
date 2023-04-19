@@ -10,7 +10,7 @@ import {
   IBContext,
   getS3SignedUrl,
   ibTravelTagCategorize,
-  getBoundingBox,
+  // getBoundingBox,
   getDistFromTwoGeoLoc,
 } from '@src/utils';
 import axios, { Method } from 'axios';
@@ -20,6 +20,7 @@ import {
   VisitSchedule,
   PlaceType,
   IBPhotos,
+  IBTravelTag,
 } from '@prisma/client';
 import {
   isNumber,
@@ -2493,13 +2494,13 @@ export const makeSchedule = async (
       id: true,
       gl_name: true,
       vj_title: true,
-      ibTravelTag: {
-        select: {
-          value: true,
-          minDifficulty: true,
-          maxDifficulty: true,
-        },
-      },
+      // ibTravelTag: {
+      //   select: {
+      //     value: true,
+      //     minDifficulty: true,
+      //     maxDifficulty: true,
+      //   },
+      // },
       gl_vicinity: true,
       gl_formatted_address: true,
       vj_address: true,
@@ -2518,7 +2519,7 @@ export const makeSchedule = async (
       openWeek: true,
       contact: true,
       postcode: true,
-      photos: true,
+      // photos: true,
       rating: true,
       desc: true,
     },
@@ -3224,34 +3225,61 @@ export const makeSchedule = async (
       ctx.spotClusterRes!.validCentNSpots.length,
     );
 
-    const nonDupCentroidClipList = ctx.spotClusterRes!.validCentNSpots.map(
-      v => {
-        // /// spot NonDupCluster 기준 근처식당만 찾도록 클리핑
-        const { minLat, minLng, maxLat, maxLng } = getBoundingBox(
-          v.centroidNHotel.cent!.lat,
-          v.centroidNHotel.cent!.lng,
-          ctx.spotClusterRes!.r * 2, /// 클러스터안에 적절한 식당이 없을수도 있어서  반경 두배로 검색해본다.
-        );
-
-        return {
-          AND: [
-            { lat: { gte: minLat } },
-            { lat: { lt: maxLat } },
-            { lng: { gte: minLng } },
-            { lng: { lt: maxLng } },
-          ],
-        };
-      },
-    );
     console.log(`\n\n[3. Get Food Data from DB Scan]`);
     stopWatch = moment();
+    // const nonDupCentroidClipList = ctx.spotClusterRes!.validCentNSpots.map(
+    //   v => {
+    //     // /// spot NonDupCluster 기준 근처식당만 찾도록 클리핑
+    //     const { minLat, minLng, maxLat, maxLng } = getBoundingBox(
+    //       v.centroidNHotel.cent!.lat,
+    //       v.centroidNHotel.cent!.lng,
+    //       ctx.spotClusterRes!.r * 2, /// 클러스터안에 적절한 식당이 없을수도 있어서  반경 두배로 검색해본다.
+    //     );
+
+    //     return {
+    //       AND: [
+    //         { lat: { gte: minLat } },
+    //         { lat: { lt: maxLat } },
+    //         { lng: { gte: minLng } },
+    //         { lng: { lt: maxLng } },
+    //       ],
+    //     };
+    //   },
+    // );
+
     const foods = await prisma.tourPlace.findMany({
       where: {
         status: 'IN_USE',
         tourPlaceType: {
           in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
         },
-        OR: nonDupCentroidClipList,
+        ...(isValidScanRange && !isEmpty(scanRange)
+          ? {
+              OR: scanRange.map(v => {
+                return {
+                  AND: [
+                    { lat: { gte: Number(v.minLat) } },
+                    { lat: { lt: Number(v.maxLat) } },
+                    { lng: { gte: Number(v.minLng) } },
+                    { lng: { lt: Number(v.maxLng) } },
+                  ],
+                };
+              }),
+            }
+          : {
+              /// default 제주도
+              OR: [
+                {
+                  AND: [
+                    { lat: { gte: 33.109684 } },
+                    { lat: { lt: 33.650946 } },
+                    { lng: { gte: 126.032175 } },
+                    { lng: { lt: 127.048411 } },
+                  ],
+                },
+              ],
+            }),
+        // OR: nonDupCentroidClipList,
         // OR: [
         //   /// 제주 클리핑
         //   {
@@ -3311,13 +3339,13 @@ export const makeSchedule = async (
         id: true,
         gl_name: true,
         vj_title: true,
-        ibTravelTag: {
-          select: {
-            value: true,
-            minDifficulty: true,
-            maxDifficulty: true,
-          },
-        },
+        // ibTravelTag: {
+        //   select: {
+        //     value: true,
+        //     minDifficulty: true,
+        //     maxDifficulty: true,
+        //   },
+        // },
         gl_vicinity: true,
         gl_formatted_address: true,
         vj_address: true,
@@ -3335,7 +3363,7 @@ export const makeSchedule = async (
         openWeek: true,
         contact: true,
         postcode: true,
-        photos: true,
+        // photos: true,
         rating: true,
         desc: true,
       },
@@ -3808,10 +3836,65 @@ export const makeSchedule = async (
     `[!!! 8. visitSchedule 데이터 생성 (DB x) End !!!]: duration: ${trackRecord}ms`,
   );
 
+  console.log(
+    `\n\n[9. visitSchedule spots 데이터들을 DB 재검색을 통해 IBTravelTag, photos와 조인한 결과로 교체]`,
+  );
+  stopWatch = moment();
+  const tourPlacesFromVS = ctx.visitSchedules
+    .map(vs => {
+      return vs.titleList.map(tl => {
+        return tl.placeType !== 'HOTEL' && tl.data ? tl.data[0] : null;
+      });
+    })
+    .flat(2)
+    .filter(
+      (
+        v,
+      ): v is Partial<TourPlace> & {
+        photos: Partial<IBPhotos>[];
+        ibTravelTag: Partial<IBTravelTag>[];
+      } => v !== null,
+    );
+
+  const tourPlaceWithTagNPhotos = await prisma.tourPlace.findMany({
+    where: {
+      id: {
+        in: tourPlacesFromVS.map(v => v.id!),
+      },
+    },
+    select: {
+      id: true,
+      ibTravelTag: {
+        select: {
+          value: true,
+          minDifficulty: true,
+          maxDifficulty: true,
+        },
+      },
+      photos: true,
+    },
+  });
+  tourPlacesFromVS.forEach((t, index) => {
+    // if (tourPlacesFromVS[index].id !== tourPlaceWithTagNPhotos[index].id) {
+    //   console.log(`matching Error`);
+    //   return;
+    // }
+
+    const matchedTP = tourPlaceWithTagNPhotos.find(v => v.id === t.id);
+
+    tourPlacesFromVS[index].photos = matchedTP!.photos;
+    tourPlacesFromVS[index].ibTravelTag = matchedTP!.ibTravelTag;
+  });
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 9. visitSchedule spots 데이터들을 DB 재검색을 통해 IBTravelTag, photos와 조인한 결과로 교체 End !!!]: duration: ${trackRecord}ms 재검색 TourPlace: `,
+    tourPlaceWithTagNPhotos.length,
+  );
+
+  console.log(`\n\n[10. create QueryParams to DB]`);
+  stopWatch = moment();
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.$transaction(async tx => {
-    console.log(`\n\n[9. create QueryParams to DB]`);
-    stopWatch = moment();
     const createdQueryParams = await tx.queryParams.create({
       data: {
         ingNow: isNow,
@@ -3937,7 +4020,7 @@ export const makeSchedule = async (
     });
     trackRecord = moment().diff(stopWatch, 'ms').toString();
     console.log(
-      `[!!! 9. create QueryParams to DB End !!!]: duration: ${trackRecord}ms`,
+      `[!!! 10. create QueryParams to DB End !!!]: duration: ${trackRecord}ms`,
     );
     const { validCluster, visitSchedule } = createdQueryParams;
 
@@ -3945,7 +4028,7 @@ export const makeSchedule = async (
     /// visitSchedule <===> validCluster간 관계 형성
     let restStayPeriod = 0;
     let clusterIdx = -1;
-    console.log(`\n\n[10. update visitSchedule to DB]`);
+    console.log(`\n\n[11. update visitSchedule to DB]`);
     stopWatch = moment();
     await Promise.all(
       hotelVS.map(vs => {
@@ -3971,7 +4054,7 @@ export const makeSchedule = async (
 
     trackRecord = moment().diff(stopWatch, 'ms').toString();
     console.log(
-      `[!!! 10. update visitSchedule to DB End !!!]: duration: ${trackRecord}ms`,
+      `[!!! 11. update visitSchedule to DB End !!!]: duration: ${trackRecord}ms`,
     );
     return createdQueryParams;
   });

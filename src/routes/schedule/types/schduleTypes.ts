@@ -7,6 +7,8 @@ import {
   PlaceType,
   MetaScheduleInfo,
   ScheduleBank,
+  IBTravelTag,
+  IBPhotos,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -413,7 +415,10 @@ export interface IVisitOneSchedule {
         idx: number;
         numOfPointLessThanR: number;
       };
-  data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+  data?: (Partial<TourPlace> & {
+    photos?: Partial<IBPhotos>[];
+    ibTravelTag?: Partial<IBTravelTag>[];
+  })[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
 }
 
 export type GetRcmdListRETParamPayload = QueryParams & {
