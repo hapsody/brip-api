@@ -474,7 +474,14 @@ export interface DayScheduleType {
     placeType: VisitPlaceType;
     orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
     title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-    tourPlaceData: TourPlace | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+    tourPlaceData:
+      | (TourPlace & {
+          photos: {
+            id: string;
+            url: string;
+          }[];
+        })
+      | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {

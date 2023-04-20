@@ -110,6 +110,67 @@ import {
 } from './types/schduleTypes';
 
 /**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getThumbnailUrlFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<string> => {
+  if (photos.length > 0) {
+    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
+      /// 직접접근 링크 url이 존재하는 경우
+      return photos[0].url;
+    }
+
+    if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
+      /// s3 key가 존재하는 경우
+      const signedUrl = await getS3SignedUrl(photos[0].key);
+      return signedUrl;
+    }
+  }
+  return 'none';
+};
+
+/**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getImgUrlListFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<
+  {
+    id: string;
+    url: string;
+  }[]
+> => {
+  const result = await Promise.all(
+    photos.map(async p => {
+      return {
+        id: p.id.toString(),
+        url: await (async (): Promise<string> => {
+          if (photos.length > 0) {
+            if (!isNil(p.url) && !isEmpty(p.url)) {
+              /// 직접접근 링크 url이 존재하는 경우
+              return p.url;
+            }
+
+            if (!isNil(p.key) && !isEmpty(p.key)) {
+              /// s3 key가 존재하는 경우
+              const signedUrl = await getS3SignedUrl(p.key);
+              return signedUrl;
+            }
+          }
+          return 'none';
+        })(),
+      };
+    }),
+  );
+  return result;
+};
+
+/**
  * inner utils
  *  */
 /**
@@ -1868,12 +1929,13 @@ export const moneyFilterForHotel = (param: {
   };
 };
 
-const visitScheduleToDayScheduleType = (
-  acc: DayScheduleType[],
+const visitScheduleToDayScheduleType = async (
+  promise: Promise<DayScheduleType[]>,
   cur: VisitSchedule & {
-    tourPlace: TourPlace | null;
+    tourPlace: TourPlace & { photos: IBPhotos[] };
   },
 ) => {
+  const acc = await promise;
   if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
     const alreadyDayExist = acc.find(
       v =>
@@ -1892,7 +1954,10 @@ const visitScheduleToDayScheduleType = (
             orderNo: cur.orderNo.toString(),
             placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
             title: cur.tourPlace?.title ?? 'none',
-            tourPlaceData: cur.tourPlace,
+            tourPlaceData: {
+              ...cur.tourPlace,
+              photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+            },
           },
         ],
       });
@@ -1913,7 +1978,10 @@ const visitScheduleToDayScheduleType = (
         // checkin: cur.checkin?.toISOString() ?? null,
         // checkout: cur.checkout?.toISOString() ?? null,
         title: cur.tourPlace?.title ?? 'none',
-        tourPlaceData: cur.tourPlace,
+        tourPlaceData: {
+          ...cur.tourPlace,
+          photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+        },
       });
       const last = acc.pop();
       if (!isUndefined(last)) {
@@ -4135,9 +4203,9 @@ export const getSchedule = async (
       message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
     });
 
-  const retValue = queryParams.visitSchedule.reduce(
+  const retValue = await queryParams.visitSchedule.reduce(
     visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
+    Promise.resolve([] as DayScheduleType[]),
   );
 
   return {
@@ -4464,67 +4532,6 @@ export const changeScheduleTitle = async (
 };
 
 /**
- *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
- * @param param
- * @returns
- */
-export const getThumbnailUrlFromIBPhotos = async (
-  photos: IBPhotos[],
-): Promise<string> => {
-  if (photos.length > 0) {
-    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
-      /// 직접접근 링크 url이 존재하는 경우
-      return photos[0].url;
-    }
-
-    if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
-      /// s3 key가 존재하는 경우
-      const signedUrl = await getS3SignedUrl(photos[0].key);
-      return signedUrl;
-    }
-  }
-  return 'none';
-};
-
-/**
- *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
- * @param param
- * @returns
- */
-export const getImgUrlListFromIBPhotos = async (
-  photos: IBPhotos[],
-): Promise<
-  {
-    id: string;
-    url: string;
-  }[]
-> => {
-  const result = await Promise.all(
-    photos.map(async p => {
-      return {
-        id: p.id.toString(),
-        url: await (async (): Promise<string> => {
-          if (photos.length > 0) {
-            if (!isNil(p.url) && !isEmpty(p.url)) {
-              /// 직접접근 링크 url이 존재하는 경우
-              return p.url;
-            }
-
-            if (!isNil(p.key) && !isEmpty(p.key)) {
-              /// s3 key가 존재하는 경우
-              const signedUrl = await getS3SignedUrl(p.key);
-              return signedUrl;
-            }
-          }
-          return 'none';
-        })(),
-      };
-    }),
-  );
-  return result;
-};
-
-/**
  * 생성된 스케쥴의 하루 일정 요청 api
  * 스케쥴에서 지정된 날짜의 데일리 계획을 조회 요청한다.
  */
@@ -4667,6 +4674,7 @@ export const getDetailSchedule = async (
       tourPlace: {
         include: {
           gl_photos: true,
+          photos: true,
         },
       },
       queryParams: {
@@ -4856,7 +4864,6 @@ export const getDetailSchedule = async (
           website: (detailData as { website: string }).website,
         };
       }
-
       if (tourPlaceType.includes('VISITJEJU_')) {
         const { tourPlace: visitJejuPlace } = visitSchedule;
         return {
@@ -4898,7 +4905,46 @@ export const getDetailSchedule = async (
           reviewScoreWord: null,
         };
       }
-      return null;
+
+      const { tourPlace } = visitSchedule;
+      return {
+        id: visitSchedule.id.toString(),
+        dayCount: visitSchedule.dayNo,
+        orderCount: visitSchedule.orderNo,
+        // planType: visitSchedule.planType,
+        spotType: tourPlaceType,
+        previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+        spotName: tourPlace.title ?? 'none',
+        roomType: null,
+        spotAddr: tourPlace.address ?? 'none',
+        hotelBookingUrl: null,
+        placeId: 'none',
+        // placeId: tourPlace.vj_contentsid ?? 'none',
+        startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
+        endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
+        night: visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
+        days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
+        checkIn: null,
+        checkOut: null,
+        price: null,
+        priceLevel: null,
+        rating: null,
+        lat: tourPlace.lat ?? -1,
+        lng: tourPlace.lng ?? -1,
+        hotelClass: null,
+        website: null,
+        language: null,
+        cityNameEN: null,
+        imageList: [],
+        contact: null,
+        weekdayOpeningHours: null,
+        reviews: null,
+        takeout: null,
+        googlePlaceTypes: null,
+        url: null,
+        userRatingsTotal: null,
+        reviewScoreWord: null,
+      };
     })();
 
   return retValue as GetDetailScheduleRETParamPayload;
