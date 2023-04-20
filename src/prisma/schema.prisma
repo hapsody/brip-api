@@ -480,8 +480,8 @@ enum PlaceType {
   GL_SPOT
   VISITJEJU_RESTAURANT
   VISITJEJU_SPOT
-  USER_SPOT
-  USER_RESTAURANT
+  USER_SPOT /// 유저가 개인 장소를 공유하므로써 공개된 장소
+  USER_RESTAURANT /// /// 유저가 개인 장소를 공유하므로써 공개된 식당
   USER_PRIV_MEMORY_SPOT /// 유저 기억에서 개인적으로 저장한 장소
   PUBLICDATAPORTAL_RESTAURANT /// 공공데이터 포탈 식당
   PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지

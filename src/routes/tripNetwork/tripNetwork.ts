@@ -1267,13 +1267,14 @@ export const addShareTripMemory = asyncWrapper(
       /// case2: tourPlaceId 가 제공되었을 경우는 addTripMemory 단계를 거치면서
       /// 기존에 있는 tourPlace가 tripMemory와 매칭되고 이 tourPlace를 반환했을 것이다.
       /// 이 tourPlace는 IN_USE 상태일 것이므로 아래 타입 업데이트를 거치지 않는다.
+
       if (
         createdOrFoundTripMem.TourPlace?.tourPlaceType ===
         ('USER_PRIV_MEMORY_SPOT' as PlaceType)
       ) {
         await prisma.tourPlace.update({
           where: {
-            id: createdOrFoundTripMem.id,
+            id: createdOrFoundTripMem.TourPlace.id,
           },
           data: {
             tourPlaceType: categoryToIBTravelTag.tourPlaceType,
