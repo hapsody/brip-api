@@ -140,15 +140,16 @@ export const getThumbnailUrlFromIBPhotos = async (
 export const getImgUrlListFromIBPhotos = async (
   photos: IBPhotos[],
 ): Promise<
-  {
-    id: string;
-    url: string;
-  }[]
+  // {
+  //   id: string;
+  //   url: string;
+  // }[]
+  Partial<IBPhotos>[]
 > => {
   const result = await Promise.all(
     photos.map(async p => {
       return {
-        id: p.id.toString(),
+        id: p.id,
         url: await (async (): Promise<string> => {
           if (photos.length > 0) {
             if (!isNil(p.url) && !isEmpty(p.url)) {
@@ -164,7 +165,7 @@ export const getImgUrlListFromIBPhotos = async (
           }
           return 'none';
         })(),
-      };
+      } as Partial<IBPhotos>;
     }),
   );
   return result;
@@ -1954,10 +1955,12 @@ const visitScheduleToDayScheduleType = async (
             orderNo: cur.orderNo.toString(),
             placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
             title: cur.tourPlace?.title ?? 'none',
-            tourPlaceData: {
-              ...cur.tourPlace,
-              photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
-            },
+            tourPlaceData: isNil(cur.tourPlace)
+              ? null
+              : {
+                  ...cur.tourPlace,
+                  photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+                },
           },
         ],
       });
@@ -1978,10 +1981,12 @@ const visitScheduleToDayScheduleType = async (
         // checkin: cur.checkin?.toISOString() ?? null,
         // checkout: cur.checkout?.toISOString() ?? null,
         title: cur.tourPlace?.title ?? 'none',
-        tourPlaceData: {
-          ...cur.tourPlace,
-          photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
-        },
+        tourPlaceData: isNil(cur.tourPlace)
+          ? null
+          : {
+              ...cur.tourPlace,
+              photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+            },
       });
       const last = acc.pop();
       if (!isUndefined(last)) {
@@ -2544,6 +2549,7 @@ export const makeSchedule = async (
     },
     select: {
       id: true,
+      tourPlaceType: true,
       gl_name: true,
       vj_title: true,
       // ibTravelTag: {
@@ -3389,6 +3395,7 @@ export const makeSchedule = async (
       },
       select: {
         id: true,
+        tourPlaceType: true,
         gl_name: true,
         vj_title: true,
         // ibTravelTag: {
@@ -4607,6 +4614,11 @@ export const getDaySchedule = async (
                 url: hotel.bkc_main_photo_url ?? undefined,
               },
             ],
+            photos: [
+              {
+                url: hotel.bkc_main_photo_url ?? 'none',
+              },
+            ],
           };
         }
 
@@ -4629,7 +4641,8 @@ export const getDaySchedule = async (
           rating: tourPlace.rating ?? 0,
           lat: tourPlace.lat ?? -1,
           lng: tourPlace.lng ?? -1,
-          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
+          imageList: [],
+          photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
       }),
     ),
@@ -4778,6 +4791,13 @@ export const getDetailSchedule = async (
               };
             }),
           ],
+          photos: [
+            ...hotelPhotos.map(v => {
+              return {
+                url: v.url_max,
+              };
+            }),
+          ],
           contact: null,
           weekdayOpeningHours: null,
           reviews: null,
@@ -4847,6 +4867,7 @@ export const getDetailSchedule = async (
                 reference: v.photo_reference,
               };
             }) ?? null,
+          photos: await getImgUrlListFromIBPhotos(googlePlace.photos),
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
@@ -4872,7 +4893,7 @@ export const getDetailSchedule = async (
           orderCount: visitSchedule.orderNo,
           // planType: visitSchedule.planType,
           spotType: tourPlaceType,
-          previewImg: 'none',
+          previewImg: await getThumbnailUrlFromIBPhotos(visitJejuPlace.photos),
           spotName: visitJejuPlace.vj_title ?? 'none',
           roomType: null,
           spotAddr: visitJejuPlace.vj_address ?? 'none',
@@ -4894,6 +4915,7 @@ export const getDetailSchedule = async (
           website: null,
           language: null,
           cityNameEN: null,
+          photos: await getImgUrlListFromIBPhotos(visitJejuPlace.photos),
           imageList: [],
           contact: null,
           weekdayOpeningHours: null,
@@ -4935,6 +4957,7 @@ export const getDetailSchedule = async (
         website: null,
         language: null,
         cityNameEN: null,
+        photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         imageList: [],
         contact: null,
         weekdayOpeningHours: null,
@@ -5153,6 +5176,7 @@ export const getCandDetailSchd = async (
     where: { id: Number(candidateId) },
     include: {
       gl_photos: true,
+      photos: true,
     },
   });
 
@@ -5233,6 +5257,11 @@ export const getCandDetailSchd = async (
               };
             }),
           ],
+          photos: hotelPhotos.map(v => {
+            return {
+              url: v.url_max,
+            };
+          }),
           contact: null,
           weekdayOpeningHours: null,
           reviews: null,
@@ -5299,6 +5328,7 @@ export const getCandDetailSchd = async (
               reference: v.photo_reference,
             };
           }),
+          photos: await getImgUrlListFromIBPhotos(googlePlace.photos),
           contact: (detailData as { formatted_phone_number: string })
             .formatted_phone_number,
           weekdayOpeningHours: (detailData as { weekday_text: string[] })
@@ -5322,7 +5352,7 @@ export const getCandDetailSchd = async (
         return {
           id: visitJejuPlace.id.toString(),
           spotType: tourPlaceType,
-          previewImg: 'none',
+          previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
           spotName: visitJejuPlace.vj_title ?? 'none',
           roomType: null,
           spotAddr: visitJejuPlace.vj_address ?? 'none',
@@ -5344,6 +5374,7 @@ export const getCandDetailSchd = async (
           language: null,
           cityNameEN: null,
           imageList: [],
+          photos: await getImgUrlListFromIBPhotos(visitJejuPlace.photos),
           contact: null,
           weekdayOpeningHours: null,
           reviews: null,
@@ -5354,7 +5385,42 @@ export const getCandDetailSchd = async (
           reviewScoreWord: null,
         };
       }
-      return null;
+
+      return {
+        id: tourPlace.id.toString(),
+        spotType: tourPlaceType,
+        previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+        spotName: tourPlace.title ?? 'none',
+        roomType: null,
+        spotAddr: tourPlace.address ?? 'none',
+        hotelBookingUrl: null,
+        placeId: 'none',
+        startDate: null,
+        endDate: null,
+        night: null,
+        days: null,
+        checkIn: null,
+        checkOut: null,
+        price: null,
+        priceLevel: null,
+        rating: null,
+        lat: tourPlace.lat ?? -1,
+        lng: tourPlace.lng ?? -1,
+        hotelClass: null,
+        website: null,
+        language: null,
+        cityNameEN: null,
+        imageList: [],
+        photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
+        contact: null,
+        weekdayOpeningHours: null,
+        reviews: null,
+        takeout: null,
+        googlePlaceTypes: null,
+        url: null,
+        userRatingsTotal: null,
+        reviewScoreWord: null,
+      };
     })();
 
   return retValue;
@@ -6044,6 +6110,11 @@ export const refreshSchedule = async (
                 url: hotel.bkc_main_photo_url ?? undefined,
               },
             ],
+            photos: [
+              {
+                url: hotel.bkc_main_photo_url ?? 'none',
+              },
+            ],
           };
         }
         // if (vType.includes('GL_')) {
@@ -6122,7 +6193,8 @@ export const refreshSchedule = async (
           rating: tourPlace.rating ?? 0,
           lat: tourPlace.lat ?? -1,
           lng: tourPlace.lng ?? -1,
-          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
+          imageList: [],
+          photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
       }),
     ),
