@@ -1337,10 +1337,10 @@ async function main(): Promise<void> {
                 createMany: {
                   data: [
                     {
-                      url: `https${v.firstimage.substring(5)}`,
+                      url: `https${v.firstimage.substring(4)}`,
                     },
                     {
-                      url: `https${v.firstimage2.substring(5)}`,
+                      url: `https${v.firstimage2.substring(4)}`,
                     },
                   ],
                 },
@@ -1357,7 +1357,7 @@ async function main(): Promise<void> {
                 createMany: {
                   data: [
                     {
-                      url: `https${v.firstimage.substring(5)}`,
+                      url: `https${v.firstimage.substring(4)}`,
                     },
                   ],
                 },
@@ -1375,7 +1375,7 @@ async function main(): Promise<void> {
                 createMany: {
                   data: [
                     {
-                      url: `https${v.firstimage2.substring(5)}`,
+                      url: `https${v.firstimage2.substring(4)}`,
                     },
                   ],
                 },
