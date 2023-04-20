@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isNil } from 'lodash';
+import { isNil, isEmpty } from 'lodash';
 import * as dotenv from 'dotenv';
 import {
   PrismaClient,
@@ -1325,19 +1325,68 @@ async function main(): Promise<void> {
           // openWeek
           contact: v.tel,
           postcode: v.zipcode,
-          photos: {
-            createMany: {
-              data: [
-                {
-                  url: v.firstimage,
+          photos: (() => {
+            /// 둘다 존재할경우
+            if (
+              !isNil(v.firstimage) &&
+              !isEmpty(v.firstimage) &&
+              !isNil(v.firstimage2) &&
+              !isEmpty(v.firstimage2)
+            ) {
+              return {
+                createMany: {
+                  data: [
+                    {
+                      url: `https${v.firstimage.substring(5)}`,
+                    },
+                    {
+                      url: `https${v.firstimage2.substring(5)}`,
+                    },
+                  ],
                 },
-                {
-                  url: v.firstimage2,
+              };
+            }
+
+            /// firstimage만 존재할경우
+            if (
+              !isNil(v.firstimage) &&
+              !isEmpty(v.firstimage) &&
+              (isNil(v.firstimage2) || isEmpty(v.firstimage2))
+            ) {
+              return {
+                createMany: {
+                  data: [
+                    {
+                      url: `https${v.firstimage.substring(5)}`,
+                    },
+                  ],
                 },
-              ],
-            },
-          },
+              };
+            }
+
+            /// firstimage2만 존재할경우
+            if (
+              (isNil(v.firstimage) &&
+                isEmpty(v.firstimage) &&
+                !isNil(v.firstimage2)) ||
+              !isEmpty(v.firstimage2)
+            ) {
+              return {
+                createMany: {
+                  data: [
+                    {
+                      url: `https${v.firstimage2.substring(5)}`,
+                    },
+                  ],
+                },
+              };
+            }
+
+            /// 둘다 없을 경우
+            return undefined;
+          })(),
         };
+
         // dupCheckData = { ...newOne };
         return [...acc, newOne];
       }
