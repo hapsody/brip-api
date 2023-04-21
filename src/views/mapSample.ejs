@@ -1063,34 +1063,50 @@
         await sleepFunc(2000);
       }
     </script>
+    <style>
+      * {
+        font-size: 3.5rem;
+      }
+    </style>
   </head>
-  <body style="margin: 0">
-    <select id="scanRange" name="scanRange">
-      <option value="제주" selected="selected">제주도</option>
-      <option value="서울">서울</option>
-      <option value="전국">전국</option>
-    </select>
-    <button id="runBtn">run</button>
-    <canvas id="spotCanvas" width="4800" height="4800" margin> </canvas>
+
+  <body style="margin: 0; position: relative">
+    <div style="position: absolute; z-index: 999">
+      <select id="scanRange" name="scanRange">
+        <option value="제주" selected="selected">제주도</option>
+        <option value="서울">서울</option>
+        <option value="전국">전국</option>
+      </select>
+      <button id="runBtn">run</button>
+    </div>
+
+    <canvas
+      id="spotCanvas"
+      width="4800"
+      height="4800"
+      margin
+      style="position: absolute; left: 0; border: 2px solid black"
+    >
+    </canvas>
     <canvas
       id="clickCheckCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 100px; left: 0; border: 2px solid black"
+      style="position: absolute; left: 0; border: 2px solid black"
     >
     </canvas>
     <canvas
       id="markPointCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 100px; left: 0"
+      style="position: absolute; left: 0; border: 2px solid black"
     >
     </canvas>
     <canvas
       id="historyCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 100px; left: 0"
+      style="position: absolute; left: 0; border: 2px solid black"
       onClick="clickCanvas(window.event)"
     >
     </canvas>
