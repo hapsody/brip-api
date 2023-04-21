@@ -527,14 +527,12 @@ export interface MakeScheduleREQParam {
 // }
 export type TourPlaceGeoLoc = Omit<
   Partial<TourPlace>,
-  'lat | lng | gl_lat | gl_lng | vj_latitude | vj_longitude'
+  'id | title | lat | lng'
 > & {
-  lat: number | null;
-  lng: number | null;
-  gl_lat: number | null;
-  gl_lng: number | null;
-  vj_latitude: number | null;
-  vj_longitude: number | null;
+  id: number;
+  title: string;
+  lat: number;
+  lng: number;
 };
 
 export interface IValidCentResources {

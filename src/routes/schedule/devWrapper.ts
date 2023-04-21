@@ -197,8 +197,6 @@ export const getTourPlaceByTagWrapper = asyncWrapper(
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           where: {
             value: { in: tags },
@@ -443,8 +441,6 @@ export const makeClusterWrapper = asyncWrapper(
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           select: {
             value: true,
@@ -452,17 +448,8 @@ export const makeClusterWrapper = asyncWrapper(
             maxDifficulty: true,
           },
         },
-        gl_vicinity: true,
-        gl_formatted_address: true,
-        vj_address: true,
-        gl_lat: true,
-        gl_lng: true,
-        vj_latitude: true,
-        vj_longitude: true,
-        status: true,
-        gl_rating: true,
-        gl_user_ratings_total: true,
         title: true,
+        status: true,
         lat: true,
         lng: true,
         address: true,
@@ -474,14 +461,6 @@ export const makeClusterWrapper = asyncWrapper(
         rating: true,
         desc: true,
       },
-      orderBy: [
-        {
-          gl_user_ratings_total: 'desc',
-        },
-        {
-          gl_rating: 'desc',
-        },
-      ],
       // take: ctx.numOfWholeTravelSpot,
     });
 
@@ -492,8 +471,6 @@ export const makeClusterWrapper = asyncWrapper(
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           select: {
             value: true,
@@ -501,16 +478,8 @@ export const makeClusterWrapper = asyncWrapper(
             maxDifficulty: true,
           },
         },
-        gl_vicinity: true,
-        gl_formatted_address: true,
-        vj_address: true,
-        gl_lat: true,
-        gl_lng: true,
-        vj_latitude: true,
-        vj_longitude: true,
-        status: true,
-        gl_rating: true,
         title: true,
+        status: true,
         lat: true,
         lng: true,
         address: true,
@@ -522,14 +491,6 @@ export const makeClusterWrapper = asyncWrapper(
         rating: true,
         desc: true,
       },
-      orderBy: [
-        {
-          gl_user_ratings_total: 'desc',
-        },
-        {
-          gl_rating: 'desc',
-        },
-      ],
     });
 
     if (spots.length < ctx.numOfWholeTravelSpot)

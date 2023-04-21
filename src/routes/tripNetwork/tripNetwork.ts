@@ -1404,32 +1404,13 @@ export const getNrbyPlaceListWithGeoLoc = async (
 
   const count = await prisma.tourPlace.aggregate({
     where: {
-      OR: [
-        {
-          AND: [
-            { lat: { gte: Number(minLat) } },
-            { lat: { lt: Number(maxLat) } },
-            { lng: { gte: Number(minLng) } },
-            { lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: Number(minLat) } },
-            { gl_lat: { lt: Number(maxLat) } },
-            { gl_lng: { gte: Number(minLng) } },
-            { gl_lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { vj_latitude: { gte: Number(minLat) } },
-            { vj_latitude: { lt: Number(maxLat) } },
-            { vj_longitude: { gte: Number(minLng) } },
-            { vj_longitude: { lt: Number(maxLng) } },
-          ],
-        },
+      AND: [
+        { lat: { gte: Number(minLat) } },
+        { lat: { lt: Number(maxLat) } },
+        { lng: { gte: Number(minLng) } },
+        { lng: { lt: Number(maxLng) } },
       ],
+
       status: 'IN_USE',
     },
     _count: {
@@ -1438,31 +1419,11 @@ export const getNrbyPlaceListWithGeoLoc = async (
   });
   const foundTourPlace = await prisma.tourPlace.findMany({
     where: {
-      OR: [
-        {
-          AND: [
-            { lat: { gte: Number(minLat) } },
-            { lat: { lt: Number(maxLat) } },
-            { lng: { gte: Number(minLng) } },
-            { lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: Number(minLat) } },
-            { gl_lat: { lt: Number(maxLat) } },
-            { gl_lng: { gte: Number(minLng) } },
-            { gl_lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { vj_latitude: { gte: Number(minLat) } },
-            { vj_latitude: { lt: Number(maxLat) } },
-            { vj_longitude: { gte: Number(minLng) } },
-            { vj_longitude: { lt: Number(maxLng) } },
-          ],
-        },
+      AND: [
+        { lat: { gte: Number(minLat) } },
+        { lat: { lt: Number(maxLat) } },
+        { lng: { gte: Number(minLng) } },
+        { lng: { lt: Number(maxLng) } },
       ],
     },
     take: Number(take),

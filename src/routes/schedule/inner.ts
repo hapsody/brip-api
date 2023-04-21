@@ -21,6 +21,7 @@ import {
   PlaceType,
   IBPhotos,
   IBTravelTag,
+  Prisma,
 } from '@prisma/client';
 import {
   isNumber,
@@ -74,7 +75,6 @@ import {
   GglPlaceDetailType,
   GetPlaceDetailRawData,
   GooglePriceLevel,
-  GooglePlaceReview,
   // GetRcmdListHotelOpt,
   GetCandidateScheduleREQParam,
   GetCandidateScheduleRETParamPayload,
@@ -1004,7 +1004,7 @@ export const getPlaceByGglTxtSrch = async (
               : 'GL_RESTAURANT',
 
           /// 통합 필수 필드
-          title: item.name,
+          title: item.name!,
           lat: item.geometry?.location?.lat,
           lng: item.geometry?.location?.lng,
           address: item.formatted_address ?? item.vicinity ?? undefined,
@@ -1040,58 +1040,9 @@ export const getPlaceByGglTxtSrch = async (
               return undefined;
             })(),
           },
+          gl_place_id: item.place_id,
           rating: isNil(item.rating) ? 0 : item.rating,
           desc: undefined,
-
-          gl_lat: item.geometry?.location?.lat,
-          gl_lng: item.geometry?.location?.lng,
-          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
-          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
-          gl_icon: item.icon,
-          gl_icon_background_color: item.icon_background_color,
-          gl_icon_mask_base_uri: item.icon_mask_base_uri,
-          gl_name: item.name,
-          gl_opening_hours:
-            (
-              item.opening_hours as Partial<{
-                open_now: boolean;
-              }>
-            )?.open_now ?? false,
-          gl_place_id: item.place_id,
-          gl_price_level: item.price_level,
-          gl_rating: item.rating,
-          gl_types: (() => {
-            return item.types
-              ? {
-                  connectOrCreate: item.types?.map(type => {
-                    return {
-                      create: { value: type },
-                      where: { value: type },
-                    };
-                  }),
-                }
-              : {
-                  create: {
-                    value: 'Not Applicaple',
-                  },
-                };
-          })(),
-          gl_user_ratings_total: item.user_ratings_total,
-          gl_vicinity: item.vicinity,
-          gl_formatted_address: item.formatted_address,
-          gl_photos: {
-            // create: await getPlacePhoto(item),
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributions: JSON.stringify(photo.html_attributions),
-                photo_reference:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
-          },
           ...(batchJobCtx &&
             batchJobCtx.batchQueryParamsId && {
               batchQueryParams: {
@@ -1186,55 +1137,46 @@ export const getPlaceByGglNrby = async (
             ) === -1
               ? 'GL_SPOT'
               : 'GL_RESTAURANT',
-          gl_lat: item.geometry?.location?.lat,
-          gl_lng: item.geometry?.location?.lng,
-          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
-          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
-          gl_icon: item.icon,
-          gl_icon_background_color: item.icon_background_color,
-          gl_icon_mask_base_uri: item.icon_mask_base_uri,
-          gl_name: item.name,
-          gl_opening_hours:
-            (
-              item.opening_hours as Partial<{
-                open_now: boolean;
-              }>
-            )?.open_now ?? false,
           gl_place_id: item.place_id,
-          gl_price_level: item.price_level,
-          gl_rating: item.rating,
-          gl_types: (() => {
-            return item.types
-              ? {
-                  connectOrCreate: item.types?.map(type => {
-                    return {
-                      create: { value: type },
-                      where: { value: type },
-                    };
-                  }),
-                }
-              : {
-                  create: {
-                    value: 'Not Applicaple',
-                  },
-                };
-          })(),
-          gl_user_ratings_total: item.user_ratings_total,
-          gl_vicinity: item.vicinity,
-          gl_formatted_address: item.formatted_address,
-          gl_photos: {
-            // create: await getPlacePhoto(item),
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributions: JSON.stringify(photo.html_attributions),
-                photo_reference:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+          /// 통합 필수 필드
+          title: item.name!,
+          lat: item.geometry?.location?.lat,
+          lng: item.geometry?.location?.lng,
+          address: item.formatted_address ?? item.vicinity ?? undefined,
+          roadAddress: undefined,
+          openWeek: undefined,
+          contact: undefined,
+          postcode: undefined,
+          photos: {
+            create: await (async () => {
+              if (!isNil(item.photos) && !isEmpty(item.photos)) {
+                return item.photos?.map(photo => {
+                  return {
+                    url:
+                      (photo as Partial<{ photo_reference: string }>)
+                        .photo_reference ?? '',
+                  };
+                });
+              }
+
+              if (item.place_id) {
+                const detailData: GglPlaceDetailType = await getPlaceDetail({
+                  placeId: item.place_id,
+                });
+
+                return isNil(detailData?.photos)
+                  ? undefined
+                  : detailData?.photos.map(v => {
+                      return {
+                        url: v.photo_reference,
+                      };
+                    });
+              }
+              return undefined;
+            })(),
           },
+          rating: isNil(item.rating) ? 0 : item.rating,
+          desc: undefined,
           ...(batchJobCtx &&
             batchJobCtx.batchQueryParamsId && {
               batchQueryParams: {
@@ -1412,98 +1354,73 @@ export const getAllPlaceDataFromVJ = async (
 
           const createPromises =
             items &&
-            items.map(item => {
-              const promise = prisma.tourPlace.create({
-                data: {
-                  status:
-                    batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
-                  tourPlaceType:
-                    item.contentscd?.label === '음식점'
-                      ? 'VISITJEJU_RESTAURANT'
-                      : 'VISITJEJU_SPOT',
+            items
+              .map(item => {
+                if (isNil(item.latitude) || isNil(item.longitude)) return null;
+                const promise = prisma.tourPlace.create({
+                  data: {
+                    status:
+                      batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
+                    tourPlaceType:
+                      item.contentscd?.label === '음식점'
+                        ? 'VISITJEJU_RESTAURANT'
+                        : 'VISITJEJU_SPOT',
 
-                  /// 통합 필수 필드
-                  title: item.title,
-                  lat: item.latitude,
-                  lng: item.longitude,
-                  address: item.address,
-                  roadAddress: item.roadaddress,
-                  openWeek: undefined,
-                  contact: item.phoneno,
-                  postcode: item.postcode,
-                  ...(item.repPhoto?.photoid?.imgpath && {
-                    photos: {
-                      create: {
-                        url: item.repPhoto?.photoid?.imgpath,
+                    /// 통합 필수 필드
+                    title: item.title!,
+                    lat: item.latitude,
+                    lng: item.longitude,
+                    address: item.address,
+                    roadAddress: item.roadaddress,
+                    openWeek: undefined,
+                    contact: item.phoneno,
+                    postcode: item.postcode,
+                    ...(item.repPhoto?.photoid?.imgpath && {
+                      photos: {
+                        create: {
+                          url: item.repPhoto?.photoid?.imgpath,
+                        },
                       },
-                    },
-                  }),
-
-                  rating: undefined,
-                  desc: item.introduction,
-
-                  vj_contentsid: item.contentsid as string,
-                  vj_contentscdLabel: item.contentscd?.label,
-                  vj_contentscdValue: item.contentscd?.value,
-                  vj_contentscdRefId: item.contentscd?.refId,
-                  vj_title: item.title,
-                  vj_region1cdLabel: item.region1cd?.label,
-                  vj_region1cdValue: item.region1cd?.value,
-                  vj_region1cdRefId: item.region1cd?.refId,
-                  vj_region2cdLabel: item.region2cd?.label,
-                  vj_region2cdValue: item.region2cd?.value,
-                  vj_region2cdRefId: item.region2cd?.refId,
-                  vj_address: item.address,
-                  vj_roadaddress: item.roadaddress,
-                  vj_tag: {
-                    ...(item.tag && {
-                      connectOrCreate: item.tag.split(',').map(v => {
-                        return {
-                          where: {
-                            value: v,
-                          },
-                          create: {
-                            value: v,
-                          },
-                        };
-                      }),
                     }),
-                  },
-                  vj_introduction: item.introduction,
-                  vj_latitude: item.latitude,
-                  vj_longitude: item.longitude,
-                  vj_postcode: item.postcode,
-                  vj_phoneno: item.phoneno,
-                  ...(batchJobCtx &&
-                    batchJobCtx.batchQueryParamsId && {
-                      batchQueryParams: {
-                        connectOrCreate: {
-                          where: {
-                            id: batchJobCtx.batchQueryParamsId,
-                          },
-                          create: {
-                            // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                            latitude: undefined,
-                            longitude: undefined,
-                            radius: undefined,
-                            searchkeyword: {
-                              connectOrCreate: {
-                                where: {
-                                  keyword: '',
-                                },
-                                create: {
-                                  keyword: '',
+
+                    rating: undefined,
+                    desc: item.introduction,
+
+                    vj_contentsid: item.contentsid as string,
+                    ...(batchJobCtx &&
+                      batchJobCtx.batchQueryParamsId && {
+                        batchQueryParams: {
+                          connectOrCreate: {
+                            where: {
+                              id: batchJobCtx.batchQueryParamsId,
+                            },
+                            create: {
+                              // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                              latitude: undefined,
+                              longitude: undefined,
+                              radius: undefined,
+                              searchkeyword: {
+                                connectOrCreate: {
+                                  where: {
+                                    keyword: '',
+                                  },
+                                  create: {
+                                    keyword: '',
+                                  },
                                 },
                               },
                             },
                           },
                         },
-                      },
-                    }),
-                },
-              });
-              return promise;
-            });
+                      }),
+                  },
+                });
+                return promise;
+              })
+              .filter(
+                (v): v is Prisma.Prisma__TourPlaceClient<TourPlace> =>
+                  v !== null,
+              );
 
           const createdList =
             // eslint-disable-next-line no-await-in-loop
@@ -2003,27 +1920,10 @@ const visitScheduleToDayScheduleType = async (
   return acc;
 };
 
-const getLatLng = (spot: {
-  lat: number | null;
-  lng: number | null;
-  gl_lat: number | null;
-  gl_lng: number | null;
-  vj_latitude: number | null;
-  vj_longitude: number | null;
-}): GeoFormat => {
-  if (spot.gl_lat && spot.gl_lng)
-    return {
-      lat: spot.gl_lat,
-      lng: spot.gl_lng,
-    };
-  if (spot.vj_latitude && spot.vj_longitude)
-    return {
-      lat: spot.vj_latitude,
-      lng: spot.vj_longitude,
-    };
+const getLatLng = (spot: { lat: number; lng: number }): GeoFormat => {
   return {
-    lat: spot.lat as number,
-    lng: spot.lng as number,
+    lat: spot.lat,
+    lng: spot.lng,
   };
 };
 
@@ -2248,20 +2148,20 @@ export const makeCluster = (
     ...(type === 'spot' && {
       spotsGeoLocation: items.map(v => {
         return {
-          id: v.id ?? -1,
-          name: v.title ?? v.gl_name ?? v.vj_title ?? '',
-          lat: v.lat ?? v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.lng ?? v.gl_lng ?? v.vj_longitude ?? -9999,
+          id: v.id,
+          name: v.title,
+          lat: v.lat ?? -9999,
+          lng: v.lng ?? -9999,
         };
       }),
     }),
     ...(type === 'food' && {
       foodsGeoLocation: items.map(v => {
         return {
-          id: v.id ?? -1,
-          name: v.title ?? v.gl_name ?? v.vj_title ?? '',
-          lat: v.lat ?? v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.lng ?? v.gl_lng ?? v.vj_longitude ?? -9999,
+          id: v.id,
+          name: v.title,
+          lat: v.lat,
+          lng: v.lng,
         };
       }),
     }),
@@ -2472,18 +2372,7 @@ export const makeSchedule = async (
     select: {
       id: true,
       tourPlaceType: true,
-      gl_name: true,
-      vj_title: true,
-      gl_vicinity: true,
-      gl_formatted_address: true,
-      vj_address: true,
-      gl_lat: true,
-      gl_lng: true,
-      vj_latitude: true,
-      vj_longitude: true,
       status: true,
-      gl_rating: true,
-      gl_user_ratings_total: true,
       title: true,
       lat: true,
       lng: true,
@@ -2580,18 +2469,8 @@ export const makeSchedule = async (
     select: {
       id: true,
       tourPlaceType: true,
-      gl_name: true,
-      vj_title: true,
-      gl_vicinity: true,
-      gl_formatted_address: true,
-      vj_address: true,
-      gl_lat: true,
-      gl_lng: true,
-      vj_latitude: true,
-      vj_longitude: true,
-      status: true,
-      gl_rating: true,
       title: true,
+      status: true,
       lat: true,
       lng: true,
       address: true,
@@ -3355,7 +3234,7 @@ export const makeSchedule = async (
         .numOfVisitSpotInCluster!;
     let curRestDay =
       ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
-    const copiedFoods = [...ctx.foods];
+    const copiedFoods = isNil(ctx.foods) ? [] : [...ctx.foods];
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -3455,11 +3334,15 @@ export const makeSchedule = async (
 
                 /// 레스토랑
                 if (nextMealOrder === orderNo) {
-                  const { idx } = copiedFoods.reduce(
-                    (min, n, index) => {
+                  const { idx } = copiedFoods.reduce<{
+                    idx: number;
+                    dist: number;
+                  }>(
+                    (min, n: TourPlaceGeoLoc, index) => {
+                      const { lat, lng } = n;
                       const newDist = getDistFromTwoGeoLoc({
-                        aLat: n.lat!,
-                        aLng: n.lng!,
+                        aLat: lat,
+                        aLng: lng,
                         bLat: prevGeoLoc.lat,
                         bLng: prevGeoLoc.lng,
                       });
@@ -3491,7 +3374,7 @@ export const makeSchedule = async (
 
                   // const food = copiedFoods.shift();
 
-                  if (isNil(food)) {
+                  if (isNil(food) || isEmpty(food)) {
                     return null;
                   }
                   [data] = food;
@@ -3796,30 +3679,7 @@ export const makeSchedule = async (
                 if (visitScheduleId) cnt += 1;
                 return visitScheduleId;
               })(),
-              title: (() => {
-                if (
-                  (t.placeType!.includes('RESTAURANT') ||
-                    t.placeType!.includes('SPOT')) &&
-                  // (t.placeType!.includes('RESTAURANT') ||
-                  //   t.placeType!.includes('SPOT')) &&
-                  t.data &&
-                  t.data.length > 0
-                ) {
-                  if (t.data[0].title) return t.data[0].title;
-                  if (t.data[0].gl_name) return t.data[0].gl_name;
-                  if (t.data[0].vj_title) return t.data[0].vj_title;
-                }
-                // if (t.placeType!.includes('HOTEL')) {
-                //   return ctx
-                //     .hotels!.map(h => {
-                //       return h.hotels.hotelSearchResult.map(
-                //         v2 => v2.bkc_hotel_name!,
-                //       );
-                //     })
-                //     .toString();
-                // }
-                return '';
-              })(),
+              title: !isNil(t.data) ? t.data[0].title : '',
               ...t,
             };
           }),
@@ -4216,7 +4076,7 @@ export const getDaySchedule = async (
         include: {
           tourPlace: {
             include: {
-              gl_photos: true,
+              // gl_photos: true,
               photos: true,
             },
           },
@@ -4295,8 +4155,8 @@ export const getDaySchedule = async (
           days: days ?? -1,
           // price: tourPlace.gl_price_level?.toString(),
           rating: tourPlace.rating ?? 0,
-          lat: tourPlace.lat ?? -1,
-          lng: tourPlace.lng ?? -1,
+          lat: tourPlace.lat,
+          lng: tourPlace.lng,
           imageList: [],
           photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
@@ -4342,7 +4202,7 @@ export const getDetailSchedule = async (
     include: {
       tourPlace: {
         include: {
-          gl_photos: true,
+          // gl_photos: true,
           photos: true,
         },
       },
@@ -4464,125 +4324,6 @@ export const getDetailSchedule = async (
           reviewScoreWord: hotel.bkc_review_score_word,
         };
       }
-      if (tourPlaceType.includes('GL_')) {
-        const { tourPlace: googlePlace } = visitSchedule;
-
-        const detailData: GglPlaceDetailType = await getPlaceDetail({
-          placeId: googlePlace.gl_place_id ?? '',
-        });
-
-        return {
-          id: visitSchedule.id.toString(),
-          dayCount: visitSchedule.dayNo,
-          orderCount: visitSchedule.orderNo,
-          // planType: visitSchedule.planType,
-          spotType: tourPlaceType,
-          previewImg: (() => {
-            return googlePlace.gl_photos.length > 0 &&
-              googlePlace.gl_photos[0].url
-              ? googlePlace.gl_photos[0].url
-              : 'none';
-          })(),
-          spotName: (detailData as { name: string }).name,
-          roomType: null,
-          spotAddr:
-            googlePlace.gl_vicinity ?? googlePlace.gl_formatted_address ?? null,
-          // spotAddr: (detailData as { formatted_address: string })
-          //   .formatted_address,
-          hotelBookingUrl: null,
-          placeId: googlePlace.gl_place_id,
-          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
-          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
-          night:
-            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? null,
-          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: transPriceLevel(detailData),
-          rating: googlePlace.gl_rating,
-          lat: googlePlace.gl_lat,
-          lng: googlePlace.gl_lng,
-          hotelClass: null,
-          reviewScoreWord: null,
-          language: null,
-          cityNameEN: null,
-          // imageList: await getPlacePhoto(detailData),
-          imageList:
-            (
-              detailData as {
-                photos: {
-                  height: number;
-                  width: number;
-                  html_attributions: string[];
-                  photo_reference: string;
-                }[];
-              }
-            )?.photos?.map(v => {
-              return {
-                reference: v.photo_reference,
-              };
-            }) ?? null,
-          photos: await getImgUrlListFromIBPhotos(googlePlace.photos),
-          contact: (detailData as { formatted_phone_number: string })
-            .formatted_phone_number,
-          weekdayOpeningHours: (detailData as { weekday_text: string[] })
-            .weekday_text,
-          reviews: (
-            detailData as {
-              reviews: GooglePlaceReview[];
-            }
-          ).reviews,
-          takeout: (detailData as { takeout: boolean }).takeout,
-          googlePlaceTypes: (detailData as { types: string[] }).types,
-          url: (detailData as { url: string }).url,
-          userRatingsTotal: (detailData as { user_ratings_total: number })
-            .user_ratings_total,
-          website: (detailData as { website: string }).website,
-        };
-      }
-      if (tourPlaceType.includes('VISITJEJU_')) {
-        const { tourPlace: visitJejuPlace } = visitSchedule;
-        return {
-          id: visitSchedule.id.toString(),
-          dayCount: visitSchedule.dayNo,
-          orderCount: visitSchedule.orderNo,
-          // planType: visitSchedule.planType,
-          spotType: tourPlaceType,
-          previewImg: await getThumbnailUrlFromIBPhotos(visitJejuPlace.photos),
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          roomType: null,
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          hotelBookingUrl: null,
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
-          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
-          night:
-            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
-          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: null,
-          rating: null,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-          hotelClass: null,
-          website: null,
-          language: null,
-          cityNameEN: null,
-          photos: await getImgUrlListFromIBPhotos(visitJejuPlace.photos),
-          imageList: [],
-          contact: null,
-          weekdayOpeningHours: null,
-          reviews: null,
-          takeout: null,
-          googlePlaceTypes: null,
-          url: null,
-          userRatingsTotal: null,
-          reviewScoreWord: null,
-        };
-      }
 
       const { tourPlace } = visitSchedule;
       return {
@@ -4592,7 +4333,7 @@ export const getDetailSchedule = async (
         // planType: visitSchedule.planType,
         spotType: tourPlaceType,
         previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
-        spotName: tourPlace.title ?? 'none',
+        spotName: tourPlace.title,
         roomType: null,
         spotAddr: tourPlace.address ?? 'none',
         hotelBookingUrl: null,
@@ -4607,8 +4348,8 @@ export const getDetailSchedule = async (
         price: null,
         priceLevel: null,
         rating: null,
-        lat: tourPlace.lat ?? -1,
-        lng: tourPlace.lng ?? -1,
+        lat: tourPlace.lat,
+        lng: tourPlace.lng,
         hotelClass: null,
         website: null,
         language: null,
@@ -4661,7 +4402,6 @@ export const getCandidateSchedule = async (
           },
         },
         include: {
-          gl_photos: true,
           photos: true,
         },
       },
@@ -4831,7 +4571,6 @@ export const getCandDetailSchd = async (
   const tourPlace = await prisma.tourPlace.findUnique({
     where: { id: Number(candidateId) },
     include: {
-      gl_photos: true,
       photos: true,
     },
   });
@@ -4928,125 +4667,12 @@ export const getCandDetailSchd = async (
           reviewScoreWord: hotel.bkc_review_score_word,
         };
       }
-      if (tourPlaceType.includes('GL_')) {
-        const googlePlace = tourPlace;
-
-        const detailData: GglPlaceDetailType = await getPlaceDetail({
-          placeId: googlePlace.gl_place_id ?? '',
-        });
-
-        return {
-          id: googlePlace.id.toString(),
-          spotType: tourPlaceType,
-          previewImg: (() => {
-            return googlePlace.gl_photos.length > 0 &&
-              googlePlace.gl_photos[0].url
-              ? googlePlace.gl_photos[0].url
-              : 'none';
-          })(),
-          spotName: (detailData as { name: string }).name,
-          roomType: null,
-          spotAddr:
-            googlePlace.gl_vicinity ??
-            googlePlace.gl_formatted_address ??
-            'none',
-          // spotAddr: (detailData as { formatted_address: string })
-          //   .formatted_address,
-          hotelBookingUrl: null,
-          placeId: googlePlace.gl_place_id,
-          startDate: null,
-          endDate: null,
-          night: null,
-          days: null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: transPriceLevel(detailData),
-          rating: googlePlace.gl_rating,
-          lat: googlePlace.gl_lat,
-          lng: googlePlace.gl_lng,
-          hotelClass: null,
-          reviewScoreWord: null,
-          language: null,
-          cityNameEN: null,
-          // imageList: await getPlacePhoto(detailData),
-          imageList: (
-            detailData as {
-              photos: {
-                height: number;
-                width: number;
-                html_attributions: string[];
-                photo_reference: string;
-              }[];
-            }
-          ).photos.map(v => {
-            return {
-              reference: v.photo_reference,
-            };
-          }),
-          photos: await getImgUrlListFromIBPhotos(googlePlace.photos),
-          contact: (detailData as { formatted_phone_number: string })
-            .formatted_phone_number,
-          weekdayOpeningHours: (detailData as { weekday_text: string[] })
-            .weekday_text,
-          reviews: (
-            detailData as {
-              reviews: GooglePlaceReview[];
-            }
-          ).reviews,
-          takeout: (detailData as { takeout: boolean }).takeout,
-          googlePlaceTypes: (detailData as { types: string[] }).types,
-          url: (detailData as { url: string }).url,
-          userRatingsTotal: (detailData as { user_ratings_total: number })
-            .user_ratings_total,
-          website: (detailData as { website: string }).website,
-        };
-      }
-
-      if (tourPlaceType.includes('VISITJEJU_')) {
-        const visitJejuPlace = tourPlace;
-        return {
-          id: visitJejuPlace.id.toString(),
-          spotType: tourPlaceType,
-          previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          roomType: null,
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          hotelBookingUrl: null,
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: null,
-          endDate: null,
-          night: null,
-          days: null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: null,
-          rating: null,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-          hotelClass: null,
-          website: null,
-          language: null,
-          cityNameEN: null,
-          imageList: [],
-          photos: await getImgUrlListFromIBPhotos(visitJejuPlace.photos),
-          contact: null,
-          weekdayOpeningHours: null,
-          reviews: null,
-          takeout: null,
-          googlePlaceTypes: null,
-          url: null,
-          userRatingsTotal: null,
-          reviewScoreWord: null,
-        };
-      }
 
       return {
         id: tourPlace.id.toString(),
         spotType: tourPlaceType,
         previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
-        spotName: tourPlace.title ?? 'none',
+        spotName: tourPlace.title,
         roomType: null,
         spotAddr: tourPlace.address ?? 'none',
         hotelBookingUrl: null,
@@ -5060,8 +4686,8 @@ export const getCandDetailSchd = async (
         price: null,
         priceLevel: null,
         rating: null,
-        lat: tourPlace.lat ?? -1,
-        lng: tourPlace.lng ?? -1,
+        lat: tourPlace.lat,
+        lng: tourPlace.lng,
         hotelClass: null,
         website: null,
         language: null,
@@ -5719,7 +5345,6 @@ export const refreshSchedule = async (
         include: {
           tourPlace: {
             include: {
-              gl_photos: true,
               photos: true,
             },
           },
@@ -5773,59 +5398,6 @@ export const refreshSchedule = async (
             ],
           };
         }
-        // if (vType.includes('GL_')) {
-        //   const googlePlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg:
-        //       googlePlace.gl_photos.length > 0 &&
-        //       googlePlace.gl_photos[0].photo_reference
-        //         ? googlePlace.gl_photos[0].photo_reference
-        //         : 'none',
-        //     spotName: googlePlace.gl_name ?? 'none',
-        //     spotAddr:
-        //       googlePlace.gl_vicinity ??
-        //       googlePlace.gl_formatted_address ??
-        //       'none',
-        //     // contact: 'none',
-        //     placeId: googlePlace.gl_place_id ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     price: googlePlace.gl_price_level?.toString(),
-        //     rating: googlePlace.gl_rating ?? undefined,
-        //     lat: googlePlace.gl_lat ?? -1,
-        //     lng: googlePlace.gl_lng ?? -1,
-        //     imageList: googlePlace.gl_photos.map(p => {
-        //       return {
-        //         id: p.id.toString(),
-        //         photo_reference: p.photo_reference,
-        //       };
-        //     }),
-        //   };
-        // }
-
-        // if (vType.includes('VISITJEJU_')) {
-        //   const visitJejuPlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg: 'none',
-        //     spotName: visitJejuPlace.vj_title ?? 'none',
-        //     spotAddr: visitJejuPlace.vj_address ?? 'none',
-        //     // contact: 'none',
-        //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     lat: visitJejuPlace.vj_latitude ?? -1,
-        //     lng: visitJejuPlace.vj_longitude ?? -1,
-        //   };
-        // }
-        // return undefined;
 
         /// Not Hotel Place
         const { tourPlace } = v;
@@ -5833,7 +5405,7 @@ export const refreshSchedule = async (
           id: v.id.toString(),
           spotType: vType as string,
           previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
-          spotName: tourPlace.title ?? 'none',
+          spotName: tourPlace.title,
           spotAddr: tourPlace.address ?? tourPlace.roadAddress ?? 'none',
           // placeId: tourPlace.gl_place_id ?? 'none',
           contact: 'none',
@@ -5847,8 +5419,8 @@ export const refreshSchedule = async (
           // days,
           // price: tourPlace.gl_price_level?.toString(),
           rating: tourPlace.rating ?? 0,
-          lat: tourPlace.lat ?? -1,
-          lng: tourPlace.lng ?? -1,
+          lat: tourPlace.lat,
+          lng: tourPlace.lng,
           imageList: [],
           photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
