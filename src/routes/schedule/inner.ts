@@ -2491,7 +2491,7 @@ export const makeSchedule = async (
 
   trackRecord = moment().diff(stopWatch, 'ms').toString();
   console.log(
-    `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length: ${foods.length}`,
+    `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, food.length: ${foods.length}`,
   );
 
   ctx.foods = foods && foods.length > 0 ? [...foods] : [];
