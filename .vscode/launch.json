@@ -50,6 +50,12 @@
       "type": "node-terminal"
     },
     {
+      "command": "yarn seed:iBAreaCode",
+      "name": "test seed:iBAreaCode",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
       "command": "yarn batch:dupCheck",
       "name": "test batch:dupCheck",
       "request": "launch",

@@ -6,6 +6,7 @@ import shareTripMemory from './shareTripMemory/shareTripMemory';
 import iBTravelTag from './iBTravelTag/iBTravelTag';
 // import tourPlace from './tourPlace'; /// big size data
 import iBEventPromotion from './iBEventPromotion/iBEventPromotion';
+import iBAreaCode from './iBAreaCode/iBAreaCode';
 
 const abcd = async () => {
   await userSeed();
@@ -15,6 +16,7 @@ const abcd = async () => {
   await shareTripMemory();
   await iBTravelTag();
   await iBEventPromotion();
+  await iBAreaCode();
 };
 
 abcd().catch(e => {

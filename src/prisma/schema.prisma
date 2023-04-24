@@ -118,9 +118,10 @@ model IBPhotos {
 // 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
 // 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
-  id                                    Int             @id @default(autoincrement())
-  createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime        @default(now()) @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   tourPlaceType                         PlaceType
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
@@ -228,6 +229,7 @@ model TourPlace {
   photos      IBPhotos[] /// 사진
   rating      Float      @default(0) /// 평점 0~5
   desc        String?    @db.Text /// 장소 소개설명
+  cityCode    Int?
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
@@ -245,6 +247,9 @@ model TourPlace {
   // @@index([gl_place_id, vj_contentsid])
   GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
   gglNearbySearchResTypeId Int?
+  iBAreaCode               IBAreaCode?             @relation(fields: [nationalCode, areaCode], references: [nationalCode, areaCode]) ///국제 전화번호 코드 + 각 국가의 행정구역 코드(한국 법정동 시군구 코드)
+  nationalCode             String?                 @db.VarChar(10)
+  areaCode                 String?                 @db.VarChar(12)
 
   @@index([lat, lng, id])
 }
@@ -820,4 +825,17 @@ model IBEventApplication {
   promotionId Int?
   user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   userId      Int?
+}
+
+/// 전세계를 커버하는 지역 코드
+model IBAreaCode {
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now()) @updatedAt
+  nationalCode String      @db.VarChar(16) /// 국제전화번호 코드로 분류
+  areaCode     String      @db.VarChar(16) ///  각 국가의 행정구역 코드(한국은 법정동 시군구 코드)
+  name         String      @db.VarChar(32)
+  TourPlace    TourPlace[]
+
+  @@id([nationalCode, areaCode])
+  @@index([name])
 }
