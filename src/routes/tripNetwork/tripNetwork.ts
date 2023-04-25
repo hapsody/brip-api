@@ -1,5 +1,6 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
+import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
 import {
   ibDefs,
   asyncWrapper,
@@ -1410,8 +1411,6 @@ export const getNrbyPlaceListWithGeoLoc = async (
         { lng: { gte: Number(minLng) } },
         { lng: { lt: Number(maxLng) } },
       ],
-
-      status: 'IN_USE',
     },
     _count: {
       id: true,
@@ -2764,6 +2763,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
           tourPlaceList.map(async t => {
             return {
               ...t,
+              photos: await getImgUrlListFromIBPhotos(t.photos),
               shareTripMemory: await Promise.all(
                 t.shareTripMemory.map(async s => {
                   const userImg = await (() => {
