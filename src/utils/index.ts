@@ -26,6 +26,7 @@ import {
   getBoundingBox,
   getDistFromTwoGeoLoc,
 } from './geoLocation';
+import { searchKRJuso, geoCodeToAddr } from './externalApi';
 
 export {
   ibDefs,
@@ -55,4 +56,6 @@ export {
   BoundingBox,
   getBoundingBox,
   getDistFromTwoGeoLoc,
+  searchKRJuso,
+  geoCodeToAddr,
 };

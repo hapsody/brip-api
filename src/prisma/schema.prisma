@@ -216,18 +216,21 @@ model TourPlace {
   // vj_tag VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
 
   /// 공통 필수 필드
-  title       String /// 장소 이름
-  lat         Float /// 위도
-  lng         Float /// 경도
-  address     String?    @db.Text /// 지번주소
-  roadAddress String?    @db.Text /// 도로명주소
+  title        String /// 장소 이름
+  lat          Float /// 위도
+  lng          Float /// 경도
+  address      String?    @db.Text /// 지번주소
+  roadAddress  String?    @db.Text /// 도로명주소
   /// 공통 옵션 필드
-  openWeek    String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  contact     String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
-  postcode    String? /// 우편번호
-  photos      IBPhotos[] /// 사진
-  rating      Float      @default(0) /// 평점 0~5
-  desc        String?    @db.Text /// 장소 소개설명
+  openWeek     String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  contact      String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
+  postcode     String? /// 우편번호
+  photos       IBPhotos[] /// 사진
+  rating       Float      @default(0) /// 평점 0~5
+  desc         String?    @db.Text /// 장소 소개설명
+  regionCode1  String?    @db.Char(16) /// 상위 지역
+  regionCode2  String?    @db.Char(32) /// 하위 세부 지역
+  nationalCode String     @default("82") @db.Char(7)
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.

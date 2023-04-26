@@ -7,6 +7,7 @@ import {
   // IBTravelTag
   DataStageStatus,
 } from '@prisma/client';
+// import { searchKRJuso } from '@src/utils';
 // import { IBTravelTagList, ibTravelTagCategorize } from '@src/utils';
 
 const prisma = new PrismaClient();
@@ -1308,7 +1309,7 @@ async function main(): Promise<void> {
       if (!isNil(ibTTTypePath) && !isNil(tourPlaceType) && !isDup()) {
         const newOne = {
           tourPlaceType: tourPlaceType as PlaceType,
-          status: 'NEW' as DataStageStatus,
+          status: 'IN_USE' as DataStageStatus,
           ibTravelTag: {
             connect: ibTTTypePath.map(k => {
               const leafTag = k.split('>').pop();
@@ -1396,6 +1397,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-restricted-syntax
     for await (const [i, buffer] of dataForCreate.entries()) {
       try {
+        // const juso = await searchKRJuso(buffer.roadAddress);
         const createResult = await prisma.$transaction(async tx => {
           await tx.tourPlace.updateMany({
             where: {
@@ -1411,7 +1413,14 @@ async function main(): Promise<void> {
           });
 
           const result = await tx.tourPlace.create({
-            data: buffer,
+            data: {
+              ...buffer,
+              // ...(!isNil(juso) && {
+              //   roadAddress: juso.roadAddr,
+              //   address: juso.jibunAddr,
+              //   postcode: juso.zipNo,
+              // }),
+            },
             select: {
               id: true,
               title: true,

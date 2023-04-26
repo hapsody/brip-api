@@ -31,9 +31,10 @@
     "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
     "seed:iBEventPromotion": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBEventPromotion",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
-    "batch": "yarn batch:dataresource",
+    "batch": "yarn batch:dataresource; yarn batch:dupCheck; yarn batch:areaCodeAsign",
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
     "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceDupChecker.ts",
+    "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceAreaCodeAsigner.ts",
     "prismastudio": "pm2 start --only prismastudio"
   },
   "husky": {

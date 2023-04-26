@@ -54,6 +54,12 @@
       "name": "test batch:dupCheck",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn batch:areaCodeAsign",
+      "name": "test batch:areaCodeAsign",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }
