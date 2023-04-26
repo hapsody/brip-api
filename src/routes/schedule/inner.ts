@@ -23,6 +23,7 @@ import {
   IBTravelTag,
   Prisma,
 } from '@prisma/client';
+import { krRegionToCode, krCodeToRegion } from '@src/utils/IBDefinitions';
 import {
   isNumber,
   isEmpty,
@@ -2302,19 +2303,111 @@ export const makeSchedule = async (
   /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
   /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
   /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
-  const isValidScanRange =
-    !isNil(scanRange) &&
-    scanRange.every(range => {
-      if (
-        !isEmpty(range.minLat) &&
-        !isEmpty(range.maxLat) &&
-        !isEmpty(range.minLng) &&
-        !isEmpty(range.maxLng)
-      ) {
-        return true;
-      }
-      return false;
-    });
+  const scanType: {
+    type: string;
+    regionalCodes?: {
+      regionCode1?: number;
+      regionCode2?: number;
+    }[];
+  } | null = (() => {
+    const isGeocodeType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (
+          !isEmpty(range.minLat) &&
+          !isEmpty(range.maxLat) &&
+          !isEmpty(range.minLng) &&
+          !isEmpty(range.maxLng)
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isGeocodeType) return { type: 'geocode' };
+
+    const isKeywordType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (!isNil(range.keyword)) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isKeywordType) {
+      const regionalCodes = scanRange
+        .map<
+          | {
+              regionCode1?: number;
+              regionCode2?: number;
+            }
+          | undefined
+        >(range => {
+          const { keyword } = range;
+          const keywordArr = keyword!.split(' ');
+
+          /// ex) 전라남도, 서울특별시, 제주특별자치도
+          if (keywordArr.length === 1) {
+            if (
+              keywordArr[0].match(
+                /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
+              )
+            ) {
+              const superRegion = keywordArr[0];
+              const regionCode1 =
+                krRegionToCode[superRegion as keyof typeof krRegionToCode];
+              return {
+                regionCode1,
+              };
+            }
+
+            if (keywordArr[0].match(/.+[시|군|구]$/)) {
+              const subRegion = keywordArr[0];
+              const regionCode2 =
+                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+              return {
+                regionCode2,
+              };
+            }
+          }
+          /// ex) 전라남도 순천시, 서울특별시 중구
+          if (keywordArr.length > 1) {
+            const superRegion = keywordArr[0];
+            const subRegion = keywordArr[1];
+
+            let regionCode1: number | undefined;
+            let regionCode2: number | undefined;
+            if (!isNil(superRegion.match(/.+[도|시]$/))) {
+              regionCode1 =
+                krRegionToCode[superRegion as keyof typeof krRegionToCode];
+            }
+
+            if (!isNil(superRegion.match(/.+[시|군|구]$/))) {
+              regionCode2 =
+                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+            }
+
+            return {
+              regionCode1,
+              regionCode2,
+            };
+          }
+
+          return undefined;
+        })
+        .filter(
+          (v): v is { regionCode1?: number; regionCode2?: number } =>
+            v !== undefined,
+        );
+
+      return {
+        type: 'keyword',
+        regionalCodes,
+      };
+    }
+    return null;
+  })();
 
   const spots = await prisma.tourPlace.findMany({
     where: {
@@ -2338,9 +2431,14 @@ export const makeSchedule = async (
           ],
         },
       },
-      ...(isValidScanRange && !isEmpty(scanRange)
-        ? {
-            OR: scanRange.map(v => {
+      ...(() => {
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'geocode' &&
+          !isEmpty(scanRange)
+        ) {
+          return {
+            OR: scanRange!.map(v => {
               return {
                 AND: [
                   { lat: { gte: Number(v.minLat) } },
@@ -2350,20 +2448,44 @@ export const makeSchedule = async (
                 ],
               };
             }),
-          }
-        : {
-            /// default 제주도
-            OR: [
-              {
-                AND: [
-                  { lat: { gte: 33.109684 } },
-                  { lat: { lt: 33.650946 } },
-                  { lng: { gte: 126.032175 } },
-                  { lng: { lt: 127.048411 } },
-                ],
-              },
-            ],
-          }),
+          };
+        }
+
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'keyword' &&
+          !isNil(scanType.regionalCodes) &&
+          !isEmpty(scanType.regionalCodes)
+        ) {
+          const { regionalCodes } = scanType;
+          const condition = regionalCodes.map(v => {
+            return {
+              regionCode1:
+                krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
+              regionCode2:
+                krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
+            };
+          });
+          return {
+            OR: condition,
+          };
+        }
+
+        return {
+          /// default 제주도
+          OR: [
+            {
+              AND: [
+                { lat: { gte: 33.109684 } },
+                { lat: { lt: 33.650946 } },
+                { lng: { gte: 126.032175 } },
+                { lng: { lt: 127.048411 } },
+              ],
+            },
+          ],
+        };
+      })(),
+
       status: 'IN_USE',
       tourPlaceType: {
         in: ['TOUR4_SPOT', 'GL_SPOT', 'VISITJEJU_SPOT'],
@@ -2439,9 +2561,14 @@ export const makeSchedule = async (
       tourPlaceType: {
         in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
       },
-      ...(isValidScanRange && !isEmpty(scanRange)
-        ? {
-            OR: scanRange.map(v => {
+      ...(() => {
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'geocode' &&
+          !isEmpty(scanRange)
+        ) {
+          return {
+            OR: scanRange!.map(v => {
               return {
                 AND: [
                   { lat: { gte: Number(v.minLat) } },
@@ -2451,20 +2578,42 @@ export const makeSchedule = async (
                 ],
               };
             }),
-          }
-        : {
-            /// default 제주도
-            OR: [
-              {
-                AND: [
-                  { lat: { gte: 33.109684 } },
-                  { lat: { lt: 33.650946 } },
-                  { lng: { gte: 126.032175 } },
-                  { lng: { lt: 127.048411 } },
-                ],
-              },
-            ],
-          }),
+          };
+        }
+
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'keyword' &&
+          !isNil(scanType.regionalCodes) &&
+          !isEmpty(scanType.regionalCodes)
+        ) {
+          const { regionalCodes } = scanType;
+          return {
+            OR: regionalCodes.map(v => {
+              return {
+                regionCode1:
+                  krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
+                regionCode2:
+                  krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
+              };
+            }),
+          };
+        }
+
+        return {
+          /// default 제주도
+          OR: [
+            {
+              AND: [
+                { lat: { gte: 33.109684 } },
+                { lat: { lt: 33.650946 } },
+                { lng: { gte: 126.032175 } },
+                { lng: { lt: 127.048411 } },
+              ],
+            },
+          ],
+        };
+      })(),
     },
     select: {
       id: true,

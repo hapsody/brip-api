@@ -511,7 +511,7 @@ export interface MakeScheduleREQParam {
   destination: string;
   travelHard: string;
   scanRange?: {
-    cityCode?: string;
+    keyword?: string;
     minLat: string;
     minLng: string;
     maxLat: string;
