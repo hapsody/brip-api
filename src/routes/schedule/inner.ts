@@ -609,7 +609,7 @@ export const getHotelDataFromBKC = async (
             bkc_city_name_en: city_name_en,
             bkc_checkin: checkin,
             bkc_checkout: checkout,
-            bkc_distance: parseFloat(distance),
+            bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
             bkc_review_score_word: review_score_word,
             bkc_review_score: review_score,
             bkc_currency_code: currencycode,
@@ -631,7 +631,7 @@ export const getHotelDataFromBKC = async (
             lat: latitude,
             lng: longitude,
             address,
-            rating: review_score,
+            rating: review_score ?? 0,
             // coordinates: {
             //   // 경도와 위도 값을 넣어줍니다.
             //   // 예: 경도 126.9784, 위도 37.5665
@@ -718,7 +718,7 @@ export const getHotelDataFromBKC = async (
         bkc_city_name_en: city_name_en,
         bkc_checkin: checkin,
         bkc_checkout: checkout,
-        bkc_distance: parseFloat(distance),
+        bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
         bkc_review_score_word: review_score_word,
         bkc_review_score: review_score,
         bkc_currency_code: currencycode,

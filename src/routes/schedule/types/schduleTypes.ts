@@ -141,50 +141,50 @@ export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
 }
 /// rapid api booking.com search hotels by coordinates 검색 결과
 export interface BKCHotelRawData {
-  unit_configuration_label: string;
-  min_total_price: number;
-  countrycode: string;
-  default_language: string;
-  address: string;
-  city: string;
-  city_name_en: string;
-  class: number;
-  distance: string;
+  unit_configuration_label?: string;
+  min_total_price?: number;
+  countrycode?: string;
+  default_language?: string;
+  address?: string;
+  city?: string;
+  city_name_en?: string;
+  class?: number;
+  distance?: string;
   composite_price_breakdown: {
     product_price_breakdowns: {
       gross_amount: {
-        value: number;
+        value?: number;
       };
     }[];
     included_taxes_and_charges_amount: {
-      value: number;
+      value?: number;
     };
     net_amount: {
-      value: number;
+      value?: number;
     };
     gross_amount_per_night: {
-      value: number;
+      value?: number;
     };
   };
   checkin: {
-    from: string;
+    from?: string;
   };
   checkout: {
-    until: string;
+    until?: string;
   };
-  review_score_word: string;
-  review_score: number;
-  currencycode: string;
-  timezone: string;
+  review_score_word?: string;
+  review_score?: number;
+  currencycode?: string;
+  timezone?: string;
   urgency_message?: string;
-  hotel_id: number;
+  hotel_id?: number;
   hotel_name: string;
   latitude: number;
   longitude: number;
-  url: string;
-  accommodation_type_name: string;
-  zip: string;
-  main_photo_url: string;
+  url?: string;
+  accommodation_type_name?: string;
+  zip?: string;
+  main_photo_url?: string;
   max_photo_url?: string;
   hotel_facilities?: string;
   has_swimming_pool?: number;
