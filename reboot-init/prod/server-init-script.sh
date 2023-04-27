@@ -25,11 +25,13 @@ function run_process () {
   git checkout prod
   git pull upstream prod --no-edit
   git fetch --tags
-  yarn
-  yarn build
-  # yarn prisma db push --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다!
+  #yarn prisma db push # --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다.
 
-  yarn restart
+  sudo yarn
+  sudo yarn build
+
+
+  sudo yarn restart
   # yarn prismastudio
 }
 
