@@ -83,10 +83,17 @@
           console.log(val);
           /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
           if (val === '전국') {
-            clipMinLat = 34.01941; // 한국 전국 지역 필터링
+            // clipMinLat = 34.01941; // 한국 전국 지역 필터링
+            clipMinLat = 33.109684;
             clipMaxLat = 38.81498;
             clipMinLng = 125.350506;
             clipMaxLng = 131.282937;
+
+            if ($('#keyword').length === 0) {
+              /// keyword input box 없을 경우 생성
+              var $keyword = $('<input id="keyword" type="text">');
+              $('#scanRange').after($keyword);
+            }
           } else if (val === '서울') {
             clipMinLat = 37.483403; // 서울 지역만 필터링
             clipMaxLat = 37.655385;
@@ -124,19 +131,36 @@
             data: JSON.stringify({
               ingNow: 'ing',
               companion: 'alone',
-              period: '15',
+              period: '2',
               // travelType: ['activity'],
               travelType: ['rest', 'activity'],
               destination: 'recommend',
               travelHard: '8',
-              scanRange: [
-                {
-                  minLat: clipMinLat.toString(),
-                  maxLat: clipMaxLat.toString(),
-                  minLng: clipMinLng.toString(),
-                  maxLng: clipMaxLng.toString(),
-                },
-              ],
+              scanRange: (() => {
+                if ($('#keyword').length > 0) {
+                  const keyword = $('#keyword').val();
+                  if (keyword && keyword.length > 0) {
+                    const keywordChunks = keyword.split(',');
+                    if (keywordChunks.length > 0) {
+                      const kkk = keywordChunks.map(v => {
+                        return {
+                          keyword: v.trim(),
+                        };
+                      });
+                      console.log(kkk);
+                      return kkk;
+                    }
+                  }
+                }
+                return [
+                  {
+                    minLat: clipMinLat.toString(),
+                    maxLat: clipMaxLat.toString(),
+                    minLng: clipMinLng.toString(),
+                    maxLng: clipMaxLng.toString(),
+                  },
+                ];
+              })(),
             }),
             success: async function (result) {
               // zoom(25); /// %
@@ -1071,12 +1095,13 @@
   </head>
 
   <body style="margin: 0; position: relative">
-    <div style="position: absolute; z-index: 999">
+    <div id="consoleBox" style="position: absolute; z-index: 999">
       <select id="scanRange" name="scanRange">
         <option value="제주" selected="selected">제주도</option>
         <option value="서울">서울</option>
         <option value="전국">전국</option>
       </select>
+      <!-- <input id="keyword" type="text" /> -->
       <button id="runBtn">run</button>
     </div>
 

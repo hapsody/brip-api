@@ -2383,9 +2383,11 @@ export const makeSchedule = async (
                 krRegionToCode[superRegion as keyof typeof krRegionToCode];
             }
 
-            if (!isNil(superRegion.match(/.+[시|군|구]$/))) {
+            if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
               regionCode2 =
-                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+                krRegionToCode[
+                  `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
+                ];
             }
 
             return {
@@ -2409,6 +2411,8 @@ export const makeSchedule = async (
     return null;
   })();
 
+  console.log(scanType);
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
@@ -2431,6 +2435,7 @@ export const makeSchedule = async (
           ],
         },
       },
+      /// 지역조건
       ...(() => {
         if (
           !isNil(scanType) &&
@@ -2466,6 +2471,7 @@ export const makeSchedule = async (
                 krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
             };
           });
+          console.log(condition);
           return {
             OR: condition,
           };
