@@ -609,7 +609,7 @@ export const getHotelDataFromBKC = async (
             bkc_city_name_en: city_name_en,
             bkc_checkin: checkin,
             bkc_checkout: checkout,
-            bkc_distance: parseFloat(distance),
+            bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
             bkc_review_score_word: review_score_word,
             bkc_review_score: review_score,
             bkc_currency_code: currencycode,
@@ -631,7 +631,7 @@ export const getHotelDataFromBKC = async (
             lat: latitude,
             lng: longitude,
             address,
-            rating: review_score,
+            rating: review_score ?? 0,
             // coordinates: {
             //   // 경도와 위도 값을 넣어줍니다.
             //   // 예: 경도 126.9784, 위도 37.5665
@@ -718,7 +718,7 @@ export const getHotelDataFromBKC = async (
         bkc_city_name_en: city_name_en,
         bkc_checkin: checkin,
         bkc_checkout: checkout,
-        bkc_distance: parseFloat(distance),
+        bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
         bkc_review_score_word: review_score_word,
         bkc_review_score: review_score,
         bkc_currency_code: currencycode,
@@ -2383,9 +2383,11 @@ export const makeSchedule = async (
                 krRegionToCode[superRegion as keyof typeof krRegionToCode];
             }
 
-            if (!isNil(superRegion.match(/.+[시|군|구]$/))) {
+            if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
               regionCode2 =
-                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+                krRegionToCode[
+                  `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
+                ];
             }
 
             return {
@@ -2409,6 +2411,8 @@ export const makeSchedule = async (
     return null;
   })();
 
+  console.log(scanType);
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
@@ -2431,6 +2435,7 @@ export const makeSchedule = async (
           ],
         },
       },
+      /// 지역조건
       ...(() => {
         if (
           !isNil(scanType) &&
@@ -2466,6 +2471,7 @@ export const makeSchedule = async (
                 krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
             };
           });
+          console.log(condition);
           return {
             OR: condition,
           };
