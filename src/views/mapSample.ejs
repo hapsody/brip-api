@@ -8,6 +8,13 @@
     <script>
       let canvas, ctx;
 
+      let server_url = (() => {
+        let execute_env = '<%= process.env.EXECUTE_ENV %>';
+        if (execute_env === 'dev') return 'https://dev-api.idealbloom.co.kr';
+        else if (execute_env === 'prod') return 'https://api.idealbloom.co.kr';
+        return 'http://localhost:3000';
+      })();
+
       let gData; /// makeSchedule 전체 결과값
       let gIBparams; /// makeSchedule raw 결과값
       let gVisitSchedules; /// 생성된 일정
@@ -34,14 +41,18 @@
       const canvasWidth = 4800.0;
       const canvasHeight = 4800.0;
       /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
-      const clipMinLat = 33.109684; // 제주 지역만 필터링
-      const clipMaxLat = 33.650946;
-      const clipMinLng = 126.032175;
-      const clipMaxLng = 127.048411;
-      // const clipMinLat = 37.483403; // 서울 지역만 필터링
-      // const clipMaxLat = 37.655385;
-      // const clipMinLng = 126.796251;
-      // const clipMaxLng = 127.230211;
+      let clipMinLat = 33.109684; // 제주 지역만 필터링
+      let clipMaxLat = 33.650946;
+      let clipMinLng = 126.032175;
+      let clipMaxLng = 127.048411;
+      // let clipMinLat = 37.483403; // 서울 지역만 필터링
+      // let clipMaxLat = 37.655385;
+      // let clipMinLng = 126.796251;
+      // let clipMaxLng = 127.230211;
+      // let clipMinLat = 34.01941; // 한국 전국 지역 필터링
+      // let clipMaxLat = 38.81498;
+      // let clipMinLng = 125.350506;
+      // let clipMaxLng = 131.282937;
       let gRDistToPxLength;
       let gPlayMode = {
         /// 직전 load 또는 play 함수 실행할때 어떤 옵션으로 수행했었는가를 기록 이 값에 따라 clickCanvas 실행할때 결과값을 보고 있는 화면의 결과에 맞게 뿌려줌.
@@ -65,6 +76,201 @@
         'aqua',
         'gray',
       ];
+
+      $(document).ready(() => {
+        $('#scanRange').on('change', () => {
+          var val = $('#scanRange option:selected').text();
+          console.log(val);
+          /// 지도에 보여줄 필터링 위경도 범위, 이 범위값으로 spot 또는 food 항목 결과들을 필터링한다.
+          if (val === '전국') {
+            clipMinLat = 34.01941; // 한국 전국 지역 필터링
+            clipMaxLat = 38.81498;
+            clipMinLng = 125.350506;
+            clipMaxLng = 131.282937;
+          } else if (val === '서울') {
+            clipMinLat = 37.483403; // 서울 지역만 필터링
+            clipMaxLat = 37.655385;
+            clipMinLng = 126.796251;
+            clipMaxLng = 127.230211;
+          } else {
+            clipMinLat = 33.109684; // 제주 지역만 필터링
+            clipMaxLat = 33.650946;
+            clipMinLng = 126.032175;
+            clipMaxLng = 127.048411;
+          }
+        });
+
+        $('#runBtn').on('click', () => {
+          console.log('request makeSchedule to API Server...');
+          const startTime = new Date().getTime();
+          let endTime, diffTime;
+          $.ajax({
+            type: 'post',
+            url: `${server_url}/schedule/makeSchedule`,
+            async: true,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization:
+                'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im5vbk1lbWJlciIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjY0NTIwMzU4fQ.t_Bqt3yqDlInUZ29g6tFc3FVGcQ3pE6A47eqerPoJpw',
+            },
+            // data: JSON.stringify({
+            //   ingNow: 'ing',
+            //   companion: 'alone',
+            //   period: '30',
+            //   travelType: ['rest', 'healing', 'exploration'],
+            //   destination: 'recommend',
+            //   travelHard: '5',
+            // }),
+            data: JSON.stringify({
+              ingNow: 'ing',
+              companion: 'alone',
+              period: '15',
+              // travelType: ['activity'],
+              travelType: ['rest', 'activity'],
+              destination: 'recommend',
+              travelHard: '8',
+              scanRange: [
+                {
+                  minLat: clipMinLat.toString(),
+                  maxLat: clipMaxLat.toString(),
+                  minLng: clipMinLng.toString(),
+                  maxLng: clipMaxLng.toString(),
+                },
+              ],
+            }),
+            success: async function (result) {
+              // zoom(25); /// %
+              $(document).scrollTop($(document).height());
+              endTime = new Date().getTime();
+              diffTime = endTime - startTime;
+              console.log(`time diff: ${diffTime / 1000}s`);
+              gIBparams = result.IBparams;
+              gVisitSchedules = gIBparams.visitSchedules;
+              gResultMode = /// default spot
+                !gResultMode || gResultMode.length === 0 ? 'spot' : gResultMode;
+              console.log(gResultMode);
+              if (gResultMode === 'food') {
+                gData = result.IBparams.foodClusterRes;
+                gFoodsGeoLocation = gData.foodsGeoLocation;
+              } else {
+                gData = result.IBparams.spotClusterRes;
+                gSpotsGeoLocation = gData.spotsGeoLocation;
+              }
+              gFoodClusterRes = result.IBparams.foodClusterRes;
+              gSpotClusterRes = result.IBparams.spotClusterRes;
+
+              const {
+                centroids,
+                centHistoryByStage,
+                r,
+                nonDupCentroids,
+                validCentNSpots,
+                visitSchedules,
+              } = gData;
+
+              // gSpots = spotsGeoLocation;
+              // console.log(gSpots);
+              // gCentroids = centroids;
+              // gHistories = centHistoryByStage;
+              // gNonDupCentroids = nonDupCentroids;
+              gSpots = (
+                gResultMode === 'spot' ? gSpotsGeoLocation : gFoodsGeoLocation
+              ).filter(
+                v =>
+                  v.lat >= clipMinLat &&
+                  v.lat < clipMaxLat &&
+                  v.lng >= clipMinLng &&
+                  v.lng < clipMaxLng,
+              );
+              console.log(gSpots);
+              gCentroids = centroids;
+              gHistories = centHistoryByStage;
+              gNonDupCentroids = nonDupCentroids;
+              gValidCentroids = result.IBparams.spotClusterRes.validCentNSpots; /// foodClusterRes는 validCentNFoods가 없다.. validCent는 여행지를 기준으로만 한다. 호텔 검색이 여행지 기준이기 때문.
+              gSuperCentroids = result.IBparams.spotClusterRes.superCentroids;
+              console.log(gValidCentroids);
+
+              // gCentroids = centroids.filter(
+              //   v =>
+              //     v.lat >= clipMinLat &&
+              //     v.lat < clipMaxLat &&
+              //     v.lng >= clipMinLng &&
+              //     v.lng < clipMaxLng,
+              // );
+              // gHistories = centHistoryByStage.filter(
+              //   v =>
+              //     v.lat >= clipMinLat &&
+              //     v.lat < clipMaxLat &&
+              //     v.lng >= clipMinLng &&
+              //     v.lng < clipMaxLng,
+              // );
+              // gNonDupCentroids = nonDupCentroids.filter(
+              //   v =>
+              //     v.lat >= clipMinLat &&
+              //     v.lat < clipMaxLat &&
+              //     v.lng >= clipMinLng &&
+              //     v.lng < clipMaxLng,
+              // );
+              gRadius = r;
+
+              const { maxX, minX, maxY, minY } = await gSpots.reduce(
+                (result, spot) => {
+                  const x = spot.lng;
+                  const y = spot.lat;
+                  const newRes = { ...result };
+                  if (x >= newRes.maxX) newRes.maxX = x;
+                  if (x < newRes.minX) newRes.minX = x;
+                  if (y >= newRes.maxY) newRes.maxY = y;
+                  if (y < newRes.minY) newRes.minY = y;
+                  return newRes;
+                },
+                {
+                  maxX: -9999,
+                  minX: 9999,
+                  maxY: -9999,
+                  minY: 9999,
+                },
+              );
+              console.log(
+                `maxX:${maxX}, maxY:${maxY} \nminX:${minX}, minY:${minY}`,
+              );
+
+              blankSizeX = (maxX - minX) / blankMultiplier;
+              blankSizeY = (maxY - minY) / blankMultiplier;
+
+              gMaxX = maxX + blankSizeX;
+              gMinX = minX - blankSizeX;
+              gMaxY = maxY + blankSizeY;
+              gMinY = minY - blankSizeY;
+
+              gDistributionThickness = (() => {
+                /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
+                if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
+                  return gMaxX - gMinX;
+                } else {
+                  return gMaxY - gMinY;
+                }
+              })();
+
+              const geo = await estGeoLocFromMeter(gRadius);
+              const { x } = geoLocToCoord(geo);
+              console.log(x);
+              radiusCircleSize = x;
+              // both();
+              playDemo();
+            },
+            error: function (request, status, error) {
+              console.log(request);
+              console.log(status);
+              console.log(error);
+            },
+          });
+        });
+
+        function zoom(nowZoom) {
+          document.body.style.zoom = nowZoom + '%';
+        }
+      });
 
       /// 캔버스를 클릭했을때 생기는 반경안에 속한 요소 또는 클러스터들의 정보를 필터링 반환하는 함수
       function clickCanvas(event) {
@@ -213,156 +419,6 @@
         }
         console.log(gFilteredRes);
       }
-
-      const startTime = new Date().getTime();
-      let endTime, diffTime;
-      $.ajax({
-        type: 'post',
-        url: 'http://localhost:3000/schedule/makeSchedule',
-        async: true,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization:
-            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im5vbk1lbWJlciIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjY0NTIwMzU4fQ.t_Bqt3yqDlInUZ29g6tFc3FVGcQ3pE6A47eqerPoJpw',
-        },
-        // data: JSON.stringify({
-        //   ingNow: 'ing',
-        //   companion: 'alone',
-        //   period: '30',
-        //   travelType: ['rest', 'healing', 'exploration'],
-        //   destination: 'recommend',
-        //   travelHard: '5',
-        // }),
-        data: JSON.stringify({
-          ingNow: 'ing',
-          companion: 'alone',
-          period: '15',
-          travelType: ['rest', 'meeting', 'activity'],
-          destination: 'recommend',
-          travelHard: '8',
-        }),
-        success: async function (result) {
-          endTime = new Date().getTime();
-          diffTime = endTime - startTime;
-          console.log(`time diff: ${diffTime / 1000}s`);
-          gIBparams = result.IBparams;
-          gVisitSchedules = gIBparams.visitSchedules;
-          gResultMode = /// default spot
-            !gResultMode || gResultMode.length === 0 ? 'spot' : gResultMode;
-          console.log(gResultMode);
-          if (gResultMode === 'food') {
-            gData = result.IBparams.foodClusterRes;
-            gFoodsGeoLocation = gData.foodsGeoLocation;
-          } else {
-            gData = result.IBparams.spotClusterRes;
-            gSpotsGeoLocation = gData.spotsGeoLocation;
-          }
-          gFoodClusterRes = result.IBparams.foodClusterRes;
-          gSpotClusterRes = result.IBparams.spotClusterRes;
-
-          const {
-            centroids,
-            centHistoryByStage,
-            r,
-            nonDupCentroids,
-            validCentNSpots,
-            visitSchedules,
-          } = gData;
-
-          // gSpots = spotsGeoLocation;
-          // console.log(gSpots);
-          // gCentroids = centroids;
-          // gHistories = centHistoryByStage;
-          // gNonDupCentroids = nonDupCentroids;
-          gSpots = (
-            gResultMode === 'spot' ? gSpotsGeoLocation : gFoodsGeoLocation
-          ).filter(
-            v =>
-              v.lat >= clipMinLat &&
-              v.lat < clipMaxLat &&
-              v.lng >= clipMinLng &&
-              v.lng < clipMaxLng,
-          );
-          console.log(gSpots);
-          gCentroids = centroids;
-          gHistories = centHistoryByStage;
-          gNonDupCentroids = nonDupCentroids;
-          gValidCentroids = result.IBparams.spotClusterRes.validCentNSpots; /// foodClusterRes는 validCentNFoods가 없다.. validCent는 여행지를 기준으로만 한다. 호텔 검색이 여행지 기준이기 때문.
-          gSuperCentroids = result.IBparams.spotClusterRes.superCentroids;
-          console.log(gValidCentroids);
-
-          // gCentroids = centroids.filter(
-          //   v =>
-          //     v.lat >= clipMinLat &&
-          //     v.lat < clipMaxLat &&
-          //     v.lng >= clipMinLng &&
-          //     v.lng < clipMaxLng,
-          // );
-          // gHistories = centHistoryByStage.filter(
-          //   v =>
-          //     v.lat >= clipMinLat &&
-          //     v.lat < clipMaxLat &&
-          //     v.lng >= clipMinLng &&
-          //     v.lng < clipMaxLng,
-          // );
-          // gNonDupCentroids = nonDupCentroids.filter(
-          //   v =>
-          //     v.lat >= clipMinLat &&
-          //     v.lat < clipMaxLat &&
-          //     v.lng >= clipMinLng &&
-          //     v.lng < clipMaxLng,
-          // );
-          gRadius = r;
-
-          const { maxX, minX, maxY, minY } = await gSpots.reduce(
-            (result, spot) => {
-              const x = spot.lng;
-              const y = spot.lat;
-              const newRes = { ...result };
-              if (x >= newRes.maxX) newRes.maxX = x;
-              if (x < newRes.minX) newRes.minX = x;
-              if (y >= newRes.maxY) newRes.maxY = y;
-              if (y < newRes.minY) newRes.minY = y;
-              return newRes;
-            },
-            {
-              maxX: -9999,
-              minX: 9999,
-              maxY: -9999,
-              minY: 9999,
-            },
-          );
-          console.log(
-            `maxX:${maxX}, maxY:${maxY} \nminX:${minX}, minY:${minY}`,
-          );
-
-          blankSizeX = (maxX - minX) / blankMultiplier;
-          blankSizeY = (maxY - minY) / blankMultiplier;
-
-          gMaxX = maxX + blankSizeX;
-          gMinX = minX - blankSizeX;
-          gMaxY = maxY + blankSizeY;
-          gMinY = minY - blankSizeY;
-
-          gDistributionThickness = (() => {
-            /// 좌우 또는 상하 위경도 차이값 중 큰 값(distributionThickness) 대비 캔버스 화면의 비율로 위경도를 x,y좌표로 표현한다.
-            if (gMaxX - gMinX - (gMaxY - gMinY) > 0) {
-              return gMaxX - gMinX;
-            } else {
-              return gMaxY - gMinY;
-            }
-          })();
-
-          const geo = await estGeoLocFromMeter(gRadius);
-          const { x } = geoLocToCoord(geo);
-          console.log(x);
-          radiusCircleSize = x;
-          // both();
-        },
-        error: function (request, status, error) {
-          console.log(error);
-        },
-      });
     </script>
 
     <script>
@@ -537,14 +593,15 @@
           };
         }
         return {
-          lat: undefined,
-          lng: undefined,
+          lat: spot.lat,
+          lng: spot.lng,
         };
       };
       let prevData;
 
       const drawLinedItems = item => {
         return new Promise(resolve => {
+          console.log(item);
           const dayNo = item.dayNo;
           const orderNo = item.orderNo;
           const data = item.data?.at(0);
@@ -906,7 +963,11 @@
           console.log(`***** dayNo: ${dayNo} *****`);
           console.log(`***********************`);
           for await (const orderData of gVisitSchedules[dayNo].titleList) {
-            await drawLinedItems(orderData);
+            await drawLinedItems({
+              ...orderData,
+              dayNo,
+              transitionNo: gVisitSchedules[dayNo].transitionNo,
+            });
           }
         } else {
           for await (const dayData of gVisitSchedules) {
@@ -914,7 +975,11 @@
             console.log(`***** dayNo: ${dayData.dayNo} *****`);
             console.log(`******************`);
             for await (const orderData of dayData.titleList) {
-              await drawLinedItems(orderData);
+              await drawLinedItems({
+                ...orderData,
+                dayNo: dayData.dayNo,
+                transitionNo: dayData.transitionNo,
+              });
             }
           }
         }
@@ -927,9 +992,10 @@
             lat: s.superCent.lat,
             lng: s.superCent.lng,
             color: 'green',
-            size: 30,
+            size: 300,
             text: `${i++}`,
             blink: false,
+            alpha: 0.2,
           });
 
           const radiusGeo = await estGeoLocFromMeter(s.superCent.maxDistance);
@@ -959,29 +1025,88 @@
           clearInterval(id);
         });
       }
+
+      async function playDemo() {
+        stop();
+        let sleepFunc = async (time = 5000) => {
+          return new Promise(resolve => {
+            setTimeout(() => {
+              resolve(true);
+            }, time);
+          });
+        };
+
+        console.log('load');
+        load();
+        await sleepFunc(2000);
+
+        console.log('play');
+        play({ nonDup: true });
+        await sleepFunc(4000);
+
+        console.log('markValidCentroids');
+        markValidCentroids();
+        await sleepFunc(4000);
+
+        console.log('superCentroids');
+
+        load();
+        markSuperCentroids();
+
+        await sleepFunc(3000);
+
+        console.log('visitSchedule');
+
+        markSuperCentroids();
+        markVisitSchedule();
+
+        await sleepFunc(2000);
+      }
     </script>
+    <style>
+      * {
+        font-size: 3.5rem;
+      }
+    </style>
   </head>
-  <body style="margin: 0">
-    <canvas id="spotCanvas" width="4800" height="4800" margin> </canvas>
+
+  <body style="margin: 0; position: relative">
+    <div style="position: absolute; z-index: 999">
+      <select id="scanRange" name="scanRange">
+        <option value="제주" selected="selected">제주도</option>
+        <option value="서울">서울</option>
+        <option value="전국">전국</option>
+      </select>
+      <button id="runBtn">run</button>
+    </div>
+
+    <canvas
+      id="spotCanvas"
+      width="4800"
+      height="4800"
+      margin
+      style="position: absolute; left: 0; border: 2px solid black"
+    >
+    </canvas>
     <canvas
       id="clickCheckCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 0; left: 0"
+      style="position: absolute; left: 0; border: 2px solid black"
     >
     </canvas>
     <canvas
       id="markPointCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 0; left: 0"
+      style="position: absolute; left: 0; border: 2px solid black"
     >
     </canvas>
     <canvas
       id="historyCanvas"
       width="4800"
       height="4800"
-      style="position: absolute; top: 0; left: 0"
+      style="position: absolute; left: 0; border: 2px solid black"
       onClick="clickCanvas(window.event)"
     >
     </canvas>

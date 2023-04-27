@@ -48,6 +48,18 @@
       "name": "test seed:tourPlace",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn batch:dupCheck",
+      "name": "test batch:dupCheck",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "yarn batch:areaCodeAsign",
+      "name": "test batch:areaCodeAsign",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

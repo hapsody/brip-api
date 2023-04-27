@@ -4,7 +4,8 @@ import faqList from './faqList/faqList';
 import tripMemoryCategory from './tripMemoryCategory/tripMemoryCategory';
 import shareTripMemory from './shareTripMemory/shareTripMemory';
 import iBTravelTag from './iBTravelTag/iBTravelTag';
-// import tourPlace from './tourPlace';
+// import tourPlace from './tourPlace'; /// big size data
+import iBEventPromotion from './iBEventPromotion/iBEventPromotion';
 
 const abcd = async () => {
   await userSeed();
@@ -13,6 +14,7 @@ const abcd = async () => {
   await tripMemoryCategory();
   await shareTripMemory();
   await iBTravelTag();
+  await iBEventPromotion();
 };
 
 abcd().catch(e => {

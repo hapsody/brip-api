@@ -5,6 +5,7 @@ import passport from 'passport';
 import path from 'path';
 import compression from 'compression';
 import dotenv from 'dotenv';
+// import fs from 'fs';
 // import cors from 'cors';
 import authRouter from './routes/auth';
 import scheduleRouter from './routes/schedule';
@@ -13,6 +14,7 @@ import settingRouter from './routes/setting';
 import tripNetworkRouter from './routes/tripNetwork';
 import devRouter from './routes/dev';
 import utilRouter from './routes/util';
+import eventRouter from './routes/event';
 
 import passportConfig from './passport';
 
@@ -32,6 +34,15 @@ app.use(compression({ filter: shouldCompress }));
 dotenv.config();
 app.use(express.json());
 app.use(morgan('dev'));
+// /// create a write stream (in append mode)
+// const accessLogStream = fs.createWriteStream(
+//   path.join(__dirname, 'access.log'),
+//   {
+//     flags: 'a',
+//   },
+// );
+// /// setup the logger
+// app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET || 'default_cookie_secret_16'));
 
@@ -62,6 +73,7 @@ app.use('/setting', settingRouter);
 app.use('/tripNetwork', tripNetworkRouter);
 app.use('/dev', devRouter);
 app.use('/util', utilRouter);
+app.use('/event', eventRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

@@ -9,6 +9,9 @@ import {
   getNDaysLater,
   IBContext,
   getS3SignedUrl,
+  ibTravelTagCategorize,
+  // getBoundingBox,
+  getDistFromTwoGeoLoc,
 } from '@src/utils';
 import axios, { Method } from 'axios';
 import {
@@ -18,16 +21,17 @@ import {
   PlaceType,
   IBPhotos,
   IBTravelTag,
+  Prisma,
 } from '@prisma/client';
+import { krRegionToCode, krCodeToRegion } from '@src/utils/IBDefinitions';
 import {
   isNumber,
-  isNil,
   isEmpty,
   isNaN,
   isUndefined,
   omit,
   flattenDeep,
-  isNull,
+  isNil,
 } from 'lodash';
 import {
   GetHotelDataFromBKCREQParam,
@@ -64,6 +68,7 @@ import {
   GetScheduleListRETParamPayload,
   SaveScheduleREQParam,
   SaveScheduleRETParamPayload,
+  DelScheduleREQParam,
   GetDayScheduleREQParam,
   GetDayScheduleRETParamPayload,
   GetDetailScheduleREQParam,
@@ -71,7 +76,6 @@ import {
   GglPlaceDetailType,
   GetPlaceDetailRawData,
   GooglePriceLevel,
-  GooglePlaceReview,
   // GetRcmdListHotelOpt,
   GetCandidateScheduleREQParam,
   GetCandidateScheduleRETParamPayload,
@@ -102,7 +106,71 @@ import {
   VisitPlaceType,
   GetEstimatedCostREQParam,
   GetEstimatedCostRETParamPayload,
+  ChangeScheduleTitleREQParam,
+  ChangeScheduleTitleRETParamPayload,
 } from './types/schduleTypes';
+
+/**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getThumbnailUrlFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<string> => {
+  if (photos.length > 0) {
+    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
+      /// 직접접근 링크 url이 존재하는 경우
+      return photos[0].url;
+    }
+
+    if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
+      /// s3 key가 존재하는 경우
+      const signedUrl = await getS3SignedUrl(photos[0].key);
+      return signedUrl;
+    }
+  }
+  return 'none';
+};
+
+/**
+ *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
+ * @param param
+ * @returns
+ */
+export const getImgUrlListFromIBPhotos = async (
+  photos: IBPhotos[],
+): Promise<
+  // {
+  //   id: string;
+  //   url: string;
+  // }[]
+  Partial<IBPhotos>[]
+> => {
+  const result = await Promise.all(
+    photos.map(async p => {
+      return {
+        id: p.id,
+        url: await (async (): Promise<string> => {
+          if (photos.length > 0) {
+            if (!isNil(p.url) && !isEmpty(p.url)) {
+              /// 직접접근 링크 url이 존재하는 경우
+              return p.url;
+            }
+
+            if (!isNil(p.key) && !isEmpty(p.key)) {
+              /// s3 key가 존재하는 경우
+              const signedUrl = await getS3SignedUrl(p.key);
+              return signedUrl;
+            }
+          }
+          return 'none';
+        })(),
+      } as Partial<IBPhotos>;
+    }),
+  );
+  return result;
+};
 
 /**
  * inner utils
@@ -228,6 +296,7 @@ export const getChildNumber = (familyOpt: string[]): number =>
   familyOpt.find(v => v.toUpperCase().includes('CHILD')) ? 1 : 0;
 export const getInfantNumber = (familyOpt: string[]): number =>
   familyOpt.find(v => v.toUpperCase().includes('INFANT')) ? 1 : 0;
+
 export const getAdultNumber = ({
   companion,
   familyOpt,
@@ -262,6 +331,7 @@ export const getAdultNumber = ({
   }
   return 2;
 };
+
 export const getRoomNumber = ({
   companion,
   familyOpt,
@@ -557,6 +627,17 @@ export const getHotelDataFromBKC = async (
             bkc_hotel_facilities: hotel_facilities,
             // has_swimming_pool,
 
+            title: hotel_name,
+            lat: latitude,
+            lng: longitude,
+            address,
+            rating: review_score,
+            // coordinates: {
+            //   // 경도와 위도 값을 넣어줍니다.
+            //   // 예: 경도 126.9784, 위도 37.5665
+            //   set: [longitude, latitude],
+            // },
+
             queryParams: {
               connect: {
                 id: queryParamsId,
@@ -763,7 +844,7 @@ export const qryPlaceDataToGglTxtSrch = async (
  * 이때 사용할 끝 페이지까지 계속해서 자동으로 TextSearch를를 요청하는 함수
  *
  * (구) getAllTextSearchPages
- * @param
+ * updatedScheduleBank
  * @returns
  */
 // export const getAllPlaceDataFromGGLPlaceAPI = async (
@@ -924,7 +1005,7 @@ export const getPlaceByGglTxtSrch = async (
               : 'GL_RESTAURANT',
 
           /// 통합 필수 필드
-          title: item.name,
+          title: item.name!,
           lat: item.geometry?.location?.lat,
           lng: item.geometry?.location?.lng,
           address: item.formatted_address ?? item.vicinity ?? undefined,
@@ -960,58 +1041,9 @@ export const getPlaceByGglTxtSrch = async (
               return undefined;
             })(),
           },
+          gl_place_id: item.place_id,
           rating: isNil(item.rating) ? 0 : item.rating,
           desc: undefined,
-
-          gl_lat: item.geometry?.location?.lat,
-          gl_lng: item.geometry?.location?.lng,
-          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
-          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
-          gl_icon: item.icon,
-          gl_icon_background_color: item.icon_background_color,
-          gl_icon_mask_base_uri: item.icon_mask_base_uri,
-          gl_name: item.name,
-          gl_opening_hours:
-            (
-              item.opening_hours as Partial<{
-                open_now: boolean;
-              }>
-            )?.open_now ?? false,
-          gl_place_id: item.place_id,
-          gl_price_level: item.price_level,
-          gl_rating: item.rating,
-          gl_types: (() => {
-            return item.types
-              ? {
-                  connectOrCreate: item.types?.map(type => {
-                    return {
-                      create: { value: type },
-                      where: { value: type },
-                    };
-                  }),
-                }
-              : {
-                  create: {
-                    value: 'Not Applicaple',
-                  },
-                };
-          })(),
-          gl_user_ratings_total: item.user_ratings_total,
-          gl_vicinity: item.vicinity,
-          gl_formatted_address: item.formatted_address,
-          gl_photos: {
-            // create: await getPlacePhoto(item),
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributions: JSON.stringify(photo.html_attributions),
-                photo_reference:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
-          },
           ...(batchJobCtx &&
             batchJobCtx.batchQueryParamsId && {
               batchQueryParams: {
@@ -1046,87 +1078,11 @@ export const getPlaceByGglTxtSrch = async (
                   },
                 },
               },
-              ibTravelTag: await (async () => {
-                const {
-                  ibType: { typePath, minDifficulty, maxDifficulty },
-                } = batchJobCtx;
-                const types = typePath.split('>').reverse();
-                // const leafType = types[types.length - 1];
-                let firstCreatedId = 0;
-                let subType: IBTravelTag | null = null;
-
-                // eslint-disable-next-line no-restricted-syntax
-                for await (const type of types) {
-                  const curIBTType = await prisma.$transaction(
-                    // eslint-disable-next-line @typescript-eslint/no-loop-func
-                    async tx => {
-                      let cur = await tx.iBTravelTag.findUnique({
-                        where: {
-                          value: type,
-                        },
-                      });
-                      if (!cur) {
-                        cur = await tx.iBTravelTag.create({
-                          data: {
-                            value: type,
-                            minDifficulty,
-                            maxDifficulty,
-                          },
-                        });
-                        console.log(cur);
-                      }
-
-                      /// firstCreated는 가장 먼저 처리된 말단 태그(가장 세분류 태그 ex) oceanActivity>beach 이면 beach 태그)
-                      if (firstCreatedId === 0) {
-                        firstCreatedId = cur.id;
-                      }
-
-                      /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
-                      /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
-                      if (subType !== null) {
-                        cur = await tx.iBTravelTag.update({
-                          where: {
-                            id: cur.id,
-                          },
-                          data: {
-                            minDifficulty:
-                              cur.minDifficulty! > subType.minDifficulty!
-                                ? subType.minDifficulty
-                                : cur.minDifficulty,
-                            maxDifficulty:
-                              cur.maxDifficulty! < subType.maxDifficulty!
-                                ? subType.maxDifficulty
-                                : cur.maxDifficulty,
-                            ...(!isNull(subType) && {
-                              related: {
-                                connectOrCreate: {
-                                  where: {
-                                    fromId_toId: {
-                                      fromId: cur.id,
-                                      toId: subType.id,
-                                    },
-                                  },
-                                  create: {
-                                    toId: subType.id,
-                                  },
-                                },
-                              },
-                            }),
-                          },
-                        });
-                      }
-                      return cur;
-                    },
-                  );
-                  subType = curIBTType!;
-                }
-                // lastCreatedId = subType!.id;
-                return {
-                  connect: {
-                    id: firstCreatedId,
-                  },
-                };
-              })(),
+              ibTravelTag: {
+                connect: {
+                  id: await ibTravelTagCategorize(batchJobCtx),
+                },
+              },
             }),
         },
       });
@@ -1182,55 +1138,46 @@ export const getPlaceByGglNrby = async (
             ) === -1
               ? 'GL_SPOT'
               : 'GL_RESTAURANT',
-          gl_lat: item.geometry?.location?.lat,
-          gl_lng: item.geometry?.location?.lng,
-          gl_viewport_ne_lat: item.geometry?.viewport?.northeast?.lat,
-          gl_viewport_ne_lng: item.geometry?.viewport?.northeast?.lng,
-          gl_icon: item.icon,
-          gl_icon_background_color: item.icon_background_color,
-          gl_icon_mask_base_uri: item.icon_mask_base_uri,
-          gl_name: item.name,
-          gl_opening_hours:
-            (
-              item.opening_hours as Partial<{
-                open_now: boolean;
-              }>
-            )?.open_now ?? false,
           gl_place_id: item.place_id,
-          gl_price_level: item.price_level,
-          gl_rating: item.rating,
-          gl_types: (() => {
-            return item.types
-              ? {
-                  connectOrCreate: item.types?.map(type => {
-                    return {
-                      create: { value: type },
-                      where: { value: type },
-                    };
-                  }),
-                }
-              : {
-                  create: {
-                    value: 'Not Applicaple',
-                  },
-                };
-          })(),
-          gl_user_ratings_total: item.user_ratings_total,
-          gl_vicinity: item.vicinity,
-          gl_formatted_address: item.formatted_address,
-          gl_photos: {
-            // create: await getPlacePhoto(item),
-            create: item.photos?.map(photo => {
-              return {
-                height: photo.height,
-                width: photo.width,
-                html_attributions: JSON.stringify(photo.html_attributions),
-                photo_reference:
-                  (photo as Partial<{ photo_reference: string }>)
-                    .photo_reference ?? '',
-              };
-            }),
+          /// 통합 필수 필드
+          title: item.name!,
+          lat: item.geometry?.location?.lat,
+          lng: item.geometry?.location?.lng,
+          address: item.formatted_address ?? item.vicinity ?? undefined,
+          roadAddress: undefined,
+          openWeek: undefined,
+          contact: undefined,
+          postcode: undefined,
+          photos: {
+            create: await (async () => {
+              if (!isNil(item.photos) && !isEmpty(item.photos)) {
+                return item.photos?.map(photo => {
+                  return {
+                    url:
+                      (photo as Partial<{ photo_reference: string }>)
+                        .photo_reference ?? '',
+                  };
+                });
+              }
+
+              if (item.place_id) {
+                const detailData: GglPlaceDetailType = await getPlaceDetail({
+                  placeId: item.place_id,
+                });
+
+                return isNil(detailData?.photos)
+                  ? undefined
+                  : detailData?.photos.map(v => {
+                      return {
+                        url: v.photo_reference,
+                      };
+                    });
+              }
+              return undefined;
+            })(),
           },
+          rating: isNil(item.rating) ? 0 : item.rating,
+          desc: undefined,
           ...(batchJobCtx &&
             batchJobCtx.batchQueryParamsId && {
               batchQueryParams: {
@@ -1292,6 +1239,7 @@ export const getVisitJejuData = async (
   }`;
   const jejuRawRes = await axios.get(option);
   console.log(option);
+
   const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
 
   return jejuRes;
@@ -1305,40 +1253,213 @@ export const getAllPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   console.log(param);
-  const { loadAll } = param;
+  const { loadAll, batchJobCtx } = param;
 
   let curRes = await getVisitJejuData(param);
-  let nextPage = (curRes.currentPage ?? 1) + 1;
+  // let nextPage = (curRes.currentPage ?? 1) + 1;
   const allRes: GetPlaceDataFromVJRETParamPayload = { ...curRes };
 
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let nextPage = (curRes.currentPage ?? 1) + 1;
+      return {
+        async next() {
+          // eslint-disable-next-line no-await-in-loop
+          const nextRes = await getVisitJejuData({
+            ...param,
+            page: nextPage,
+          });
+          nextPage += 1;
+
+          if (
+            curRes.currentPage &&
+            curRes.pageCount &&
+            curRes.currentPage < curRes.pageCount
+          ) {
+            return { value: nextRes, done: false };
+          }
+          return { value: nextRes, done: true };
+        },
+      };
+    },
+  };
+
   if (loadAll) {
-    while (
-      curRes.currentPage &&
-      curRes.pageCount &&
-      curRes.currentPage < curRes.pageCount
-    ) {
-      // eslint-disable-next-line no-await-in-loop
-      const nextRes = await getVisitJejuData({
-        ...param,
-        page: nextPage,
-      });
+    // while (
+    //   curRes.currentPage &&
+    //   curRes.pageCount &&
+    //   curRes.currentPage < curRes.pageCount
+    // ) {
+    // // eslint-disable-next-line no-await-in-loop
+    // const nextRes = await getVisitJejuData({
+    //   ...param,
+    //   page: nextPage,
+    // });
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const nextRes of asyncIterable) {
       if (
         allRes.items &&
         allRes.items.length > 0 &&
         nextRes.items &&
         nextRes.items.length > 0
       ) {
-        allRes.items = [...allRes.items, ...nextRes.items];
-        if (allRes.resultCount) {
-          allRes.resultCount += nextRes.resultCount ?? 0;
-        }
-        if (allRes.currentPage) {
-          allRes.currentPage = nextRes.currentPage ?? 1;
-        }
+        if (param.store) {
+          const { items: rawItems } = curRes;
 
-        curRes = { ...nextRes };
-        nextPage += 1;
+          /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
+          const items = rawItems!.filter(
+            v => !v.contentscd?.label.includes('숙박') ?? false,
+          );
+
+          /// 배치 스크립트로 store 옵션과 함께 실행되면
+          /// 기존 사용중인 데이터는 ARCHIVED가 되고
+          /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+          if (batchJobCtx && !isEmpty(batchJobCtx)) {
+            const updatedPromises =
+              items &&
+              items.map(item => {
+                const promise = prisma.tourPlace.updateMany({
+                  where: {
+                    vj_contentsid: item.contentsid,
+                    status: 'IN_USE',
+                    tourPlaceType: {
+                      in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'],
+                    },
+                  },
+                  data: {
+                    status: 'ARCHIVED',
+                  },
+                });
+                return promise;
+              });
+            // eslint-disable-next-line no-await-in-loop
+            if (updatedPromises) {
+              await prisma.$transaction(updatedPromises);
+            }
+          }
+
+          console.log(
+            `visitJeju page의 항목과 동일한 DB가 있는지 대조하여 상태값을 업데이트 완료.. in ${
+              curRes.currentPage ?? 'undefined'
+            } page `,
+          );
+          // eslint-disable-next-line no-await-in-loop
+          await Promise.all([
+            new Promise<void>(resolve => {
+              setTimeout(() => {
+                resolve();
+              }, 50);
+            }),
+          ]);
+
+          const createPromises =
+            items &&
+            items
+              .map(item => {
+                if (isNil(item.latitude) || isNil(item.longitude)) return null;
+                const promise = prisma.tourPlace.create({
+                  data: {
+                    status:
+                      batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
+                    tourPlaceType:
+                      item.contentscd?.label === '음식점'
+                        ? 'VISITJEJU_RESTAURANT'
+                        : 'VISITJEJU_SPOT',
+
+                    /// 통합 필수 필드
+                    title: item.title!,
+                    lat: item.latitude,
+                    lng: item.longitude,
+                    address: item.address,
+                    roadAddress: item.roadaddress,
+                    openWeek: undefined,
+                    contact: item.phoneno,
+                    postcode: item.postcode,
+                    ...(item.repPhoto?.photoid?.imgpath && {
+                      photos: {
+                        create: {
+                          url: item.repPhoto?.photoid?.imgpath,
+                        },
+                      },
+                    }),
+
+                    rating: undefined,
+                    desc: item.introduction,
+
+                    vj_contentsid: item.contentsid as string,
+                    ...(batchJobCtx &&
+                      batchJobCtx.batchQueryParamsId && {
+                        batchQueryParams: {
+                          connectOrCreate: {
+                            where: {
+                              id: batchJobCtx.batchQueryParamsId,
+                            },
+                            create: {
+                              // keyword: queryReqParams?.textSearchReqParams?.keyword,
+                              latitude: undefined,
+                              longitude: undefined,
+                              radius: undefined,
+                              searchkeyword: {
+                                connectOrCreate: {
+                                  where: {
+                                    keyword: '',
+                                  },
+                                  create: {
+                                    keyword: '',
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      }),
+                  },
+                });
+                return promise;
+              })
+              .filter(
+                (v): v is Prisma.Prisma__TourPlaceClient<TourPlace> =>
+                  v !== null,
+              );
+
+          const createdList =
+            // eslint-disable-next-line no-await-in-loop
+            createPromises && (await prisma.$transaction(createPromises));
+
+          console.log(
+            `visitJeju page의 항목을 DB에 생성 완료 in ${
+              curRes.currentPage ?? 'undefined'
+            } page `,
+          );
+
+          // eslint-disable-next-line no-await-in-loop
+          await Promise.all([
+            new Promise<void>(resolve => {
+              setTimeout(() => {
+                resolve();
+              }, 50);
+            }),
+          ]);
+
+          if (!createdList) {
+            console.error('반환된 visitJeju searchList 결과값이 없습니다.');
+          }
+        }
+        // curRes = { ...nextRes };
+
+        // allRes.items = [...allRes.items, ...nextRes.items];
+        // if (allRes.resultCount) {
+        //   allRes.resultCount += nextRes.resultCount ?? 0;
+        // }
+        // if (allRes.currentPage) {
+        //   allRes.currentPage = nextRes.currentPage ?? 1;
+        // }
+
+        // curRes = { ...nextRes };
+        // nextPage += 1;
       }
+      curRes = { ...nextRes };
     }
   }
 
@@ -1352,144 +1473,144 @@ export const getAllPlaceDataFromVJ = async (
 export const getPlaceDataFromVJ = async (
   param: GetPlaceDataFromVJREQParam,
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
-  const { batchJobCtx } = param;
+  // const { batchJobCtx } = param;
 
   const jejuRes = await getAllPlaceDataFromVJ(param);
 
-  /// store data to db
-  if (param.store) {
-    const { items: rawItems } = jejuRes;
+  // /// store data to db
+  // if (param.store) {
+  //   const { items: rawItems } = jejuRes;
 
-    /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
-    const items = rawItems!.filter(
-      v => !v.contentscd?.label.includes('숙박') ?? false,
-    );
+  //   /// 숙박시설은 VISITJEJU_RESTAURANT나 VISITJEJU_SPOT에서 제외함
+  //   const items = rawItems!.filter(
+  //     v => !v.contentscd?.label.includes('숙박') ?? false,
+  //   );
 
-    /// 배치 스크립트로 store 옵션과 함께 실행되면
-    /// 기존 사용중인 데이터는 ARCHIVED가 되고
-    /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
-    if (batchJobCtx && !isEmpty(batchJobCtx)) {
-      const updatedPromises =
-        items &&
-        items.map(item => {
-          const promise = prisma.tourPlace.updateMany({
-            where: {
-              vj_contentsid: item.contentsid,
-              status: 'IN_USE',
-              tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'] },
-            },
-            data: {
-              status: 'ARCHIVED',
-            },
-          });
-          return promise;
-        });
-      if (updatedPromises) await prisma.$transaction(updatedPromises);
-    }
+  //   /// 배치 스크립트로 store 옵션과 함께 실행되면
+  //   /// 기존 사용중인 데이터는 ARCHIVED가 되고
+  //   /// 배치 스크립트로 새로 수집된 데이터가 IN_USE가 된다.
+  //   if (batchJobCtx && !isEmpty(batchJobCtx)) {
+  //     const updatedPromises =
+  //       items &&
+  //       items.map(item => {
+  //         const promise = prisma.tourPlace.updateMany({
+  //           where: {
+  //             vj_contentsid: item.contentsid,
+  //             status: 'IN_USE',
+  //             tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'VISITJEJU_SPOT'] },
+  //           },
+  //           data: {
+  //             status: 'ARCHIVED',
+  //           },
+  //         });
+  //         return promise;
+  //       });
+  //     if (updatedPromises) await prisma.$transaction(updatedPromises);
+  //   }
 
-    const createPromises =
-      items &&
-      items.map(item => {
-        const promise = prisma.tourPlace.create({
-          data: {
-            status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
-            tourPlaceType:
-              item.contentscd?.label === '음식점'
-                ? 'VISITJEJU_RESTAURANT'
-                : 'VISITJEJU_SPOT',
+  //   const createPromises =
+  //     items &&
+  //     items.map(item => {
+  //       const promise = prisma.tourPlace.create({
+  //         data: {
+  //           status: batchJobCtx && !isEmpty(batchJobCtx) ? 'IN_USE' : 'NEW',
+  //           tourPlaceType:
+  //             item.contentscd?.label === '음식점'
+  //               ? 'VISITJEJU_RESTAURANT'
+  //               : 'VISITJEJU_SPOT',
 
-            /// 통합 필수 필드
-            title: item.title,
-            lat: item.latitude,
-            lng: item.longitude,
-            address: item.address,
-            roadAddress: item.roadaddress,
-            openWeek: undefined,
-            contact: item.phoneno,
-            postcode: item.postcode,
-            ...(item.repPhoto?.photoid?.imgpath && {
-              photos: {
-                create: {
-                  url: item.repPhoto?.photoid?.imgpath,
-                },
-              },
-            }),
+  //           /// 통합 필수 필드
+  //           title: item.title,
+  //           lat: item.latitude,
+  //           lng: item.longitude,
+  //           address: item.address,
+  //           roadAddress: item.roadaddress,
+  //           openWeek: undefined,
+  //           contact: item.phoneno,
+  //           postcode: item.postcode,
+  //           ...(item.repPhoto?.photoid?.imgpath && {
+  //             photos: {
+  //               create: {
+  //                 url: item.repPhoto?.photoid?.imgpath,
+  //               },
+  //             },
+  //           }),
 
-            rating: undefined,
-            desc: item.introduction,
+  //           rating: undefined,
+  //           desc: item.introduction,
 
-            vj_contentsid: item.contentsid as string,
-            vj_contentscdLabel: item.contentscd?.label,
-            vj_contentscdValue: item.contentscd?.value,
-            vj_contentscdRefId: item.contentscd?.refId,
-            vj_title: item.title,
-            vj_region1cdLabel: item.region1cd?.label,
-            vj_region1cdValue: item.region1cd?.value,
-            vj_region1cdRefId: item.region1cd?.refId,
-            vj_region2cdLabel: item.region2cd?.label,
-            vj_region2cdValue: item.region2cd?.value,
-            vj_region2cdRefId: item.region2cd?.refId,
-            vj_address: item.address,
-            vj_roadaddress: item.roadaddress,
-            vj_tag: {
-              ...(item.tag && {
-                connectOrCreate: item.tag.split(',').map(v => {
-                  return {
-                    where: {
-                      value: v,
-                    },
-                    create: {
-                      value: v,
-                    },
-                  };
-                }),
-              }),
-            },
-            vj_introduction: item.introduction,
-            vj_latitude: item.latitude,
-            vj_longitude: item.longitude,
-            vj_postcode: item.postcode,
-            vj_phoneno: item.phoneno,
-            ...(batchJobCtx &&
-              batchJobCtx.batchQueryParamsId && {
-                batchQueryParams: {
-                  connectOrCreate: {
-                    where: {
-                      id: batchJobCtx.batchQueryParamsId,
-                    },
-                    create: {
-                      // keyword: queryReqParams?.textSearchReqParams?.keyword,
-                      latitude: undefined,
-                      longitude: undefined,
-                      radius: undefined,
-                      searchkeyword: {
-                        connectOrCreate: {
-                          where: {
-                            keyword: '',
-                          },
-                          create: {
-                            keyword: '',
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              }),
-          },
-        });
-        return promise;
-      });
+  //           vj_contentsid: item.contentsid as string,
+  //           vj_contentscdLabel: item.contentscd?.label,
+  //           vj_contentscdValue: item.contentscd?.value,
+  //           vj_contentscdRefId: item.contentscd?.refId,
+  //           vj_title: item.title,
+  //           vj_region1cdLabel: item.region1cd?.label,
+  //           vj_region1cdValue: item.region1cd?.value,
+  //           vj_region1cdRefId: item.region1cd?.refId,
+  //           vj_region2cdLabel: item.region2cd?.label,
+  //           vj_region2cdValue: item.region2cd?.value,
+  //           vj_region2cdRefId: item.region2cd?.refId,
+  //           vj_address: item.address,
+  //           vj_roadaddress: item.roadaddress,
+  //           vj_tag: {
+  //             ...(item.tag && {
+  //               connectOrCreate: item.tag.split(',').map(v => {
+  //                 return {
+  //                   where: {
+  //                     value: v,
+  //                   },
+  //                   create: {
+  //                     value: v,
+  //                   },
+  //                 };
+  //               }),
+  //             }),
+  //           },
+  //           vj_introduction: item.introduction,
+  //           vj_latitude: item.latitude,
+  //           vj_longitude: item.longitude,
+  //           vj_postcode: item.postcode,
+  //           vj_phoneno: item.phoneno,
+  //           ...(batchJobCtx &&
+  //             batchJobCtx.batchQueryParamsId && {
+  //               batchQueryParams: {
+  //                 connectOrCreate: {
+  //                   where: {
+  //                     id: batchJobCtx.batchQueryParamsId,
+  //                   },
+  //                   create: {
+  //                     // keyword: queryReqParams?.textSearchReqParams?.keyword,
+  //                     latitude: undefined,
+  //                     longitude: undefined,
+  //                     radius: undefined,
+  //                     searchkeyword: {
+  //                       connectOrCreate: {
+  //                         where: {
+  //                           keyword: '',
+  //                         },
+  //                         create: {
+  //                           keyword: '',
+  //                         },
+  //                       },
+  //                     },
+  //                   },
+  //                 },
+  //               },
+  //             }),
+  //         },
+  //       });
+  //       return promise;
+  //     });
 
-    const createdList =
-      createPromises && (await prisma.$transaction(createPromises));
+  //   const createdList =
+  //     createPromises && (await prisma.$transaction(createPromises));
 
-    if (!createdList)
-      throw new IBError({
-        type: 'EXTERNALAPI',
-        message: '반환된 visitJeju searchList 결과값이 없습니다.',
-      });
-  }
+  //   if (!createdList)
+  //     throw new IBError({
+  //       type: 'EXTERNALAPI',
+  //       message: '반환된 visitJeju searchList 결과값이 없습니다.',
+  //     });
+  // }
   return jejuRes;
 };
 
@@ -1727,12 +1848,13 @@ export const moneyFilterForHotel = (param: {
   };
 };
 
-const visitScheduleToDayScheduleType = (
-  acc: DayScheduleType[],
+const visitScheduleToDayScheduleType = async (
+  promise: Promise<DayScheduleType[]>,
   cur: VisitSchedule & {
-    tourPlace: TourPlace | null;
+    tourPlace: TourPlace & { photos: IBPhotos[] };
   },
 ) => {
+  const acc = await promise;
   if (cur && !isUndefined(cur.dayNo) && !isUndefined(cur.orderNo)) {
     const alreadyDayExist = acc.find(
       v =>
@@ -1750,16 +1872,13 @@ const visitScheduleToDayScheduleType = (
             visitScheduleId: cur.id.toString(),
             orderNo: cur.orderNo.toString(),
             placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
-            title: (() => {
-              if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
-                return cur.tourPlace?.bkc_hotel_name ?? '';
-              if (cur.tourPlace?.tourPlaceType.includes('GL_'))
-                return cur.tourPlace?.gl_name ?? '';
-              if (cur.tourPlace?.tourPlaceType.includes('VISITJEJU_'))
-                return cur.tourPlace?.vj_title ?? '';
-              return 'none';
-            })(),
-            tourPlaceData: cur.tourPlace,
+            title: cur.tourPlace?.title ?? 'none',
+            tourPlaceData: isNil(cur.tourPlace)
+              ? null
+              : {
+                  ...cur.tourPlace,
+                  photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+                },
           },
         ],
       });
@@ -1779,16 +1898,13 @@ const visitScheduleToDayScheduleType = (
         // stayPeriod: cur.stayPeriod,
         // checkin: cur.checkin?.toISOString() ?? null,
         // checkout: cur.checkout?.toISOString() ?? null,
-        title: (() => {
-          if (cur.tourPlace?.tourPlaceType === 'BKC_HOTEL')
-            return cur.tourPlace?.bkc_hotel_name ?? '';
-          if (cur.tourPlace?.tourPlaceType.includes('GL_'))
-            return cur.tourPlace?.gl_name ?? '';
-          if (cur.tourPlace?.tourPlaceType.includes('VISITJEJU_'))
-            return cur.tourPlace?.vj_title ?? '';
-          return 'none';
-        })(),
-        tourPlaceData: cur.tourPlace,
+        title: cur.tourPlace?.title ?? 'none',
+        tourPlaceData: isNil(cur.tourPlace)
+          ? null
+          : {
+              ...cur.tourPlace,
+              photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
+            },
       });
       const last = acc.pop();
       if (!isUndefined(last)) {
@@ -1805,49 +1921,10 @@ const visitScheduleToDayScheduleType = (
   return acc;
 };
 
-/**
- * 두 위경도 값의 차이를 미터 단위로 환산하여 리턴하는 함수, 위도에 따른 지구 곡률 보정이 포함되어 있다.
- */
-export const degreeToMeter = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number => {
-  // generally used geo measurement function
-  const R = 6378.137; // Radius of earth in KM
-  const dLat = (lat2 * Math.PI) / 180 - (lat1 * Math.PI) / 180;
-  const dLon = (lon2 * Math.PI) / 180 - (lon1 * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c;
-  return d * 1000; // meters
-};
-
-const getLatLng = (spot: {
-  gl_lat: number | null;
-  gl_lng: number | null;
-  vj_latitude: number | null;
-  vj_longitude: number | null;
-}): GeoFormat => {
-  if (spot.gl_lat && spot.gl_lng)
-    return {
-      lat: spot.gl_lat,
-      lng: spot.gl_lng,
-    };
-  if (spot.vj_latitude && spot.vj_longitude)
-    return {
-      lat: spot.vj_latitude,
-      lng: spot.vj_longitude,
-    };
+const getLatLng = (spot: { lat: number; lng: number }): GeoFormat => {
   return {
-    lat: spot.vj_latitude as number,
-    lng: spot.vj_longitude as number,
+    lat: spot.lat,
+    lng: spot.lng,
   };
 };
 
@@ -1868,17 +1945,19 @@ export const makeCluster = (
 ): MakeClusterRETParam | undefined => {
   const { spots, foods, paramByAvgCalibLevel } = ctx;
 
-  let items: TourPlaceGeoLoc[] | undefined;
+  let temp: TourPlaceGeoLoc[] | undefined;
 
   if (type === 'spot') {
     /// spot일경우
     if (!spots || !paramByAvgCalibLevel) return undefined;
-    items = spots;
+    temp = [...spots];
   } else {
     /// food일 경우
     if (!foods || !paramByAvgCalibLevel) return undefined;
-    items = foods;
+    temp = [...foods];
   }
+
+  const items = temp.sort(() => Math.random() - 0.5).splice(0, 1000); /// 성능문제로 랜덤 최대 1000개까지 뽑아서 클러스터링
 
   /// 뽑힌 지점들 그룹화
   const r = (paramByAvgCalibLevel.maxDist * 1.5) / 5;
@@ -1917,11 +1996,19 @@ export const makeCluster = (
       const initCenterLatLng = c;
 
       /// 각 스테이지(index)의 클러스터 중심과 요소들간 거리를 비교해서 반경안에 있는 요소수를 확인
-      const center = items!.reduce(
+      const center = items.reduce(
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
-          if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
+          // if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
+          if (
+            getDistFromTwoGeoLoc({
+              aLat: c.lat,
+              aLng: c.lng,
+              bLat: spotLatLng.lat,
+              bLng: spotLatLng.lng,
+            }) < r
+          ) {
             const prevNumOfPoint = acc.numOfPointLessThanR;
             /// 새 요소가 추가되면서 이전까지 계산한 평균값에 새 값을 더해 평균값 재계산
             const curAvgLat =
@@ -2033,8 +2120,16 @@ export const makeCluster = (
 
       const isDup = nonDupBuf.find(
         /// 클러스터 중심간 거리가 특정값 미만이면 같은 클러스터로 간주한다.
+        // nd =>
+        //   nd === null || degreeToMeter(nd.lat, nd.lng, cur.lat, cur.lng) < r,
         nd =>
-          nd === null || degreeToMeter(nd.lat, nd.lng, cur.lat, cur.lng) < r,
+          nd === null ||
+          getDistFromTwoGeoLoc({
+            aLat: nd.lat,
+            aLng: nd.lng,
+            bLat: cur.lat,
+            bLng: cur.lng,
+          }) < r,
       );
 
       if (isDup) return nonDupBuf;
@@ -2054,20 +2149,20 @@ export const makeCluster = (
     ...(type === 'spot' && {
       spotsGeoLocation: items.map(v => {
         return {
-          id: v.id ?? -1,
-          name: v.gl_name ?? v.vj_title ?? '',
-          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+          id: v.id,
+          name: v.title,
+          lat: v.lat ?? -9999,
+          lng: v.lng ?? -9999,
         };
       }),
     }),
     ...(type === 'food' && {
       foodsGeoLocation: items.map(v => {
         return {
-          id: v.id ?? -1,
-          name: v.gl_name ?? v.vj_title ?? '',
-          lat: v.gl_lat ?? v.vj_latitude ?? -9999,
-          lng: v.gl_lng ?? v.vj_longitude ?? -9999,
+          id: v.id,
+          name: v.title,
+          lat: v.lat,
+          lng: v.lng,
         };
       }),
     }),
@@ -2107,6 +2202,7 @@ export const makeSchedule = async (
     travelType,
     destination,
     travelHard,
+    scanRange,
   } = param;
 
   /// spot  search part
@@ -2167,12 +2263,23 @@ export const makeSchedule = async (
       { min: 9999, max: -1 },
     );
 
-    return Number(travelHard) <= uInputTypeLevel.max
-      ? {
-          ...uInputTypeLevel,
-          max: Number(travelHard),
-        }
-      : uInputTypeLevel;
+    /// 유저 입력 여행강도가 여행 타입들로 정해진 여행강도값의 최대값보다 크면 최대 범위를 넓혀준다.
+    if (Number(travelHard) > uInputTypeLevel.max) {
+      return {
+        ...uInputTypeLevel,
+        max: Number(travelHard),
+      };
+    }
+
+    /// 유저 입력 여행강도가 여행 타입들로 정해진 여행강도값의 최소값보다 작으면 최소 범위를 넓혀준다.
+    if (Number(travelHard) < uInputTypeLevel.min) {
+      return {
+        ...uInputTypeLevel,
+        min: Number(travelHard),
+      };
+    }
+
+    return uInputTypeLevel;
   })();
 
   const paramByAvgCalibLevel =
@@ -2186,77 +2293,208 @@ export const makeSchedule = async (
 
   ctx.numOfWholeTravelSpot = Math.ceil(ctx.spotPerDay * Number(period)); /// 전체 방문해야할 목표 여행지 수
 
+  console.log(`\n\n[1. Get Spots from DB Scan]`);
+  let stopWatch = moment();
+  let trackRecord = '';
+
+  console.log(calibUserLevel);
+
+  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다.
+  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
+  /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
+  /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
+  const scanType: {
+    type: string;
+    regionalCodes?: {
+      regionCode1?: number;
+      regionCode2?: number;
+    }[];
+  } | null = (() => {
+    const isGeocodeType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (
+          !isEmpty(range.minLat) &&
+          !isEmpty(range.maxLat) &&
+          !isEmpty(range.minLng) &&
+          !isEmpty(range.maxLng)
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isGeocodeType) return { type: 'geocode' };
+
+    const isKeywordType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (!isNil(range.keyword)) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isKeywordType) {
+      const regionalCodes = scanRange
+        .map<
+          | {
+              regionCode1?: number;
+              regionCode2?: number;
+            }
+          | undefined
+        >(range => {
+          const { keyword } = range;
+          const keywordArr = keyword!.split(' ');
+
+          /// ex) 전라남도, 서울특별시, 제주특별자치도
+          if (keywordArr.length === 1) {
+            if (
+              keywordArr[0].match(
+                /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
+              )
+            ) {
+              const superRegion = keywordArr[0];
+              const regionCode1 =
+                krRegionToCode[superRegion as keyof typeof krRegionToCode];
+              return {
+                regionCode1,
+              };
+            }
+
+            if (keywordArr[0].match(/.+[시|군|구]$/)) {
+              const subRegion = keywordArr[0];
+              const regionCode2 =
+                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+              return {
+                regionCode2,
+              };
+            }
+          }
+          /// ex) 전라남도 순천시, 서울특별시 중구
+          if (keywordArr.length > 1) {
+            const superRegion = keywordArr[0];
+            const subRegion = keywordArr[1];
+
+            let regionCode1: number | undefined;
+            let regionCode2: number | undefined;
+            if (!isNil(superRegion.match(/.+[도|시]$/))) {
+              regionCode1 =
+                krRegionToCode[superRegion as keyof typeof krRegionToCode];
+            }
+
+            if (!isNil(superRegion.match(/.+[시|군|구]$/))) {
+              regionCode2 =
+                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+            }
+
+            return {
+              regionCode1,
+              regionCode2,
+            };
+          }
+
+          return undefined;
+        })
+        .filter(
+          (v): v is { regionCode1?: number; regionCode2?: number } =>
+            v !== undefined,
+        );
+
+      return {
+        type: 'keyword',
+        regionalCodes,
+      };
+    }
+    return null;
+  })();
+
   const spots = await prisma.tourPlace.findMany({
     where: {
       ibTravelTag: {
         some: {
-          AND: [
-            { minDifficulty: { gte: calibUserLevel.min } },
-            { maxDifficulty: { lte: calibUserLevel.max } },
+          OR: [
+            {
+              AND: [
+                /// 유저가 원하는 여행강도 범위안에 완전히 포함되거나
+                { minDifficulty: { gte: calibUserLevel.min } },
+                { maxDifficulty: { lte: calibUserLevel.max } },
+              ],
+            },
+            {
+              AND: [
+                /// 유저가 원하는 여행강도 범위를 완전히 포함할수 있는 넓은 범위의 장소들
+                { minDifficulty: { lt: calibUserLevel.min } },
+                { maxDifficulty: { gt: calibUserLevel.max } },
+              ],
+            },
           ],
         },
       },
-      OR: [
-        /// 제주 클리핑
-        {
-          AND: [
-            { vj_latitude: { gte: 33.109684 } },
-            { vj_latitude: { lt: 33.650946 } },
-            { vj_longitude: { gte: 126.032175 } },
-            { vj_longitude: { lt: 127.048411 } },
+      ...(() => {
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'geocode' &&
+          !isEmpty(scanRange)
+        ) {
+          return {
+            OR: scanRange!.map(v => {
+              return {
+                AND: [
+                  { lat: { gte: Number(v.minLat) } },
+                  { lat: { lt: Number(v.maxLat) } },
+                  { lng: { gte: Number(v.minLng) } },
+                  { lng: { lt: Number(v.maxLng) } },
+                ],
+              };
+            }),
+          };
+        }
+
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'keyword' &&
+          !isNil(scanType.regionalCodes) &&
+          !isEmpty(scanType.regionalCodes)
+        ) {
+          const { regionalCodes } = scanType;
+          const condition = regionalCodes.map(v => {
+            return {
+              regionCode1:
+                krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
+              regionCode2:
+                krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
+            };
+          });
+          return {
+            OR: condition,
+          };
+        }
+
+        return {
+          /// default 제주도
+          OR: [
+            {
+              AND: [
+                { lat: { gte: 33.109684 } },
+                { lat: { lt: 33.650946 } },
+                { lng: { gte: 126.032175 } },
+                { lng: { lt: 127.048411 } },
+              ],
+            },
           ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: 33.109684 } },
-            { gl_lat: { lt: 33.650946 } },
-            { gl_lng: { gte: 126.032175 } },
-            { gl_lng: { lt: 127.048411 } },
-          ],
-        },
-      ],
-      // OR: [ /// 서울 클리핑
-      //   {
-      //     AND: [
-      //       { vj_latitude: { gte: 37.483403 } },
-      //       { vj_latitude: { lt: 37.655385 } },
-      //       { vj_longitude: { gte: 126.796251 } },
-      //       { vj_longitude: { lt: 127.230211 } },
-      //     ],
-      //   },
-      //   {
-      //     AND: [
-      //       { gl_lat: { gte: 37.483403 } },
-      //       { gl_lat: { lt: 37.655385 } },
-      //       { gl_lng: { gte: 126.796251 } },
-      //       { gl_lng: { lt: 127.230211 } },
-      //     ],
-      //   },
-      // ],
+        };
+      })(),
+
       status: 'IN_USE',
-      tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
+      tourPlaceType: {
+        in: ['TOUR4_SPOT', 'GL_SPOT', 'VISITJEJU_SPOT'],
+      },
     },
     select: {
       id: true,
-      gl_name: true,
-      vj_title: true,
-      ibTravelTag: {
-        select: {
-          value: true,
-          minDifficulty: true,
-          maxDifficulty: true,
-        },
-      },
-      gl_vicinity: true,
-      gl_formatted_address: true,
-      vj_address: true,
-      gl_lat: true,
-      gl_lng: true,
-      vj_latitude: true,
-      vj_longitude: true,
+      tourPlaceType: true,
       status: true,
-      gl_rating: true,
-      gl_user_ratings_total: true,
       title: true,
       lat: true,
       lng: true,
@@ -2265,112 +2503,134 @@ export const makeSchedule = async (
       openWeek: true,
       contact: true,
       postcode: true,
-      photos: true,
       rating: true,
       desc: true,
     },
-    orderBy: [
-      {
-        gl_user_ratings_total: 'desc',
-      },
-      {
-        gl_rating: 'desc',
-      },
-    ],
-    // take: ctx.numOfWholeTravelSpot,
   });
 
-  const foods = await prisma.tourPlace.findMany({
-    where: {
-      status: 'IN_USE',
-      tourPlaceType: { in: ['VISITJEJU_RESTAURANT', 'GL_RESTAURANT'] },
-      OR: [
-        /// 제주 클리핑
-        {
-          AND: [
-            { vj_latitude: { gte: 33.109684 } },
-            { vj_latitude: { lt: 33.650946 } },
-            { vj_longitude: { gte: 126.032175 } },
-            { vj_longitude: { lt: 127.048411 } },
-          ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: 33.109684 } },
-            { gl_lat: { lt: 33.650946 } },
-            { gl_lng: { gte: 126.032175 } },
-            { gl_lng: { lt: 127.048411 } },
-          ],
-        },
-      ],
-      // OR: [ /// 서울 클리핑
-      //   {
-      //     AND: [
-      //       { vj_latitude: { gte: 37.483403 } },
-      //       { vj_latitude: { lt: 37.655385 } },
-      //       { vj_longitude: { gte: 126.796251 } },
-      //       { vj_longitude: { lt: 127.230211 } },
-      //     ],
-      //   },
-      //   {
-      //     AND: [
-      //       { gl_lat: { gte: 37.483403 } },
-      //       { gl_lat: { lt: 37.655385 } },
-      //       { gl_lng: { gte: 126.796251 } },
-      //       { gl_lng: { lt: 127.230211 } },
-      //     ],
-      //   },
-      // ],
-    },
-    select: {
-      id: true,
-      gl_name: true,
-      vj_title: true,
-      ibTravelTag: {
-        select: {
-          value: true,
-          minDifficulty: true,
-          maxDifficulty: true,
-        },
-      },
-      gl_vicinity: true,
-      gl_formatted_address: true,
-      vj_address: true,
-      gl_lat: true,
-      gl_lng: true,
-      vj_latitude: true,
-      vj_longitude: true,
-      status: true,
-      gl_rating: true,
-      title: true,
-      lat: true,
-      lng: true,
-      address: true,
-      roadAddress: true,
-      openWeek: true,
-      contact: true,
-      postcode: true,
-      photos: true,
-      rating: true,
-      desc: true,
-    },
-    orderBy: [
-      {
-        gl_user_ratings_total: 'desc',
-      },
-      {
-        gl_rating: 'desc',
-      },
-    ],
-  });
-  // const foods = [];
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 1. Get Spots DB Scan end !!!]: duration: ${trackRecord}ms, spots.length = ${spots.length}`,
+  );
 
   if (spots.length < ctx.numOfWholeTravelSpot)
     throw new IBError({
       type: 'NOTEXISTDATA',
       message: `조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.
-        (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length})`,
+        (필요 관광지 수: ${ctx.numOfWholeTravelSpot}, 검색된 관광지 수:${spots.length}, 유저 최소 여행강도: ${calibUserLevel.min}, 유저 최대 여행강도: ${calibUserLevel.max})`,
     });
+
+  ctx.spots = [...spots];
+  ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
+
+  /// spots clustering part
+  console.log(`\n\n[2. spots clustering part]`);
+  stopWatch = moment();
+  ctx.spotClusterRes = makeCluster(ctx, 'spot');
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 2. spots clustering part end !!!]: duration: ${trackRecord}ms, spot nonDupCentroids.length = `,
+    ctx.spotClusterRes?.nonDupCentroids.length,
+  );
+
+  console.log(`\n\n[3. Get Food Data from DB Scan]`);
+  stopWatch = moment();
+  // const nonDupCentroidClipList = ctx.spotClusterRes!.validCentNSpots.map(
+  //   v => {
+  //     // /// spot NonDupCluster 기준 근처식당만 찾도록 클리핑
+  //     const { minLat, minLng, maxLat, maxLng } = getBoundingBox(
+  //       v.centroidNHotel.cent!.lat,
+  //       v.centroidNHotel.cent!.lng,
+  //       ctx.spotClusterRes!.r * 2, /// 클러스터안에 적절한 식당이 없을수도 있어서  반경 두배로 검색해본다.
+  //     );
+
+  //     return {
+  //       AND: [
+  //         { lat: { gte: minLat } },
+  //         { lat: { lt: maxLat } },
+  //         { lng: { gte: minLng } },
+  //         { lng: { lt: maxLng } },
+  //       ],
+  //     };
+  //   },
+  // );
+
+  const foods = await prisma.tourPlace.findMany({
+    where: {
+      status: 'IN_USE',
+      tourPlaceType: {
+        in: ['TOUR4_RESTAURANT', 'GL_RESTAURANT', 'VISITJEJU_RESTAURANT'],
+      },
+      ...(() => {
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'geocode' &&
+          !isEmpty(scanRange)
+        ) {
+          return {
+            OR: scanRange!.map(v => {
+              return {
+                AND: [
+                  { lat: { gte: Number(v.minLat) } },
+                  { lat: { lt: Number(v.maxLat) } },
+                  { lng: { gte: Number(v.minLng) } },
+                  { lng: { lt: Number(v.maxLng) } },
+                ],
+              };
+            }),
+          };
+        }
+
+        if (
+          !isNil(scanType) &&
+          scanType.type === 'keyword' &&
+          !isNil(scanType.regionalCodes) &&
+          !isEmpty(scanType.regionalCodes)
+        ) {
+          const { regionalCodes } = scanType;
+          return {
+            OR: regionalCodes.map(v => {
+              return {
+                regionCode1:
+                  krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
+                regionCode2:
+                  krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
+              };
+            }),
+          };
+        }
+
+        return {
+          /// default 제주도
+          OR: [
+            {
+              AND: [
+                { lat: { gte: 33.109684 } },
+                { lat: { lt: 33.650946 } },
+                { lng: { gte: 126.032175 } },
+                { lng: { lt: 127.048411 } },
+              ],
+            },
+          ],
+        };
+      })(),
+    },
+    select: {
+      id: true,
+      tourPlaceType: true,
+      title: true,
+      status: true,
+      lat: true,
+      lng: true,
+      address: true,
+      roadAddress: true,
+      openWeek: true,
+      contact: true,
+      postcode: true,
+      rating: true,
+      desc: true,
+    },
+  });
 
   // if (foods.length < Number(period) * 2)
   //   throw new IBError({
@@ -2378,13 +2638,21 @@ export const makeSchedule = async (
   //     message: '여행일수에 필요한만큼 충분한 수의 관광 restaurant이 없습니다.',
   //   });
 
-  ctx.spots = [...spots];
-  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
-  ctx.paramByAvgCalibLevel = paramByAvgCalibLevel;
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 3. Get Food Data from DB Scan end !!!]: duration: ${trackRecord}ms, food.length: ${foods.length}`,
+  );
 
-  /// spots clustering part
-  ctx.spotClusterRes = makeCluster(ctx, 'spot');
+  ctx.foods = foods && foods.length > 0 ? [...foods] : [];
+  console.log(`\n\n[4. foods clustering part start ]`);
+  stopWatch = moment();
+
   ctx.foodClusterRes = makeCluster(ctx, 'food');
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 4. foods clustering part end !!!]: duration: ${trackRecord}ms, food NonDupCentroid.length : `,
+    ctx.foodClusterRes?.nonDupCentroids.length,
+  );
 
   const {
     childrenNumber,
@@ -2401,6 +2669,7 @@ export const makeSchedule = async (
       ctx.spotClusterRes?.nonDupCentroids
         // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
         .filter(v => v.numOfPointLessThanR > ctx.spotPerDay! * 2) ?? [];
+
     const validFoodCentroids = // validSpotCentroids: 적당히 많은 수의(3끼니 이상)  식당 군집.
       ctx.foodClusterRes?.nonDupCentroids
         // .sort((a, b) => b.numOfPointLessThanR - a.numOfPointLessThanR) /// 군집 범위가 포함하고 있는 spot수가 많은순으로 정렬
@@ -2413,12 +2682,12 @@ export const makeSchedule = async (
       });
     }
 
-    // if (validFoodCentroids.length === 0) {
-    //   throw new IBError({
-    //     type: 'NOTEXISTDATA',
-    //     message: '충분한 수의 식당 클러스터가 형성되지 못하였습니다.',
-    //   });
-    // }
+    if (validFoodCentroids.length === 0) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '충분한 수의 식당 클러스터가 형성되지 못하였습니다.',
+      });
+    }
 
     ctx.hotelTransition = validSpotCentroids.length - 1;
     ctx.travelNights = Number(period) - 1;
@@ -2438,12 +2707,18 @@ export const makeSchedule = async (
         const rangedFromSpot = (curSpot: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return null;
-          const dist = degreeToMeter(
-            spotLatLng.lat,
-            spotLatLng.lng,
-            cent.lat,
-            cent.lng,
-          );
+          // const dist = degreeToMeter(
+          //   spotLatLng.lat,
+          //   spotLatLng.lng,
+          //   cent.lat,
+          //   cent.lng,
+          // );
+          const dist = getDistFromTwoGeoLoc({
+            aLat: spotLatLng.lat,
+            aLng: spotLatLng.lng,
+            bLat: cent.lat,
+            bLng: cent.lng,
+          });
           if (dist <= ctx.spotClusterRes!.r)
             return {
               distFromSpotCent: dist,
@@ -2453,24 +2728,29 @@ export const makeSchedule = async (
           return null;
         };
 
-        // const clusteredHotel = [...ctx.hotels!][centIdx];
         const clusteredSpot = [...ctx.spots!]
           .map(rangedFromSpot)
           .filter(v => v) as TourPlaceGeoLoc[]; /// ctx.spots는 위의 코드에서 여행일에 필요한 수만큼 확보되지 않으면 에러를 뱉도록 예외처리하여 undefined일수 없다.
-        // const clusteredFood = [...ctx.foods!].filter(rangedCond);
 
+        // const clusteredFood = [...ctx.foods!].filter(rangedCond);
         /// 현재 여행지 클러스터와 가장 가까운 식당 클러스터 구하기
         const closestFoodCluster = (() => {
           const foodCluster = validFoodCentroids.map(fCent => {
             /// 여행지 클러스터들을 중심으로한 레스토랑 선정하기 절차
             /// 1. food cluster와 spot cluster 중심들간의 거리를 구함
             const foodLatLng = { lat: fCent.lat, lng: fCent.lng };
-            const distWithSpotCent = degreeToMeter(
-              foodLatLng.lat,
-              foodLatLng.lng,
-              cent.lat,
-              cent.lng,
-            );
+            // const distWithSpotCent = degreeToMeter(
+            //   foodLatLng.lat,
+            //   foodLatLng.lng,
+            //   cent.lat,
+            //   cent.lng,
+            // );
+            const distWithSpotCent = getDistFromTwoGeoLoc({
+              aLat: foodLatLng.lat,
+              aLng: foodLatLng.lng,
+              bLat: cent.lat,
+              bLng: cent.lng,
+            });
             return {
               ...fCent,
               distWithSpotCent,
@@ -2496,12 +2776,18 @@ export const makeSchedule = async (
         const rangedFromFood = (curFood: TourPlaceGeoLoc) => {
           const spotLatLng = getLatLng(curFood);
           if (!spotLatLng) return null;
-          const dist = degreeToMeter(
-            spotLatLng.lat,
-            spotLatLng.lng,
-            closestFoodCluster.lat,
-            closestFoodCluster.lng,
-          );
+          // const dist = degreeToMeter(
+          //   spotLatLng.lat,
+          //   spotLatLng.lng,
+          //   closestFoodCluster.lat,
+          //   closestFoodCluster.lng,
+          // );
+          const dist = getDistFromTwoGeoLoc({
+            aLat: spotLatLng.lat,
+            aLng: spotLatLng.lng,
+            bLat: closestFoodCluster.lat,
+            bLng: closestFoodCluster.lng,
+          });
           if (dist <= ctx.spotClusterRes!.r)
             return {
               distFromSpotCent: dist,
@@ -2518,11 +2804,6 @@ export const makeSchedule = async (
 
         return {
           centroidNHotel: {
-            // transitionNo: clusteredHotel.transitionNo,
-            // stayPeriod: clusteredHotel.stayPeriod,
-            // checkin: clusteredHotel.checkin,
-            // checkout: clusteredHotel.checkout,
-            // hotels: clusteredHotel.hotels,
             cent,
           },
           nearbySpots: clusteredSpot,
@@ -2650,6 +2931,8 @@ export const makeSchedule = async (
     //   });
     // })();
 
+    console.log(`\n\n[5. create intermediate data(hotel query data)]`);
+    stopWatch = moment();
     const hWithoutData = (() => {
       let transitionNo = -1;
       let restSpot = ctx.numOfWholeTravelSpot;
@@ -2739,6 +3022,13 @@ export const makeSchedule = async (
           return v !== null;
         });
     })();
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 5. create intermediate data(hotel query data) End !!!]: duration: ${trackRecord}ms`,
+    );
+
+    console.log(`\n\n[6. determining visit order]`);
+    stopWatch = moment();
 
     let tempValidCents = /// 클러스터간 거리를 측정하고 이를 바탕으로 클러스터 방문 순서를 결정하기 위해 클러스터별 메타데이터(stayPeriod, numOfVisitSpotInClusteer, ...)를 클러스터에 넣고
       /// 위에서 null 표시된 클러스터는 제외하고 (클러스터내 포함된 여행지가 너무 적어 (=해당 클러스터에서 머무를 여행일정이 너무 적어))
@@ -2774,12 +3064,18 @@ export const makeSchedule = async (
               const cent1 = v1.centroidNHotel.cent!;
               return tempValidCents.map(v2 => {
                 const cent2 = v2.centroidNHotel.cent!;
-                let dist = degreeToMeter(
-                  cent1.lat,
-                  cent1.lng,
-                  cent2.lat,
-                  cent2.lng,
-                );
+                // let dist = degreeToMeter(
+                //   cent1.lat,
+                //   cent1.lng,
+                //   cent2.lat,
+                //   cent2.lng,
+                // );
+                let dist = getDistFromTwoGeoLoc({
+                  aLat: cent1.lat,
+                  aLng: cent1.lng,
+                  bLat: cent2.lat,
+                  bLng: cent2.lng,
+                });
                 dist = dist === 0 ? Infinity : dist;
                 return {
                   startCentIdx: cent1.idx,
@@ -2899,6 +3195,15 @@ export const makeSchedule = async (
       };
     });
 
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 6. determining visit order End !!!]: duration: ${trackRecord}ms, ctx.spotClusterRes!.validCentNSpots.length`,
+      ctx.spotClusterRes!.validCentNSpots.length,
+    );
+
+    console.log(`\n\n[7. determining visit order]`);
+    stopWatch = moment();
+
     /// super clustering (클러스터링 결과의 상위 그룹화)
     (() => {
       const sortedCents = ctx.spotClusterRes!.validCentNSpots.map(
@@ -2908,12 +3213,19 @@ export const makeSchedule = async (
       const distances = sortedCents.map((c, i) => {
         if (i === 0) return 0;
 
-        return degreeToMeter(
-          c!.lat,
-          c!.lng,
-          sortedCents[i - 1]!.lat,
-          sortedCents[i - 1]!.lng,
-        );
+        // return degreeToMeter(
+        //   c!.lat,
+        //   c!.lng,
+        //   sortedCents[i - 1]!.lat,
+        //   sortedCents[i - 1]!.lng,
+        // );
+
+        return getDistFromTwoGeoLoc({
+          aLat: c!.lat,
+          aLng: c!.lng,
+          bLat: sortedCents[i - 1]!.lat,
+          bLng: sortedCents[i - 1]!.lng,
+        });
       });
       const totalDistance = distances.reduce((acc, cur) => acc + cur, 0);
       const avgDistance = totalDistance / (distances.length - 1);
@@ -2943,12 +3255,19 @@ export const makeSchedule = async (
       ) => {
         let maxDistance = -1;
         for (let i = startIdx; i < endIdx; i += 1) {
-          const dist = degreeToMeter(
-            superCentLat,
-            superCentLng,
-            sortedCents[i]!.lat,
-            sortedCents[i]!.lng,
-          );
+          // const dist = degreeToMeter(
+          //   superCentLat,
+          //   superCentLng,
+          //   sortedCents[i]!.lat,
+          //   sortedCents[i]!.lng,
+          // );
+
+          const dist = getDistFromTwoGeoLoc({
+            aLat: superCentLat,
+            aLng: superCentLng,
+            bLat: sortedCents[i]!.lat,
+            bLng: sortedCents[i]!.lng,
+          });
           if (maxDistance < dist) maxDistance = dist;
         }
         return maxDistance;
@@ -2970,19 +3289,6 @@ export const makeSchedule = async (
                 lat: avgLat,
                 lng: avgLng,
                 num: accCnt,
-                // maxDistance: (() => {
-                //   let maxDistance = -1;
-                //   for (let j = prevIdx; j < i; j += 1) {
-                //     const dist = degreeToMeter(
-                //       avgLat,
-                //       avgLng,
-                //       sortedCents[j]!.lat,
-                //       sortedCents[j]!.lng,
-                //     );
-                //     if (maxDistance < dist) maxDistance = dist;
-                //   }
-                //   return maxDistance;
-                // })(),
                 maxDistance: getMaxDistance(avgLat, avgLng, prevIdx, i),
               },
             });
@@ -3039,72 +3345,6 @@ export const makeSchedule = async (
         })();
     })();
 
-    /// getHotelList api로 역할을 이전함.
-    // const HotelQueryEventEmitter = new EventEmitter();
-    // const queryPromises = new Promise<GetHotelDataFromBKCRETParamPayload[]>(
-    //   resolve => {
-    //     const hotelResult = Array<GetHotelDataFromBKCRETParamPayload>();
-
-    //     HotelQueryEventEmitter.on(
-    //       `doQuery`,
-    //       // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    //       async (hQParam: {
-    //         index: number;
-    //         hQMetaData: IHotelInMakeSchedule[];
-    //         prevStartTime: Date;
-    //       }) => {
-    //         const { index, hQMetaData, prevStartTime } = hQParam;
-    //         let endTime = prevStartTime;
-    //         if (
-    //           ctx.spotClusterRes!.validCentNSpots![index].centroidNHotel
-    //             .transitionNo! >= 0
-    //         ) {
-    //           hotelResult.push(
-    //             await getHotelDataFromBKC({
-    //               ...hQMetaData[index].hotelSrchOpt,
-    //               checkinDate: hQMetaData[index].checkin,
-    //               checkoutDate: hQMetaData[index].checkout,
-    //               store: true,
-    //             }),
-    //           );
-    //           const startTime = moment(prevStartTime);
-    //           endTime = new Date();
-    //           console.log(
-    //             `[${index}]: ${moment(endTime).diff(
-    //               startTime,
-    //               'millisecond',
-    //             )}ms`,
-    //           );
-    //         }
-    //         if (index + 1 < hQMetaData.length) {
-    //           const timeId = setTimeout(() => {
-    //             HotelQueryEventEmitter.emit('doQuery', {
-    //               index: index + 1,
-    //               hQMetaData,
-    //               prevStartTime: endTime,
-    //             });
-    //             clearTimeout(timeId);
-    //           }, 0);
-    //         } else {
-    //           resolve(hotelResult);
-    //         }
-    //       },
-    //     );
-
-    //     HotelQueryEventEmitter.emit('doQuery', {
-    //       index: 0,
-    //       hQMetaData: hWithoutData,
-    //       prevStartTime: new Date(),
-    //     });
-    //   },
-    // );
-    // const hotelData = await queryPromises;
-    // ctx.hotels = hWithoutData.map((v, i) => {
-    //   return {
-    //     ...v,
-    //     hotels: hotelData[i],
-    //   };
-    // });
     ctx.hotels = [...hWithoutData];
   })(); /// end of hotel srch part
 
@@ -3118,12 +3358,20 @@ export const makeSchedule = async (
             : undefined,
           ...v.centroidNHotel,
         },
+        /// 푸드 클러스터링 절차 삭제 테스트
         nearbyFoods: [...v.nearbyFoods],
         nearbySpots: [...v.nearbySpots],
       };
     }),
   ];
 
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! determining visit order End !!!]: duration: ${trackRecord}ms`,
+  );
+
+  console.log(`\n\n[8. visitSchedule 데이터 생성 (DB x)]`);
+  stopWatch = moment();
   /// 여행일수에 따른 visitSchedule 배열 생성
   const visitSchedules = (() => {
     /// 직전 위치와 가까운 순서대로 정렬
@@ -3135,6 +3383,7 @@ export const makeSchedule = async (
         .numOfVisitSpotInCluster!;
     let curRestDay =
       ctx.spotClusterRes!.validCentNSpots[0].centroidNHotel.stayPeriod!;
+    const copiedFoods = isNil(ctx.foods) ? [] : [...ctx.foods];
     return Array(ctx.travelDays)
       .fill(null)
       .map((day, dayNo) => {
@@ -3177,7 +3426,6 @@ export const makeSchedule = async (
                 ctx.spotClusterRes!.validCentNSpots![clusterNo];
 
               const { nearbySpots, nearbyFoods } = curResources;
-
               let ret: Partial<IVisitOneSchedule> = {
                 orderNo,
               };
@@ -3208,6 +3456,7 @@ export const makeSchedule = async (
 
               /// 레스토랑
               if (nextMealOrder === orderNo) {
+                /// 푸드 클러스터링 절차 삭제 테스트
                 nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc));
                 let data = nearbyFoods.shift();
                 if (isUndefined(data)) {
@@ -3230,6 +3479,54 @@ export const makeSchedule = async (
                       clusterNo
                     ].nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc))
                     .shift();
+                }
+
+                /// 레스토랑
+                if (nextMealOrder === orderNo) {
+                  const { idx } = copiedFoods.reduce<{
+                    idx: number;
+                    dist: number;
+                  }>(
+                    (min, n: TourPlaceGeoLoc, index) => {
+                      const { lat, lng } = n;
+                      const newDist = getDistFromTwoGeoLoc({
+                        aLat: lat,
+                        aLng: lng,
+                        bLat: prevGeoLoc.lat,
+                        bLng: prevGeoLoc.lng,
+                      });
+                      if (newDist < min.dist)
+                        return { dist: newDist, idx: index };
+
+                      return min;
+                    },
+                    { idx: -1, dist: 9999999999 },
+                  );
+                  const food = copiedFoods.splice(idx, 1);
+
+                  // copiedFoods.sort((a, b) => {
+                  //   const prevGeoLocFromA = getDistFromTwoGeoLoc({
+                  //     aLat: a.lat!,
+                  //     aLng: a.lng!,
+                  //     bLat: prevGeoLoc.lat,
+                  //     bLng: prevGeoLoc.lng,
+                  //   });
+
+                  //   const prevGeoLocFromB = getDistFromTwoGeoLoc({
+                  //     aLat: b.lat!,
+                  //     aLng: b.lng!,
+                  //     bLat: prevGeoLoc.lat,
+                  //     bLng: prevGeoLoc.lng,
+                  //   });
+                  //   return prevGeoLocFromA - prevGeoLocFromB;
+                  // });
+
+                  // const food = copiedFoods.shift();
+
+                  if (isNil(food) || isEmpty(food)) {
+                    return null;
+                  }
+                  [data] = food;
                 }
 
                 ret = {
@@ -3281,7 +3578,68 @@ export const makeSchedule = async (
   })();
   ctx.visitSchedules = visitSchedules;
   ctx.spotClusterRes!.validCentNSpots = backupValidCentNSpots;
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 8. visitSchedule 데이터 생성 (DB x) End !!!]: duration: ${trackRecord}ms`,
+  );
 
+  console.log(
+    `\n\n[9. visitSchedule spots 데이터들을 DB 재검색을 통해 IBTravelTag, photos와 조인한 결과로 교체]`,
+  );
+  stopWatch = moment();
+  const tourPlacesFromVS = ctx.visitSchedules
+    .map(vs => {
+      return vs.titleList.map(tl => {
+        return tl.placeType !== 'HOTEL' && tl.data ? tl.data[0] : null;
+      });
+    })
+    .flat(2)
+    .filter(
+      (
+        v,
+      ): v is Partial<TourPlace> & {
+        photos: Partial<IBPhotos>[];
+        ibTravelTag: Partial<IBTravelTag>[];
+      } => v !== null,
+    );
+
+  const tourPlaceWithTagNPhotos = await prisma.tourPlace.findMany({
+    where: {
+      id: {
+        in: tourPlacesFromVS.map(v => v.id!),
+      },
+    },
+    select: {
+      id: true,
+      ibTravelTag: {
+        select: {
+          value: true,
+          minDifficulty: true,
+          maxDifficulty: true,
+        },
+      },
+      photos: true,
+    },
+  });
+  tourPlacesFromVS.forEach((t, index) => {
+    // if (tourPlacesFromVS[index].id !== tourPlaceWithTagNPhotos[index].id) {
+    //   console.log(`matching Error`);
+    //   return;
+    // }
+
+    const matchedTP = tourPlaceWithTagNPhotos.find(v => v.id === t.id);
+
+    tourPlacesFromVS[index].photos = matchedTP!.photos;
+    tourPlacesFromVS[index].ibTravelTag = matchedTP!.ibTravelTag;
+  });
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `[!!! 9. visitSchedule spots 데이터들을 DB 재검색을 통해 IBTravelTag, photos와 조인한 결과로 교체 End !!!]: duration: ${trackRecord}ms 재검색 TourPlace: `,
+    tourPlaceWithTagNPhotos.length,
+  );
+
+  console.log(`\n\n[10. create QueryParams to DB]`);
+  stopWatch = moment();
   /// QueryParams, tourPlace, visitSchedule DB 생성
   const queryParams = await prisma.$transaction(async tx => {
     const createdQueryParams = await tx.queryParams.create({
@@ -3296,34 +3654,35 @@ export const makeSchedule = async (
         adult: Number(adultsNumber),
         travelHard: Number(travelHard),
         destination,
-        tourPlace: {
-          connect: [
-            /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
-            // ...(() => {
-            //   const result = ctx
-            //     .hotels!.map(c => {
-            //       const hotelIds = c.hotels.hotelSearchResult
-            //         .map(h => {
-            //           if (h.id)
-            //             return {
-            //               id: h.id,
-            //             };
-            //           return undefined;
-            //         })
-            //         .filter((x): x is { id: number } => x !== undefined);
-            //       return hotelIds;
-            //     })
-            //     .flat();
-            //   return result;
-            // })(),
-            ...ctx.foods!.map(v => {
-              return { id: v.id };
-            }),
-            ...ctx.spots!.map(v => {
-              return { id: v.id };
-            }),
-          ],
-        },
+        // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
+        // tourPlace: {
+        //   connect: [
+        //     /// getHotelList api에서 호텔 쿼리 후 결과를 추가하도록 할것.
+        //     // ...(() => {
+        //     //   const result = ctx
+        //     //     .hotels!.map(c => {
+        //     //       const hotelIds = c.hotels.hotelSearchResult
+        //     //         .map(h => {
+        //     //           if (h.id)
+        //     //             return {
+        //     //               id: h.id,
+        //     //             };
+        //     //           return undefined;
+        //     //         })
+        //     //         .filter((x): x is { id: number } => x !== undefined);
+        //     //       return hotelIds;
+        //     //     })
+        //     //     .flat();
+        //     //   return result;
+        //     // })(),
+        //     ...ctx.foods!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //     ...ctx.spots!.map(v => {
+        //       return { id: v.id };
+        //     }),
+        //   ],
+        // },
         userTokenId: ctx.userTokenId,
         visitSchedule: {
           createMany: {
@@ -3384,6 +3743,7 @@ export const makeSchedule = async (
               ratio: v.centroidNHotel.ratio!,
               tourPlace: {
                 connect: [
+                  /// 푸드 클러스터링 절차 삭제 테스트
                   ...v.nearbyFoods.map(n => {
                     return { id: n.id };
                   }),
@@ -3405,13 +3765,18 @@ export const makeSchedule = async (
         validCluster: true,
       },
     });
-
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 10. create QueryParams to DB End !!!]: duration: ${trackRecord}ms`,
+    );
     const { validCluster, visitSchedule } = createdQueryParams;
 
     const hotelVS = visitSchedule.filter(vs => vs.placeType!.includes('HOTEL'));
     /// visitSchedule <===> validCluster간 관계 형성
     let restStayPeriod = 0;
     let clusterIdx = -1;
+    console.log(`\n\n[11. update visitSchedule to DB]`);
+    stopWatch = moment();
     await Promise.all(
       hotelVS.map(vs => {
         if (restStayPeriod <= 0) {
@@ -3434,6 +3799,10 @@ export const makeSchedule = async (
       }),
     );
 
+    trackRecord = moment().diff(stopWatch, 'ms').toString();
+    console.log(
+      `[!!! 11. update visitSchedule to DB End !!!]: duration: ${trackRecord}ms`,
+    );
     return createdQueryParams;
   });
 
@@ -3459,29 +3828,7 @@ export const makeSchedule = async (
                 if (visitScheduleId) cnt += 1;
                 return visitScheduleId;
               })(),
-              title: (() => {
-                if (
-                  (t.placeType!.includes('RESTAURANT') ||
-                    t.placeType!.includes('SPOT')) &&
-                  // (t.placeType!.includes('RESTAURANT') ||
-                  //   t.placeType!.includes('SPOT')) &&
-                  t.data &&
-                  t.data.length > 0
-                ) {
-                  if (t.data[0].gl_name) return t.data[0].gl_name;
-                  if (t.data[0].vj_title) return t.data[0].vj_title;
-                }
-                // if (t.placeType!.includes('HOTEL')) {
-                //   return ctx
-                //     .hotels!.map(h => {
-                //       return h.hotels.hotelSearchResult.map(
-                //         v2 => v2.bkc_hotel_name!,
-                //       );
-                //     })
-                //     .toString();
-                // }
-                return '';
-              })(),
+              title: !isNil(t.data) ? t.data[0].title : '',
               ...t,
             };
           }),
@@ -3528,9 +3875,9 @@ export const getSchedule = async (
       message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
     });
 
-  const retValue = queryParams.visitSchedule.reduce(
+  const retValue = await queryParams.visitSchedule.reduce(
     visitScheduleToDayScheduleType,
-    [] as DayScheduleType[],
+    Promise.resolve([] as DayScheduleType[]),
   );
 
   return {
@@ -3745,64 +4092,115 @@ export const saveSchedule = async (
 };
 
 /**
- *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
- * @param param
- * @returns
+ * 저장된 일정을 지우는 기능을 담당하는 api
+ * queryParamsId와 관계된 일체가 삭제된다. (visitSchedule, scheduleBank, metaScheduleInfo, validCluster) tourPlace는 삭제 안됨
  */
-export const getThumbnailUrlFromIBPhotos = async (
-  photos: IBPhotos[],
-): Promise<string> => {
-  if (photos.length > 0) {
-    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
-      /// 직접접근 링크 url이 존재하는 경우
-      return photos[0].url;
-    }
+export const delSchedule = async (
+  param: DelScheduleREQParam,
+  ctx?: IBContext,
+): Promise<void> => {
+  const { queryParamsId } = param;
+  const userTokenId = ctx?.userTokenId ?? '';
 
-    if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
-      /// s3 key가 존재하는 경우
-      const signedUrl = await getS3SignedUrl(photos[0].key);
-      return signedUrl;
-    }
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    select: {
+      id: true,
+      savedSchedule: {
+        select: {
+          id: true,
+        },
+      },
+      userTokenId: true,
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
   }
-  return 'none';
+
+  if (queryParams.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '다른 유저의 저장 스케쥴의 삭제를 시도할 수 없습니다.',
+    });
+  }
+
+  if (isNil(queryParams.savedSchedule)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '저장되지 않은 일정입니다.',
+    });
+  }
+
+  await prisma.queryParams.delete({
+    where: {
+      id: Number(queryParamsId),
+    },
+  });
 };
 
 /**
- *  IBPhotos 배열 형식으로부터 presignedUrl 또는 직접 접근 URL을 반환하는 함수
- * @param param
- * @returns
+ * 생성된 스케쥴 이름 변경
  */
-export const getImgUrlListFromIBPhotos = async (
-  photos: IBPhotos[],
-): Promise<
-  {
-    id: string;
-    url: string;
-  }[]
-> => {
-  const result = await Promise.all(
-    photos.map(async p => {
-      return {
-        id: p.id.toString(),
-        url: await (async (): Promise<string> => {
-          if (photos.length > 0) {
-            if (!isNil(p.url) && !isEmpty(p.url)) {
-              /// 직접접근 링크 url이 존재하는 경우
-              return p.url;
-            }
+export const changeScheduleTitle = async (
+  param: ChangeScheduleTitleREQParam,
+  ctx?: IBContext,
+): Promise<ChangeScheduleTitleRETParamPayload> => {
+  const { queryParamsId, title } = param;
+  const userTokenId = ctx?.userTokenId ?? '';
 
-            if (!isNil(p.key) && !isEmpty(p.key)) {
-              /// s3 key가 존재하는 경우
-              const signedUrl = await getS3SignedUrl(p.key);
-              return signedUrl;
-            }
-          }
-          return 'none';
-        })(),
-      };
-    }),
-  );
-  return result;
+  const queryParams = await prisma.queryParams.findFirst({
+    where: {
+      id: Number(queryParamsId),
+    },
+    select: {
+      id: true,
+      savedSchedule: {
+        select: {
+          id: true,
+        },
+      },
+      userTokenId: true,
+    },
+  });
+
+  if (!queryParams) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: 'queryParamsId에 대응하는 일정 데이터가 존재하지 않습니다.',
+    });
+  }
+
+  if (queryParams.userTokenId !== userTokenId) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '다른 유저의 저장 스케쥴에 변경을 시도할 수 없습니다.',
+    });
+  }
+
+  if (isNil(queryParams.savedSchedule)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '저장되지 않은 일정입니다.',
+    });
+  }
+
+  const uRes = await prisma.scheduleBank.update({
+    where: {
+      id: Number(queryParams.savedSchedule.id),
+    },
+    data: {
+      title,
+    },
+  });
+
+  return { updatedScheduleBank: uRes };
 };
 
 /**
@@ -3827,7 +4225,7 @@ export const getDaySchedule = async (
         include: {
           tourPlace: {
             include: {
-              gl_photos: true,
+              // gl_photos: true,
               photos: true,
             },
           },
@@ -3881,60 +4279,13 @@ export const getDaySchedule = async (
                 url: hotel.bkc_main_photo_url ?? undefined,
               },
             ],
+            photos: [
+              {
+                url: hotel.bkc_main_photo_url ?? 'none',
+              },
+            ],
           };
         }
-        // if (vType.includes('GL_')) {
-        //   const googlePlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg:
-        //       googlePlace.gl_photos.length > 0 &&
-        //       googlePlace.gl_photos[0].photo_reference
-        //         ? googlePlace.gl_photos[0].photo_reference
-        //         : 'none',
-        //     spotName: googlePlace.gl_name ?? 'none',
-        //     spotAddr:
-        //       googlePlace.gl_vicinity ??
-        //       googlePlace.gl_formatted_address ??
-        //       'none',
-        //     // contact: 'none',
-        //     placeId: googlePlace.gl_place_id ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     price: googlePlace.gl_price_level?.toString(),
-        //     rating: googlePlace.gl_rating ?? undefined,
-        //     lat: googlePlace.gl_lat ?? -1,
-        //     lng: googlePlace.gl_lng ?? -1,
-        //     imageList: googlePlace.gl_photos.map(p => {
-        //       return {
-        //         id: p.id.toString(),
-        //         photo_reference: p.photo_reference,
-        //       };
-        //     }),
-        //   };
-        // }
-
-        // if (vType.includes('VISITJEJU_')) {
-        //   const visitJejuPlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg: 'none',
-        //     spotName: visitJejuPlace.vj_title ?? 'none',
-        //     spotAddr: visitJejuPlace.vj_address ?? 'none',
-        //     // contact: 'none',
-        //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     lat: visitJejuPlace.vj_latitude ?? -1,
-        //     lng: visitJejuPlace.vj_longitude ?? -1,
-        //   };
-        // }
 
         /// NOT Hotel place
         const { tourPlace } = v;
@@ -3953,9 +4304,10 @@ export const getDaySchedule = async (
           days: days ?? -1,
           // price: tourPlace.gl_price_level?.toString(),
           rating: tourPlace.rating ?? 0,
-          lat: tourPlace.lat ?? -1,
-          lng: tourPlace.lng ?? -1,
-          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
+          lat: tourPlace.lat,
+          lng: tourPlace.lng,
+          imageList: [],
+          photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
       }),
     ),
@@ -3999,7 +4351,8 @@ export const getDetailSchedule = async (
     include: {
       tourPlace: {
         include: {
-          gl_photos: true,
+          // gl_photos: true,
+          photos: true,
         },
       },
       queryParams: {
@@ -4103,6 +4456,13 @@ export const getDetailSchedule = async (
               };
             }),
           ],
+          photos: [
+            ...hotelPhotos.map(v => {
+              return {
+                url: v.url_max,
+              };
+            }),
+          ],
           contact: null,
           weekdayOpeningHours: null,
           reviews: null,
@@ -4113,125 +4473,47 @@ export const getDetailSchedule = async (
           reviewScoreWord: hotel.bkc_review_score_word,
         };
       }
-      if (tourPlaceType.includes('GL_')) {
-        const { tourPlace: googlePlace } = visitSchedule;
 
-        const detailData: GglPlaceDetailType = await getPlaceDetail({
-          placeId: googlePlace.gl_place_id ?? '',
-        });
-
-        return {
-          id: visitSchedule.id.toString(),
-          dayCount: visitSchedule.dayNo,
-          orderCount: visitSchedule.orderNo,
-          // planType: visitSchedule.planType,
-          spotType: tourPlaceType,
-          previewImg: (() => {
-            return googlePlace.gl_photos.length > 0 &&
-              googlePlace.gl_photos[0].url
-              ? googlePlace.gl_photos[0].url
-              : 'none';
-          })(),
-          spotName: (detailData as { name: string }).name,
-          roomType: null,
-          spotAddr:
-            googlePlace.gl_vicinity ?? googlePlace.gl_formatted_address ?? null,
-          // spotAddr: (detailData as { formatted_address: string })
-          //   .formatted_address,
-          hotelBookingUrl: null,
-          placeId: googlePlace.gl_place_id,
-          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
-          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
-          night:
-            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? null,
-          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: transPriceLevel(detailData),
-          rating: googlePlace.gl_rating,
-          lat: googlePlace.gl_lat,
-          lng: googlePlace.gl_lng,
-          hotelClass: null,
-          reviewScoreWord: null,
-          language: null,
-          cityNameEN: null,
-          // imageList: await getPlacePhoto(detailData),
-          imageList:
-            (
-              detailData as {
-                photos: {
-                  height: number;
-                  width: number;
-                  html_attributions: string[];
-                  photo_reference: string;
-                }[];
-              }
-            )?.photos?.map(v => {
-              return {
-                reference: v.photo_reference,
-              };
-            }) ?? null,
-          contact: (detailData as { formatted_phone_number: string })
-            .formatted_phone_number,
-          weekdayOpeningHours: (detailData as { weekday_text: string[] })
-            .weekday_text,
-          reviews: (
-            detailData as {
-              reviews: GooglePlaceReview[];
-            }
-          ).reviews,
-          takeout: (detailData as { takeout: boolean }).takeout,
-          googlePlaceTypes: (detailData as { types: string[] }).types,
-          url: (detailData as { url: string }).url,
-          userRatingsTotal: (detailData as { user_ratings_total: number })
-            .user_ratings_total,
-          website: (detailData as { website: string }).website,
-        };
-      }
-
-      if (tourPlaceType.includes('VISITJEJU_')) {
-        const { tourPlace: visitJejuPlace } = visitSchedule;
-        return {
-          id: visitSchedule.id.toString(),
-          dayCount: visitSchedule.dayNo,
-          orderCount: visitSchedule.orderNo,
-          // planType: visitSchedule.planType,
-          spotType: tourPlaceType,
-          previewImg: 'none',
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          roomType: null,
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          hotelBookingUrl: null,
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
-          endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
-          night:
-            visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
-          days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: null,
-          rating: null,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-          hotelClass: null,
-          website: null,
-          language: null,
-          cityNameEN: null,
-          imageList: [],
-          contact: null,
-          weekdayOpeningHours: null,
-          reviews: null,
-          takeout: null,
-          googlePlaceTypes: null,
-          url: null,
-          userRatingsTotal: null,
-          reviewScoreWord: null,
-        };
-      }
-      return null;
+      const { tourPlace } = visitSchedule;
+      return {
+        id: visitSchedule.id.toString(),
+        dayCount: visitSchedule.dayNo,
+        orderCount: visitSchedule.orderNo,
+        // planType: visitSchedule.planType,
+        spotType: tourPlaceType,
+        previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+        spotName: tourPlace.title,
+        roomType: null,
+        spotAddr: tourPlace.address ?? 'none',
+        hotelBookingUrl: null,
+        placeId: 'none',
+        // placeId: tourPlace.vj_contentsid ?? 'none',
+        startDate: moment(visitSchedule.checkin).format('YYYY-MM-DD') ?? null,
+        endDate: moment(visitSchedule.checkout).format('YYYY-MM-DD') ?? null,
+        night: visitSchedule.queryParams?.metaScheduleInfo?.travelNights ?? -1,
+        days: visitSchedule.queryParams?.metaScheduleInfo?.travelDays ?? -1,
+        checkIn: null,
+        checkOut: null,
+        price: null,
+        priceLevel: null,
+        rating: null,
+        lat: tourPlace.lat,
+        lng: tourPlace.lng,
+        hotelClass: null,
+        website: null,
+        language: null,
+        cityNameEN: null,
+        photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
+        imageList: [],
+        contact: null,
+        weekdayOpeningHours: null,
+        reviews: null,
+        takeout: null,
+        googlePlaceTypes: null,
+        url: null,
+        userRatingsTotal: null,
+        reviewScoreWord: null,
+      };
     })();
 
   return retValue as GetDetailScheduleRETParamPayload;
@@ -4269,7 +4551,6 @@ export const getCandidateSchedule = async (
           },
         },
         include: {
-          gl_photos: true,
           photos: true,
         },
       },
@@ -4439,7 +4720,7 @@ export const getCandDetailSchd = async (
   const tourPlace = await prisma.tourPlace.findUnique({
     where: { id: Number(candidateId) },
     include: {
-      gl_photos: true,
+      photos: true,
     },
   });
 
@@ -4520,6 +4801,11 @@ export const getCandDetailSchd = async (
               };
             }),
           ],
+          photos: hotelPhotos.map(v => {
+            return {
+              url: v.url_max,
+            };
+          }),
           contact: null,
           weekdayOpeningHours: null,
           reviews: null,
@@ -4530,118 +4816,42 @@ export const getCandDetailSchd = async (
           reviewScoreWord: hotel.bkc_review_score_word,
         };
       }
-      if (tourPlaceType.includes('GL_')) {
-        const googlePlace = tourPlace;
 
-        const detailData: GglPlaceDetailType = await getPlaceDetail({
-          placeId: googlePlace.gl_place_id ?? '',
-        });
-
-        return {
-          id: googlePlace.id.toString(),
-          spotType: tourPlaceType,
-          previewImg: (() => {
-            return googlePlace.gl_photos.length > 0 &&
-              googlePlace.gl_photos[0].url
-              ? googlePlace.gl_photos[0].url
-              : 'none';
-          })(),
-          spotName: (detailData as { name: string }).name,
-          roomType: null,
-          spotAddr:
-            googlePlace.gl_vicinity ??
-            googlePlace.gl_formatted_address ??
-            'none',
-          // spotAddr: (detailData as { formatted_address: string })
-          //   .formatted_address,
-          hotelBookingUrl: null,
-          placeId: googlePlace.gl_place_id,
-          startDate: null,
-          endDate: null,
-          night: null,
-          days: null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: transPriceLevel(detailData),
-          rating: googlePlace.gl_rating,
-          lat: googlePlace.gl_lat,
-          lng: googlePlace.gl_lng,
-          hotelClass: null,
-          reviewScoreWord: null,
-          language: null,
-          cityNameEN: null,
-          // imageList: await getPlacePhoto(detailData),
-          imageList: (
-            detailData as {
-              photos: {
-                height: number;
-                width: number;
-                html_attributions: string[];
-                photo_reference: string;
-              }[];
-            }
-          ).photos.map(v => {
-            return {
-              reference: v.photo_reference,
-            };
-          }),
-          contact: (detailData as { formatted_phone_number: string })
-            .formatted_phone_number,
-          weekdayOpeningHours: (detailData as { weekday_text: string[] })
-            .weekday_text,
-          reviews: (
-            detailData as {
-              reviews: GooglePlaceReview[];
-            }
-          ).reviews,
-          takeout: (detailData as { takeout: boolean }).takeout,
-          googlePlaceTypes: (detailData as { types: string[] }).types,
-          url: (detailData as { url: string }).url,
-          userRatingsTotal: (detailData as { user_ratings_total: number })
-            .user_ratings_total,
-          website: (detailData as { website: string }).website,
-        };
-      }
-
-      if (tourPlaceType.includes('VISITJEJU_')) {
-        const visitJejuPlace = tourPlace;
-        return {
-          id: visitJejuPlace.id.toString(),
-          spotType: tourPlaceType,
-          previewImg: 'none',
-          spotName: visitJejuPlace.vj_title ?? 'none',
-          roomType: null,
-          spotAddr: visitJejuPlace.vj_address ?? 'none',
-          hotelBookingUrl: null,
-          placeId: visitJejuPlace.vj_contentsid ?? 'none',
-          startDate: null,
-          endDate: null,
-          night: null,
-          days: null,
-          checkIn: null,
-          checkOut: null,
-          price: null,
-          priceLevel: null,
-          rating: null,
-          lat: visitJejuPlace.vj_latitude ?? -1,
-          lng: visitJejuPlace.vj_longitude ?? -1,
-          hotelClass: null,
-          website: null,
-          language: null,
-          cityNameEN: null,
-          imageList: [],
-          contact: null,
-          weekdayOpeningHours: null,
-          reviews: null,
-          takeout: null,
-          googlePlaceTypes: null,
-          url: null,
-          userRatingsTotal: null,
-          reviewScoreWord: null,
-        };
-      }
-      return null;
+      return {
+        id: tourPlace.id.toString(),
+        spotType: tourPlaceType,
+        previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
+        spotName: tourPlace.title,
+        roomType: null,
+        spotAddr: tourPlace.address ?? 'none',
+        hotelBookingUrl: null,
+        placeId: 'none',
+        startDate: null,
+        endDate: null,
+        night: null,
+        days: null,
+        checkIn: null,
+        checkOut: null,
+        price: null,
+        priceLevel: null,
+        rating: null,
+        lat: tourPlace.lat,
+        lng: tourPlace.lng,
+        hotelClass: null,
+        website: null,
+        language: null,
+        cityNameEN: null,
+        imageList: [],
+        photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
+        contact: null,
+        weekdayOpeningHours: null,
+        reviews: null,
+        takeout: null,
+        googlePlaceTypes: null,
+        url: null,
+        userRatingsTotal: null,
+        reviewScoreWord: null,
+      };
     })();
 
   return retValue;
@@ -5284,7 +5494,6 @@ export const refreshSchedule = async (
         include: {
           tourPlace: {
             include: {
-              gl_photos: true,
               photos: true,
             },
           },
@@ -5331,61 +5540,13 @@ export const refreshSchedule = async (
                 url: hotel.bkc_main_photo_url ?? undefined,
               },
             ],
+            photos: [
+              {
+                url: hotel.bkc_main_photo_url ?? 'none',
+              },
+            ],
           };
         }
-        // if (vType.includes('GL_')) {
-        //   const googlePlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg:
-        //       googlePlace.gl_photos.length > 0 &&
-        //       googlePlace.gl_photos[0].photo_reference
-        //         ? googlePlace.gl_photos[0].photo_reference
-        //         : 'none',
-        //     spotName: googlePlace.gl_name ?? 'none',
-        //     spotAddr:
-        //       googlePlace.gl_vicinity ??
-        //       googlePlace.gl_formatted_address ??
-        //       'none',
-        //     // contact: 'none',
-        //     placeId: googlePlace.gl_place_id ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     price: googlePlace.gl_price_level?.toString(),
-        //     rating: googlePlace.gl_rating ?? undefined,
-        //     lat: googlePlace.gl_lat ?? -1,
-        //     lng: googlePlace.gl_lng ?? -1,
-        //     imageList: googlePlace.gl_photos.map(p => {
-        //       return {
-        //         id: p.id.toString(),
-        //         photo_reference: p.photo_reference,
-        //       };
-        //     }),
-        //   };
-        // }
-
-        // if (vType.includes('VISITJEJU_')) {
-        //   const visitJejuPlace = v.tourPlace;
-        //   return {
-        //     id: v.id.toString(),
-        //     spotType: vType as string,
-        //     previewImg: 'none',
-        //     spotName: visitJejuPlace.vj_title ?? 'none',
-        //     spotAddr: visitJejuPlace.vj_address ?? 'none',
-        //     // contact: 'none',
-        //     placeId: visitJejuPlace.vj_contentsid ?? 'none',
-        //     startDate: v.checkin ? moment(v.checkin).format('YYYY-MM-DD') : '',
-        //     endDate: v.checkout ? moment(v.checkout).format('YYYY-MM-DD') : '',
-        //     night,
-        //     days,
-        //     lat: visitJejuPlace.vj_latitude ?? -1,
-        //     lng: visitJejuPlace.vj_longitude ?? -1,
-        //   };
-        // }
-        // return undefined;
 
         /// Not Hotel Place
         const { tourPlace } = v;
@@ -5393,7 +5554,7 @@ export const refreshSchedule = async (
           id: v.id.toString(),
           spotType: vType as string,
           previewImg: await getThumbnailUrlFromIBPhotos(tourPlace.photos),
-          spotName: tourPlace.title ?? 'none',
+          spotName: tourPlace.title,
           spotAddr: tourPlace.address ?? tourPlace.roadAddress ?? 'none',
           // placeId: tourPlace.gl_place_id ?? 'none',
           contact: 'none',
@@ -5407,9 +5568,10 @@ export const refreshSchedule = async (
           // days,
           // price: tourPlace.gl_price_level?.toString(),
           rating: tourPlace.rating ?? 0,
-          lat: tourPlace.lat ?? -1,
-          lng: tourPlace.lng ?? -1,
-          imageList: await getImgUrlListFromIBPhotos(tourPlace.photos),
+          lat: tourPlace.lat,
+          lng: tourPlace.lng,
+          imageList: [],
+          photos: await getImgUrlListFromIBPhotos(tourPlace.photos),
         };
       }),
     ),

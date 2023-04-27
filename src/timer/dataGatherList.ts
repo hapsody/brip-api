@@ -365,7 +365,7 @@ export default [
   {
     keyword: `themepark in ${locationTitle}`,
     ibType: {
-      typePath: 'themePark',
+      typePath: 'recreation>themePark',
       minDifficulty: 3,
       maxDifficulty: 5,
     },

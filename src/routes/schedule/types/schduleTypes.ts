@@ -6,6 +6,9 @@ import {
   VisitSchedule,
   PlaceType,
   MetaScheduleInfo,
+  ScheduleBank,
+  IBTravelTag,
+  IBPhotos,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -412,7 +415,10 @@ export interface IVisitOneSchedule {
         idx: number;
         numOfPointLessThanR: number;
       };
-  data?: Partial<TourPlace>[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+  data?: (Partial<TourPlace> & {
+    photos?: Partial<IBPhotos>[];
+    ibTravelTag?: Partial<IBTravelTag>[];
+  })[]; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
 }
 
 export type GetRcmdListRETParamPayload = QueryParams & {
@@ -468,7 +474,15 @@ export interface DayScheduleType {
     placeType: VisitPlaceType;
     orderNo: string; // x일차 y번째 일정인지 표기 1,2,3,4,..
     title: string; // ex) Turtle Bay Resort, Sunset House, T-shirt Restaurant, Great war Memorial tower
-    tourPlaceData: TourPlace | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+    tourPlaceData:
+      | (TourPlace & {
+          // photos: {
+          //   id: string;
+          //   url: string;
+          // }[];
+          photos: Partial<IBPhotos>[];
+        })
+      | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {
@@ -496,6 +510,13 @@ export interface MakeScheduleREQParam {
   travelType: string[];
   destination: string;
   travelHard: string;
+  scanRange?: {
+    keyword?: string;
+    minLat: string;
+    minLng: string;
+    maxLat: string;
+    maxLng: string;
+  }[];
 }
 
 // export interface MakeScheduleRETParamPayload extends QueryParams {
@@ -506,12 +527,12 @@ export interface MakeScheduleREQParam {
 // }
 export type TourPlaceGeoLoc = Omit<
   Partial<TourPlace>,
-  'gl_lat | gl_lng | vj_latitude | vj_longitude'
+  'id | title | lat | lng'
 > & {
-  gl_lat: number | null;
-  gl_lng: number | null;
-  vj_latitude: number | null;
-  vj_longitude: number | null;
+  id: number;
+  title: string;
+  lat: number;
+  lng: number;
 };
 
 export interface IValidCentResources {
@@ -660,6 +681,32 @@ export type SaveScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
+ * delSchedule
+ */
+export interface DelScheduleREQParam {
+  queryParamsId: string; /// 삭제할 schedule의 queryParams 고유 Id
+}
+
+export type DelScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+/**
+ * changeScheduleTitle
+ */
+export interface ChangeScheduleTitleREQParam {
+  queryParamsId: string; /// 변경할할 schedule의 queryParams 고유 Id
+  title: string; /// 변경할 schedule의 title
+}
+export interface ChangeScheduleTitleRETParamPayload {
+  updatedScheduleBank: ScheduleBank;
+}
+
+export type ChangeScheduleTitleRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangeScheduleTitleRETParamPayload | {};
+};
+
+/**
  * getDaySchedule
  */
 export interface GetDayScheduleREQParam {
@@ -693,6 +740,7 @@ export interface BriefScheduleType {
     id: string; /// ex) 18184
     url?: string; /// ex) http://ba6s6ddtnbkj120f-abashbdt.com
   }[];
+  photos?: Partial<IBPhotos>[];
 }
 
 export interface DetailScheduleType {
@@ -724,8 +772,8 @@ export interface DetailScheduleType {
   reviewScoreWord: string | null; /// booking.com hotel => 리뷰 점수를 한마디로 표현 ex) wonderful
   language: string | null; /// booking.com hotel => 호텔 언어
   cityNameEN: string | null; /// booking.com hotel => 호텔 위치 도시명
-  imageList:
-    | {
+  imageList: /// (deprecated) photos로 대체
+  | {
         url?: string; /// idealbloom server에서 포맷 변경한 직접 접근 가능한 대표 url ex) http://ba6s6ddtnbkj120f-abashbdt.com
         reference?: string; /// google photo reference
 
@@ -747,6 +795,7 @@ export interface DetailScheduleType {
         url_1440?: string;
       }[]
     | null;
+  photos: Partial<IBPhotos>[];
   contact: string | null; /// 연락처 Google Place Detail => formatted_phone_number ex) 02-6369-4603
   weekdayOpeningHours: string[] | null; /// Google Place Detail => weekday_text를 이름을 바꿨음. ex) ["월요일: 오전 11:30 ~ 오후 10:00", "화요일: 오전 11:30 ~ 오후 10:00", "수요일: 오전 11:30 ~ 오후 10:00", "목요일: 오전 11:30 ~ 오후 10:00", "금요일: 오전 11:30 ~ 오후 10:00", "토요일: 오전 11:30 ~ 오후 10:00", "일요일: 오전 11:30 ~ 오후 10:00"]
   reviews: GooglePlaceReview[] | null; /// Google Place Detail => 리뷰들 노출 5개
