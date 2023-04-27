@@ -889,7 +889,15 @@ export const getMyProfileImg = asyncWrapper(
 
 export type GetMyAccountInfoRequestType = {};
 export interface GetMyAccountInfoSuccessResType
-  extends Omit<User, 'password'> {}
+  extends Omit<
+    User & {
+      tripCreator: {
+        id: number;
+        nickName: string;
+      }[];
+    },
+    'password'
+  > {}
 
 export type GetMyAccountInfoResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetMyAccountInfoSuccessResType | {};
@@ -905,8 +913,8 @@ export const getMyAccountInfo = asyncWrapper(
       const { memberId, userTokenId } = (() => {
         if (locals && locals?.grade === 'member')
           return {
-            memberId: locals?.user?.id,
-            userTokenId: locals?.user?.userTokenId,
+            memberId: locals.user?.id,
+            userTokenId: locals.user?.userTokenId,
           };
         // return locals?.tokenId;
         throw new IBError({
@@ -925,6 +933,14 @@ export const getMyAccountInfo = asyncWrapper(
       const user = await prisma.user.findUnique({
         where: {
           id: memberId,
+        },
+        include: {
+          tripCreator: {
+            select: {
+              id: true,
+              nickName: true,
+            },
+          },
         },
       });
 

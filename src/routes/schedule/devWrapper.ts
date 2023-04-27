@@ -10,6 +10,7 @@ import {
 } from '@src/utils';
 import axios, { Method } from 'axios';
 import { isNumber, isNil, isEmpty } from 'lodash';
+import { getBoundingBox, getDistFromTwoGeoLoc } from '@src/utils/geoLocation';
 import {
   AddMockBKCHotelResourceREQParam,
   defaultBKCHotelReqParams,
@@ -196,8 +197,6 @@ export const getTourPlaceByTagWrapper = asyncWrapper(
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           where: {
             value: { in: tags },
@@ -438,12 +437,10 @@ export const makeClusterWrapper = asyncWrapper(
           },
         },
         status: 'IN_USE',
-        tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT'] },
+        tourPlaceType: { in: ['VISITJEJU_SPOT', 'GL_SPOT', 'TOUR4_SPOT'] },
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           select: {
             value: true,
@@ -451,25 +448,19 @@ export const makeClusterWrapper = asyncWrapper(
             maxDifficulty: true,
           },
         },
-        gl_vicinity: true,
-        gl_formatted_address: true,
-        vj_address: true,
-        gl_lat: true,
-        gl_lng: true,
-        vj_latitude: true,
-        vj_longitude: true,
+        title: true,
         status: true,
-        gl_rating: true,
-        gl_user_ratings_total: true,
+        lat: true,
+        lng: true,
+        address: true,
+        roadAddress: true,
+        openWeek: true,
+        contact: true,
+        postcode: true,
+        photos: true,
+        rating: true,
+        desc: true,
       },
-      orderBy: [
-        {
-          gl_user_ratings_total: 'desc',
-        },
-        {
-          gl_rating: 'desc',
-        },
-      ],
       // take: ctx.numOfWholeTravelSpot,
     });
 
@@ -480,8 +471,6 @@ export const makeClusterWrapper = asyncWrapper(
       },
       select: {
         id: true,
-        gl_name: true,
-        vj_title: true,
         ibTravelTag: {
           select: {
             value: true,
@@ -489,24 +478,19 @@ export const makeClusterWrapper = asyncWrapper(
             maxDifficulty: true,
           },
         },
-        gl_vicinity: true,
-        gl_formatted_address: true,
-        vj_address: true,
-        gl_lat: true,
-        gl_lng: true,
-        vj_latitude: true,
-        vj_longitude: true,
+        title: true,
         status: true,
-        gl_rating: true,
+        lat: true,
+        lng: true,
+        address: true,
+        roadAddress: true,
+        openWeek: true,
+        contact: true,
+        postcode: true,
+        photos: true,
+        rating: true,
+        desc: true,
       },
-      orderBy: [
-        {
-          gl_user_ratings_total: 'desc',
-        },
-        {
-          gl_rating: 'desc',
-        },
-      ],
     });
 
     if (spots.length < ctx.numOfWholeTravelSpot)
@@ -605,45 +589,26 @@ export const makeScheduleWrapper = asyncWrapper(
 /**
  * 테스트용
  */
-export const prismaTestWrapper = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<{ tags: string[] }>,
-    res: Express.IBTypedResponse<IBResFormat>,
-  ) => {
-    const param = req.body;
-    const { tags } = param;
-    const result = await prisma.tourPlace.findMany({
-      where: {
-        ibTravelTag: {
-          some: {
-            value: { in: tags },
-          },
-        },
-      },
-      select: {
-        id: true,
-        gl_name: true,
-        vj_title: true,
-        ibTravelTag: {
-          where: {
-            value: { in: tags },
-          },
-          select: {
-            id: true,
-            value: true,
-            related: {
-              include: {
-                to: true,
-              },
-            },
-          },
-        },
-      },
-    });
+export const prismaTestWrapper = (
+  req: Express.IBTypedReqBody<{ tags: string[] }>,
+  res: Express.IBTypedResponse<IBResFormat>,
+): void => {
+  // const result = getBoundingBox(98, 127, 2.5);
 
-    res.json({
-      ...ibDefs.SUCCESS,
-      IBparams: result,
-    });
-  },
-);
+  // 위경도 값
+  const sss = getBoundingBox(33.0, 127.3, 2500);
+
+  const result = getDistFromTwoGeoLoc({
+    aLat: sss.minLat,
+    aLng: sss.minLng,
+    bLat: sss.minLat,
+    bLng: sss.maxLng,
+  });
+  res.json({
+    ...ibDefs.SUCCESS,
+    IBparams: {
+      cent: sss,
+      distance: result,
+    },
+  });
+};

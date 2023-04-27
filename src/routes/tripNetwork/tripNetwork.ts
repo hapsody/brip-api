@@ -1,5 +1,6 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
+import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
 import {
   ibDefs,
   asyncWrapper,
@@ -309,6 +310,22 @@ const addTripMemory = async (
     });
 
   const createdTripMem = await prisma.$transaction(async tx => {
+    const alreadyExist = await tx.tripMemory.findUnique({
+      where: {
+        title_img: {
+          title,
+          img,
+        },
+      },
+    });
+
+    if (!isNil(alreadyExist)) {
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: '이미 기억 데이터가 존재합니다.',
+      });
+    }
+
     const prevStartDate = !isNil(tripMemoryGroup.startDate)
       ? tripMemoryGroup.startDate
       : moment().startOf('d').toISOString();
@@ -854,6 +871,22 @@ export const addShareTripMemory = asyncWrapper(
         });
       }
 
+      const alreadyExist = await prisma.shareTripMemory.findUnique({
+        where: {
+          title_img: {
+            title,
+            img,
+          },
+        },
+      });
+
+      if (!isNil(alreadyExist)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 공유기억 데이터가 존재합니다.',
+        });
+      }
+
       const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
         where: {
           id: {
@@ -1126,11 +1159,11 @@ export const addShareTripMemory = asyncWrapper(
 
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
-          title,
-          lat: Number(lat),
-          lng: Number(lng),
-          address,
-          img,
+          title: createdOrFoundTripMem.title,
+          lat: createdOrFoundTripMem.lat,
+          lng: createdOrFoundTripMem.lng,
+          address: createdOrFoundTripMem.address,
+          img: createdOrFoundTripMem.img,
           comment,
           user: {
             connect: {
@@ -1235,13 +1268,14 @@ export const addShareTripMemory = asyncWrapper(
       /// case2: tourPlaceId 가 제공되었을 경우는 addTripMemory 단계를 거치면서
       /// 기존에 있는 tourPlace가 tripMemory와 매칭되고 이 tourPlace를 반환했을 것이다.
       /// 이 tourPlace는 IN_USE 상태일 것이므로 아래 타입 업데이트를 거치지 않는다.
+
       if (
         createdOrFoundTripMem.TourPlace?.tourPlaceType ===
         ('USER_PRIV_MEMORY_SPOT' as PlaceType)
       ) {
         await prisma.tourPlace.update({
           where: {
-            id: createdOrFoundTripMem.id,
+            id: createdOrFoundTripMem.TourPlace.id,
           },
           data: {
             tourPlaceType: categoryToIBTravelTag.tourPlaceType,
@@ -1309,6 +1343,15 @@ export const addShareTripMemory = asyncWrapper(
           return;
         }
 
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
         if (err.type === 'DBTRANSACTIONERROR') {
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
@@ -1362,33 +1405,12 @@ export const getNrbyPlaceListWithGeoLoc = async (
 
   const count = await prisma.tourPlace.aggregate({
     where: {
-      OR: [
-        {
-          AND: [
-            { lat: { gte: Number(minLat) } },
-            { lat: { lt: Number(maxLat) } },
-            { lng: { gte: Number(minLng) } },
-            { lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: Number(minLat) } },
-            { gl_lat: { lt: Number(maxLat) } },
-            { gl_lng: { gte: Number(minLng) } },
-            { gl_lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { vj_latitude: { gte: Number(minLat) } },
-            { vj_latitude: { lt: Number(maxLat) } },
-            { vj_longitude: { gte: Number(minLng) } },
-            { vj_longitude: { lt: Number(maxLng) } },
-          ],
-        },
+      AND: [
+        { lat: { gte: Number(minLat) } },
+        { lat: { lt: Number(maxLat) } },
+        { lng: { gte: Number(minLng) } },
+        { lng: { lt: Number(maxLng) } },
       ],
-      status: 'IN_USE',
     },
     _count: {
       id: true,
@@ -1396,31 +1418,11 @@ export const getNrbyPlaceListWithGeoLoc = async (
   });
   const foundTourPlace = await prisma.tourPlace.findMany({
     where: {
-      OR: [
-        {
-          AND: [
-            { lat: { gte: Number(minLat) } },
-            { lat: { lt: Number(maxLat) } },
-            { lng: { gte: Number(minLng) } },
-            { lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { gl_lat: { gte: Number(minLat) } },
-            { gl_lat: { lt: Number(maxLat) } },
-            { gl_lng: { gte: Number(minLng) } },
-            { gl_lng: { lt: Number(maxLng) } },
-          ],
-        },
-        {
-          AND: [
-            { vj_latitude: { gte: Number(minLat) } },
-            { vj_latitude: { lt: Number(maxLat) } },
-            { vj_longitude: { gte: Number(minLng) } },
-            { vj_longitude: { lt: Number(maxLng) } },
-          ],
-        },
+      AND: [
+        { lat: { gte: Number(minLat) } },
+        { lat: { lt: Number(maxLat) } },
+        { lng: { gte: Number(minLng) } },
+        { lng: { lt: Number(maxLng) } },
       ],
     },
     take: Number(take),
@@ -1791,7 +1793,36 @@ export const getReplyListByShareTripMem = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: found,
+        IBparams: await Promise.all(
+          found.map(async v => {
+            return {
+              ...v,
+              user: {
+                ...v.user,
+                ...(!isNil(v.user!.profileImg) && {
+                  profileImg: v.user!.profileImg.includes('http')
+                    ? v.user!.profileImg
+                    : await getS3SignedUrl(v.user!.profileImg),
+                }),
+              },
+              childrenReplies: await Promise.all(
+                v.childrenReplies.map(async v2 => {
+                  return {
+                    ...v2,
+                    user: {
+                      ...v2.user,
+                      ...(!isNil(v2.user!.profileImg) && {
+                        profileImg: v2.user!.profileImg.includes('http')
+                          ? v2.user!.profileImg
+                          : await getS3SignedUrl(v2.user!.profileImg),
+                      }),
+                    },
+                  };
+                }),
+              ),
+            };
+          }),
+        ),
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -2200,6 +2231,7 @@ export interface GetShareTripMemListRequestType {
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 ShareTripMemory id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
+  userId: string; /// 특정하고자 하는 userId
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
   // TourPlace: {
@@ -2237,6 +2269,7 @@ export const getShareTripMemList = asyncWrapper(
         lastId,
         take = '10',
         categoryKeyword = '',
+        userId,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -2362,6 +2395,7 @@ export const getShareTripMemList = asyncWrapper(
               },
             },
           },
+          userId: Number(userId),
         },
         ...(isNil(lastId) && {
           take: Number(take),
@@ -2440,9 +2474,7 @@ export const getShareTripMemList = asyncWrapper(
         }),
         ...(orderBy.toUpperCase().includes('LIKE') && {
           orderBy: {
-            TourPlace: {
-              like: 'desc',
-            },
+            like: 'desc',
           },
         }),
       });
@@ -2542,6 +2574,9 @@ export interface GetShareTripMemListByPlaceRequestType {
   lastId?: string; /// 커서 기반 페이지네이션으로 직전 조회에서 확인한 마지막 tourPlace id. undefined라면 처음부터 조회한다.
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
+  shareTripMemory?: {
+    orderBy: string; /// 좋아요순(like), 최신순(latest) 정렬 default 최신순
+  };
 }
 export interface GetShareTripMemListByPlaceSuccessResType
   extends TourPlaceCommonType {
@@ -2593,6 +2628,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         lastId,
         take = '10',
         categoryKeyword = '',
+        shareTripMemory,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -2677,6 +2713,20 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 },
               },
             },
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LIKE') && {
+                orderBy: {
+                  like: 'desc',
+                },
+              }),
+            ...(!isNil(shareTripMemory) &&
+              !isNil(shareTripMemory.orderBy) &&
+              shareTripMemory.orderBy.toUpperCase().includes('LATEST') && {
+                orderBy: {
+                  id: 'desc',
+                },
+              }),
           },
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {
@@ -2713,6 +2763,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
           tourPlaceList.map(async t => {
             return {
               ...t,
+              photos: await getImgUrlListFromIBPhotos(t.photos),
               shareTripMemory: await Promise.all(
                 t.shareTripMemory.map(async s => {
                   const userImg = await (() => {

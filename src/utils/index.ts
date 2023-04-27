@@ -15,6 +15,18 @@ import accessTokenValidCheck from './middlewares/authGuard';
 import genBcryptHash from './genBcryptHash';
 import { s3FileUpload, getS3SignedUrl, putS3SignedUrl, s3 } from './aws/s3';
 import { getToday, getTomorrow, getNDaysLater } from './time';
+import {
+  IBTravelTagList,
+  ibTravelTagCategorize,
+} from './ibTravelTagCategorize';
+import {
+  degreeToMeter,
+  estGeoLocFromMeter,
+  BoundingBox,
+  getBoundingBox,
+  getDistFromTwoGeoLoc,
+} from './geoLocation';
+import { searchKRJuso, geoCodeToAddr } from './externalApi';
 
 export {
   ibDefs,
@@ -37,4 +49,13 @@ export {
   putS3SignedUrl,
   s3,
   IBContext,
+  IBTravelTagList,
+  ibTravelTagCategorize,
+  degreeToMeter,
+  estGeoLocFromMeter,
+  BoundingBox,
+  getBoundingBox,
+  getDistFromTwoGeoLoc,
+  searchKRJuso,
+  geoCodeToAddr,
 };

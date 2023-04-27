@@ -43,6 +43,7 @@ model User {
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
   likeTourPlace                   TourPlace[]
+  IBEventApplication              IBEventApplication[]
 }
 
 model FavoriteTravelType {
@@ -63,21 +64,22 @@ model FavoriteTravelType {
 //   OPEN_NOW
 // }
 
-model GglPhotos {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+// gl, vj 필드 삭제
+// model GglPhotos {
+//   id        Int      @id @default(autoincrement())
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @default(now()) @updatedAt
 
-  height            Int?
-  width             Int?
-  html_attributions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
-  photo_reference   String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
-  url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
-  TourPlace         TourPlace? @relation(name: "GooglePhotos", fields: [tourPlaceId], references: [id])
-  tourPlaceId       Int?
-  // shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
-  // shareTripMemTPId  Int?
-}
+//   height            Int?
+//   width             Int?
+//   html_attributions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
+//   photo_reference   String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
+//   url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
+//   TourPlace         TourPlace? @relation(name: "GooglePhotos", fields: [tourPlaceId], references: [id])
+//   tourPlaceId       Int?
+//   // shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
+//   // shareTripMemTPId  Int?
+// }
 
 model GglNearbySearchResType {
   id        Int         @id @default(autoincrement())
@@ -94,6 +96,7 @@ enum DataStageStatus {
   APPROVED /// 사용 승인됨 IN_USE 되기 전 단계
   IN_USE ///  사용중인 데이터
   ARCHIVED /// 사용하다가 새로 업데이트된 데이터로 옮겨가고 보관중인 데이터
+  DUPLICATED /// 중복 검사시점에 IN_USE 데이터들과 중복으로 판정되어 상태변경된 레코드
 }
 
 /// idealbloom 이미지 
@@ -122,9 +125,9 @@ model TourPlace {
   visitSchedule                         VisitSchedule[]
   queryParams                           QueryParams[]
   status                                DataStageStatus @default(NEW)
-  evalScore                             Int             @default(0)
-  minDifficulty                         Int? /// deprecated(?) ibTravelTag의 minDifficulty가 대신하고 있는것으로 보임
-  maxDifficulty                         Int? /// deprecated(?) ibTravelTag의 maxDifficulty가 대신하고 있는것으로 보임
+  // evalScore                             Int             @default(0) /// deprecated
+  // minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
+  // maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
   ibTravelTag                           IBTravelTag[]
   /// booking.com hotel result
   bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
@@ -162,67 +165,72 @@ model TourPlace {
   bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
   // bkc_has_swimming_pool       Int /// ex) 1
 
-  /// google place result format
-  gl_lat                   Float?
-  gl_lng                   Float?
-  gl_viewport_ne_lat       Float?
-  gl_viewport_ne_lng       Float?
-  gl_viewport_sw_lat       Float?
-  gl_viewport_sw_lng       Float?
-  gl_icon                  String?
-  gl_icon_background_color String?
-  gl_icon_mask_base_uri    String?
-  gl_name                  String? /// 검색된 장소 이름 
-  gl_opening_hours         Boolean? /// 검색시각 기준으로 현재 영업 상태인지
-  // opening_periods       String? /// 오픈 클로즈 시간 ex)
-  // weekday_text          String? /// 일주일 기준 영업일 ex) 
-  gl_place_id              String? /// 구글이 부여한 place의 고유값
-  gl_price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
-  gl_rating                Float? /// 별점, 0-5 
-  gl_types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
-  gl_user_ratings_total    Int? /// 별점을 준 유저수
-  gl_vicinity              String? /// nearbySearch 검색시에 주소
-  gl_formatted_address     String? /// textSearch 검색시에 주소
-  gl_photos                GglPhotos[]              @relation("GooglePhotos") /// 장소 사진 url
+  /// gl, vj 필드 삭제
+  // /// google place result format
+  // gl_lat                   Float?
+  // gl_lng                   Float?
+  // gl_viewport_ne_lat       Float?
+  // gl_viewport_ne_lng       Float?
+  // gl_viewport_sw_lat       Float?
+  // gl_viewport_sw_lng       Float?
+  // gl_icon                  String?
+  // gl_icon_background_color String?
+  // gl_icon_mask_base_uri    String?
+  // gl_name                  String? /// 검색된 장소 이름 
+  // gl_opening_hours         Boolean? /// 검색시각 기준으로 현재 영업 상태인지
+  // // opening_periods       String? /// 오픈 클로즈 시간 ex)
+  // // weekday_text          String? /// 일주일 기준 영업일 ex) 
+  gl_place_id String? /// 구글이 부여한 place의 고유값
+  // gl_price_level           Int? /// 구글이 부여한 가격 레벨, 0-4
+  // gl_rating                Float? /// 별점, 0-5 
+  // gl_types                 GglNearbySearchResType[] /// 장소 타입, 문서참조: https://developers.google.com/maps/documentation/places/web-service/supported_types?hl=ko#table2
+  // gl_user_ratings_total    Int? /// 별점을 준 유저수
+  // gl_vicinity              String? /// nearbySearch 검색시에 주소
+  // gl_formatted_address     String?                  @db.Text /// textSearch 검색시에 주소
+  // gl_photos GglPhotos[] @relation("GooglePhotos") /// 장소 사진 url
 
-  /// visitJeju result format
-  // vj_alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
-  vj_contentsid      String? /// 콘텐츠 ID ex) CONT_000000000500349
-  // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
-  vj_contentscdValue String? /// 콘텐츠 코드 값, ex) c1
-  vj_contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지
-  vj_contentscdRefId String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
-  vj_title           String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
-  // vj_region1cd   VisitJejuClassCode /// 1차 지역코드
-  vj_region1cdValue  String? /// 1차 지역코드 값, ex) region2
-  vj_region1cdLabel  String? /// 1차 지역코드 라벨, ex) 서귀포시
-  vj_region1cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
-  // vj_region2cd   VisitJejuClassCode /// 2차 지역코드
-  vj_region2cdValue  String? /// 1차 지역코드 값, ex) 17
-  vj_region2cdLabel  String? /// 1차 지역코드 라벨, ex) 성산
-  vj_region2cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
-  vj_address         String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
-  vj_roadaddress     String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
-  vj_tag             VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
-  vj_introduction    String?        @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
-  vj_latitude        Float? /// 위도 ex) 33.462147
-  vj_longitude       Float? /// 경도 ex) 126.936424
-  vj_postcode        String? /// 우편번호 ex) 63643
-  vj_phoneno         String? /// 전화번호 ex) 064-783-0959
+  /// gl, vj 필드 삭제
+  // /// visitJeju result format
+  // // vj_alltag          VisitJejuTag[] /// 관련 태그 전체 ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,카드결제
+  vj_contentsid String? /// 콘텐츠 ID ex) CONT_000000000500349
+  // // contentscd   VisitJejuClassCode; /// 콘텐츠 코드
+  // vj_contentscdValue String? /// 콘텐츠 코드 값, ex) c1
+  // vj_contentscdLabel String? /// 콘텐츠 코드 라벨 ex) 관광지
+  // vj_contentscdRefId String? /// 콘텐츠 코드 Reference ID, ex) contentscd>c1
+  // vj_title           String? /// 콘텐츠명 ex) 성산일출봉(UNESCO 세계자연유산)
+  // // vj_region1cd   VisitJejuClassCode /// 1차 지역코드
+  // vj_region1cdValue  String? /// 1차 지역코드 값, ex) region2
+  // vj_region1cdLabel  String? /// 1차 지역코드 라벨, ex) 서귀포시
+  // vj_region1cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region>region2
+  // // vj_region2cd   VisitJejuClassCode /// 2차 지역코드
+  // vj_region2cdValue  String? /// 1차 지역코드 값, ex) 17
+  // vj_region2cdLabel  String? /// 1차 지역코드 라벨, ex) 성산
+  // vj_region2cdRefId  String? /// 1차 지역코드 레퍼런스 ID, ex) region2>17
+  // vj_address         String? /// 주소 ex) 제주특별자치도 서귀포시 성산읍 성산리 1
+  // vj_roadaddress     String? /// 도로명 주소 ex) 제주특별자치도 서귀포시 성산읍 일출로 284-12
+  // vj_introduction    String?        @db.Text /// 간단소개 ex) 바다위에 우뚝 솟아난 수성화산·유네스코 세계자연유산, 천연기념물 제420호, 올레1코스
+  // vj_latitude        Float? /// 위도 ex) 33.462147
+  // vj_longitude       Float? /// 경도 ex) 126.936424
+  // vj_postcode        String? /// 우편번호 ex) 63643
+  // vj_phoneno         String? /// 전화번호 ex) 064-783-0959
+  // vj_tag VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
 
   /// 공통 필수 필드
-  title       String? /// 장소 이름
-  lat         Float? /// 위도
-  lng         Float? /// 경도
-  address     String?    @db.Text /// 지번주소
-  roadAddress String?    @db.Text /// 도로명주소
+  title        String /// 장소 이름
+  lat          Float /// 위도
+  lng          Float /// 경도
+  address      String?    @db.Text /// 지번주소
+  roadAddress  String?    @db.Text /// 도로명주소
   /// 공통 옵션 필드
-  openWeek    String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  contact     String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
-  postcode    String? /// 우편번호
-  photos      IBPhotos[] /// 사진
-  rating      Float?     @default(0) /// 평점 0~5
-  desc        String?    @db.Text /// 장소 소개설명
+  openWeek     String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  contact      String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
+  postcode     String? /// 우편번호
+  photos       IBPhotos[] /// 사진
+  rating       Float      @default(0) /// 평점 0~5
+  desc         String?    @db.Text /// 장소 소개설명
+  regionCode1  String?    @db.Char(16) /// 상위 지역
+  regionCode2  String?    @db.Char(32) /// 하위 세부 지역
+  nationalCode String     @default("82") @db.Char(7)
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
@@ -233,12 +241,15 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good   Int @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad    Int @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like   Int @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good                     Int                     @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad                   Int                     @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad                      Int                     @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like                     Int                     @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  // @@index([gl_place_id, vj_contentsid])
+  GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
+  gglNearbySearchResTypeId Int?
 
-  @@index([gl_place_id, vj_contentsid])
+  @@index([lat, lng, id])
 }
 
 model BatchQueryParams {
@@ -477,9 +488,13 @@ enum PlaceType {
   GL_SPOT
   VISITJEJU_RESTAURANT
   VISITJEJU_SPOT
-  USER_SPOT
-  USER_RESTAURANT
+  USER_SPOT /// 유저가 개인 장소를 공유하므로써 공개된 장소
+  USER_RESTAURANT /// /// 유저가 개인 장소를 공유하므로써 공개된 식당
   USER_PRIV_MEMORY_SPOT /// 유저 기억에서 개인적으로 저장한 장소
+  PUBLICDATAPORTAL_RESTAURANT /// 공공데이터 포탈 식당
+  PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
+  TOUR4_SPOT ///한국 관광공사 Tour4.0 api 데이터 
+  TOUR4_RESTAURANT
 }
 
 /// 문의사항
@@ -551,14 +566,15 @@ model TripCreator {
   cardNewsGroup CardNewsGroup[]
 }
 
-/// VisitJejuData에서 활용할 Tag 모델
-model VisitJejuTag {
-  id        Int         @id @default(autoincrement())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now()) @updatedAt
-  value     String      @unique ///ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,
-  tourPlace TourPlace[]
-}
+// gl, vj 필드 삭제 
+// /// VisitJejuData에서 활용할 Tag 모델
+// model VisitJejuTag {
+//   id        Int         @id @default(autoincrement())
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now()) @updatedAt
+//   value     String      @unique ///ex) 일출,오름,경관/포토,부모,공용주차장,현금결제,
+//   tourPlace TourPlace[]
+// }
 
 /// idealbloom에서 자체 정의하는 여행타입. 
 model IBTravelTag {
@@ -571,6 +587,8 @@ model IBTravelTag {
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
+
+  @@index([minDifficulty, maxDifficulty, id])
 }
 
 /// IBTravelTag 간에 관계 정의
@@ -662,6 +680,8 @@ model TripMemory {
   userId      Int
 
   ShareTripMemory ShareTripMemory?
+
+  @@unique([title, img])
 }
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
@@ -687,6 +707,8 @@ model ShareTripMemory {
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeFrom                        User[]                            @relation(name: "likeFrom")
+
+  @@unique([title, img])
 }
 
 /// 대댓글 기능을 지원하는 자기참조 모델
@@ -695,7 +717,7 @@ model ReplyForShareTripMemory {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @default(now()) @updatedAt
   text              String                    @db.Text
-  shareTripMemory   ShareTripMemory           @relation(fields: [shareTripMemoryId], references: [id])
+  shareTripMemory   ShareTripMemory           @relation(fields: [shareTripMemoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   shareTripMemoryId Int
   user              User?                     @relation(fields: [userId], references: [id]) /// 댓글을 썼던 사용자가 삭제될 경우 null일수도 있다.                
   userId            Int?
@@ -747,4 +769,58 @@ model NotiNewCommentOnShareTripMemory {
   userChecked       Boolean         @default(false) /// 유저가 노티를 확인했는지 
 
   @@index([userId, shareTripMemoryId])
+}
+
+enum IBEventStatus {
+  OPENED /// 이벤트중
+  EXPIRED /// 이벤트만료. 2차 3차로 다시 할수도 있음
+  STOPPED /// 이벤트중 중단
+  PREPARING /// 이벤트 준비중
+  TERMINATED /// 이벤트 완전종료
+}
+
+enum Currency {
+  USD /// 미국 달러
+  KRW /// 한국 원
+  JPY /// 일본 엔
+  CNY /// 중국 위안
+  EUR /// 유럽연합 유로
+}
+
+enum IBEventPayType {
+  PERIODIC_DAY
+  PERIODIC_WEEK
+  PERIODIC_MONTH
+  PERIODIC_YEAR
+  ONCE
+  FREE
+}
+
+/// 아이디얼블룸 이벤트 프로모션 
+model IBEventPromotion {
+  id                 Int                  @id @default(autoincrement())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  status             IBEventStatus        @default(OPENED) /// 이벤트 상태
+  name               String               @db.Text /// 이벤트명
+  desc               String               @db.LongText /// 이벤트 설명
+  price              Int                  @default(0) /// 이벤트가격
+  currency           Currency             @default(KRW) /// 이벤트 가격 통화
+  payType            IBEventPayType       @default(ONCE) /// 이벤트 가격 지불 방식 (주기적, 일시불, 무료)
+  startDate          DateTime             @default(now()) ///  이벤트 시작시각 UTC기준
+  endDate            DateTime? /// 이벤트 종료시각 UTC기준 null이면 무제한
+  byWhom             String? /// 프로모션 진행 주체
+  IBEventApplication IBEventApplication[]
+}
+
+///  이벤트 프로모션 참여 신청서 목록
+model IBEventApplication {
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+  content     String            @db.Text /// 전체 신청 내용을 String 형태로 Serialize 해서 저장
+  promotion   IBEventPromotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  promotionId Int?
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  userId      Int?
 }

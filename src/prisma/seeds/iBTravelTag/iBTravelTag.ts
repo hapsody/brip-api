@@ -1,8 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import { IBTravelTagList, ibTravelTagCategorize } from '@src/utils';
 
 const prisma = new PrismaClient();
 
-const seedData = [
+export const seedData: IBTravelTagList[] = [
   /// oceanActivity
   {
     ibType: {
@@ -66,6 +67,13 @@ const seedData = [
       typePath: 'oceanActivity>cruise',
       minDifficulty: 1,
       maxDifficulty: 3,
+    },
+  },
+  {
+    ibType: {
+      typePath: 'oceanActivity>etc',
+      minDifficulty: 1,
+      maxDifficulty: 8,
     },
   },
   // {
@@ -132,6 +140,13 @@ const seedData = [
       typePath: 'landActivity>lugeRacing',
       minDifficulty: 2,
       maxDifficulty: 5,
+    },
+  },
+  {
+    ibType: {
+      typePath: 'landActivity>etc',
+      minDifficulty: 2,
+      maxDifficulty: 10,
     },
   },
   // {
@@ -313,13 +328,92 @@ const seedData = [
     },
   },
   {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>valley',
+      minDifficulty: 2,
+      maxDifficulty: 6,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>hotSpring',
+      minDifficulty: 1,
+      maxDifficulty: 3,
+    },
+  },
+  /// cave
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>cave',
+      minDifficulty: 3,
+      maxDifficulty: 5,
+    },
+  },
+  /// lake
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>lake',
+      minDifficulty: 1,
+      maxDifficulty: 2,
+    },
+  },
+  /// etc
+  {
     ibType: {
       typePath: 'naturalSpot>etc',
-      minDifficulty: 3,
+      minDifficulty: 1,
       maxDifficulty: 7,
     },
   },
-
+  /// biome
+  {
+    /// new
+    ibType: {
+      typePath: 'naturalSpot>biome', /// 동식물
+      minDifficulty: 2,
+      maxDifficulty: 3,
+    },
+  },
+  /// temple
+  {
+    /// new
+    ibType: {
+      typePath: 'culturalSpot>temple',
+      minDifficulty: 1,
+      maxDifficulty: 2,
+    },
+  },
+  /// buildingAndStructure
+  {
+    /// new
+    ibType: {
+      typePath: 'culturalSpot>buildingAndStructure',
+      minDifficulty: 1,
+      maxDifficulty: 3,
+    },
+  },
+  /// festival
+  {
+    /// new
+    ibType: {
+      typePath: 'culturalSpot>festival',
+      minDifficulty: 2,
+      maxDifficulty: 7,
+    },
+  },
+  /// culturalSpot>etc
+  {
+    /// new
+    ibType: {
+      typePath: 'culturalSpot>etc',
+      minDifficulty: 1,
+      maxDifficulty: 4,
+    },
+  },
   /// historical spot
   {
     ibType: {
@@ -331,9 +425,63 @@ const seedData = [
   /// themePark
   {
     ibType: {
-      typePath: 'themePark',
+      typePath: 'recreation>themePark', /// 휴양>테마파크
       minDifficulty: 3,
       maxDifficulty: 5,
+    },
+  },
+  /// new
+  {
+    ibType: {
+      typePath: 'recreation>tourComplex', /// 휴양>관광단지
+      minDifficulty: 2,
+      maxDifficulty: 4,
+    },
+  },
+  /// sauna
+  {
+    /// new
+    ibType: {
+      typePath: 'recreation>sauna',
+      minDifficulty: 1,
+      maxDifficulty: 2,
+    },
+  },
+  /// healthTour
+  {
+    /// new
+    ibType: {
+      typePath: 'recreation>etc',
+      minDifficulty: 1,
+      maxDifficulty: 5,
+    },
+  },
+
+  /// traditionalActivity
+  {
+    /// new
+    ibType: {
+      typePath: 'activity>traditional',
+      minDifficulty: 2,
+      maxDifficulty: 4,
+    },
+  },
+  /// activity etc
+  {
+    /// new
+    ibType: {
+      typePath: 'activity>etc',
+      minDifficulty: 1,
+      maxDifficulty: 9,
+    },
+  },
+  /// industrialComplex
+  {
+    /// new
+    ibType: {
+      typePath: 'industrialComplex>etc',
+      minDifficulty: 2,
+      maxDifficulty: 4,
     },
   },
   /// amusementPark
@@ -352,11 +500,20 @@ const seedData = [
       maxDifficulty: 7,
     },
   },
-  /// water park
+  /// museum
   {
     ibType: {
       typePath: 'museum',
       minDifficulty: 1,
+      maxDifficulty: 3,
+    },
+  },
+  /// convention
+  {
+    /// new
+    ibType: {
+      typePath: 'convention',
+      minDifficulty: 2,
       maxDifficulty: 3,
     },
   },
@@ -376,67 +533,86 @@ const seedData = [
       maxDifficulty: 5,
     },
   },
+
+  /// food
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>western',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>chinese',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>korean',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>japanese',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>japanese',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>dining>etc',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>beverage>cafe',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'food>beverage>club',
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
+  {
+    /// new
+    ibType: {
+      typePath: 'lodging', /// 숙박시설
+      minDifficulty: 1,
+      maxDifficulty: 1,
+    },
+  },
 ];
 
 async function main(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax
   for await (const seed of seedData) {
-    await (async () => {
-      const {
-        ibType: { typePath, minDifficulty, maxDifficulty },
-      } = seed;
-      const types = typePath.split('>');
-      // const leafType = types[types.length - 1];
-      // let lastCreatedId = 0;
-      let superTypeId: number = -1;
-      // eslint-disable-next-line no-restricted-syntax
-      for await (const type of types) {
-        let curIBTType = await prisma.iBTravelTag.findUnique({
-          where: {
-            value: type,
-          },
-        });
-        if (!curIBTType) {
-          curIBTType = await prisma.iBTravelTag.create({
-            data: {
-              value: type,
-              minDifficulty,
-              maxDifficulty,
-            },
-          });
-          console.log(curIBTType);
-        }
-        if (superTypeId > -1) {
-          curIBTType = await prisma.iBTravelTag.update({
-            where: {
-              id: curIBTType.id,
-            },
-            data: {
-              related: {
-                connectOrCreate: {
-                  where: {
-                    fromId_toId: {
-                      fromId: curIBTType.id,
-                      toId: superTypeId,
-                    },
-                  },
-                  create: {
-                    toId: superTypeId,
-                  },
-                },
-              },
-            },
-          });
-        }
-        superTypeId = curIBTType.id;
-      }
-      // lastCreatedId = superTypeId;
-      // return {
-      //   connect: {
-      //     id: lastCreatedId,
-      //   },
-      // };
-    })();
+    await ibTravelTagCategorize(seed);
   }
 
   await prisma.$disconnect();

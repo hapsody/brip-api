@@ -1,0 +1,18 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /home/ubuntu/landingship
+hooks:
+  BeforeInstall:
+    - location: scripts/before-install.sh
+      timeout: 300
+      runas: ubuntu
+      environment:
+        YARNPATH: "/home/ubuntu/.nvm/versions/node/v17.9.1/bin/yarn"
+  AfterBlockTraffic:
+    - location: scripts/after-block-traffic.sh
+      timeout: 300
+      runas: ubuntu
+      environment:
+        YARNPATH: "/home/ubuntu/.nvm/versions/node/v17.9.1/bin/yarn"

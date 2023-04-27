@@ -91,7 +91,7 @@ async function main(): Promise<void> {
       where: {
         status: 'IN_USE',
         tourPlaceType: 'GL_SPOT',
-        gl_name: { equals: '용두암' },
+        title: { equals: '용두암' },
       },
     });
 

@@ -22,11 +22,22 @@ const upload = multer();
 
 const authRouter: express.Application = express();
 
+/**
+ * 컨텐츠 검색 api
+ * https://www.figma.com/file/4hamONEjUfNCjbZAxC6iW3/Travelit?node-id=311:8047
+ * 만약 groupId와 keyword를 같이 넣는다면 groupId가 우선한다.
+ * @param keyword required, string # 검색어, 제목 또는 카드태그를 기준으로 검색함 ex) 몰디브
+ * @param skip required, string, # 수정일을 기준으로 최근일을 기준 내림차순 정렬하였을때 pagination을 위해 건너뛸 항목 수, skip 수 이후 take 수만큼 취하여 결과를 응답한다. ex) "0"
+ * @param take required, string, # 수정일을 기준으로 최근일을 기준으로 내림차순 정렬하였을때 pagintation을 위해 한번에 취할 항목 수, skip 수 이후 take 수만큼 취하여 결과를 응답한다. ex) "10"
+ * @param groupId optional, string # cardNewsId이다. 그룹 Id에 속하는 컨텐츠들을 요청할때 기입.
+ */
+
 export interface GetContentListRequestType {
   keyword: string;
   skip: number;
   take: number;
   orderBy: string; /// 최신순(latest), 오래된 순(oldest)
+  groupId: string;
 }
 export interface GetContentListSuccessResType {
   groupNo: number;
@@ -59,53 +70,85 @@ export const getContentList = asyncWrapper(
     res: Express.IBTypedResponse<GetContentListResType>,
   ) => {
     try {
-      const { keyword, take, skip, orderBy } = req.query;
-      const foundNewsGrp = await prisma.cardNewsGroup.findMany({
-        where: {
-          OR: [
-            { title: { contains: keyword } },
-            {
-              cardNewsContent: {
-                some: {
-                  cardTag: {
+      const { keyword, take, skip, orderBy, groupId } = req.query;
+
+      const foundNewsGrp = await (async () => {
+        if (isNil(groupId)) {
+          const resByKeyword = await prisma.cardNewsGroup.findMany({
+            where: {
+              OR: [
+                { title: { contains: keyword } },
+                {
+                  cardNewsContent: {
                     some: {
-                      value: { contains: keyword },
+                      cardTag: {
+                        some: {
+                          value: { contains: keyword },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            take: Number(take),
+            skip: Number(skip),
+            include: {
+              cardNewsContent: {
+                include: {
+                  cardTag: true,
+                },
+              },
+              creator: {
+                select: {
+                  id: true,
+                  userId: true,
+                  nickName: true,
+                  user: {
+                    select: {
+                      profileImg: true,
                     },
                   },
                 },
               },
             },
-          ],
-        },
-        take: Number(take),
-        skip: Number(skip),
-        include: {
-          cardNewsContent: {
-            include: {
-              cardTag: true,
-            },
+
+            ...(!isNil(orderBy) &&
+              !isEmpty(orderBy) && {
+                orderBy: {
+                  id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
+                },
+              }),
+          });
+          return resByKeyword;
+        }
+
+        const resByGroupId = await prisma.cardNewsGroup.findUnique({
+          where: {
+            id: Number(groupId),
           },
-          creator: {
-            select: {
-              id: true,
-              userId: true,
-              nickName: true,
-              user: {
-                select: {
-                  profileImg: true,
+          include: {
+            cardNewsContent: {
+              include: {
+                cardTag: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                userId: true,
+                nickName: true,
+                user: {
+                  select: {
+                    profileImg: true,
+                  },
                 },
               },
             },
           },
-        },
-
-        ...(!isNil(orderBy) &&
-          !isEmpty(orderBy) && {
-            orderBy: {
-              id: orderBy.toUpperCase().includes('LATEST') ? 'desc' : 'asc',
-            },
-          }),
-      });
+        });
+        return resByGroupId ? [resByGroupId] : [];
+      })();
 
       const retCardGroups = await Promise.all(
         foundNewsGrp.map(async group => {
@@ -739,19 +782,38 @@ export const updateCardGrp = asyncWrapper(
   },
 );
 
+export type AddCardNewsRequestUnitType = CardNewsContentReqType & {
+  cardNo?: string;
+  groupId: string;
+  // no?: string;
+};
+
 export type UpdateCardNewsRequestUnitType = Partial<CardNewsContentReqType> & {
   cardId: string;
   cardNo?: string;
 };
-export interface UpdateCardNewsRequestType {
-  cardNewsContent: UpdateCardNewsRequestUnitType[];
+
+export interface DeleteCardNewsRequestUnitType {
+  cardId: string;
 }
+
+export interface UpdateCardNewsRequestType {
+  cardNewsContent?: UpdateCardNewsRequestUnitType[]; ///  deprecated
+  update?: UpdateCardNewsRequestUnitType[];
+  add?: AddCardNewsRequestUnitType[];
+  delete?: DeleteCardNewsRequestUnitType[];
+}
+
 export type PickCardsTypeFromGetContentList =
   GetContentListSuccessResType['cards'][0];
-export interface UpdateCardNewsSuccessResType {}
+export interface UpdateCardNewsSuccessResType {
+  delResult: Prisma.BatchPayload;
+  addResult: Prisma.BatchPayload;
+  updateResult: PickCardsTypeFromGetContentList;
+}
 
 export type UpdateCardNewsResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: PickCardsTypeFromGetContentList[] | {};
+  IBparams: UpdateCardNewsSuccessResType[] | {};
 };
 
 export const updateCardNews = asyncWrapper(
@@ -761,7 +823,6 @@ export const updateCardNews = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-
       const { locals } = req;
       const userTokenId = (() => {
         if (
@@ -785,73 +846,208 @@ export const updateCardNews = asyncWrapper(
         });
       }
 
-      const { cardNewsContent: updateCardArrParam } = param;
+      const { cardNewsContent, update, add, delete: del } = param;
 
-      const updatedCardList = await Promise.all(
-        updateCardArrParam.map(v => {
-          const { cardTag } = v;
-          return prisma.$transaction(async tx => {
-            const foundCard = await tx.cardNewsContent.findUnique({
-              where: {
-                id: Number(v.cardId),
-              },
-            });
-            if (!foundCard) {
-              throw new IBError({
-                type: 'NOTEXISTDATA',
-                message: '존재하지 않는 카드 Id입니다.',
-              });
-            }
+      /// 파라미터가 아무것도 없을 경우
+      if (
+        (isNil(cardNewsContent) || isEmpty(cardNewsContent)) &&
+        (isNil(update) || isEmpty(update)) &&
+        (isNil(add) || isEmpty(add)) &&
+        (isNil(del) || isEmpty(del))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'update, add, delete중 하나의 파라미터 프로퍼티값은 제공되어야 합니다.',
+        });
+      }
 
-            const updatedCardNews = await tx.cardNewsContent.update({
-              where: {
-                id: Number(v.cardId),
-              },
-              data: {
-                title: v.title,
-                content: v.content,
-                no: v.cardNo ? Number(v.cardNo) : undefined,
-                bgPicUri: v.bgPicUri,
-                ...(cardTag &&
-                  !isEmpty(cardTag) && {
-                    cardTag: {
-                      set: [],
-                      connectOrCreate: cardTag.map(tag => {
-                        return {
-                          where: {
-                            value: tag,
-                          },
-                          create: {
-                            value: tag,
-                          },
-                        };
-                      }),
-                    },
-                  }),
-              },
-              include: {
-                cardTag: true,
-              },
-            });
-            return updatedCardNews;
+      const operationResult = await prisma.$transaction(async tx => {
+        /// delete transaction
+        const delCardArrParam = del;
+        let result = {};
+        if (!isNil(delCardArrParam) && !isEmpty(delCardArrParam)) {
+          const found = await tx.cardNewsContent.findMany({
+            where: {
+              id: { in: delCardArrParam.map(v => Number(v.cardId)) },
+            },
           });
-        }),
-      );
 
-      const retCardNewsList = updatedCardList.map(v => {
-        return {
-          cardId: v.id,
-          cardNo: v.no,
-          cardTitle: v.title,
-          cardContent: v.content,
-          cardBgUri: v.bgPicUri,
-          tag: v.cardTag.map(n => n.value),
-        };
+          if (found.length !== delCardArrParam.length) {
+            throw new IBError({
+              type: 'NOTEXISTDATA',
+              message: 'delete 연산에 존재하지 않는 카드 Id가 전달되었습니다.',
+            });
+          }
+
+          const delResult = await tx.cardNewsContent.deleteMany({
+            where: {
+              id: {
+                in: delCardArrParam.map(v => Number(v.cardId)),
+              },
+            },
+          });
+          result = {
+            ...result,
+            delResult,
+          };
+        }
+
+        /// add transaction
+        const addCardArrParam = add;
+        if (!isNil(addCardArrParam) && !isEmpty(addCardArrParam)) {
+          // groupId = Number(addCardArrParam[0].groupId);
+          const lastNoContent = await tx.cardNewsContent.findFirst({
+            where: {
+              cardNewsGroupId: Number(addCardArrParam[0].groupId),
+            },
+            orderBy: {
+              no: 'desc',
+            },
+            select: {
+              id: true,
+              no: true,
+            },
+          });
+
+          let startCardNo = (() => {
+            // if (v.cardNo) {
+            //   return Number(v.cardNo);
+            // }
+
+            /// 카드그룹에 뉴스컨텐츠가 하나도 없으면 생성되는 no는 1
+            if (isNil(lastNoContent)) {
+              return 1;
+            }
+            /// 카드그룹에 뉴스컨텐츠가 하나이상 있으면 마지막 카드의 다음 번호
+            return lastNoContent.no + 1;
+          })();
+
+          const addResult = await Promise.all(
+            addCardArrParam.map(v => {
+              const { cardTag } = v;
+              const no = (() => {
+                if (v.cardNo) {
+                  return Number(v.cardNo);
+                }
+                const retNo = startCardNo;
+                startCardNo += 1;
+                return retNo;
+              })();
+
+              return tx.cardNewsContent.create({
+                data: {
+                  title: v.title,
+                  content: v.content,
+                  no,
+                  bgPicUri: v.bgPicUri,
+                  cardNewsGroupId: Number(v.groupId),
+                  ...(cardTag &&
+                    !isEmpty(cardTag) && {
+                      cardTag: {
+                        // set: [],
+                        connectOrCreate: cardTag.map(tag => {
+                          return {
+                            where: {
+                              value: tag,
+                            },
+                            create: {
+                              value: tag,
+                            },
+                          };
+                        }),
+                      },
+                    }),
+                },
+              });
+            }),
+          );
+
+          result = {
+            ...result,
+            addResult,
+          };
+        }
+
+        /// Update transaction
+        const updateCardArrParam =
+          isNil(update) || isEmpty(update) ? cardNewsContent : update;
+
+        if (!isNil(updateCardArrParam) && !isEmpty(updateCardArrParam)) {
+          const updatedCardList = await Promise.all(
+            updateCardArrParam.map(async v => {
+              const { cardTag } = v;
+              return (async () => {
+                const foundCard = await tx.cardNewsContent.findUnique({
+                  where: {
+                    id: Number(v.cardId),
+                  },
+                });
+                if (!foundCard) {
+                  throw new IBError({
+                    type: 'NOTEXISTDATA',
+                    message:
+                      'update연산에 존재하지 않는 카드 Id가 제공되었습니다.',
+                  });
+                }
+                const updatedCardNews = await tx.cardNewsContent.update({
+                  where: {
+                    id: Number(v.cardId),
+                  },
+                  data: {
+                    title: v.title,
+                    content: v.content,
+                    no: v.cardNo ? Number(v.cardNo) : undefined,
+                    bgPicUri: v.bgPicUri,
+                    ...(cardTag &&
+                      !isEmpty(cardTag) && {
+                        cardTag: {
+                          set: [],
+                          connectOrCreate: cardTag.map(tag => {
+                            return {
+                              where: {
+                                value: tag,
+                              },
+                              create: {
+                                value: tag,
+                              },
+                            };
+                          }),
+                        },
+                      }),
+                  },
+                  include: {
+                    cardTag: true,
+                  },
+                });
+                return updatedCardNews;
+              })();
+            }),
+          );
+
+          // groupId = updatedCardList[0].cardNewsGroupId;
+
+          const updateResult = updatedCardList.map(v => {
+            return {
+              cardId: v.id,
+              cardNo: v.no,
+              cardTitle: v.title,
+              cardContent: v.content,
+              cardBgUri: v.bgPicUri,
+              tag: v.cardTag.map(n => n.value),
+            };
+          });
+          result = {
+            ...result,
+            updateResult,
+          };
+        }
+        return result;
       });
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: retCardNewsList,
+        IBparams: operationResult,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -957,9 +1153,8 @@ export const deleteCardGrp = asyncWrapper(
   },
 );
 
-export interface DeleteCardNewsRequestType {
-  cardId: string;
-}
+export interface DeleteCardNewsRequestType
+  extends DeleteCardNewsRequestUnitType {}
 export type DeleteCardNewsResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };

@@ -6,7 +6,7 @@ cd /home/ubuntu/travelit-api
 # Set the maximum number of iterations to perform
 #max_iterations=1200
 iterations=0
-waiting_time=10
+waiting_time=20
 
 # Define a function to check if the process is running
 function is_process_running () {
@@ -26,13 +26,14 @@ function run_process () {
   git pull upstream prod --no-edit
   git fetch --tags
   yarn
-  yarn prisma db push
   yarn build
+  # yarn prisma db push --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다!
+
   yarn restart
-  yarn prismastudio
+  # yarn prismastudio
 }
 
-run_process
+#run_process
 
 # Wait for the process to start
 while true
