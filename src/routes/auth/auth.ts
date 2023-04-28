@@ -9,6 +9,7 @@ import {
   IBError,
   AccessTokenPayload,
   RefreshTokenPayload,
+  sendEmail,
 } from '@src/utils';
 import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
@@ -975,9 +976,7 @@ export type ResetPasswordREQParam = {
   email: string;
   authCode: string;
 };
-export interface ResetPasswordRETParamPayload {
-  newPassword: string;
-}
+export interface ResetPasswordRETParamPayload {}
 
 export type ResetPasswordRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ResetPasswordRETParamPayload | {};
@@ -1076,6 +1075,7 @@ export const resetPassword = asyncWrapper(
       const hash = genBcryptHash(tempPassword);
 
       const now = moment();
+      const expiration = now.add(15, 'minutes').toISOString();
       await prisma.$transaction(async tx => {
         await tx.user.update({
           where: {
@@ -1084,7 +1084,7 @@ export const resetPassword = asyncWrapper(
           data: {
             password: hash,
             pwLastUpdateDate: now.toISOString(),
-            pwExpireDate: now.add(15, 'minutes').toISOString(), /// 임시비밀번호 유효시간 15분
+            pwExpireDate: expiration, /// 임시비밀번호 유효시간 15분
           },
         });
 
@@ -1095,11 +1095,18 @@ export const resetPassword = asyncWrapper(
         });
       });
 
+      await sendEmail({
+        from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
+        to: `${email}, hapsody@gmail.com`,
+        subject: 'BRiP System - Temporay Password was created',
+        html: `변경된 임시 비밀번호는 <b>${tempPassword} </b> 입니다. <br>
+        해당 비밀번호의 만료시한은 보안상 15분으로 ${expiration} 까지입니다. <br>
+        로그인 후에는 <b>반드시 비밀번호를 변경해주시길 부탁드립니다.</b>`,
+      });
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          newPassword: tempPassword,
-        },
+        IBparams: {},
       });
     } catch (err) {
       if (err instanceof IBError) {
