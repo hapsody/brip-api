@@ -2512,6 +2512,7 @@ export const makeSchedule = async (
           const { regionalCodes } = scanType;
           const condition = regionalCodes.map(v => {
             return {
+              nationalCode: '82',
               regionCode1:
                 krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
               regionCode2:
@@ -2644,6 +2645,7 @@ export const makeSchedule = async (
           return {
             OR: regionalCodes.map(v => {
               return {
+                nationalCode: '82',
                 regionCode1:
                   krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
                 regionCode2:

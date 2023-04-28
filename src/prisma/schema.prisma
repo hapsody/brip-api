@@ -252,6 +252,8 @@ model TourPlace {
   gglNearbySearchResTypeId Int?
 
   @@index([lat, lng, id])
+  @@index([nationalCode, regionCode1, id])
+  @@index([nationalCode, regionCode1, regionCode2, id])
 }
 
 model BatchQueryParams {
