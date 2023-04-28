@@ -183,7 +183,7 @@ export type HawaiiHoneymoonPackRequestType = {
     day: string;
     value: string;
   }[]; /// n일차 선택관광 옵션
-  freeSchedule: string[]; /// 자유일정 추가, 다중선택 가능
+  // freeSchedule: string[]; /// 자유일정 추가, 다중선택 가능
   consultDate: string; /// ISOString
   phone: string;
 };
@@ -248,12 +248,12 @@ export const hawaiiHoneymoonPack = asyncWrapper(
         });
       }
 
-      if (isNil(param.freeSchedule) || isEmpty(param.freeSchedule)) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message: 'freeSchedule은 반드시 제공되어야 하는 파라미터입니다.',
-        });
-      }
+      // if (isNil(param.freeSchedule) || isEmpty(param.freeSchedule)) {
+      //   throw new IBError({
+      //     type: 'INVALIDPARAMS',
+      //     message: 'freeSchedule은 반드시 제공되어야 하는 파라미터입니다.',
+      //   });
+      // }
       if (isNil(param.phone) || isEmpty(param.phone)) {
         throw new IBError({
           type: 'INVALIDPARAMS',
