@@ -7,6 +7,7 @@ import {
   BusinessQuestionTicket,
   TripCreator,
   FavoriteTravelType,
+  Prisma,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -1086,6 +1087,112 @@ export const setTravelTypeToUser = asyncWrapper(
   },
 );
 
+export type GetRandomMainImgRequestType = {
+  type: string;
+};
+export interface GetRandomMainImgSuccessResType extends FavoriteTravelType {}
+
+export type GetRandomMainImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRandomMainImgSuccessResType | {};
+};
+
+export const getRandomMainImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetRandomMainImgRequestType>,
+    res: Express.IBTypedResponse<GetRandomMainImgResType>,
+  ) => {
+    try {
+      const { type } = req.query;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(type) || isEmpty(type)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'type은 제공되어야 하는 파라미터입니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          userTokenId,
+        },
+        include: {
+          FavoriteTravelType: true,
+        },
+      });
+
+      if (!user) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 계정입니다.',
+        });
+      }
+
+      const a = Prisma.sql`select mbgi.key, url from MainBackgroundImg mbgi where mbgi.type = ${type} order by RAND() limit 1;`;
+      console.log(a);
+      const randomMainImg = await prisma.$queryRaw<
+        Promise<{ key: string; url: string }[]>
+      >(a);
+      console.log(randomMainImg);
+
+      const retImgs = await Promise.all(
+        randomMainImg.map(async mainImg => {
+          const img =
+            !isNil(mainImg.url) && mainImg.url.includes('http')
+              ? mainImg.url
+              : await getS3SignedUrl(mainImg.key);
+
+          return img;
+        }),
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          imgUrl: retImgs,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -1112,5 +1219,6 @@ settingRouter.post(
   accessTokenValidCheck,
   setTravelTypeToUser,
 );
+settingRouter.get('/getRandomMainImg', accessTokenValidCheck, getRandomMainImg);
 
 export default settingRouter;
