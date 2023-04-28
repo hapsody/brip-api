@@ -6,7 +6,7 @@ import {
   VerifyCallback,
 } from 'passport-jwt';
 import prisma from '@src/prisma';
-import { AccessTokenPayload, GuardRes } from '@src/utils';
+import { AccessTokenPayload, GuardRes, IBError } from '@src/utils';
 
 type JwtAsyncFn = (
   jwtPayload: unknown,
@@ -34,7 +34,7 @@ export default (passport: PassportStatic): void => {
       wrapper(async (jwtPayload: unknown, done: VerifiedCallback) => {
         // try {
         const userTokenPayload = jwtPayload as AccessTokenPayload;
-        if (userTokenPayload.grade === 'member') {
+        if (userTokenPayload?.grade === 'member') {
           const { email } = userTokenPayload;
 
           const user = await prisma.user.findFirst({
@@ -44,7 +44,12 @@ export default (passport: PassportStatic): void => {
             },
           });
           if (!user) {
-            done(new Error('NOTEXISTDATA'));
+            done(
+              new IBError({
+                type: 'NOTEXISTDATA',
+                message: '존재하지 않는 회원정보를 가진 토큰입니다.',
+              }),
+            );
             return;
           }
 
@@ -57,7 +62,15 @@ export default (passport: PassportStatic): void => {
             return;
           }
         } else {
-          // if userTokenPayload.grade member
+          if (userTokenPayload?.grade !== 'nonMember') {
+            done(
+              new IBError({
+                type: 'INVALIDAUTHTOKEN',
+                message: '회원 또는 비회원 토큰이 아닙니다.',
+              }),
+            );
+            return;
+          }
           const guardRes: GuardRes = {
             grade: 'nonMember',
             tokenId: userTokenPayload.tokenId,

@@ -70,8 +70,9 @@ export interface IBResFormats {
   JWTERROR: IBResFormat; // 401
   NOAUTHTOKEN: IBResFormat; // 401
   TOKENNOTEXPIRED: IBResFormat; // 401
-  NOTREFRESHTOKEN: IBResFormat; // 401
   NOTAUTHORIZED: IBResFormat; // 403
+  NOTREFRESHTOKEN: IBResFormat; // 401
+  INVALIDAUTHTOKEN: IBResFormat; // 401
   KAKAOTOKENERROR: IBResFormat; // 401
   DBTRANSACTIONERROR: IBResFormat; // 500
   NOTEXISTDATA: IBResFormat; // 202, 404, 기존에 정의되지 않은 데이터 응답을 요청함. 클라이언트 요청 오류
@@ -100,7 +101,7 @@ export const ibDefs: IBResFormats = {
   },
   JWTERROR: {
     IBcode: '1002',
-    IBmessage: 'token error',
+    IBmessage: 'token format error',
     IBdetail: '',
     IBparams: {},
   },
@@ -116,15 +117,21 @@ export const ibDefs: IBResFormats = {
     IBdetail: '',
     IBparams: {},
   },
+  NOTAUTHORIZED: {
+    IBcode: '1005',
+    IBmessage: '해당 계정으로 접근할수 없는 권한의 기능입니다.',
+    IBdetail: '',
+    IBparams: {},
+  },
   NOTREFRESHTOKEN: {
-    IBcode: '1004',
+    IBcode: '1006',
     IBmessage: 'Not a refreshToken',
     IBdetail: '',
     IBparams: {},
   },
-  NOTAUTHORIZED: {
-    IBcode: '1005',
-    IBmessage: '해당 계정으로 접근할수 없는 권한의 기능입니다.',
+  INVALIDAUTHTOKEN: {
+    IBcode: '1007',
+    IBmessage: 'Invalid Auth Token',
     IBdetail: '',
     IBparams: {},
   },
@@ -199,7 +206,7 @@ export const ibDefs: IBResFormats = {
 
 export type MemberGrade = 'nonMember' | 'member';
 export interface AccessTokenPayload {
-  grade: MemberGrade;
+  grade?: MemberGrade;
   email?: string; // grade가 member 일 경우 존재
   tokenId: string;
 }

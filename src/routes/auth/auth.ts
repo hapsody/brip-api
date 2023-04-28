@@ -10,7 +10,7 @@ import {
   AccessTokenPayload,
   RefreshTokenPayload,
 } from '@src/utils';
-import _, { isEmpty, isEqual } from 'lodash';
+import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User, TripCreator } from '@prisma/client';
@@ -18,6 +18,7 @@ import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
 import { compare } from 'bcrypt';
+import randomstring from 'randomstring';
 
 const authRouter: express.Application = express();
 
@@ -28,6 +29,8 @@ export interface SaveScheduleResponsePayload {
   userId: number;
   email: string;
   isCreator: boolean;
+  isTempPasswd: boolean;
+  pleaseUpdatePasswd: boolean;
 }
 
 export interface SignInRequest {
@@ -72,6 +75,13 @@ export const signIn = (
         if (info.message === 'Incorrect password.') {
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: info.message,
+          });
+          return;
+        }
+        if (info.message === 'Expired Password.') {
+          res.status(400).json({
+            ...ibDefs.EXPIREDDATA,
             IBdetail: info.message,
           });
           return;
@@ -140,6 +150,10 @@ export const signIn = (
           userId: user.id,
           email: user.email,
           isCreator: !isEmpty(user.tripCreator),
+          isTempPasswd: !isNil(user.pwExpireDate),
+          /// 마지막 비밀번호 변경일로부터 180일 이상 경과한 경우 true
+          pleaseUpdatePasswd:
+            moment().diff(moment(user.pwLastUpdateDate), 'days') > 180,
         },
       });
     },
@@ -268,6 +282,8 @@ export const signUp = asyncWrapper(
         data: {
           email,
           password: hash,
+          pwLastUpdateDate: moment().toISOString(),
+          pwExpireDate: null,
           phone,
           nickName,
           countryCode,
@@ -908,6 +924,8 @@ export const changePassword = asyncWrapper(
           },
           data: {
             password: hash,
+            pwExpireDate: null,
+            pwLastUpdateDate: moment().toISOString(),
           },
         });
 
@@ -928,6 +946,160 @@ export const changePassword = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export type ResetPasswordREQParam = {
+  email: string;
+  authCode: string;
+};
+export interface ResetPasswordRETParamPayload {
+  newPassword: string;
+}
+
+export type ResetPasswordRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ResetPasswordRETParamPayload | {};
+};
+
+/**
+ * 임시 비밀번호로 reset
+ *
+ */
+export const resetPassword = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ResetPasswordREQParam>,
+    res: Express.IBTypedResponse<ResetPasswordRETParam>,
+  ) => {
+    try {
+      const { email, authCode } = req.body;
+      const { locals } = req;
+
+      const userTokenId = (() => {
+        if (locals?.grade === 'member') {
+          throw new IBError({
+            type: 'NOTAUTHORIZED',
+            message:
+              '회원 등급은 권한이 없습니다. 비회원 등급으로 재요청해주세요',
+          });
+        }
+        if (locals?.grade === 'nonMember') return locals?.tokenId;
+        return null;
+      })();
+
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 비회원 tokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (
+        isNil(email) ||
+        isEmpty(email) ||
+        isNil(authCode) ||
+        isEmpty(authCode)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'email 파라미터와 authCode는 필수 제출 파라미터 입니다.',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          email,
+        },
+      });
+
+      if (isNil(user)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 email 입니다.',
+        });
+      }
+
+      const interCode = user.phone.split('-')[0].slice(1);
+      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: `+${interCode}-${formattedPhone}`,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      const tempPassword = randomstring.generate({ length: 12 });
+      const hash = genBcryptHash(tempPassword);
+
+      const now = moment();
+      await prisma.$transaction(async tx => {
+        await tx.user.update({
+          where: {
+            id: user.id,
+          },
+          data: {
+            password: hash,
+            pwLastUpdateDate: now.toISOString(),
+            pwExpireDate: now.add(15, 'minutes').toISOString(), /// 임시비밀번호 유효시간 15분
+          },
+        });
+
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone: user.phone }, { userTokenId }],
+          },
+        });
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          newPassword: tempPassword,
+        },
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -981,5 +1153,6 @@ authRouter.post('/refreshAccessToken', refreshAccessToken);
 authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
+authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
 
 export default authRouter;

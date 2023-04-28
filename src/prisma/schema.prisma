@@ -18,15 +18,17 @@ enum UserType {
 }
 
 model User {
-  id          Int     @id @default(autoincrement())
-  email       String  @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
-  password    String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
-  phone       String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
-  nickName    String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
-  countryCode String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userTokenId String  @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
+  id               Int       @id @default(autoincrement())
+  email            String    @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
+  password         String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
+  pwLastUpdateDate DateTime  @default(now()) /// 비밀번호 변경 주기를 확인하기 위해 가장 마지막 비밀번호 업데이트일을 기록한다.
+  pwExpireDate     DateTime? /// 임시비밀번호로 리셋된 경우 해당 필드에 만료일 값을 갖는다. 
+  phone            String /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
+  nickName         String /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
+  countryCode      String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
+  userTokenId      String    @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
-  profileImg  String?
+  profileImg       String?
 
   questionTicket                  QuestionTicket[]
   businessQuestionTicket          BusinessQuestionTicket[]
