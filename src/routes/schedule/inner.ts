@@ -2310,21 +2310,50 @@ export const makeSchedule = async (
       regionCode2?: number;
     }[];
   } | null = (() => {
-    const isGeocodeType =
+    const isRegionCodeType =
       !isNil(scanRange) &&
       scanRange.every(range => {
-        if (
-          !isEmpty(range.minLat) &&
-          !isEmpty(range.maxLat) &&
-          !isEmpty(range.minLng) &&
-          !isEmpty(range.maxLng)
-        ) {
+        if (!isNil(range.regionCode)) {
           return true;
         }
         return false;
       });
 
-    if (isGeocodeType) return { type: 'geocode' };
+    if (isRegionCodeType) {
+      const regionalCodes = scanRange
+        .map<
+          | {
+              regionCode1?: number;
+              regionCode2?: number;
+            }
+          | undefined
+        >(range => {
+          const { regionCode1, regionCode2 } = range.regionCode!;
+
+          if (!isNil(regionCode1) && !isEmpty(regionCode1)) {
+            return {
+              regionCode1: Number(regionCode1),
+            };
+          }
+
+          if (!isNil(regionCode2) || !isNil(regionCode2)) {
+            return {
+              regionCode1: Number(regionCode2.slice(0, 2)),
+              regionCode2: Number(regionCode2),
+            };
+          }
+          return undefined;
+        })
+        .filter(
+          (v): v is { regionCode1?: number; regionCode2?: number } =>
+            v !== undefined,
+        );
+
+      return {
+        type: 'regionalcode',
+        regionalCodes,
+      };
+    }
 
     const isKeywordType =
       !isNil(scanRange) &&
@@ -2362,6 +2391,7 @@ export const makeSchedule = async (
               };
             }
 
+            /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
             if (keywordArr[0].match(/.+[시|군|구]$/)) {
               const subRegion = keywordArr[0];
               const regionCode2 =
@@ -2408,6 +2438,23 @@ export const makeSchedule = async (
         regionalCodes,
       };
     }
+
+    const isGeocodeType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (
+          !isEmpty(range.minLat) &&
+          !isEmpty(range.maxLat) &&
+          !isEmpty(range.minLng) &&
+          !isEmpty(range.maxLng)
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isGeocodeType) return { type: 'geocode' };
+
     return null;
   })();
 
@@ -2458,7 +2505,7 @@ export const makeSchedule = async (
 
         if (
           !isNil(scanType) &&
-          scanType.type === 'keyword' &&
+          (scanType.type === 'keyword' || scanType.type === 'regionalcode') &&
           !isNil(scanType.regionalCodes) &&
           !isEmpty(scanType.regionalCodes)
         ) {
@@ -2589,7 +2636,7 @@ export const makeSchedule = async (
 
         if (
           !isNil(scanType) &&
-          scanType.type === 'keyword' &&
+          (scanType.type === 'keyword' || scanType.type === 'regionalcode') &&
           !isNil(scanType.regionalCodes) &&
           !isEmpty(scanType.regionalCodes)
         ) {
