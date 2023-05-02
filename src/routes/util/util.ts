@@ -201,7 +201,7 @@ export const getSignedUrlForFileUpload = asyncWrapper(
           case 'TRIPNETWORK/ADDTRIPMEMORY':
             return `private/tripNetwork/tripMemory/${fileName}`;
           case 'TRIPNETWORK/ADDSHARETRIPMEMORY':
-            return `private/tripNetwork/shareTripMemory/${fileName}`;
+            return `public/tripNetwork/shareTripMemory/${fileName}`;
           case 'SETTING/CHANGEPROFILEIMG':
             return `public/user/profileImg/${fileName}`;
           case 'CONTENT/ADDCARDGRP/THUMBNAILURL':

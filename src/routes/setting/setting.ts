@@ -15,7 +15,6 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  s3FileUpload,
   getS3SignedUrl,
   sendEmail,
 } from '@src/utils';
@@ -599,7 +598,9 @@ export const reqTripCreator = asyncWrapper(
   },
 );
 
-export type ChangeProfileImgRequestType = {};
+export type ChangeProfileImgRequestType = {
+  key: string;
+};
 export interface ChangeProfileImgSuccessResType {
   signedUrl: string;
 }
@@ -614,6 +615,7 @@ export const changeProfileImg = asyncWrapper(
     res: Express.IBTypedResponse<ChangeProfileImgResType>,
   ) => {
     try {
+      const { key } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
@@ -625,23 +627,30 @@ export const changeProfileImg = asyncWrapper(
         // });
       })();
 
-      if (!userTokenId) {
+      if (isNil(userTokenId)) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
 
-      const files = req.files as Express.Multer.File[];
-
-      const uploadPromises = files.map((file: Express.Multer.File) => {
-        return s3FileUpload({
-          fileName: `userProfileImg/${file.originalname}`,
-          fileData: file.buffer,
+      if (isNil(key)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'key는 필수 파라미터값입니다.',
         });
-      });
+      }
 
-      const [{ Key: key }] = await Promise.all(uploadPromises);
+      // const files = req.files as Express.Multer.File[];
+
+      // const uploadPromises = files.map((file: Express.Multer.File) => {
+      //   return s3FileUpload({
+      //     fileName: `userProfileImg/${file.originalname}`,
+      //     fileData: file.buffer,
+      //   });
+      // });
+
+      // const [{ Key: key }] = await Promise.all(uploadPromises);
 
       await prisma.user.update({
         where: {
