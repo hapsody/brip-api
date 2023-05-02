@@ -18,6 +18,7 @@ import { User, TripCreator } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
+import 'moment/locale/ko';
 import { compare } from 'bcrypt';
 import randomstring from 'randomstring';
 
@@ -974,7 +975,6 @@ export const changePassword = asyncWrapper(
 
 export type ResetPasswordREQParam = {
   email: string;
-  authCode: string;
 };
 export interface ResetPasswordRETParamPayload {}
 
@@ -992,7 +992,7 @@ export const resetPassword = asyncWrapper(
     res: Express.IBTypedResponse<ResetPasswordRETParam>,
   ) => {
     try {
-      const { email, authCode } = req.body;
+      const { email } = req.body;
       const { locals } = req;
 
       const userTokenId = (() => {
@@ -1016,13 +1016,14 @@ export const resetPassword = asyncWrapper(
 
       if (
         isNil(email) ||
-        isEmpty(email) ||
-        isNil(authCode) ||
-        isEmpty(authCode)
+        isEmpty(email)
+        // isNil(authCode) ||
+        // isEmpty(authCode)
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'email 파라미터와 authCode는 필수 제출 파라미터 입니다.',
+          message: 'email 파라미터는 필수 제출 파라미터 입니다.',
+          // message: 'email 파라미터와 authCode는 필수 제출 파라미터 입니다.',
         });
       }
 
@@ -1039,37 +1040,37 @@ export const resetPassword = asyncWrapper(
         });
       }
 
-      const interCode = user.phone.split('-')[0].slice(1);
-      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
-        if (cur.includes('+')) return acc;
-        return `${acc}${cur}`;
-      }, '');
+      // const interCode = user.phone.split('-')[0].slice(1);
+      // const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+      //   if (cur.includes('+')) return acc;
+      //   return `${acc}${cur}`;
+      // }, '');
 
-      const smsAuthCode = await prisma.sMSAuthCode.findMany({
-        where: {
-          phone: `+${interCode}-${formattedPhone}`,
-          code: authCode,
-          userTokenId,
-        },
-        orderBy: {
-          id: 'desc',
-        },
-      });
+      // const smsAuthCode = await prisma.sMSAuthCode.findMany({
+      //   where: {
+      //     phone: `+${interCode}-${formattedPhone}`,
+      //     code: authCode,
+      //     userTokenId,
+      //   },
+      //   orderBy: {
+      //     id: 'desc',
+      //   },
+      // });
 
-      if (smsAuthCode.length === 0) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message:
-            '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
-        });
-      }
+      // if (smsAuthCode.length === 0) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message:
+      //       '회원 정보에 기재된 전화번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+      //   });
+      // }
 
-      if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
-        throw new IBError({
-          type: 'EXPIREDDATA',
-          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
-        });
-      }
+      // if (moment().diff(moment(smsAuthCode[0].updatedAt), 's') > 180) {
+      //   throw new IBError({
+      //     type: 'EXPIREDDATA',
+      //     message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+      //   });
+      // }
 
       const tempPassword = randomstring.generate({ length: 12 });
       const hash = genBcryptHash(tempPassword);
@@ -1095,12 +1096,15 @@ export const resetPassword = asyncWrapper(
         });
       });
 
+      moment.locale('ko');
       await sendEmail({
         from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${email}, hapsody@gmail.com`,
+        to: `${email}`,
         subject: 'BRiP System - Temporay Password was created',
         html: `변경된 임시 비밀번호는 <b>${tempPassword} </b> 입니다. <br>
-        해당 비밀번호의 만료시한은 보안상 15분으로 ${expiration} 까지입니다. <br>
+        해당 비밀번호의 만료시한은 보안상 15분으로 <b>${moment(
+          expiration,
+        ).format('lll')}</b> 까지입니다. <br>
         로그인 후에는 <b>반드시 비밀번호를 변경해주시길 부탁드립니다.</b>`,
       });
 
