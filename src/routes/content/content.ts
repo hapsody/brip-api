@@ -290,21 +290,121 @@ export const getMainCardNewsGrp = asyncWrapper(
     res: Express.IBTypedResponse<GetMainCardNewsGrpResType>,
   ) => {
     try {
-      /// 임시로 가장 최근 작성된 뉴스 그룹을 내보내도록 함. 향후 시용지 취향에 따라 노출하도록 변경할것
-      const mainCardNewsGrp = await prisma.cardNewsGroup.findFirst({
-        orderBy: {
-          id: 'desc',
-        },
-        include: {
-          cardNewsContent: {
-            include: {
-              cardTag: true,
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (
+          locals &&
+          locals?.grade === 'member' &&
+          !isEmpty(locals?.user?.tripCreator)
+        ) {
+          return locals?.user?.userTokenId;
+        }
+
+        return locals?.tokenId;
+      })();
+
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const recommendedCardNewsGrp = await (async (): Promise<
+        | (CardNewsGroup & {
+            cardNewsContent: (CardNewsContent & {
+              cardTag: CardTag[];
+            })[];
+          })
+        | undefined
+      > => {
+        /// 임시로 가장 적게 노출된 컨텐츠 그룹을 내보냄. 만약 노출 카운트가 동일한 것들끼리는 임시로 랜덤. 향후 시용지 취향에 따라 노출하도록 변경할것
+        const mainCardNewsGrps = await prisma.cardNewsGroup.findMany({
+          include: {
+            cardNewsContent: {
+              include: {
+                cardTag: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      if (!mainCardNewsGrp) {
+        if (isNil(mainCardNewsGrps)) return undefined;
+
+        // const exposedHeatMap = await prisma.contentGrpExposedHistory.groupBy({
+        //   by: ['contentGrpId'],
+        //   where: {
+        //     userTokenId,
+        //   },
+        //   _count: {
+        //     id: true,
+        //   },
+        //   orderBy: {
+        //     _count: {
+        //       id: 'asc',
+        //     },
+        //   },
+        // });
+
+        // /// 한번도 노출된적이 없다면 랜덤
+        // if (isNil(exposedHeatMap)) {
+        //   return mainCardNewsGrps.sort(() => 0.5 - Math.random())[0];
+        // }
+
+        // /// 가장 적게 노출된 contentGrp을 찾아 현재 존재하는 mainCardNewsGroup 리스트에서 아직 존재한다면 해당 그룹을 반환하고 없다면 차순위 최소 노출 contentGrp을 찾아 반복한다.
+        // const mainCardNewsGrp = mainCardNewsGrps.find(cg => {
+        //   return exposedHeatMap.find(v => v.contentGrpId === cg.id);
+        // });
+
+        const exposedHistory = await prisma.contentGrpExposedHistory.findMany({
+          where: {
+            userTokenId: userTokenId.toString(),
+          },
+          orderBy: {
+            count: 'asc',
+          },
+        });
+
+        /// 가장 적은 노출 빈도의 카드그룹을 반환, 만약 0인 카운트의 카드그룹이 많다면 그중에선 랜덤
+        const heatMap = mainCardNewsGrps
+          .sort(() => Math.random() - 0.5)
+          .map(v => {
+            const hit = exposedHistory.find(ex => v.id === ex.contentGrpId);
+            return {
+              grpId: v.id,
+              userTokenId: userTokenId.toString(),
+              count: hit?.count ?? 0,
+              cardGrp: v,
+            };
+          })
+          .sort((a, b) => a.count - b.count);
+
+        if (heatMap[0].count > 0) {
+          await prisma.contentGrpExposedHistory.update({
+            where: {
+              userTokenId_contentGrpId: {
+                userTokenId: userTokenId.toString(),
+                contentGrpId: heatMap[0].grpId,
+              },
+            },
+            data: {
+              count: heatMap[0].count + 1,
+            },
+          });
+        } else {
+          await prisma.contentGrpExposedHistory.create({
+            data: {
+              userTokenId: userTokenId.toString(),
+              contentGrpId: heatMap[0].grpId,
+              count: 1,
+            },
+          });
+        }
+
+        return heatMap[0].cardGrp;
+      })();
+
+      if (isNil(recommendedCardNewsGrp)) {
         res.json({
           ...ibDefs.SUCCESS,
           IBparams: {},
@@ -312,11 +412,13 @@ export const getMainCardNewsGrp = asyncWrapper(
         return;
       }
 
-      const groupThumbnail = mainCardNewsGrp.thumbnailUri.includes('http')
-        ? mainCardNewsGrp.thumbnailUri
-        : await getS3SignedUrl(mainCardNewsGrp.thumbnailUri);
+      const groupThumbnail = recommendedCardNewsGrp.thumbnailUri.includes(
+        'http',
+      )
+        ? recommendedCardNewsGrp.thumbnailUri
+        : await getS3SignedUrl(recommendedCardNewsGrp.thumbnailUri);
       const cards = await Promise.all(
-        mainCardNewsGrp.cardNewsContent.map(async card => {
+        recommendedCardNewsGrp.cardNewsContent.map(async card => {
           const cardBgUri = card.bgPicUri.includes('http')
             ? card.bgPicUri
             : await getS3SignedUrl(card.bgPicUri);
@@ -331,9 +433,9 @@ export const getMainCardNewsGrp = asyncWrapper(
         }),
       );
       const ret = {
-        groupNo: mainCardNewsGrp.no,
-        groupId: mainCardNewsGrp.id,
-        groupTitle: mainCardNewsGrp.title,
+        groupNo: recommendedCardNewsGrp.no,
+        groupId: recommendedCardNewsGrp.id,
+        groupTitle: recommendedCardNewsGrp.title,
         groupThumbnail,
         cards,
       };
