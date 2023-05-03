@@ -1,6 +1,5 @@
-import express, { Express } from 'express';
+import express from 'express';
 import prisma from '@src/prisma';
-import nodemailer from 'nodemailer';
 import multer from 'multer';
 import {
   QuestionTicket,
@@ -8,6 +7,7 @@ import {
   BusinessQuestionTicket,
   TripCreator,
   FavoriteTravelType,
+  Prisma,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -15,8 +15,8 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  s3FileUpload,
   getS3SignedUrl,
+  sendEmail,
 } from '@src/utils';
 import { omit, isEmpty, isNil } from 'lodash';
 
@@ -45,50 +45,6 @@ export type ReqTicketRequestType = {
 export type ReqTicketResType = Omit<IBResFormat, 'IBparams'> & {
   // IBparams: ReqTicketSuccessResType[] | {};
   IBparams: {};
-};
-
-const sendEmail = async (params: {
-  from: string;
-  to: string;
-  subject: string;
-  html: string;
-}) => {
-  try {
-    const { from, to, subject, html } = params;
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // 메일 보내는 곳
-      port: 587,
-      host: 'smtp.gmlail.com',
-      secure: true,
-      requireTLS: true,
-      auth: {
-        user: process.env.SYSTEM_EMAIL_SENDER, // 보내는 메일의 주소
-        pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
-        // type: 'OAuth2',
-        // user: process.env.OAUTH_USER as string,
-        // clientId: process.env.OAUTH_CLIENT_ID as string,
-        // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
-        // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
-      },
-    });
-
-    // send mail with defined transport object
-    // const info = await transporter.sendMail({
-    await transporter.sendMail({
-      from, // sender address
-      to, // list of receivers
-      subject, // Subject line
-      // text: '', // plain text body
-      html, // html body
-    });
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `nodemailer 이메일 전송중 문제가 발생했습니다. \n\n ${
-        (err as Error).message
-      }`,
-    });
-  }
 };
 
 export const reqTicket = asyncWrapper(
@@ -642,7 +598,9 @@ export const reqTripCreator = asyncWrapper(
   },
 );
 
-export type ChangeProfileImgRequestType = {};
+export type ChangeProfileImgRequestType = {
+  key: string;
+};
 export interface ChangeProfileImgSuccessResType {
   signedUrl: string;
 }
@@ -657,6 +615,7 @@ export const changeProfileImg = asyncWrapper(
     res: Express.IBTypedResponse<ChangeProfileImgResType>,
   ) => {
     try {
+      const { key } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
         if (locals && locals?.grade === 'member')
@@ -668,23 +627,30 @@ export const changeProfileImg = asyncWrapper(
         // });
       })();
 
-      if (!userTokenId) {
+      if (isNil(userTokenId)) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
 
-      const files = req.files as Express.Multer.File[];
-
-      const uploadPromises = files.map((file: Express.Multer.File) => {
-        return s3FileUpload({
-          fileName: `userProfileImg/${file.originalname}`,
-          fileData: file.buffer,
+      if (isNil(key)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'key는 필수 파라미터값입니다.',
         });
-      });
+      }
 
-      const [{ Key: key }] = await Promise.all(uploadPromises);
+      // const files = req.files as Express.Multer.File[];
+
+      // const uploadPromises = files.map((file: Express.Multer.File) => {
+      //   return s3FileUpload({
+      //     fileName: `userProfileImg/${file.originalname}`,
+      //     fileData: file.buffer,
+      //   });
+      // });
+
+      // const [{ Key: key }] = await Promise.all(uploadPromises);
 
       await prisma.user.update({
         where: {
@@ -1130,6 +1096,112 @@ export const setTravelTypeToUser = asyncWrapper(
   },
 );
 
+export type GetRandomMainImgRequestType = {
+  type: string;
+};
+export interface GetRandomMainImgSuccessResType extends FavoriteTravelType {}
+
+export type GetRandomMainImgResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetRandomMainImgSuccessResType | {};
+};
+
+export const getRandomMainImg = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetRandomMainImgRequestType>,
+    res: Express.IBTypedResponse<GetRandomMainImgResType>,
+  ) => {
+    try {
+      const { type } = req.query;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(type) || isEmpty(type)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'type은 제공되어야 하는 파라미터입니다.',
+        });
+      }
+
+      // const user = await prisma.user.findUnique({
+      //   where: {
+      //     userTokenId,
+      //   },
+      //   include: {
+      //     FavoriteTravelType: true,
+      //   },
+      // });
+
+      // if (!user) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '존재하지 않는 계정입니다.',
+      //   });
+      // }
+
+      const a = Prisma.sql`select mbgi.key, url from MainBackgroundImg mbgi where mbgi.type = ${type} order by RAND() limit 1;`;
+      console.log(a);
+      const randomMainImg = await prisma.$queryRaw<
+        Promise<{ key: string; url: string }[]>
+      >(a);
+      console.log(randomMainImg);
+
+      const retImgs = await Promise.all(
+        randomMainImg.map(async mainImg => {
+          const img =
+            !isNil(mainImg.url) && mainImg.url.includes('http')
+              ? mainImg.url
+              : await getS3SignedUrl(mainImg.key);
+
+          return img;
+        }),
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          imgUrl: retImgs,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -1156,5 +1228,6 @@ settingRouter.post(
   accessTokenValidCheck,
   setTravelTypeToUser,
 );
+settingRouter.get('/getRandomMainImg', accessTokenValidCheck, getRandomMainImg);
 
 export default settingRouter;

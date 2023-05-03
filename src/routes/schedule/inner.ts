@@ -609,7 +609,7 @@ export const getHotelDataFromBKC = async (
             bkc_city_name_en: city_name_en,
             bkc_checkin: checkin,
             bkc_checkout: checkout,
-            bkc_distance: parseFloat(distance),
+            bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
             bkc_review_score_word: review_score_word,
             bkc_review_score: review_score,
             bkc_currency_code: currencycode,
@@ -631,7 +631,7 @@ export const getHotelDataFromBKC = async (
             lat: latitude,
             lng: longitude,
             address,
-            rating: review_score,
+            rating: review_score ?? 0,
             // coordinates: {
             //   // 경도와 위도 값을 넣어줍니다.
             //   // 예: 경도 126.9784, 위도 37.5665
@@ -718,7 +718,7 @@ export const getHotelDataFromBKC = async (
         bkc_city_name_en: city_name_en,
         bkc_checkin: checkin,
         bkc_checkout: checkout,
-        bkc_distance: parseFloat(distance),
+        bkc_distance: !isNil(distance) ? parseFloat(distance) : null,
         bkc_review_score_word: review_score_word,
         bkc_review_score: review_score,
         bkc_currency_code: currencycode,
@@ -2310,21 +2310,50 @@ export const makeSchedule = async (
       regionCode2?: number;
     }[];
   } | null = (() => {
-    const isGeocodeType =
+    const isRegionCodeType =
       !isNil(scanRange) &&
       scanRange.every(range => {
-        if (
-          !isEmpty(range.minLat) &&
-          !isEmpty(range.maxLat) &&
-          !isEmpty(range.minLng) &&
-          !isEmpty(range.maxLng)
-        ) {
+        if (!isNil(range.regionCode)) {
           return true;
         }
         return false;
       });
 
-    if (isGeocodeType) return { type: 'geocode' };
+    if (isRegionCodeType) {
+      const regionalCodes = scanRange
+        .map<
+          | {
+              regionCode1?: number;
+              regionCode2?: number;
+            }
+          | undefined
+        >(range => {
+          const { regionCode1, regionCode2 } = range.regionCode!;
+
+          if (!isNil(regionCode1) && !isEmpty(regionCode1)) {
+            return {
+              regionCode1: Number(regionCode1),
+            };
+          }
+
+          if (!isNil(regionCode2) || !isNil(regionCode2)) {
+            return {
+              regionCode1: Number(regionCode2.slice(0, 2)),
+              regionCode2: Number(regionCode2),
+            };
+          }
+          return undefined;
+        })
+        .filter(
+          (v): v is { regionCode1?: number; regionCode2?: number } =>
+            v !== undefined,
+        );
+
+      return {
+        type: 'regionalcode',
+        regionalCodes,
+      };
+    }
 
     const isKeywordType =
       !isNil(scanRange) &&
@@ -2362,6 +2391,7 @@ export const makeSchedule = async (
               };
             }
 
+            /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
             if (keywordArr[0].match(/.+[시|군|구]$/)) {
               const subRegion = keywordArr[0];
               const regionCode2 =
@@ -2383,9 +2413,11 @@ export const makeSchedule = async (
                 krRegionToCode[superRegion as keyof typeof krRegionToCode];
             }
 
-            if (!isNil(superRegion.match(/.+[시|군|구]$/))) {
+            if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
               regionCode2 =
-                krRegionToCode[subRegion as keyof typeof krRegionToCode];
+                krRegionToCode[
+                  `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
+                ];
             }
 
             return {
@@ -2406,8 +2438,27 @@ export const makeSchedule = async (
         regionalCodes,
       };
     }
+
+    const isGeocodeType =
+      !isNil(scanRange) &&
+      scanRange.every(range => {
+        if (
+          !isEmpty(range.minLat) &&
+          !isEmpty(range.maxLat) &&
+          !isEmpty(range.minLng) &&
+          !isEmpty(range.maxLng)
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+    if (isGeocodeType) return { type: 'geocode' };
+
     return null;
   })();
+
+  console.log(scanType);
 
   const spots = await prisma.tourPlace.findMany({
     where: {
@@ -2431,6 +2482,7 @@ export const makeSchedule = async (
           ],
         },
       },
+      /// 지역조건
       ...(() => {
         if (
           !isNil(scanType) &&
@@ -2453,19 +2505,21 @@ export const makeSchedule = async (
 
         if (
           !isNil(scanType) &&
-          scanType.type === 'keyword' &&
+          (scanType.type === 'keyword' || scanType.type === 'regionalcode') &&
           !isNil(scanType.regionalCodes) &&
           !isEmpty(scanType.regionalCodes)
         ) {
           const { regionalCodes } = scanType;
           const condition = regionalCodes.map(v => {
             return {
+              nationalCode: '82',
               regionCode1:
                 krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
               regionCode2:
                 krCodeToRegion[v.regionCode2 as keyof typeof krCodeToRegion],
             };
           });
+          console.log(condition);
           return {
             OR: condition,
           };
@@ -2583,7 +2637,7 @@ export const makeSchedule = async (
 
         if (
           !isNil(scanType) &&
-          scanType.type === 'keyword' &&
+          (scanType.type === 'keyword' || scanType.type === 'regionalcode') &&
           !isNil(scanType.regionalCodes) &&
           !isEmpty(scanType.regionalCodes)
         ) {
@@ -2591,6 +2645,7 @@ export const makeSchedule = async (
           return {
             OR: regionalCodes.map(v => {
               return {
+                nationalCode: '82',
                 regionCode1:
                   krCodeToRegion[v.regionCode1 as keyof typeof krCodeToRegion],
                 regionCode2:
@@ -4057,11 +4112,66 @@ export const saveSchedule = async (
       }),
     );
 
+    // const thumbnailTourPlace = await tx.tourPlace.findUnique({
+    //   where: {
+    //     id: visitSchedules[1].tourPlaceId!,
+    //   },
+    //   select: {
+    //     photos: true,
+    //   },
+    // });
+
+    const thumbnail = await (async () => {
+      const asyncIterable = {
+        [Symbol.asyncIterator]() {
+          const cpVs = visitSchedules
+            .filter(v => v.placeType !== 'HOTEL')
+            .sort((a, b) => {
+              if (a.placeType === 'SPOT') {
+                if (b.placeType === 'SPOT') return 0;
+                return -1;
+              }
+              return 0;
+            });
+          let idx = 0;
+          return {
+            async next() {
+              const thumbnailTourPlace = await prisma.tourPlace.findUnique({
+                where: {
+                  id: cpVs[idx].tourPlaceId!,
+                },
+                select: {
+                  photos: true,
+                },
+              });
+              idx += 1;
+              if (isNil(thumbnailTourPlace))
+                return { value: null, done: false };
+              const url = await getThumbnailUrlFromIBPhotos(
+                thumbnailTourPlace.photos,
+              );
+              if (url === 'none') return { value: null, done: false };
+              if (idx >= cpVs.length) return { value: null, done: true };
+              return { value: url, done: false };
+            },
+          };
+        },
+      };
+
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const url of asyncIterable) {
+        console.log('url:', url);
+        if (!isNil(url) && url !== 'none') {
+          return url;
+        }
+      }
+      return 'none';
+    })();
+
     const cRes = await tx.scheduleBank.create({
       data: {
         title,
-        thumbnail:
-          'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+        thumbnail,
         planType: planType.toUpperCase() as PlanType,
         ...(!isNil(keyword) && {
           hashTag: {

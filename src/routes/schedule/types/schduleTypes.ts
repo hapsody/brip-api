@@ -141,50 +141,50 @@ export interface GetHotelDataFromBKCREQParam extends BKCSrchByCoordReqOpt {
 }
 /// rapid api booking.com search hotels by coordinates 검색 결과
 export interface BKCHotelRawData {
-  unit_configuration_label: string;
-  min_total_price: number;
-  countrycode: string;
-  default_language: string;
-  address: string;
-  city: string;
-  city_name_en: string;
-  class: number;
-  distance: string;
+  unit_configuration_label?: string;
+  min_total_price?: number;
+  countrycode?: string;
+  default_language?: string;
+  address?: string;
+  city?: string;
+  city_name_en?: string;
+  class?: number;
+  distance?: string;
   composite_price_breakdown: {
     product_price_breakdowns: {
       gross_amount: {
-        value: number;
+        value?: number;
       };
     }[];
     included_taxes_and_charges_amount: {
-      value: number;
+      value?: number;
     };
     net_amount: {
-      value: number;
+      value?: number;
     };
     gross_amount_per_night: {
-      value: number;
+      value?: number;
     };
   };
   checkin: {
-    from: string;
+    from?: string;
   };
   checkout: {
-    until: string;
+    until?: string;
   };
-  review_score_word: string;
-  review_score: number;
-  currencycode: string;
-  timezone: string;
+  review_score_word?: string;
+  review_score?: number;
+  currencycode?: string;
+  timezone?: string;
   urgency_message?: string;
-  hotel_id: number;
+  hotel_id?: number;
   hotel_name: string;
   latitude: number;
   longitude: number;
-  url: string;
-  accommodation_type_name: string;
-  zip: string;
-  main_photo_url: string;
+  url?: string;
+  accommodation_type_name?: string;
+  zip?: string;
+  main_photo_url?: string;
   max_photo_url?: string;
   hotel_facilities?: string;
   has_swimming_pool?: number;
@@ -511,6 +511,16 @@ export interface MakeScheduleREQParam {
   destination: string;
   travelHard: string;
   scanRange?: {
+    /// scanRange는 지역 검색 범위를 설정하며, regionCode로 받거나, 표준화된 도시 이름으로 받거나, 최대 최소의 위경도값 범위로 받는다. 모두 같이 제공될 경우 regionCode, keyword, 위경도 순서로 우선순위를 갖는다.(앞선 순위의 파라미터가 있을 경우 뒷순위의 파라미터는 무시)
+    /// 단 배열로 전달되는 모든 항목의 타입은 같아야 한다.(regionCode로 제공한다면 전부 regionCode, keyword라면 전부 keyword라는 식)
+    /// regionCode로 제공할 경우
+    /// regionCode1는 superRegion으로 한국의 경우 전국 광역시도와 특별시이며
+    /// regionCode2는 subRegion으로 superRegion에 속한 시/군/구 단위이다.
+    /// 광역시도를 넓게 검색할경우 regionCode1만 제공되거나, 좁게 검색할 경우 regionCode2만 제공되어도 무방하다.
+    regionCode?: {
+      regionCode1?: string;
+      regionCode2?: string;
+    };
     keyword?: string;
     minLat: string;
     minLng: string;

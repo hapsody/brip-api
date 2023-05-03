@@ -27,6 +27,7 @@ import {
   getDistFromTwoGeoLoc,
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr } from './externalApi';
+import sendEmail from './sendEmail';
 
 export {
   ibDefs,
@@ -58,4 +59,5 @@ export {
   getDistFromTwoGeoLoc,
   searchKRJuso,
   geoCodeToAddr,
+  sendEmail,
 };

@@ -30,6 +30,7 @@
     "seed:tourPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/tourPlace",
     "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
     "seed:iBEventPromotion": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBEventPromotion",
+    "seed:mainBackgroundImg": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/mainBackgroundImg",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
     "batch": "yarn batch:dataresource; yarn batch:dupCheck; yarn batch:areaCodeAsign",
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",

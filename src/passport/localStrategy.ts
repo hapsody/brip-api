@@ -1,6 +1,7 @@
 import { PassportStatic } from 'passport';
 import * as passportLocal from 'passport-local';
-import { isEmpty, isNull } from 'lodash';
+import { isEmpty, isNull, isNil } from 'lodash';
+import moment from 'moment';
 import { compare } from 'bcrypt';
 import { User } from '@prisma/client';
 import prisma from '@src/prisma';
@@ -38,6 +39,16 @@ export default (passport: PassportStatic): void => {
         if (!compareResult) {
           done(null, undefined, {
             message: 'Incorrect password.',
+          });
+          return;
+        }
+
+        if (
+          !isNil(user.pwExpireDate) && /// 유저의 비밀번호가 임시 비밀번호일경우 만료일이 있음
+          moment(user.pwExpireDate).diff(moment(), 'milliseconds') < 0 /// 만료일이 지났는지 체크
+        ) {
+          done(null, undefined, {
+            message: 'Expired Password.',
           });
           return;
         }

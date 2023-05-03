@@ -15,7 +15,7 @@ const userData: {
   {
     email: 'hawaii@gmail.com',
     password: 'qwer1234',
-    phone: '+821012345678',
+    phone: '+82-1012345678',
     nickName: '유쾌한인어',
     profileImg: 'public/user/profileImg/starbucks.png',
     countryCode: 'KR',
@@ -24,7 +24,7 @@ const userData: {
   {
     email: 'admin@gmail.com',
     password: 'qwer1234!',
-    phone: '+821072371091',
+    phone: '+82-1072371091',
     nickName: '윤디니',
     countryCode: 'KR',
     profileImg: 'public/user/profileImg/profile.jpeg',
@@ -51,7 +51,7 @@ const creatorData: {
   {
     email: 'chimchakman@gmail.com',
     password: 'qwer1234',
-    phone: '+821012345678',
+    phone: '+82-1012345678',
     nickName: '침착맨',
     countryCode: 'KR',
     userTokenId: '1',
@@ -67,7 +67,7 @@ const creatorData: {
   {
     email: 'yjshim@gmail.com',
     password: 'qwer1234',
-    phone: '+821012345678',
+    phone: '+82-1012345678',
     nickName: '윤진',
     countryCode: 'KR',
     userTokenId: '1',
