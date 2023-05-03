@@ -1138,21 +1138,21 @@ export const getRandomMainImg = asyncWrapper(
         });
       }
 
-      const user = await prisma.user.findUnique({
-        where: {
-          userTokenId,
-        },
-        include: {
-          FavoriteTravelType: true,
-        },
-      });
+      // const user = await prisma.user.findUnique({
+      //   where: {
+      //     userTokenId,
+      //   },
+      //   include: {
+      //     FavoriteTravelType: true,
+      //   },
+      // });
 
-      if (!user) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '존재하지 않는 계정입니다.',
-        });
-      }
+      // if (!user) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '존재하지 않는 계정입니다.',
+      //   });
+      // }
 
       const a = Prisma.sql`select mbgi.key, url from MainBackgroundImg mbgi where mbgi.type = ${type} order by RAND() limit 1;`;
       console.log(a);
