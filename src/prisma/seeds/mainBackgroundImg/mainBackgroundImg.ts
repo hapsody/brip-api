@@ -23,6 +23,26 @@ const data: {
     title: 'swiss',
     type: MainBackgroundImgType.DAY,
   },
+  {
+    key: 'public/mainBackgroundImg/mainaurora.webp',
+    title: 'aurora',
+    type: MainBackgroundImgType.NIGHT,
+  },
+  {
+    key: 'public/mainBackgroundImg/mainaustriaviennanight.webp',
+    title: 'austria vienna',
+    type: MainBackgroundImgType.NIGHT,
+  },
+  {
+    key: 'public/mainBackgroundImg/mainczechpraguenight.webp',
+    title: 'czech prague',
+    type: MainBackgroundImgType.NIGHT,
+  },
+  {
+    key: 'public/mainBackgroundImg/mainhawaii.webp',
+    title: 'hawaii',
+    type: MainBackgroundImgType.DAY,
+  },
 ];
 
 async function main(): Promise<void> {
