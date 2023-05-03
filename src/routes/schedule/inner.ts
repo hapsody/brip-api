@@ -4112,11 +4112,66 @@ export const saveSchedule = async (
       }),
     );
 
+    // const thumbnailTourPlace = await tx.tourPlace.findUnique({
+    //   where: {
+    //     id: visitSchedules[1].tourPlaceId!,
+    //   },
+    //   select: {
+    //     photos: true,
+    //   },
+    // });
+
+    const thumbnail = await (async () => {
+      const asyncIterable = {
+        [Symbol.asyncIterator]() {
+          const cpVs = visitSchedules
+            .filter(v => v.placeType !== 'HOTEL')
+            .sort((a, b) => {
+              if (a.placeType === 'SPOT') {
+                if (b.placeType === 'SPOT') return 0;
+                return -1;
+              }
+              return 0;
+            });
+          let idx = 0;
+          return {
+            async next() {
+              const thumbnailTourPlace = await prisma.tourPlace.findUnique({
+                where: {
+                  id: cpVs[idx].tourPlaceId!,
+                },
+                select: {
+                  photos: true,
+                },
+              });
+              idx += 1;
+              if (isNil(thumbnailTourPlace))
+                return { value: null, done: false };
+              const url = await getThumbnailUrlFromIBPhotos(
+                thumbnailTourPlace.photos,
+              );
+              if (url === 'none') return { value: null, done: false };
+              if (idx >= cpVs.length) return { value: null, done: true };
+              return { value: url, done: false };
+            },
+          };
+        },
+      };
+
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const url of asyncIterable) {
+        console.log('url:', url);
+        if (!isNil(url) && url !== 'none') {
+          return url;
+        }
+      }
+      return 'none';
+    })();
+
     const cRes = await tx.scheduleBank.create({
       data: {
         title,
-        thumbnail:
-          'https://www.lottehotel.com/content/dam/lotte-hotel/lotte/jeju/overview/introduction/g-0807.jpg.thumb.768.768.jpg',
+        thumbnail,
         planType: planType.toUpperCase() as PlanType,
         ...(!isNil(keyword) && {
           hashTag: {
