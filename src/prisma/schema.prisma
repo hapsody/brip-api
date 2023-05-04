@@ -83,13 +83,13 @@ model FavoriteTravelType {
 //   // shareTripMemTPId  Int?
 // }
 
-model GglNearbySearchResType {
-  id        Int         @id @default(autoincrement())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now()) @updatedAt
-  value     String      @unique
-  tourPlace TourPlace[]
-}
+// model GglNearbySearchResType {
+//   id        Int         @id @default(autoincrement())
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now()) @updatedAt
+//   value     String      @unique
+//   tourPlace TourPlace[]
+// }
 
 /// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
 enum DataStageStatus {
@@ -110,6 +110,8 @@ model IBPhotos {
   url         String?    @db.Text /// 직접접근이 가능한 url이 있을 경우
   tourPlace   TourPlace? @relation(fields: [tourPlaceId], references: [id])
   tourPlaceId Int?
+  Hotel       Hotel?     @relation(fields: [hotelId], references: [id])
+  hotelId     Int?
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
@@ -120,52 +122,17 @@ model IBPhotos {
 // 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
 // 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
-  id                                    Int             @id @default(autoincrement())
-  createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime        @default(now()) @updatedAt
-  tourPlaceType                         PlaceType
-  visitSchedule                         VisitSchedule[]
-  queryParams                           QueryParams[]
-  status                                DataStageStatus @default(NEW)
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  tourPlaceType PlaceType
+  visitSchedule VisitSchedule[]
+  queryParams   QueryParams[]
+  status        DataStageStatus @default(NEW)
   // evalScore                             Int             @default(0) /// deprecated
   // minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
   // maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
-  ibTravelTag                           IBTravelTag[]
-  /// booking.com hotel result
-  bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
-  bkc_min_total_price                   Float? /// ex) 572.61373972
-  bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
-  bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
-  bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
-  bkc_net_amount                        Float? /// 순액
-  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  bkc_hotelClass                        Int? /// 호텔 성급 ex) 3
-  bkc_countrycode                       String? /// ex) en
-  bkc_default_language                  String? /// ex) xu
-  bkc_address                           String? /// ex) 92-161 Waipahe Place
-  bkc_city                              String? /// ex) "Waianae",
-  bkc_city_name_en                      String? /// ex) "Waianae",
-  bkc_checkin                           String? /// ex) {"until":"11:00","from":"10:00"}
-  bkc_checkout                          String? /// ex) {"until":"11:00","from":"10:00"}
-  bkc_distance                          Float? /// search한 geo location으로부터 거리 ex) 5.62
-  bkc_review_score_word                 String? /// ex) Wonderful
-  bkc_review_score                      Float? /// ex) 8.2
-  // bkc_currency                String /// ex) USD
-  bkc_currency_code                     String? /// ex) USD
-  bkc_timezone                          String? /// ex) "Pacific/Honolulu",
-  bkc_urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
-  bkc_hotel_id                          Int? /// ex) 174704674
-  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
-  bkc_hotel_name                        String? ///  ex) Marriott's Ko Olina Beach Club
-  bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
-  bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
-  bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
-  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
-  bkc_zip                               String? /// ex) HI 96792
-  bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
-  bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
-  // bkc_has_swimming_pool       Int /// ex) 1
+  ibTravelTag   IBTravelTag[]
 
   /// gl, vj 필드 삭제
   // /// google place result format
@@ -243,17 +210,75 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good                     Int                     @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad                   Int                     @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad                      Int                     @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like                     Int                     @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good   Int @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad Int @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad    Int @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like   Int @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
-  GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
-  gglNearbySearchResTypeId Int?
+  // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
+  // gglNearbySearchResTypeId Int?
 
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
   @@index([nationalCode, regionCode1, regionCode2, id])
+}
+
+model Hotel {
+  id                                    Int             @id @default(autoincrement())
+  createdAt                             DateTime        @default(now())
+  updatedAt                             DateTime        @default(now()) @updatedAt
+  hotelType                             HotelType
+  status                                DataStageStatus @default(NEW)
+  queryParams                           QueryParams[]
+  visitSchedule                         VisitSchedule[]
+  bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
+  bkc_min_total_price                   Float? /// ex) 572.61373972
+  bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
+  bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
+  bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
+  bkc_net_amount                        Float? /// 순액
+  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
+  bkc_hotelClass                        Int? /// 호텔 성급 ex) 3
+  bkc_countrycode                       String? /// ex) en
+  bkc_default_language                  String? /// ex) xu
+  bkc_address                           String? /// ex) 92-161 Waipahe Place
+  bkc_city                              String? /// ex) "Waianae",
+  bkc_city_name_en                      String? /// ex) "Waianae",
+  bkc_checkin                           String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_checkout                          String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_distance                          Float? /// search한 geo location으로부터 거리 ex) 5.62
+  bkc_review_score_word                 String? /// ex) Wonderful
+  bkc_review_score                      Float? /// ex) 8.2
+  // bkc_currency                String /// ex) USD
+  bkc_currency_code                     String? /// ex) USD
+  bkc_timezone                          String? /// ex) "Pacific/Honolulu",
+  bkc_urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
+  bkc_hotel_id                          Int? /// ex) 174704674
+  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
+  bkc_hotel_name                        String? ///  ex) Marriott's Ko Olina Beach Club
+  bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
+  bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
+  bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
+  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
+  bkc_zip                               String? /// ex) HI 96792
+  bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
+  bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
+  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  // bkc_has_swimming_pool       Int /// ex) 1  
+
+  /// 공통 필수 필드
+  title       String /// 장소 이름
+  lat         Float /// 위도
+  lng         Float /// 경도
+  address     String?    @db.Text /// 지번주소
+  roadAddress String?    @db.Text /// 도로명주소
+  /// 공통 옵션 필드
+  // openWeek     String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  contact     String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
+  postcode    String? /// 우편번호
+  photos      IBPhotos[] /// 사진
+  rating      Float      @default(0) /// 평점 0~5
+  desc        String?    @db.Text /// 장소 소개설명
 }
 
 model BatchQueryParams {
@@ -323,7 +348,8 @@ model QueryParams {
   destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
   travelHard  Int? /// 여행강도 ex) "5"
 
-  tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
+  tourPlace        TourPlace[] /// 일쩡에 대응하는 주변 관광지와 식당 후보지 검색 결과 검색 결과
+  hotel            Hotel[] /// 일정에 대응되어 검색된 호텔 
   metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
   visitSchedule    VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
   userTokenId      String? /// 일정을 생성 요청한 유저의 고유 유저 토큰 아이디
@@ -477,6 +503,8 @@ model VisitSchedule {
   queryParamsId  Int?
   validCluster   ValidCluster? @relation(fields: [validClusterId], references: [id])
   validClusterId Int?
+  hotel          Hotel?        @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId        Int?
 }
 
 /// 여행 경비에 따른 계획 분류 (deprecated)
@@ -487,7 +515,7 @@ enum PlanType {
 }
 
 enum PlaceType {
-  BKC_HOTEL
+  // BKC_HOTEL
   GL_RESTAURANT
   GL_SPOT
   VISITJEJU_RESTAURANT
@@ -499,6 +527,10 @@ enum PlaceType {
   PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
   TOUR4_SPOT ///한국 관광공사 Tour4.0 api 데이터 
   TOUR4_RESTAURANT
+}
+
+enum HotelType {
+  BOOKINGDOTCOM
 }
 
 /// 문의사항

@@ -4,7 +4,6 @@ import {
   TourPlace,
   QueryParams,
   VisitSchedule,
-  PlaceType,
   MetaScheduleInfo,
   ScheduleBank,
   IBTravelTag,
@@ -585,7 +584,7 @@ export interface ContextMakeSchedule extends IBContext {
   spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
   foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
   // eslint-disable-next-line prettier/prettier
-  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
+  paramByAvgCalibLevel?: (typeof gParamByTravelLevel)[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
   spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
   foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
@@ -880,7 +879,7 @@ export interface GetCandidateScheduleREQParam {
   // scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash => queryParamsId로 대체됨
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
   queryParamsId: string; /// 생성일정의 고유 값으로 간주되는 queryParamsId, 해당 값으로 일정을 특정하여 해당 일정의 후보군을 응답한다.
-  spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
   skip: number;
   take: number;
 }
@@ -900,7 +899,7 @@ export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
  */
 export interface GetCandDetailSchdREQParam {
   candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
-  // candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
 }
 
 export type GetCandDetailSchdRETParamPayload = Omit<
