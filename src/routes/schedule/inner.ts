@@ -16,7 +16,6 @@ import {
 import axios, { Method } from 'axios';
 import {
   TourPlace,
-  PlanType,
   VisitSchedule,
   PlaceType,
   HotelType,
@@ -1854,6 +1853,7 @@ const visitScheduleToDayScheduleType = async (
   promise: Promise<DayScheduleType[]>,
   cur: VisitSchedule & {
     tourPlace: TourPlace & { photos: IBPhotos[] };
+    hotel: Hotel & { photos: IBPhotos[] };
   },
 ) => {
   const acc = await promise;
@@ -1875,12 +1875,23 @@ const visitScheduleToDayScheduleType = async (
             orderNo: cur.orderNo.toString(),
             placeType: (cur.placeType ?? 'SPOT') as VisitPlaceType,
             title: cur.tourPlace?.title ?? 'none',
-            tourPlaceData: isNil(cur.tourPlace)
-              ? null
-              : {
+            tourPlaceData: await (async () => {
+              if (!isNil(cur.tourPlace)) {
+                return {
                   ...cur.tourPlace,
                   photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
-                },
+                };
+              }
+
+              if (!isNil(cur.hotel)) {
+                return {
+                  ...cur.hotel,
+                  photos: await getImgUrlListFromIBPhotos(cur.hotel.photos),
+                };
+              }
+
+              return null;
+            })(),
           },
         ],
       });
@@ -1901,12 +1912,23 @@ const visitScheduleToDayScheduleType = async (
         // checkin: cur.checkin?.toISOString() ?? null,
         // checkout: cur.checkout?.toISOString() ?? null,
         title: cur.tourPlace?.title ?? 'none',
-        tourPlaceData: isNil(cur.tourPlace)
-          ? null
-          : {
+        tourPlaceData: await (async () => {
+          if (!isNil(cur.tourPlace)) {
+            return {
               ...cur.tourPlace,
               photos: await getImgUrlListFromIBPhotos(cur.tourPlace.photos),
-            },
+            };
+          }
+
+          if (!isNil(cur.hotel)) {
+            return {
+              ...cur.hotel,
+              photos: await getImgUrlListFromIBPhotos(cur.hotel.photos),
+            };
+          }
+
+          return null;
+        })(),
       });
       const last = acc.pop();
       if (!isUndefined(last)) {
@@ -3928,6 +3950,11 @@ export const getSchedule = async (
               photos: true,
             },
           },
+          hotel: {
+            include: {
+              photos: true,
+            },
+          },
         },
       },
       metaScheduleInfo: true,
@@ -3979,6 +4006,7 @@ export const getScheduleList = async (
       visitSchedule: {
         include: {
           tourPlace: true,
+          hotel: true,
         },
       },
       metaScheduleInfo: true,
@@ -4004,11 +4032,10 @@ export const getScheduleList = async (
         endDate: q.endDate ?? '',
         thumbnail: savedSchedule.thumbnail,
         // scheduleHash: savedSchedule.scheduleHash,
-        planType: savedSchedule.planType.toLowerCase(),
+        // planType: savedSchedule.planType.toLowerCase(),
         queryParamsId: q.id.toString(),
       };
     })
-    .filter(v => v)
     .filter(v => v)
     .splice(Number(skip), Number(take)) as GetScheduleListRETParamPayload[];
 
@@ -4023,7 +4050,7 @@ export const saveSchedule = async (
   param: SaveScheduleREQParam,
   ctx?: IBContext,
 ): Promise<SaveScheduleRETParamPayload> => {
-  const { title, keyword, planType, queryParamsId, startDate, endDate } = param;
+  const { title, keyword, queryParamsId, startDate, endDate } = param;
   const userTokenId = ctx?.userTokenId ?? '';
 
   const queryParams = await prisma.queryParams.findFirst({
@@ -4182,7 +4209,7 @@ export const saveSchedule = async (
       data: {
         title,
         thumbnail,
-        planType: planType.toUpperCase() as PlanType,
+        planType: 'MIN',
         ...(!isNil(keyword) && {
           hashTag: {
             connectOrCreate: keyword.map(k => {

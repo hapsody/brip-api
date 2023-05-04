@@ -12,7 +12,7 @@ import {
   // MealOrder,
 } from '../types/schduleTypes';
 
-jest.setTimeout(180000);
+jest.setTimeout(140000);
 
 describe('Schedule Express Router E2E Test', () => {
   describe('POST /reqSchedule', () => {
@@ -24,7 +24,7 @@ describe('Schedule Express Router E2E Test', () => {
       /// N명 비회원 유저 동시 일정생성 요청
       const result = (
         await Promise.all(
-          Array.from(Array(15)).map((_, i) => {
+          Array.from(Array(50)).map((_, i) => {
             return new Promise(resolve => {
               const start = moment();
               axios
@@ -106,7 +106,7 @@ describe('Schedule Express Router E2E Test', () => {
         )
       ).filter(v => v);
 
-      expect(result).toHaveLength(10);
+      expect(result).toHaveLength(50);
     });
   });
 });

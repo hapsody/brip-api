@@ -1,6 +1,5 @@
 import { isUndefined } from 'lodash';
 import {
-  PlanType,
   TourPlace,
   QueryParams,
   VisitSchedule,
@@ -8,6 +7,7 @@ import {
   ScheduleBank,
   IBTravelTag,
   IBPhotos,
+  Hotel,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -481,6 +481,13 @@ export interface DayScheduleType {
           // }[];
           photos: Partial<IBPhotos>[];
         })
+      | (Hotel & {
+          // photos: {
+          //   id: string;
+          //   url: string;
+          // }[];
+          photos: Partial<IBPhotos>[];
+        })
       | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
   }[];
 }
@@ -662,7 +669,7 @@ export interface GetScheduleListRETParamPayload {
   endDate: string; /// 여행일정 종료일   ex) '2023-02-06T15:00:00.000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
   // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
-  planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
+  // planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
   queryParamsId: string; /// scheduleHash값을 대신하여 생성한 일정의 고유값으로 queryParamsId가 쓰임
 }
 
@@ -676,7 +683,7 @@ export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface SaveScheduleREQParam {
   title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
-  planType: PlanType;
+  // planType: PlanType;
   queryParamsId: string; /// 저장할 schedule의 고유 Id
   startDate: string; /// 유저 입력 여행 시작일
   endDate: string; /// 유저 입력 여행 종료일
@@ -721,7 +728,7 @@ export type ChangeScheduleTitleRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface GetDayScheduleREQParam {
   queryParamsId: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 queryParamsId ex) "1"
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
-  planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
+  // planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
 
 export interface BriefScheduleType {
@@ -904,7 +911,7 @@ export interface GetCandDetailSchdREQParam {
 
 export type GetCandDetailSchdRETParamPayload = Omit<
   DetailScheduleType,
-  'dayCount' | 'orderCount' | 'planType'
+  'dayCount' | 'orderCount'
 >;
 
 export type GetCandDetailSchdRETParam = Omit<IBResFormat, 'IBparams'> & {
