@@ -231,7 +231,7 @@ model Hotel {
   status                                DataStageStatus @default(NEW)
   queryParams                           QueryParams[]
   visitSchedule                         VisitSchedule[]
-  bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
+  bkc_unit_configuration_label          String?         @db.Text /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
   bkc_min_total_price                   Float? /// ex) 572.61373972
   bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
   bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
