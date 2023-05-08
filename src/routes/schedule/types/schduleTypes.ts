@@ -1,4 +1,3 @@
-import { isUndefined } from 'lodash';
 import {
   TourPlace,
   QueryParams,
@@ -85,21 +84,36 @@ export const gParamByTravelLevel = [
 ];
 // const hotelPerDay = 1;
 
+// export class MealOrder {
+//   mealOrder = [-1, 1, 3];
+
+//   getNextMealOrder = (): number => {
+//     // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+//     // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+//     // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+//     let nextMealOrder: number | undefined;
+//     do {
+//       nextMealOrder = this.mealOrder.shift();
+//       if (isUndefined(nextMealOrder)) return -2;
+//     } while (nextMealOrder === -1);
+
+//     return nextMealOrder;
+//   };
+// }
 export class MealOrder {
-  mealOrder = [-1, 1, 3];
+  orderList = [
+    [true, false, true], /// true이 위치한 인덱스가 그날 식당을 방문하는 순서이다.
+    [true, false, false, true],
+    [false, true, false, false, true],
+    [false, true, false, false, true, false],
+    [false, false, true, false, false, true, false],
+    [false, false, true, false, false, true, false, false],
+    [false, false, true, false, false, false, true, false, false],
+  ];
 
-  getNextMealOrder = (): number => {
-    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
-    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
-    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
-
-    let nextMealOrder: number | undefined;
-    do {
-      nextMealOrder = this.mealOrder.shift();
-      if (isUndefined(nextMealOrder)) return -2;
-    } while (nextMealOrder === -1);
-
-    return nextMealOrder;
+  isFoodTurn = (curOrder: number, numOfTheDaySpot: number): boolean => {
+    return this.orderList[numOfTheDaySpot][curOrder];
   };
 }
 

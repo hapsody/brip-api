@@ -3467,7 +3467,7 @@ export const makeSchedule = async (
       .fill(null)
       .map((day, dayNo) => {
         let mealOrder: MealOrder;
-        let nextMealOrder: number;
+        // let nextMealOrder: number;
         let prevGeoLoc: GeoFormat; /// 직전에 방문했던 곳 위경도값
 
         if (dayNo + 1 > acc) {
@@ -3484,7 +3484,8 @@ export const makeSchedule = async (
         /// spotPerDay가 소수점일 경우 어떤날은 n개 방문
         /// 또 다른 어떤 날은 n+a 개의 여행지를 방문해야한다.
         /// 이를 계산한것이 numOfTodaySpot
-        let numOfTodaySpot = Math.round(curRestSpot / curRestDay);
+        const numOfTheDaySpot = Math.round(curRestSpot / curRestDay);
+        let numOfTodaySpot = numOfTheDaySpot;
         if (numOfTodaySpot >= 1) curRestSpot -= numOfTodaySpot;
         curRestDay -= 1;
 
@@ -3500,7 +3501,7 @@ export const makeSchedule = async (
           checkin: validCent.centroidNHotel.checkin,
           checkout: validCent.centroidNHotel.checkout,
           titleList: tmpArr
-            .map((v, orderNo) => {
+            .map((_, orderNo) => {
               const curResources =
                 ctx.spotClusterRes!.validCentNSpots![clusterNo];
 
@@ -3528,13 +3529,14 @@ export const makeSchedule = async (
                 };
 
                 mealOrder = new MealOrder();
-                nextMealOrder = mealOrder.getNextMealOrder();
+                // nextMealOrder = mealOrder.getNextMealOrder();
 
                 return ret;
               }
 
               /// 레스토랑
-              if (nextMealOrder === orderNo) {
+              // if (nextMealOrder === orderNo) {
+              if (mealOrder.isFoodTurn(orderNo, numOfTheDaySpot)) {
                 /// 푸드 클러스터링 절차 삭제 테스트
                 nearbyFoods.sort(nearestWithBaseLoc(prevGeoLoc));
                 let data = nearbyFoods.shift();
@@ -3561,52 +3563,52 @@ export const makeSchedule = async (
                 }
 
                 /// 레스토랑
-                if (nextMealOrder === orderNo) {
-                  const { idx } = copiedFoods.reduce<{
-                    idx: number;
-                    dist: number;
-                  }>(
-                    (min, n: TourPlaceGeoLoc, index) => {
-                      const { lat, lng } = n;
-                      const newDist = getDistFromTwoGeoLoc({
-                        aLat: lat,
-                        aLng: lng,
-                        bLat: prevGeoLoc.lat,
-                        bLng: prevGeoLoc.lng,
-                      });
-                      if (newDist < min.dist)
-                        return { dist: newDist, idx: index };
+                // if (nextMealOrder === orderNo) {
+                const { idx } = copiedFoods.reduce<{
+                  idx: number;
+                  dist: number;
+                }>(
+                  (min, n: TourPlaceGeoLoc, index) => {
+                    const { lat, lng } = n;
+                    const newDist = getDistFromTwoGeoLoc({
+                      aLat: lat,
+                      aLng: lng,
+                      bLat: prevGeoLoc.lat,
+                      bLng: prevGeoLoc.lng,
+                    });
+                    if (newDist < min.dist)
+                      return { dist: newDist, idx: index };
 
-                      return min;
-                    },
-                    { idx: -1, dist: 9999999999 },
-                  );
-                  const food = copiedFoods.splice(idx, 1);
+                    return min;
+                  },
+                  { idx: -1, dist: 9999999999 },
+                );
+                const food = copiedFoods.splice(idx, 1);
 
-                  // copiedFoods.sort((a, b) => {
-                  //   const prevGeoLocFromA = getDistFromTwoGeoLoc({
-                  //     aLat: a.lat!,
-                  //     aLng: a.lng!,
-                  //     bLat: prevGeoLoc.lat,
-                  //     bLng: prevGeoLoc.lng,
-                  //   });
+                // copiedFoods.sort((a, b) => {
+                //   const prevGeoLocFromA = getDistFromTwoGeoLoc({
+                //     aLat: a.lat!,
+                //     aLng: a.lng!,
+                //     bLat: prevGeoLoc.lat,
+                //     bLng: prevGeoLoc.lng,
+                //   });
 
-                  //   const prevGeoLocFromB = getDistFromTwoGeoLoc({
-                  //     aLat: b.lat!,
-                  //     aLng: b.lng!,
-                  //     bLat: prevGeoLoc.lat,
-                  //     bLng: prevGeoLoc.lng,
-                  //   });
-                  //   return prevGeoLocFromA - prevGeoLocFromB;
-                  // });
+                //   const prevGeoLocFromB = getDistFromTwoGeoLoc({
+                //     aLat: b.lat!,
+                //     aLng: b.lng!,
+                //     bLat: prevGeoLoc.lat,
+                //     bLng: prevGeoLoc.lng,
+                //   });
+                //   return prevGeoLocFromA - prevGeoLocFromB;
+                // });
 
-                  // const food = copiedFoods.shift();
+                // const food = copiedFoods.shift();
 
-                  if (isNil(food) || isEmpty(food)) {
-                    return null;
-                  }
-                  [data] = food;
+                if (isNil(food) || isEmpty(food)) {
+                  return null;
                 }
+                [data] = food;
+                // }
 
                 ret = {
                   ...ret,
@@ -3614,7 +3616,7 @@ export const makeSchedule = async (
                   data: data ? [data] : ([] as TourPlaceGeoLoc[]),
                 };
                 prevGeoLoc = data ? getLatLng(data) : prevGeoLoc;
-                nextMealOrder = mealOrder.getNextMealOrder();
+                // nextMealOrder = mealOrder.getNextMealOrder();
                 return ret;
               }
 
@@ -3798,7 +3800,7 @@ export const makeSchedule = async (
               totalSpotSearchCount: ctx.spots!.length,
               spotPerDay: ctx.spotPerDay,
               mealPerDay: ctx.mealPerDay,
-              mealSchedule: new MealOrder().mealOrder.toString(),
+              // mealSchedule: new MealOrder().mealOrder.toString(),
               travelNights: ctx.travelNights,
               travelDays: ctx.travelDays,
               hotelTransition: ctx.hotelTransition,
