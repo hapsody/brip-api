@@ -103,15 +103,61 @@ enum DataStageStatus {
 
 /// idealbloom 이미지 
 model IBPhotos {
-  id          Int        @id @default(autoincrement())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @default(now()) @updatedAt
-  key         String? /// s3 key path
-  url         String?    @db.Text /// 직접접근이 가능한 url이 있을 경우
-  tourPlace   TourPlace? @relation(fields: [tourPlaceId], references: [id])
-  tourPlaceId Int?
-  Hotel       Hotel?     @relation(fields: [hotelId], references: [id])
-  hotelId     Int?
+  id                Int              @id @default(autoincrement())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now()) @updatedAt
+  key               String? /// s3 key path
+  url               String?          @db.Text /// 직접접근이 가능한 url이 있을 경우
+  tourPlace         TourPlace?       @relation(fields: [tourPlaceId], references: [id])
+  tourPlaceId       Int?
+  Hotel             Hotel?           @relation(fields: [hotelId], references: [id])
+  hotelId           Int?
+  photoMetaInfo     IBPhotoMetaInfo?
+  ShareTripMemory   ShareTripMemory? @relation(fields: [shareTripMemoryId], references: [id])
+  shareTripMemoryId Int?
+}
+
+enum IBPhotoMetaInfoType {
+  MAIN
+  DETAIL
+  SUB
+}
+
+/// 사진 메타 정보
+model IBPhotoMetaInfo {
+  id        Int                  @id @default(autoincrement())
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @default(now()) @updatedAt
+  type      IBPhotoMetaInfoType
+  order     Int                  @default(0)
+  /// common fields
+  title     String /// MAIN일 경우 장소명, 업체명, 위치명, DETAIL 타입일 경우 이미지를 설명할수 있는 서브타이틀(메뉴판, 안내도 등), SUB 타입일 경우 서브 타이틀
+  lat       Float?
+  lng       Float?
+  shotTime  DateTime? /// 
+  keyword   IBPhotoTag[] /// Hash Tag ex) 
+  feature   TripMemoryCategory[] /// ex) MAIN: 가족친화적, 연인 친화적, SUB: view, direction, etc
+
+  /// for only MAIN fields
+  eval String? /// ex) 적극 추천, 추천, 비추천
+  desc String? @db.Text /// 장소설명 (2줄))
+
+  /// for DETAIL fields
+  publicInfo String? /// Price, Open/Close hour, contact info, etc
+
+  photo   IBPhotos @relation(fields: [photoId], references: [id])
+  photoId Int      @unique
+}
+
+/// PhotoMetaInfo Tag
+model IBPhotoTag {
+  id         Int               @id @default(autoincrement())
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @default(now()) @updatedAt
+  name       String            @unique
+  tripMemory IBPhotoMetaInfo[]
+
+  @@index([name])
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
@@ -725,12 +771,13 @@ model ShareTripMemory {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+  isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
   title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
   lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   address   String?  @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   comment   String   @db.Text
-  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크
+  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
 
   like                            Int                               @default(0) /// 공유기억 자체 like 여부
   TourPlace                       TourPlace?                        @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
@@ -743,6 +790,8 @@ model ShareTripMemory {
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeFrom                        User[]                            @relation(name: "likeFrom")
+
+  photos IBPhotos[]
 
   @@unique([title, img])
 }
@@ -788,6 +837,7 @@ model TripMemoryCategory {
   super           String            @default("etc") /// 상위 카테고리 ex) food(음식), cafe(카페), lodge(숙소), tour(관광), activity(액티비티), rest(휴식)
   name            String /// 카테고리 ex) 브런치, 한식, 커피...
   shareTripMemory ShareTripMemory[]
+  ibPhotoMetaInfo IBPhotoMetaInfo[]
 
   @@unique([super, name])
   @@index([super, name])

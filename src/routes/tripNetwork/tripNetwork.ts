@@ -23,6 +23,7 @@ import {
   IBPhotos,
   User,
   IBTravelTag,
+  IBPhotoMetaInfoType,
 } from '@prisma/client';
 import { isEmpty, isNil, isNull } from 'lodash';
 import moment from 'moment';
@@ -217,9 +218,27 @@ export interface AddTripMemoryRequestType {
   address?: string;
   lat: string;
   lng: string;
-  img: string;
   groupId: string;
   tourPlaceId?: string;
+  // img: string;
+  photos: {
+    key: string;
+    photoMetaInfo?: {
+      type?: IBPhotoMetaInfoType;
+      title?: string;
+      lat?: string;
+      lng?: string;
+      shotTime?: string;
+      keyword?: string[];
+      feature?: {
+        super: string;
+        name: string;
+      }[];
+      eval?: string;
+      desc?: string;
+      publicInfo?: string;
+    };
+  }[];
 }
 export type TourPlaceCommonType = Pick<
   TourPlace,
@@ -287,10 +306,20 @@ const addTripMemory = async (
     address,
     lat,
     lng,
-    img,
+    // img,
     groupId,
     tourPlaceId,
+    photos,
   } = param;
+
+  if (isNil(photos) || isEmpty(photos)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'photos는 필수 파라미터입니다.',
+    });
+  }
+  const img = photos[0].key;
+
   const tripMemoryGroup = await prisma.tripMemoryGroup.findUnique({
     where: {
       id: Number(groupId),
@@ -817,6 +846,7 @@ export interface AddShareTripMemoryRequestType {
   tripMemoryId?: string; /// 이미 존재하는 tripMemory일 경우 id를 제공해야 한다. tripMemoryId가 제공되지 않을 경우 addShareTripMemory api 수행 과정중 tripMemory가 생성된다.
   recommendGrade: 'good' | 'notbad' | 'bad';
   categoryIds: string[];
+  isShare: string; /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
   tourPlaceId?: string | null;
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
@@ -846,9 +876,10 @@ export const addShareTripMemory = asyncWrapper(
         categoryIds,
         tourPlaceId,
         tripMemoryId,
+        isShare,
       } = req.body;
 
-      const { title, comment, address, lat, lng, img } = tripMemoryParam;
+      const { title, comment, address, lat, lng, photos } = tripMemoryParam;
 
       const { locals } = req;
       const { memberId, userTokenId } = (() => {
@@ -870,6 +901,14 @@ export const addShareTripMemory = asyncWrapper(
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
+
+      if (isNil(photos) || isEmpty(photos)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'photos는 필수 파라미터입니다.',
+        });
+      }
+      const img = photos[0].key;
 
       const alreadyExist = await prisma.shareTripMemory.findUnique({
         where: {
@@ -1157,8 +1196,64 @@ export const addShareTripMemory = asyncWrapper(
         })
         .filter((v): v is { value: string } => v !== null);
 
+      const photoMetaInfo = await Promise.all(
+        photos.map((v, index) => {
+          return prisma.iBPhotoMetaInfo.create({
+            data: {
+              type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+              order: index,
+              title: v.photoMetaInfo!.title!,
+              lat: Number(v.photoMetaInfo!.lat!),
+              lng: Number(v.photoMetaInfo!.lng!),
+              shotTime: v.photoMetaInfo!.shotTime,
+              ...(v.photoMetaInfo!.keyword && {
+                keyword: {
+                  connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
+                    return {
+                      where: {
+                        name: k,
+                      },
+                      create: {
+                        name: k,
+                      },
+                    };
+                  }),
+                },
+              }),
+              ...(v.photoMetaInfo!.feature! && {
+                feature: {
+                  connectOrCreate: v.photoMetaInfo!.feature.map(k => {
+                    return {
+                      where: {
+                        super_name: {
+                          super: k.super,
+                          name: k.name,
+                        },
+                      },
+                      create: {
+                        super: k.super,
+                        name: k.name,
+                      },
+                    };
+                  }),
+                },
+              }),
+              eval: v.photoMetaInfo!.eval,
+              desc: v.photoMetaInfo!.desc,
+              publicInfo: v.photoMetaInfo?.publicInfo,
+              photo: {
+                create: {
+                  key: v.key,
+                },
+              },
+            },
+          });
+        }),
+      );
+
       const shareTripMemory = await prisma.shareTripMemory.create({
         data: {
+          isShare: isShare.toUpperCase().includes('TRUE'),
           title: createdOrFoundTripMem.title,
           lat: createdOrFoundTripMem.lat,
           lng: createdOrFoundTripMem.lng,
@@ -1183,33 +1278,39 @@ export const addShareTripMemory = asyncWrapper(
               id: createdOrFoundTripMem.id,
             },
           },
-          TourPlace: isNil(tourPlaceId)
-            ? {
-                create: {
-                  title,
-                  lat: Number(lat),
-                  lng: Number(lng),
-                  address,
-                  // tourPlaceType: 'USER_SPOT',
-                  tourPlaceType: categoryToIBTravelTag.tourPlaceType,
-                  photos: {
-                    create: {
-                      key: img,
-                    },
-                  },
-                  ...(!isNil(ibTravelTagNames) &&
-                    !isEmpty(ibTravelTagNames) && {
-                      ibTravelTag: {
-                        connect: ibTravelTagNames,
-                      },
-                    }),
-                },
-              }
-            : {
-                connect: {
-                  id: Number(tourPlaceId),
-                },
+          TourPlace: {
+            connectOrCreate: {
+              where: {
+                id: createdOrFoundTripMem.TourPlace?.id,
               },
+              create: {
+                title,
+                lat: Number(lat),
+                lng: Number(lng),
+                address,
+                // tourPlaceType: 'USER_SPOT',
+                tourPlaceType: categoryToIBTravelTag.tourPlaceType,
+                photos: {
+                  create: {
+                    key: img,
+                  },
+                },
+                ...(!isNil(ibTravelTagNames) &&
+                  !isEmpty(ibTravelTagNames) && {
+                    ibTravelTag: {
+                      connect: ibTravelTagNames,
+                    },
+                  }),
+              },
+            },
+          },
+          photos: {
+            connect: photoMetaInfo.map(v => {
+              return {
+                id: v.photoId,
+              };
+            }),
+          },
         },
         include: {
           tripMemoryCategory: true,
@@ -2363,6 +2464,12 @@ export const getShareTripMemList = asyncWrapper(
             message: '존재하지 않는 shareTripMemoryId입니다.',
           });
         }
+        if (!foundShareTripMem.isShare) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: '공유상태의 shareTripMemoryId가 아닙니다.',
+          });
+        }
         const { profileImg } = foundShareTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
@@ -2395,6 +2502,7 @@ export const getShareTripMemList = asyncWrapper(
               },
             },
           },
+          isShare: true,
           userId: Number(userId),
         },
         ...(isNil(lastId) && {
@@ -2539,6 +2647,14 @@ export const getShareTripMemList = asyncWrapper(
           });
           return;
         }
+        if (err.type === 'INVALIDSTATUS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
 
         if (err.type === 'DBTRANSACTIONERROR') {
           res.status(500).json({
@@ -2655,13 +2771,18 @@ export const getShareTripMemListByPlace = asyncWrapper(
           id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId),
           shareTripMemory: {
             some: {
-              tripMemoryCategory: {
-                some: {
-                  name: {
-                    contains: categoryKeyword,
+              AND: [
+                {
+                  tripMemoryCategory: {
+                    some: {
+                      name: {
+                        contains: categoryKeyword,
+                      },
+                    },
                   },
                 },
-              },
+                { isShare: true },
+              ],
             },
           },
         },
