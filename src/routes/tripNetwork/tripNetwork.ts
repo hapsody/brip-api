@@ -12,6 +12,7 @@ import {
 } from '@src/utils';
 import {
   Prisma,
+  PrismaClient,
   TripMemoryGroup,
   TripMemory,
   TripMemoryTag,
@@ -298,6 +299,14 @@ export interface ContextAddTripMemory extends IBContext {}
 const addTripMemory = async (
   param: AddTripMemoryRequestType,
   ctx: ContextAddTripMemory,
+  transaction?: Omit<
+    PrismaClient<
+      Prisma.PrismaClientOptions,
+      never,
+      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+    >,
+    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  >,
 ): Promise<AddTripMemorySuccessResType> => {
   const {
     title,
@@ -320,7 +329,9 @@ const addTripMemory = async (
   }
   const img = photos[0].key;
 
-  const tripMemoryGroup = await prisma.tripMemoryGroup.findUnique({
+  const tripMemoryGroup = await (
+    transaction ?? prisma
+  ).tripMemoryGroup.findUnique({
     where: {
       id: Number(groupId),
     },
@@ -337,6 +348,207 @@ const addTripMemory = async (
       type: 'NOTAUTHORIZED',
       message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
     });
+
+  if (!isNil(transaction)) {
+    const tx = transaction;
+    const alreadyExist = await tx.tripMemory.findUnique({
+      where: {
+        title_img: {
+          title,
+          img,
+        },
+      },
+    });
+
+    if (!isNil(alreadyExist)) {
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: '이미 기억 데이터가 존재합니다.',
+      });
+    }
+
+    const prevStartDate = !isNil(tripMemoryGroup.startDate)
+      ? tripMemoryGroup.startDate
+      : moment().startOf('d').toISOString();
+    const prevEndDate = !isNil(tripMemoryGroup.endDate)
+      ? tripMemoryGroup.endDate
+      : moment().startOf('d').toISOString();
+
+    const sDay = moment(prevStartDate).format('YYYY-MM-DD');
+    const eDay = moment(prevEndDate).format('YYYY-MM-DD');
+    const curDay = moment().startOf('d').format('YYYY-MM-DD');
+
+    const startDate = (() => {
+      if (moment(sDay).diff(moment(curDay)) > 0)
+        return moment(curDay).toISOString();
+      return moment(sDay).toISOString();
+    })();
+    const endDate = (() => {
+      if (moment(eDay).diff(moment(curDay)) < 0)
+        return moment(curDay).toISOString();
+      return moment(eDay).toISOString();
+    })();
+
+    const existMemGroup = await tx.tripMemoryGroup.findUnique({
+      where: {
+        id: Number(groupId),
+      },
+    });
+
+    if (!existMemGroup) {
+      throw new IBError({
+        type: 'NOTEXISTDATA',
+        message: '존재 하지 않는 TripMemoryGroup ID입니다.',
+      });
+    }
+
+    await tx.tripMemoryGroup.update({
+      where: {
+        id: Number(groupId),
+      },
+      data: {
+        startDate,
+        endDate,
+      },
+    });
+
+    /// tourPlaceId가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
+    /// 반환된 tourPlace는 tripMemory 생성할때 connect해준다.
+    const createdOrFoundTP = await (async () => {
+      /// 1. tourPlaceId가 제공되었을 경우
+      if (!isNil(tourPlaceId)) {
+        const matchedTP = await tx.tourPlace.findUnique({
+          where: {
+            id: Number(tourPlaceId),
+          },
+        });
+        if (isNull(matchedTP)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: '유효하지 않은 tourPlaceId 값입니다.',
+          });
+        }
+        return matchedTP;
+      }
+
+      /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+      const createdTP = await tx.tourPlace.create({
+        data: {
+          title,
+          lat: Number(lat),
+          lng: Number(lng),
+          address,
+          // tourPlaceType: 'USER_SPOT',
+          tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
+          photos: {
+            create: {
+              key: img,
+            },
+          },
+        },
+      });
+      return createdTP;
+    })();
+
+    const createdTripMem = await tx.tripMemory.create({
+      data: {
+        title,
+        comment,
+        lat: Number(lat),
+        lng: Number(lng),
+        address,
+        img,
+        group: {
+          connect: {
+            id: Number(groupId),
+          },
+        },
+        user: {
+          connect: {
+            id: ctx.memberId!,
+          },
+        },
+        ...(hashTag &&
+          !isEmpty(hashTag) && {
+            tag: {
+              connectOrCreate: hashTag
+                .map(tag => {
+                  return tag.split(',');
+                })
+                .flat()
+                .map(tag => {
+                  return {
+                    where: {
+                      name_userId: {
+                        name: tag,
+                        userId: ctx.memberId!,
+                      },
+                    },
+                    create: {
+                      name: tag,
+                      user: {
+                        connect: {
+                          id: ctx.memberId!,
+                        },
+                      },
+                    },
+                  };
+                }),
+            },
+          }),
+
+        TourPlace: {
+          connect: {
+            id: Number(createdOrFoundTP.id),
+          },
+        },
+      },
+      include: {
+        tag: true,
+        group: true,
+        TourPlace: {
+          select: {
+            id: true,
+            createdAt: true,
+            updatedAt: true,
+            tourPlaceType: true,
+            status: true,
+            title: true,
+            lat: true,
+            lng: true,
+            address: true,
+            roadAddress: true,
+            openWeek: true,
+            contact: true,
+            postcode: true,
+            rating: true,
+            desc: true,
+            photos: {
+              select: {
+                id: true,
+                key: true,
+                url: true,
+              },
+            },
+            good: true,
+            notBad: true,
+            bad: true,
+            like: true,
+            likeFrom: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return createdTripMem;
+  }
 
   const createdTripMem = await prisma.$transaction(async tx => {
     const alreadyExist = await tx.tripMemory.findUnique({
@@ -1106,323 +1318,328 @@ export const addShareTripMemory = asyncWrapper(
           }
         }),
       };
-
-      /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
-      /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
-      const createdOrFoundTripMem =
-        await (async (): Promise<AddTripMemorySuccessResType> => {
-          /// 1. tripMemoryId 제공되지 않았을 경우
-          if (isNil(tripMemoryId)) {
-            const ctx = {
-              userTokenId,
-              memberId,
-            };
-            const addResult = await addTripMemory(
-              {
-                ...tripMemoryParam,
-                /// 마찬가지로 tourPlaceId가 제공되었을 경우 addTripMemory를 호출하며 포워딩해준다.
-                /// tourPlaceId가 전달되지 않으면 addTripMemory 과정에서 tourPlace를 생성한다.
-                tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+      const createdShareTripMemory = await prisma.$transaction(async tx => {
+        /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
+        /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
+        const createdOrFoundTripMem =
+          await (async (): Promise<AddTripMemorySuccessResType> => {
+            /// 1. tripMemoryId 제공되지 않았을 경우
+            if (isNil(tripMemoryId)) {
+              const ctx = {
+                userTokenId,
+                memberId,
+              };
+              const addResult = await addTripMemory(
+                {
+                  ...tripMemoryParam,
+                  /// 마찬가지로 tourPlaceId가 제공되었을 경우 addTripMemory를 호출하며 포워딩해준다.
+                  /// tourPlaceId가 전달되지 않으면 addTripMemory 과정에서 tourPlace를 생성한다.
+                  tourPlaceId: !isNil(tourPlaceId) ? tourPlaceId : undefined,
+                },
+                ctx,
+                tx,
+              );
+              return addResult;
+            }
+            /// 2. tripMemoryId 제공되었을 경우
+            const findResult = await tx.tripMemory.findUnique({
+              where: {
+                id: Number(tripMemoryId),
               },
-              ctx,
-            );
-            return addResult;
-          }
-          /// 2. tripMemoryId 제공되었을 경우
-          const findResult = await prisma.tripMemory.findUnique({
-            where: {
-              id: Number(tripMemoryId),
-            },
-            include: {
-              tag: true,
-              user: true,
-              group: true,
-              TourPlace: {
-                select: {
-                  id: true,
-                  createdAt: true,
-                  updatedAt: true,
-                  status: true,
-                  tourPlaceType: true,
-                  title: true,
-                  lat: true,
-                  lng: true,
-                  address: true,
-                  roadAddress: true,
-                  openWeek: true,
-                  contact: true,
-                  postcode: true,
-                  rating: true,
-                  desc: true,
-                  photos: {
-                    select: {
-                      id: true,
-                      key: true,
-                      url: true,
+              include: {
+                tag: true,
+                user: true,
+                group: true,
+                TourPlace: {
+                  select: {
+                    id: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    status: true,
+                    tourPlaceType: true,
+                    title: true,
+                    lat: true,
+                    lng: true,
+                    address: true,
+                    roadAddress: true,
+                    openWeek: true,
+                    contact: true,
+                    postcode: true,
+                    rating: true,
+                    desc: true,
+                    photos: {
+                      select: {
+                        id: true,
+                        key: true,
+                        url: true,
+                      },
                     },
-                  },
-                  good: true,
-                  notBad: true,
-                  bad: true,
-                  like: true,
-                  likeFrom: {
-                    select: {
-                      id: true,
-                      nickName: true,
-                      profileImg: true,
-                      createdAt: true,
-                      updatedAt: true,
+                    good: true,
+                    notBad: true,
+                    bad: true,
+                    like: true,
+                    likeFrom: {
+                      select: {
+                        id: true,
+                        nickName: true,
+                        profileImg: true,
+                        createdAt: true,
+                        updatedAt: true,
+                      },
                     },
                   },
                 },
               },
-            },
-          });
-          if (isNil(findResult)) {
-            throw new IBError({
-              type: 'INVALIDPARAMS',
-              message: '제공된 tripMemoryId에 해당하는 tripMemory가 없습니다.',
             });
-          }
-          return findResult;
-        })();
+            if (isNil(findResult)) {
+              throw new IBError({
+                type: 'INVALIDPARAMS',
+                message:
+                  '제공된 tripMemoryId에 해당하는 tripMemory가 없습니다.',
+              });
+            }
+            return findResult;
+          })();
 
-      const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
-        .map(v => {
-          if (v === null) return null;
-          return {
-            value: v,
-          };
-        })
-        .filter((v): v is { value: string } => v !== null);
+        const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
+          .map(v => {
+            if (v === null) return null;
+            return {
+              value: v,
+            };
+          })
+          .filter((v): v is { value: string } => v !== null);
 
-      const photoMetaInfo = await Promise.all(
-        photos.map((v, index) => {
-          return prisma.iBPhotoMetaInfo.create({
-            data: {
-              type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
-              order: index,
-              title: v.photoMetaInfo!.title!,
-              lat: Number(v.photoMetaInfo!.lat!),
-              lng: Number(v.photoMetaInfo!.lng!),
-              shotTime: v.photoMetaInfo!.shotTime,
-              ...(v.photoMetaInfo!.keyword && {
-                keyword: {
-                  connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
-                    return {
-                      where: {
-                        name: k,
-                      },
-                      create: {
-                        name: k,
-                      },
-                    };
-                  }),
-                },
-              }),
-              ...(v.photoMetaInfo!.feature! && {
-                feature: {
-                  connectOrCreate: v.photoMetaInfo!.feature.map(k => {
-                    return {
-                      where: {
-                        super_name: {
+        const photoMetaInfo = await Promise.all(
+          photos.map((v, index) => {
+            return tx.iBPhotoMetaInfo.create({
+              data: {
+                type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+                order: index,
+                title: v.photoMetaInfo!.title!,
+                lat: Number(v.photoMetaInfo!.lat!),
+                lng: Number(v.photoMetaInfo!.lng!),
+                shotTime: v.photoMetaInfo!.shotTime,
+                ...(v.photoMetaInfo!.keyword && {
+                  keyword: {
+                    connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
+                      return {
+                        where: {
+                          name: k,
+                        },
+                        create: {
+                          name: k,
+                        },
+                      };
+                    }),
+                  },
+                }),
+                ...(v.photoMetaInfo!.feature! && {
+                  feature: {
+                    connectOrCreate: v.photoMetaInfo!.feature.map(k => {
+                      return {
+                        where: {
+                          super_name: {
+                            super: k.super,
+                            name: k.name,
+                          },
+                        },
+                        create: {
                           super: k.super,
                           name: k.name,
                         },
-                      },
-                      create: {
-                        super: k.super,
-                        name: k.name,
-                      },
-                    };
-                  }),
-                },
-              }),
-              eval: v.photoMetaInfo!.eval,
-              desc: v.photoMetaInfo!.desc,
-              publicInfo: v.photoMetaInfo?.publicInfo,
-              photo: {
-                create: {
-                  key: v.key,
-                },
-              },
-            },
-          });
-        }),
-      );
-
-      const shareTripMemory = await prisma.shareTripMemory.create({
-        data: {
-          isShare: isShare.toUpperCase().includes('TRUE'),
-          title: createdOrFoundTripMem.title,
-          lat: createdOrFoundTripMem.lat,
-          lng: createdOrFoundTripMem.lng,
-          address: createdOrFoundTripMem.address,
-          img: createdOrFoundTripMem.img,
-          comment,
-          user: {
-            connect: {
-              id: Number(memberId),
-            },
-          },
-          tripMemoryCategory: {
-            connect: categoryIds.map(v => {
-              return {
-                id: Number(v),
-              };
-            }),
-          },
-          /// tripMemory의 tourPlace와 동일한 tourPlace를 shareTripMemory와 connect한다.
-          tripMemory: {
-            connect: {
-              id: createdOrFoundTripMem.id,
-            },
-          },
-          TourPlace: {
-            connectOrCreate: {
-              where: {
-                id: createdOrFoundTripMem.TourPlace?.id,
-              },
-              create: {
-                title,
-                lat: Number(lat),
-                lng: Number(lng),
-                address,
-                // tourPlaceType: 'USER_SPOT',
-                tourPlaceType: categoryToIBTravelTag.tourPlaceType,
-                photos: {
+                      };
+                    }),
+                  },
+                }),
+                eval: v.photoMetaInfo!.eval,
+                desc: v.photoMetaInfo!.desc,
+                publicInfo: v.photoMetaInfo?.publicInfo,
+                photo: {
                   create: {
-                    key: img,
+                    key: v.key,
                   },
                 },
-                ...(!isNil(ibTravelTagNames) &&
-                  !isEmpty(ibTravelTagNames) && {
-                    ibTravelTag: {
-                      connect: ibTravelTagNames,
+              },
+            });
+          }),
+        );
+
+        const shareTripMemory = await tx.shareTripMemory.create({
+          data: {
+            isShare: isShare.toUpperCase().includes('TRUE'),
+            title: createdOrFoundTripMem.title,
+            lat: createdOrFoundTripMem.lat,
+            lng: createdOrFoundTripMem.lng,
+            address: createdOrFoundTripMem.address,
+            img: createdOrFoundTripMem.img,
+            comment,
+            user: {
+              connect: {
+                id: Number(memberId),
+              },
+            },
+            tripMemoryCategory: {
+              connect: categoryIds.map(v => {
+                return {
+                  id: Number(v),
+                };
+              }),
+            },
+            /// tripMemory의 tourPlace와 동일한 tourPlace를 shareTripMemory와 connect한다.
+            tripMemory: {
+              connect: {
+                id: createdOrFoundTripMem.id,
+              },
+            },
+            TourPlace: {
+              connectOrCreate: {
+                where: {
+                  id: createdOrFoundTripMem.TourPlace?.id,
+                },
+                create: {
+                  title,
+                  lat: Number(lat),
+                  lng: Number(lng),
+                  address,
+                  // tourPlaceType: 'USER_SPOT',
+                  tourPlaceType: categoryToIBTravelTag.tourPlaceType,
+                  photos: {
+                    create: {
+                      key: img,
                     },
-                  }),
-              },
-            },
-          },
-          photos: {
-            connect: photoMetaInfo.map(v => {
-              return {
-                id: v.photoId,
-              };
-            }),
-          },
-        },
-        include: {
-          tripMemoryCategory: true,
-          tripMemory: {
-            include: {
-              tag: true,
-              group: true,
-            },
-          },
-          TourPlace: {
-            select: {
-              id: true,
-              createdAt: true,
-              updatedAt: true,
-              tourPlaceType: true,
-              status: true,
-              title: true,
-              lat: true,
-              lng: true,
-              address: true,
-              roadAddress: true,
-              openWeek: true,
-              contact: true,
-              postcode: true,
-              rating: true,
-              desc: true,
-              photos: {
-                select: {
-                  id: true,
-                  key: true,
-                  url: true,
-                },
-              },
-              good: true,
-              notBad: true,
-              bad: true,
-              like: true,
-              likeFrom: {
-                select: {
-                  id: true,
-                  nickName: true,
-                  profileImg: true,
-                  createdAt: true,
-                  updatedAt: true,
+                  },
+                  ...(!isNil(ibTravelTagNames) &&
+                    !isEmpty(ibTravelTagNames) && {
+                      ibTravelTag: {
+                        connect: ibTravelTagNames,
+                      },
+                    }),
                 },
               },
             },
+            photos: {
+              connect: photoMetaInfo.map(v => {
+                return {
+                  id: v.photoId,
+                };
+              }),
+            },
           },
-        },
+          include: {
+            tripMemoryCategory: true,
+            tripMemory: {
+              include: {
+                tag: true,
+                group: true,
+              },
+            },
+            TourPlace: {
+              select: {
+                id: true,
+                createdAt: true,
+                updatedAt: true,
+                tourPlaceType: true,
+                status: true,
+                title: true,
+                lat: true,
+                lng: true,
+                address: true,
+                roadAddress: true,
+                openWeek: true,
+                contact: true,
+                postcode: true,
+                rating: true,
+                desc: true,
+                photos: {
+                  select: {
+                    id: true,
+                    key: true,
+                    url: true,
+                  },
+                },
+                good: true,
+                notBad: true,
+                bad: true,
+                like: true,
+                likeFrom: {
+                  select: {
+                    id: true,
+                    nickName: true,
+                    profileImg: true,
+                    createdAt: true,
+                    updatedAt: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        /// case1: tourPlaceId 가 제공되지 않은 tourPlace의 신규 생성일 경우에는
+        /// shareTripMemory 생성 전 tripMemory의 생성단계에서 tourPlace가 같이 생성된다.
+        /// 이때는 나만 보는 '기억'에서 신규 생성한 장소이므로 tourPlace가 USER_PRIV_MEMORY_SPOT 갖는데
+        /// 생성된 tourPlace가 바로 공유가 되는 셈이므로 타입을 공개상태중 하나인 NEW로 바꿔준다.
+        /// case2: tourPlaceId 가 제공되었을 경우는 addTripMemory 단계를 거치면서
+        /// 기존에 있는 tourPlace가 tripMemory와 매칭되고 이 tourPlace를 반환했을 것이다.
+        /// 이 tourPlace는 IN_USE 상태일 것이므로 아래 타입 업데이트를 거치지 않는다.
+
+        if (
+          createdOrFoundTripMem.TourPlace?.tourPlaceType ===
+          ('USER_PRIV_MEMORY_SPOT' as PlaceType)
+        ) {
+          await tx.tourPlace.update({
+            where: {
+              id: createdOrFoundTripMem.TourPlace.id,
+            },
+            data: {
+              tourPlaceType: categoryToIBTravelTag.tourPlaceType,
+            },
+          });
+        }
+
+        const recommendUpdatePromise = (() => {
+          if (recommendGrade === 'good') {
+            const nextGood = shareTripMemory.TourPlace!.good + 1;
+            return tx.tourPlace.update({
+              where: {
+                id: shareTripMemory.TourPlace!.id,
+              },
+              data: {
+                good: nextGood,
+              },
+            });
+          }
+          if (recommendGrade === 'notbad') {
+            const nextNotBad = shareTripMemory.TourPlace!.notBad + 1;
+            return tx.tourPlace.update({
+              where: {
+                id: shareTripMemory.TourPlace!.id,
+              },
+              data: {
+                notBad: nextNotBad,
+              },
+            });
+          }
+          const nextBad = shareTripMemory.TourPlace!.bad + 1;
+          return tx.tourPlace.update({
+            where: {
+              id: shareTripMemory.TourPlace!.id,
+            },
+            data: {
+              bad: nextBad,
+            },
+          });
+        })();
+
+        await recommendUpdatePromise;
+
+        return shareTripMemory;
       });
-
-      /// case1: tourPlaceId 가 제공되지 않은 tourPlace의 신규 생성일 경우에는
-      /// shareTripMemory 생성 전 tripMemory의 생성단계에서 tourPlace가 같이 생성된다.
-      /// 이때는 나만 보는 '기억'에서 신규 생성한 장소이므로 tourPlace가 USER_PRIV_MEMORY_SPOT 갖는데
-      /// 생성된 tourPlace가 바로 공유가 되는 셈이므로 타입을 공개상태중 하나인 NEW로 바꿔준다.
-      /// case2: tourPlaceId 가 제공되었을 경우는 addTripMemory 단계를 거치면서
-      /// 기존에 있는 tourPlace가 tripMemory와 매칭되고 이 tourPlace를 반환했을 것이다.
-      /// 이 tourPlace는 IN_USE 상태일 것이므로 아래 타입 업데이트를 거치지 않는다.
-
-      if (
-        createdOrFoundTripMem.TourPlace?.tourPlaceType ===
-        ('USER_PRIV_MEMORY_SPOT' as PlaceType)
-      ) {
-        await prisma.tourPlace.update({
-          where: {
-            id: createdOrFoundTripMem.TourPlace.id,
-          },
-          data: {
-            tourPlaceType: categoryToIBTravelTag.tourPlaceType,
-          },
-        });
-      }
-
-      const recommendUpdatePromise = (() => {
-        if (recommendGrade === 'good') {
-          const nextGood = shareTripMemory.TourPlace!.good + 1;
-          return prisma.tourPlace.update({
-            where: {
-              id: shareTripMemory.TourPlace!.id,
-            },
-            data: {
-              good: nextGood,
-            },
-          });
-        }
-        if (recommendGrade === 'notbad') {
-          const nextNotBad = shareTripMemory.TourPlace!.notBad + 1;
-          return prisma.tourPlace.update({
-            where: {
-              id: shareTripMemory.TourPlace!.id,
-            },
-            data: {
-              notBad: nextNotBad,
-            },
-          });
-        }
-        const nextBad = shareTripMemory.TourPlace!.bad + 1;
-        return prisma.tourPlace.update({
-          where: {
-            id: shareTripMemory.TourPlace!.id,
-          },
-          data: {
-            bad: nextBad,
-          },
-        });
-      })();
-
-      await recommendUpdatePromise;
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: shareTripMemory,
+        IBparams: createdShareTripMemory,
       });
     } catch (err) {
       if (err instanceof IBError) {
