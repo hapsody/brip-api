@@ -33,8 +33,17 @@ const seedData = [
             lat: '33.516134',
             lng: '126.512128',
             shotTime: '2023-04-20T03:11:23Z',
-            keyword: ['따로여행', '장관'],
-            feature: ['자연친화적', '자연경관'],
+            keyword: ['죽이는 전경', '장관'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
             eval: '적극추천',
             desc: '제주도 도착하면 바로 볼 1순위 용두암 전경 사진',
           },
@@ -47,6 +56,17 @@ const seedData = [
             lat: '33.516134',
             lng: '126.512128',
             shotTime: '2023-04-20T03:13:23Z',
+            keyword: ['여행지 정보', '지도'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
             publicInfo: 'info',
           },
         },
@@ -58,12 +78,21 @@ const seedData = [
             lat: '33.516139',
             lng: '126.506763',
             shotTime: '2023-04-20T04:28:40Z',
-            feature: ['주변맛집'],
+            keyword: ['맛집 탐방'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
           },
         },
       ],
     },
-    isShare: 'true',
     recommendGrade: 'good',
     //   categoryIds: ['1', '2', '3'],
     //   tourPlaceId: null
