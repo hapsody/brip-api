@@ -115,6 +115,8 @@ model IBPhotos {
   photoMetaInfo     IBPhotoMetaInfo?
   ShareTripMemory   ShareTripMemory? @relation(fields: [shareTripMemoryId], references: [id])
   shareTripMemoryId Int?
+  tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
+  tripMemoryId      Int?
 }
 
 enum IBPhotoMetaInfoType {
@@ -762,6 +764,7 @@ model TripMemory {
   userId      Int
 
   ShareTripMemory ShareTripMemory?
+  photos          IBPhotos[]
 
   @@unique([title, img])
 }
@@ -771,7 +774,7 @@ model ShareTripMemory {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
+  // isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
   title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
   lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.

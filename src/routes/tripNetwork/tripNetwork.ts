@@ -25,6 +25,7 @@ import {
   User,
   IBTravelTag,
   IBPhotoMetaInfoType,
+  IBPhotoMetaInfo,
 } from '@prisma/client';
 import { isEmpty, isNil, isNull } from 'lodash';
 import moment from 'moment';
@@ -271,6 +272,9 @@ export type TourPlaceCommonType = Pick<
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
   group: TripMemoryGroup;
+  photos: (IBPhotos & {
+    photoMetaInfo: IBPhotoMetaInfo | null;
+  })[];
   TourPlace: TourPlaceCommonType | null;
   // TourPlace: {
   //   id: number;
@@ -450,6 +454,62 @@ const addTripMemory = async (
       return createdTP;
     })();
 
+    /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
+    const photoMetaInfo = await Promise.all(
+      photos.map((v, index) => {
+        return tx.iBPhotoMetaInfo.create({
+          data: {
+            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            order: index,
+            title: v.photoMetaInfo!.title!,
+            lat: Number(v.photoMetaInfo!.lat!),
+            lng: Number(v.photoMetaInfo!.lng!),
+            shotTime: v.photoMetaInfo!.shotTime,
+            ...(v.photoMetaInfo!.keyword && {
+              keyword: {
+                connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
+                  return {
+                    where: {
+                      name: k,
+                    },
+                    create: {
+                      name: k,
+                    },
+                  };
+                }),
+              },
+            }),
+            ...(v.photoMetaInfo!.feature! && {
+              feature: {
+                connectOrCreate: v.photoMetaInfo!.feature.map(k => {
+                  return {
+                    where: {
+                      super_name: {
+                        super: k.super,
+                        name: k.name,
+                      },
+                    },
+                    create: {
+                      super: k.super,
+                      name: k.name,
+                    },
+                  };
+                }),
+              },
+            }),
+            eval: v.photoMetaInfo!.eval,
+            desc: v.photoMetaInfo!.desc,
+            publicInfo: v.photoMetaInfo?.publicInfo,
+            photo: {
+              create: {
+                key: v.key,
+              },
+            },
+          },
+        });
+      }),
+    );
+
     const createdTripMem = await tx.tripMemory.create({
       data: {
         title,
@@ -496,7 +556,13 @@ const addTripMemory = async (
                 }),
             },
           }),
-
+        photos: {
+          connect: photoMetaInfo.map(v => {
+            return {
+              id: v.photoId,
+            };
+          }),
+        },
         TourPlace: {
           connect: {
             id: Number(createdOrFoundTP.id),
@@ -506,6 +572,11 @@ const addTripMemory = async (
       include: {
         tag: true,
         group: true,
+        photos: {
+          include: {
+            photoMetaInfo: true,
+          },
+        },
         TourPlace: {
           select: {
             id: true,
@@ -650,6 +721,62 @@ const addTripMemory = async (
       return createdTP;
     })();
 
+    /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
+    const photoMetaInfo = await Promise.all(
+      photos.map((v, index) => {
+        return tx.iBPhotoMetaInfo.create({
+          data: {
+            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            order: index,
+            title: v.photoMetaInfo!.title!,
+            lat: Number(v.photoMetaInfo!.lat!),
+            lng: Number(v.photoMetaInfo!.lng!),
+            shotTime: v.photoMetaInfo!.shotTime,
+            ...(v.photoMetaInfo!.keyword && {
+              keyword: {
+                connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
+                  return {
+                    where: {
+                      name: k,
+                    },
+                    create: {
+                      name: k,
+                    },
+                  };
+                }),
+              },
+            }),
+            ...(v.photoMetaInfo!.feature! && {
+              feature: {
+                connectOrCreate: v.photoMetaInfo!.feature.map(k => {
+                  return {
+                    where: {
+                      super_name: {
+                        super: k.super,
+                        name: k.name,
+                      },
+                    },
+                    create: {
+                      super: k.super,
+                      name: k.name,
+                    },
+                  };
+                }),
+              },
+            }),
+            eval: v.photoMetaInfo!.eval,
+            desc: v.photoMetaInfo!.desc,
+            publicInfo: v.photoMetaInfo?.publicInfo,
+            photo: {
+              create: {
+                key: v.key,
+              },
+            },
+          },
+        });
+      }),
+    );
+
     const createdOne = await tx.tripMemory.create({
       data: {
         title,
@@ -696,7 +823,13 @@ const addTripMemory = async (
                 }),
             },
           }),
-
+        photos: {
+          connect: photoMetaInfo.map(v => {
+            return {
+              id: v.photoId,
+            };
+          }),
+        },
         TourPlace: {
           connect: {
             id: Number(createdOrFoundTP.id),
@@ -706,6 +839,11 @@ const addTripMemory = async (
       include: {
         tag: true,
         group: true,
+        photos: {
+          include: {
+            photoMetaInfo: true,
+          },
+        },
         TourPlace: {
           select: {
             id: true,
@@ -1058,11 +1196,14 @@ export interface AddShareTripMemoryRequestType {
   tripMemoryId?: string; /// 이미 존재하는 tripMemory일 경우 id를 제공해야 한다. tripMemoryId가 제공되지 않을 경우 addShareTripMemory api 수행 과정중 tripMemory가 생성된다.
   recommendGrade: 'good' | 'notbad' | 'bad';
   categoryIds: string[];
-  isShare: string; /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
+  // isShare: string; /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
   tourPlaceId?: string | null;
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
   TourPlace: TourPlaceCommonType | null;
+  photos: (IBPhotos & {
+    photoMetaInfo: IBPhotoMetaInfo | null;
+  })[];
   tripMemory:
     | (TripMemory & {
         tag: TripMemoryTag[];
@@ -1088,7 +1229,7 @@ export const addShareTripMemory = asyncWrapper(
         categoryIds,
         tourPlaceId,
         tripMemoryId,
-        isShare,
+        // isShare,
       } = req.body;
 
       const { title, comment, address, lat, lng, photos } = tripMemoryParam;
@@ -1321,6 +1462,7 @@ export const addShareTripMemory = asyncWrapper(
       const createdShareTripMemory = await prisma.$transaction(async tx => {
         /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
         /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
+
         const createdOrFoundTripMem =
           await (async (): Promise<AddTripMemorySuccessResType> => {
             /// 1. tripMemoryId 제공되지 않았을 경우
@@ -1350,6 +1492,11 @@ export const addShareTripMemory = asyncWrapper(
                 tag: true,
                 user: true,
                 group: true,
+                photos: {
+                  include: {
+                    photoMetaInfo: true,
+                  },
+                },
                 TourPlace: {
                   select: {
                     id: true,
@@ -1410,64 +1557,9 @@ export const addShareTripMemory = asyncWrapper(
           })
           .filter((v): v is { value: string } => v !== null);
 
-        const photoMetaInfo = await Promise.all(
-          photos.map((v, index) => {
-            return tx.iBPhotoMetaInfo.create({
-              data: {
-                type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
-                order: index,
-                title: v.photoMetaInfo!.title!,
-                lat: Number(v.photoMetaInfo!.lat!),
-                lng: Number(v.photoMetaInfo!.lng!),
-                shotTime: v.photoMetaInfo!.shotTime,
-                ...(v.photoMetaInfo!.keyword && {
-                  keyword: {
-                    connectOrCreate: v.photoMetaInfo!.keyword.map(k => {
-                      return {
-                        where: {
-                          name: k,
-                        },
-                        create: {
-                          name: k,
-                        },
-                      };
-                    }),
-                  },
-                }),
-                ...(v.photoMetaInfo!.feature! && {
-                  feature: {
-                    connectOrCreate: v.photoMetaInfo!.feature.map(k => {
-                      return {
-                        where: {
-                          super_name: {
-                            super: k.super,
-                            name: k.name,
-                          },
-                        },
-                        create: {
-                          super: k.super,
-                          name: k.name,
-                        },
-                      };
-                    }),
-                  },
-                }),
-                eval: v.photoMetaInfo!.eval,
-                desc: v.photoMetaInfo!.desc,
-                publicInfo: v.photoMetaInfo?.publicInfo,
-                photo: {
-                  create: {
-                    key: v.key,
-                  },
-                },
-              },
-            });
-          }),
-        );
-
         const shareTripMemory = await tx.shareTripMemory.create({
           data: {
-            isShare: isShare.toUpperCase().includes('TRUE'),
+            // isShare: isShare.toUpperCase().includes('TRUE'),
             title: createdOrFoundTripMem.title,
             lat: createdOrFoundTripMem.lat,
             lng: createdOrFoundTripMem.lng,
@@ -1519,9 +1611,9 @@ export const addShareTripMemory = asyncWrapper(
               },
             },
             photos: {
-              connect: photoMetaInfo.map(v => {
+              connect: createdOrFoundTripMem.photos.map(v => {
                 return {
-                  id: v.photoId,
+                  id: v.photoMetaInfo!.photoId,
                 };
               }),
             },
@@ -1532,6 +1624,11 @@ export const addShareTripMemory = asyncWrapper(
               include: {
                 tag: true,
                 group: true,
+              },
+            },
+            photos: {
+              include: {
+                photoMetaInfo: true,
               },
             },
             TourPlace: {
@@ -2681,12 +2778,12 @@ export const getShareTripMemList = asyncWrapper(
             message: '존재하지 않는 shareTripMemoryId입니다.',
           });
         }
-        if (!foundShareTripMem.isShare) {
-          throw new IBError({
-            type: 'INVALIDSTATUS',
-            message: '공유상태의 shareTripMemoryId가 아닙니다.',
-          });
-        }
+        // if (!foundShareTripMem.isShare) {
+        //   throw new IBError({
+        //     type: 'INVALIDSTATUS',
+        //     message: '공유상태의 shareTripMemoryId가 아닙니다.',
+        //   });
+        // }
         const { profileImg } = foundShareTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
@@ -2719,7 +2816,7 @@ export const getShareTripMemList = asyncWrapper(
               },
             },
           },
-          isShare: true,
+          // isShare: true,
           userId: Number(userId),
         },
         ...(isNil(lastId) && {
@@ -2998,7 +3095,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                     },
                   },
                 },
-                { isShare: true },
+                // { isShare: true },
               ],
             },
           },
@@ -4461,6 +4558,7 @@ export interface ModifyShareTripMemoryRequestType {
   shareTripMemoryId: string;
   title?: string;
   comment?: string;
+  // isShare?: string;
 }
 export interface ModifyShareTripMemorySuccessResType extends ShareTripMemory {
   TourPlace: TourPlace | null;
@@ -4525,6 +4623,9 @@ export const modifyShareTripMemory = asyncWrapper(
       const existCheck = await prisma.shareTripMemory.findUnique({
         where: {
           id: Number(shareTripMemoryId),
+        },
+        include: {
+          tripMemoryCategory: true,
         },
       });
 
