@@ -696,6 +696,7 @@ model ValidCluster {
   lat                     Float
   lng                     Float
   transitionNo            Int /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
+  superClusterNo          Int /// 최초에 clustering 결과로 각 클러스터가 속한 숙소검색군을 표시한다.(superCluster 구분과 동일하며 유저가 호텔 정보를 변경하면 transitionNo는 변할수 있어도 superClusterNo는 불변함. 단지 구분번호이며 절대적인 id값은 아니다.)
   stayPeriod              Int /// 검색한 숙소에서 며칠을 머무를지
   checkin                 DateTime /// 검색한 숙소에 체크인할 날짜
   checkout                DateTime /// 검색한 숙소에 체크아웃할 날짜

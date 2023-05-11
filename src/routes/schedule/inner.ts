@@ -3818,6 +3818,7 @@ export const makeSchedule = async (
                 lat: v.centroidNHotel.cent?.lat!,
                 lng: v.centroidNHotel.cent?.lng!,
                 transitionNo: v.centroidNHotel.transitionNo!,
+                superClusterNo: v.centroidNHotel.transitionNo!,
                 stayPeriod: v.centroidNHotel.stayPeriod!,
                 checkin: v.centroidNHotel.checkin!,
                 checkout: v.centroidNHotel.checkout!,
@@ -3896,7 +3897,6 @@ export const makeSchedule = async (
           if (v.dayNo > prevDay) {
             prevDay = v.dayNo;
           }
-
           return {
             ...v,
             validClusterId: clusterUpdatedVS[v.dayNo].validClusterId,
@@ -5196,13 +5196,14 @@ export const modifySchedule = async (
 export const getHotelList = async (
   param: GetHotelListREQParam,
 ): Promise<GetHotelListRETParamPayload> => {
-  const { queryParamsId, transitionNo } = param;
+  const { queryParamsId, transitionNo, dayNo } = param;
 
   const queryParams = await prisma.queryParams.findUnique({
     where: {
       id: Number(queryParamsId),
     },
     include: {
+      visitSchedule: true,
       validCluster: true,
       // tourPlace: {
       //   where: {
@@ -5223,12 +5224,12 @@ export const getHotelList = async (
       message: 'queryParamsId에 해당하는 데이터가 존재하지 않습니다.',
     });
 
-  if (isNil(transitionNo) || isEmpty(transitionNo)) {
-    throw new IBError({
-      type: 'INVALIDPARAMS',
-      message: 'transitionNo는 필수 파라미터입니다',
-    });
-  }
+  // if (isNil(transitionNo) || isEmpty(transitionNo)) {
+  //   throw new IBError({
+  //     type: 'INVALIDPARAMS',
+  //     message: 'transitionNo는 필수 파라미터입니다',
+  //   });
+  // }
 
   const {
     adult,
@@ -5289,12 +5290,14 @@ export const getHotelList = async (
         const avgLat = sumLat / cnt;
         const avgLng = sumLng / cnt;
         const metaData = {
+          clusterId: cluster.id,
           checkin: curCheckin,
           checkout: curCheckout,
           stayPeriod,
           ratio,
           numOfVisitSpotInCluster,
           transitionNo: prevTransitionNo,
+          superClusterNo: prevTransitionNo,
           lat: avgLat,
           lng: avgLng,
         };
@@ -5336,12 +5339,14 @@ export const getHotelList = async (
       const avgLat = sumLat / cnt;
       const avgLng = sumLng / cnt;
       const metaData = {
+        clusterId: cluster.id,
         checkin: curCheckin,
         checkout: curCheckout,
         stayPeriod,
         ratio,
         numOfVisitSpotInCluster,
         transitionNo: prevTransitionNo,
+        superClusterNo: prevTransitionNo,
         lat: avgLat,
         lng: avgLng,
       };
@@ -5368,69 +5373,20 @@ export const getHotelList = async (
     })
     .filter(v => v);
 
-  // const HotelQueryEventEmitter = new EventEmitter();
-  // const queryPromises = new Promise<GetHotelListRETParamPayload[]>(resolve => {
-  //   const hotelResult = Array<GetHotelListRETParamPayload>();
+  const targetVS = (() => {
+    if (!isNil(dayNo)) {
+      return queryParams.visitSchedule.find(v => v.dayNo === Number(dayNo));
+    }
+    return undefined;
+  })();
 
-  //   HotelQueryEventEmitter.on(
-  //     `doQuery`,
-  //     // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  //     async (hQParam: {
-  //       index: number;
-  //       hQMetaData: IHotelInMakeSchedule[];
-  //       prevStartTime: number;
-  //     }) => {
-  //       const { index, hQMetaData, prevStartTime } = hQParam;
+  const matchedHotelNMetaData = withHMetaData.find(v => {
+    if (!isNil(targetVS)) {
+      return targetVS.validClusterId! <= v!.clusterId;
+    }
+    return !isNil(transitionNo) && v!.transitionNo === Number(transitionNo);
+  });
 
-  //       hotelResult.push({
-  //         checkin: hQMetaData[index].checkin,
-  //         checkout: hQMetaData[index].checkout,
-  //         transitionNo: hQMetaData[index].transitionNo,
-  //         stayPeriod: hQMetaData[index].stayPeriod,
-  //         hotels: await getHotelDataFromBKC({
-  //           ...hQMetaData[index].hotelSrchOpt,
-  //           checkinDate: hQMetaData[index].checkin,
-  //           checkoutDate: hQMetaData[index].checkout,
-  //           store: true,
-  //         }),
-  //       });
-
-  //       const startTime = moment(prevStartTime);
-  //       const endTime = new Date();
-  //       console.log(
-  //         `hotelQuery [${index}]: ${moment(endTime).diff(
-  //           startTime,
-  //           'millisecond',
-  //         )}ms`,
-  //       );
-
-  //       if (index + 1 < hQMetaData.length) {
-  //         const timeId = setTimeout(() => {
-  //           HotelQueryEventEmitter.emit('doQuery', {
-  //             index: index + 1,
-  //             hQMetaData,
-  //             prevStartTime: endTime,
-  //           });
-  //           clearTimeout(timeId);
-  //         }, 0);
-  //       } else {
-  //         resolve(hotelResult);
-  //       }
-  //     },
-  //   );
-
-  //   HotelQueryEventEmitter.emit('doQuery', {
-  //     index: 0,
-  //     hQMetaData: withHMetaData,
-  //     prevStartTime: new Date(),
-  //   });
-  // });
-  // const hotelData = await queryPromises;
-
-  const tNo = Number(transitionNo);
-  const matchedHotelNMetaData = withHMetaData.find(
-    v => v!.transitionNo === tNo,
-  );
   return {
     checkin: moment(matchedHotelNMetaData!.checkin).toISOString(),
     checkout: moment(matchedHotelNMetaData!.checkout).toISOString(),
@@ -5439,12 +5395,12 @@ export const getHotelList = async (
     lat: matchedHotelNMetaData!.lat,
     lng: matchedHotelNMetaData!.lng,
     hotels: await (async () => {
-      if (!isNil(queryParams.hotel) && queryParams.hotel.length > 0) {
-        return {
-          hotelSearchCount: queryParams.hotel.length,
-          hotelSearchResult: queryParams.hotel,
-        };
-      }
+      // if (!isNil(queryParams.hotel) && queryParams.hotel.length > 0) {
+      //   return {
+      //     hotelSearchCount: queryParams.hotel.length,
+      //     hotelSearchResult: queryParams.hotel,
+      //   };
+      // }
       return getHotelDataFromBKC({
         ...matchedHotelNMetaData!.hotelSrchOpt,
         checkinDate: moment(matchedHotelNMetaData!.checkin).toISOString(),
