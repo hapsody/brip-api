@@ -477,6 +477,7 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
  */
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
+  clusterId: string; /// 해당 visitSchedule이 속한 validCluster의 Id
   dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
   transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
   stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
@@ -635,7 +636,7 @@ export interface MakeScheduleRETParamPayload {
   visitSchedules: {
     dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
     // planType: PlanType;
-
+    clusterId?: number; /// 해당일자에 여행지들로 할당된 여행지 클러스터 ID
     transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
     stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
     checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜

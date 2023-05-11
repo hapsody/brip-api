@@ -1864,6 +1864,7 @@ const visitScheduleToDayScheduleType = async (
     );
     if (!alreadyDayExist) {
       acc.push({
+        clusterId: cur.validClusterId!.toString(),
         dayNo: cur.dayNo.toString(),
         transitionNo: cur.transitionNo,
         stayPeriod: cur.stayPeriod,
@@ -3861,7 +3862,7 @@ export const makeSchedule = async (
       let clusterIdx = -1;
       console.log(`\n\n[11. update visitSchedule to DB]`);
       stopWatch = moment();
-      await Promise.all(
+      const clusterUpdatedVS = await Promise.all(
         hotelVS.map(vs => {
           if (restStayPeriod <= 0) {
             restStayPeriod = Number(vs.stayPeriod);
@@ -3887,7 +3888,21 @@ export const makeSchedule = async (
       console.log(
         `[!!! 11. update visitSchedule to DB End !!!]: duration: ${trackRecord}ms`,
       );
-      return createdQueryParams;
+
+      let prevDay = -1;
+      return {
+        ...createdQueryParams,
+        visitSchedule: visitSchedule.map(v => {
+          if (v.dayNo > prevDay) {
+            prevDay = v.dayNo;
+          }
+
+          return {
+            ...v,
+            validClusterId: clusterUpdatedVS[v.dayNo].validClusterId,
+          };
+        }),
+      };
     },
     {
       maxWait: 5000,
@@ -3907,16 +3922,22 @@ export const makeSchedule = async (
     // foods: ctx.foods,
     visitSchedules: (() => {
       let cnt = 0;
+
       return visitSchedules.map(v => {
+        const { visitScheduleId, clusterId } = (() => {
+          const id = queryParams.visitSchedule.at(cnt)?.id;
+          const validClusterId =
+            queryParams.visitSchedule.at(cnt)?.validClusterId;
+          if (id) cnt += 1;
+          return { visitScheduleId: id, clusterId: validClusterId };
+        })();
+
         const retDayArr = {
+          clusterId: clusterId ?? undefined,
           ...v,
           titleList: v.titleList.map(t => {
             return {
-              visitScheduleId: (() => {
-                const visitScheduleId = queryParams.visitSchedule.at(cnt)?.id;
-                if (visitScheduleId) cnt += 1;
-                return visitScheduleId;
-              })(),
+              visitScheduleId,
               title: !isNil(t.data) ? t.data[0].title : '',
               ...t,
             };
@@ -5254,7 +5275,6 @@ export const getHotelList = async (
 
       if (idx + 1 <= validCluster.length - 1) {
         const nextCluster = validCluster[idx + 1];
-
         if (nextCluster.transitionNo === prevTransitionNo) {
           curCheckout = nextCluster.checkout;
           stayPeriod += nextCluster.stayPeriod;
