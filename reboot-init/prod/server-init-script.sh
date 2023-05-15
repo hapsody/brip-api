@@ -19,6 +19,21 @@ function is_process_running () {
   fi
 }
 
+
+downloadAmazonRootCA1() {
+    local file="/home/ubuntu/.ssh/AmazonRootCA1.pem"
+    local download_url="https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+
+    if [ ! -f "$file" ]; then
+        wget "$download_url" -P /tmp/
+        mv "/tmp/AmazonRootCA1.pem" "$file"
+        echo "AWS Cert File downloaded and moved to $file."
+    else
+        echo "AWS Cert File already exists. Skipping download."
+    fi
+}
+
+
 function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
@@ -26,6 +41,7 @@ function run_process () {
   git pull upstream prod --no-edit
   git fetch --tags
   #yarn prisma db push # --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다.
+  downloadAmazonRootCA1
 
   sudo yarn
   sudo yarn build

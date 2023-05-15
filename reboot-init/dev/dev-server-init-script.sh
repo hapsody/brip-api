@@ -19,6 +19,19 @@ function is_process_running () {
   fi
 }
 
+downloadAmazonRootCA1() {
+    local file="/home/ubuntu/.ssh/AmazonRootCA1.pem"
+    local download_url="https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+
+    if [ ! -f "$file" ]; then
+        wget "$download_url" -P /tmp/
+        mv "/tmp/AmazonRootCA1.pem" "$file"
+        echo "AWS Cert File downloaded and moved to $file."
+    else
+        echo "AWS Cert File already exists. Skipping download."
+    fi
+}
+
 function run_process () {
   sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
   git checkout -f
@@ -27,6 +40,7 @@ function run_process () {
   git fetch --tags
   yarn
   yarn prisma db push
+  downloadAmazonRootCA1
   # yarn build
   # yarn restart
   yarn stop
