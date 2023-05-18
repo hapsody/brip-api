@@ -23,6 +23,7 @@ import {
   IBTravelTag,
   Prisma,
   Hotel,
+  ValidCluster,
 } from '@prisma/client';
 import { krRegionToCode, krCodeToRegion } from '@src/utils/IBDefinitions';
 import {
@@ -1854,6 +1855,7 @@ const visitScheduleToDayScheduleType = async (
   cur: VisitSchedule & {
     tourPlace: TourPlace & { photos: IBPhotos[] };
     hotel: Hotel & { photos: IBPhotos[] };
+    validCluster: ValidCluster | null;
   },
 ) => {
   const acc = await promise;
@@ -1893,6 +1895,7 @@ const visitScheduleToDayScheduleType = async (
 
               return null;
             })(),
+            validCluster: cur.validCluster,
           },
         ],
       });
@@ -1930,6 +1933,7 @@ const visitScheduleToDayScheduleType = async (
 
           return null;
         })(),
+        validCluster: cur.validCluster,
       });
       const last = acc.pop();
       if (!isUndefined(last)) {
@@ -3978,6 +3982,7 @@ export const getSchedule = async (
               photos: true,
             },
           },
+          validCluster: true,
         },
       },
       metaScheduleInfo: true,

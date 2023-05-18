@@ -7,6 +7,7 @@ import {
   IBTravelTag,
   IBPhotos,
   Hotel,
+  ValidCluster,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -504,6 +505,7 @@ export interface DayScheduleType {
           photos: Partial<IBPhotos>[];
         })
       | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+    validCluster: ValidCluster | null;
   }[];
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {
