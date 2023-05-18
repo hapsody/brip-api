@@ -5395,12 +5395,12 @@ export const getHotelList = async (
     lat: matchedHotelNMetaData!.lat,
     lng: matchedHotelNMetaData!.lng,
     hotels: await (async () => {
-      // if (!isNil(queryParams.hotel) && queryParams.hotel.length > 0) {
-      //   return {
-      //     hotelSearchCount: queryParams.hotel.length,
-      //     hotelSearchResult: queryParams.hotel,
-      //   };
-      // }
+      if (!isNil(queryParams.hotel) && queryParams.hotel.length > 0) {
+        return {
+          hotelSearchCount: queryParams.hotel.length,
+          hotelSearchResult: queryParams.hotel,
+        };
+      }
       return getHotelDataFromBKC({
         ...matchedHotelNMetaData!.hotelSrchOpt,
         checkinDate: moment(matchedHotelNMetaData!.checkin).toISOString(),
