@@ -6,3 +6,4 @@ coverage/*
 category_result.txt
 .DS_Store
 *.pem
+mongodb/*
