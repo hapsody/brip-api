@@ -10,7 +10,7 @@ import {
   IBContext,
   getS3SignedUrl,
   ibTravelTagCategorize,
-  // getBoundingBox,
+  getBoundingBox,
   getDistFromTwoGeoLoc,
 } from '@src/utils';
 import axios, { Method } from 'axios';
@@ -1986,8 +1986,16 @@ export const makeCluster = (
     temp = [...foods];
   }
 
-  const items = temp.sort(() => Math.random() - 0.5).splice(0, 1000); /// 성능문제로 랜덤 최대 1000개까지 뽑아서 클러스터링
+  console.log(`┌--- Start Make Cluster:${type} Sector 1 ---┐}: `);
+  let stopWatch = moment();
+  const items = temp.sort(() => Math.random() - 0.5).splice(0, 1000); /// 성능문제로 랜덤 최대 3000개까지 뽑아서 클러스터링
+  let trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `└--- End Make Cluster:${type} Sector 1 ---┘: duration: ${trackRecord}ms`,
+  );
 
+  console.log(`┌--- Start Make Cluster:${type} Sector 2 ---┐}: `);
+  stopWatch = moment();
   /// 뽑힌 지점들 그룹화
   const r = (paramByAvgCalibLevel.maxDist * 1.5) / 5;
 
@@ -2020,42 +2028,69 @@ export const makeCluster = (
   /// histories와 centroids를 구하는 루프를 실행한다.
   /// centroids: 최종적으로 수렴된 군집들의 대표 중심값 배열
   /// histories: 각 loop stage 별로 반경 r안에 위치한 items들에 대해 평균 위치 대표값을 구하여 배열로 저장한 데이터. 각 stage 별 centroids들을 배열로 엮은 값이다.
+  let tempWatch: moment.Moment | undefined;
+  const cnt = {
+    maxPhase: 0,
+    count: 0,
+    avoidCnt: 0,
+  };
+
   do {
+    if (maxPhase === 0) {
+      console.log(`  ┌--- Start Make Cluster:${type} Sector 2-1 ---┐: `);
+      tempWatch = moment();
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-loop-func
     const nextCentroids = centroids.map((c, index) => {
       const initCenterLatLng = c;
+      const { maxLat, maxLng } = getBoundingBox(c.lat, c.lng, r);
+      const rToLngFromCentroid = maxLng - c.lng;
+      const rToLatFromCentroid = maxLat - c.lat;
 
       /// 각 스테이지(index)의 클러스터 중심과 요소들간 거리를 비교해서 반경안에 있는 요소수를 확인
       const center = items.reduce(
         (acc, curSpot) => {
           const spotLatLng = getLatLng(curSpot);
           if (!spotLatLng) return acc;
-          // if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
+
+          /// r계산은 제곱연산식이 많아 오래걸리므로 성능 향상을 위해 위경도 변환값 (반경 r의 외접 정사각형) 대략적으로 1차 필터링 후 조건문 안에서 2차 정밀 거리 계산을 한다.
           if (
-            getDistFromTwoGeoLoc({
+            Math.abs(curSpot.lng - c.lng) < rToLngFromCentroid &&
+            Math.abs(curSpot.lat - c.lat) < rToLatFromCentroid
+          ) {
+            const distance = getDistFromTwoGeoLoc({
               aLat: c.lat,
               aLng: c.lng,
               bLat: spotLatLng.lat,
               bLng: spotLatLng.lng,
-            }) < r
-          ) {
-            const prevNumOfPoint = acc.numOfPointLessThanR;
-            /// 새 요소가 추가되면서 이전까지 계산한 평균값에 새 값을 더해 평균값 재계산
-            const curAvgLat =
-              (acc.lat * prevNumOfPoint + spotLatLng.lat) /
-              (prevNumOfPoint + 1);
-            const curAvgLng =
-              (acc.lng * prevNumOfPoint + spotLatLng.lng) /
-              (prevNumOfPoint + 1);
-            return {
-              ...acc,
-              numOfPointLessThanR: prevNumOfPoint + 1,
-              lat: curAvgLat,
-              lng: curAvgLng,
-              randNum: Math.random(),
-              // itemsLength: acc.items.length + 1,
-              // items: [...acc.items, curSpot],
-            };
+              cnt,
+            });
+
+            if (distance < r) {
+              // if (degreeToMeter(c.lat, c.lng, spotLatLng.lat, spotLatLng.lng) < r) {
+              const prevNumOfPoint = acc.numOfPointLessThanR;
+              /// 새 요소가 추가되면서 이전까지 계산한 평균값에 새 값을 더해 평균값 재계산
+              const curAvgLat =
+                (acc.lat * prevNumOfPoint + spotLatLng.lat) /
+                (prevNumOfPoint + 1);
+              const curAvgLng =
+                (acc.lng * prevNumOfPoint + spotLatLng.lng) /
+                (prevNumOfPoint + 1);
+
+              return {
+                ...acc,
+                numOfPointLessThanR: prevNumOfPoint + 1,
+                lat: curAvgLat,
+                lng: curAvgLng,
+                randNum: Math.random(),
+                // itemsLength: acc.items.length + 1,
+                // items: [...acc.items, curSpot],
+              };
+            }
           }
+          cnt.avoidCnt += 1;
+
           return acc;
         },
         {
@@ -2083,6 +2118,15 @@ export const makeCluster = (
       return center;
     });
 
+    if (maxPhase === 0) {
+      trackRecord = moment().diff(tempWatch, 'ms').toString();
+      console.log(
+        `  └--- End Make Cluster:${type} Sector 2-1 ---┘: 
+          거리계산 : ${cnt.count}회, 
+          절약연산횟수: ${cnt.avoidCnt}회`,
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-loop-func
     keepDoing = [...nextCentroids].map((newCent, idx) => {
       if (!newCent) return false;
@@ -2106,7 +2150,14 @@ export const makeCluster = (
       centroids,
     });
     maxPhase += 1;
+    cnt.maxPhase = maxPhase;
+    cnt.avoidCnt = 0;
   } while (keepDoing.find(v => v === true)); /// 하나라도 true가 발견된다면 계속 진행해야한다.
+
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `└--- End Make Cluster:${type} Sector 2 ---┘: duration: ${trackRecord}ms`,
+  );
 
   // const wholeSpotLatLngSum = {
   //   lat: items.reduce((acc, v) => {
@@ -2136,6 +2187,9 @@ export const makeCluster = (
   // const shuffledCentroids = [...centroids].sort(
   //   (a, b) => a.randNum - b.randNum,
   // );
+
+  console.log(`┌--- Start Make Cluster:${type} Sector 3 ---┐}: `);
+  stopWatch = moment();
   const nonDupCentroids = [...centroids].reduce(
     (
       nonDupBuf: (GeoFormat & {
@@ -2166,6 +2220,10 @@ export const makeCluster = (
       return nonDupBuf;
     },
     [],
+  );
+  trackRecord = moment().diff(stopWatch, 'ms').toString();
+  console.log(
+    `└--- End Make Cluster:${type} Sector 3 ---┘: duration: ${trackRecord}ms`,
   );
 
   return {
