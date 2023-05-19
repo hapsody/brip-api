@@ -36,7 +36,7 @@
     "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
     "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceDupChecker.ts",
     "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceAreaCodeAsigner.ts",
-    "prismastudio": "pm2 start --only prismastudio"
+    "prismastudio": "pm2 start --only prismastudio2 ecosystem.config.js"
   },
   "husky": {
     "hooks": {
