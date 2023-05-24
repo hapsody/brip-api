@@ -1,6 +1,6 @@
 import express, { Express } from 'express';
 import multer from 'multer';
-
+import { isNil } from 'lodash';
 import {
   ibDefs,
   asyncWrapper,
@@ -10,7 +10,7 @@ import {
   s3FileUpload,
   getS3SignedUrl,
   putS3SignedUrl,
-  s3,
+  getS3ClientViaAssumeRole,
 } from '@src/utils';
 
 const upload = multer();
@@ -252,6 +252,13 @@ export const prismaTest = asyncWrapper(
     try {
       const param = req.body;
       const { key } = param;
+      const s3 = await getS3ClientViaAssumeRole();
+      if (isNil(s3)) {
+        throw new IBError({
+          type: 'EXTERNALAPI',
+          message: 'AWS S3 엑세스에 문제가 있습니다.',
+        });
+      }
       const s3Resp = await s3
         .getObject({
           Bucket: process.env.AWS_S3_BUCKET ?? '',
