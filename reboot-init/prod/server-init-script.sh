@@ -46,8 +46,8 @@ function run_process () {
   sudo yarn
   yarn build
 
-
-  yarn restart
+  sudo yarn stop
+  yarn start:prod
   # yarn prismastudio
 }
 
