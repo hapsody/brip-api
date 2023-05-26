@@ -109,6 +109,15 @@ export const getS3SignedUrl = async (
     Key: s3ObjectKey,
     Expires: Expires ?? 300,
   });
+  if (
+    process.env.EXECUTE_ENV === 'prod' &&
+    !isNil(process.env.AWS_CLOUDFRONT_ENDPOINT)
+  ) {
+    const cloudFrontURL = `${
+      process.env.AWS_CLOUDFRONT_ENDPOINT
+    }/${s3ObjectKey}?${signedUrl.split(`${s3ObjectKey}?`)[1]}`;
+    return cloudFrontURL;
+  }
   return signedUrl;
 };
 
@@ -134,6 +143,12 @@ export const putS3SignedUrl = async (
     Key: s3ObjectKey,
     Expires: Expires ?? 300,
   });
+  // if (process.env.EXECUTE_ENV === 'prod' && !isNil(process.env.AWS_CLOUDFRONT_ENDPOINT)) {
+  //   const cloudFrontURL = `${
+  //     process.env.AWS_CLOUDFRONT_ENDPOINT
+  //   }/${s3ObjectKey}?${signedUrl.split(`${s3ObjectKey}?`)[1]}`;
+  //   return cloudFrontURL;
+  // }
   return signedUrl;
 };
 
