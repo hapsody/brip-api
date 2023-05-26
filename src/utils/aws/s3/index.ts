@@ -42,7 +42,7 @@ class IBAwsS3Client {
 
     try {
       const response = await sts.assumeRole(this.roleToAssume).promise();
-      console.log('Credentials : ', response);
+      // console.log('Credentials : ', response);
 
       if (isNil(response.Credentials)) return;
 

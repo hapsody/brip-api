@@ -44,10 +44,10 @@ function run_process () {
   downloadAmazonRootCA1
 
   sudo yarn
-  sudo yarn build
+  yarn build
 
 
-  sudo yarn restart
+  yarn restart
   # yarn prismastudio
 }
 
