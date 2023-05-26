@@ -58,4 +58,4 @@ jobs:
           aws-region: ${{secrets.AWS_REGION}}
 
       - name: Code Deploy
-        run: aws deploy create-deployment --application-name brip-api --file-exists-behavior OVERWRITE --deployment-config-name CodeDeployDefault.AllAtOnce --deployment-group-name brip-api-codedeploy-group --s3-location bucket=brip-dev,bundleType=zip,key=deploy/build.zip
+        run: aws deploy create-deployment --application-name brip-api --file-exists-behavior OVERWRITE --deployment-config-name CodeDeployDefault.AllAtOnce --deployment-group-name brip-api-codedeploy-group --s3-location bucket=brip-prod,bundleType=zip,key=deploy/landingship.zip
