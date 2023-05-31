@@ -118,8 +118,8 @@ model IBPhotos {
   tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId      Int?
 
-  AdBusinessPlace   AdBusinessPlace? @relation(fields: [adBusinessPlaceId], references: [id])
-  adBusinessPlaceId Int?
+  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
+  adPlaceId Int?
 }
 
 enum IBPhotoMetaInfoType {
@@ -263,14 +263,14 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good            Int              @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad          Int              @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad             Int              @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like            Int              @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good    Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad  Int      @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad     Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like    Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
   // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
   // gglNearbySearchResTypeId Int?
-  AdBusinessPlace AdBusinessPlace?
+  adPlace AdPlace?
 
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
@@ -581,8 +581,8 @@ enum PlaceType {
   PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
   TOUR4_SPOT ///한국 관광공사 Tour4.0 api 데이터 
   TOUR4_RESTAURANT
-  ADBUSINESS_SPOT /// 비지니스 등록 업체 장소
-  ADBUSINESS_RESTAURANT /// 비지니스 등록 업체 식당
+  ADPLACE_SPOT /// 비지니스 등록 업체 장소
+  ADPLACE_RESTAURANT /// 비지니스 등록 업체 식당
 }
 
 enum HotelType {
@@ -951,7 +951,7 @@ model ContentGrpExposedHistory {
   @@index([userTokenId])
 }
 
-enum AdBusinessPlaceStatus {
+enum AdPlaceStatus {
   NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
   APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
   IN_USE /// TourPlace에 복사되어 일정 서비스에 장소로 노출된 상태
@@ -960,37 +960,37 @@ enum AdBusinessPlaceStatus {
 }
 
 /// 관광지로 유료 등록하기위해 구독 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
-model AdBusinessPlace {
-  id                Int                       @id @default(autoincrement())
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @default(now()) @updatedAt
-  status            AdBusinessPlaceStatus     @default(NEW)
-  subscribe         Boolean                   @default(false) /// 구독상태인지 아닌지
-  title             String /// 상호명
-  mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  photos            IBPhotos[] ///  기타 매장 사진 
-  category          AdBusinessPlaceCategory[]
-  desc              String? /// 소개글
-  address           String? /// 지번주소
-  roadAddress       String? /// 도로명주소
-  openWeek          String?                   @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  closedDay         String?                   @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일
-  contact           String? /// 대표번호
-  siteUrl           String?                   @db.Text /// 홈페이지 또는 소셜 계정
-  businessNumber    String?                   @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
-  businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
-  nationalCode      String                    @default("82") @db.Char(7)
-  tourPlace         TourPlace?                @relation(fields: [tourPlaceId], references: [id])
-  tourPlaceId       Int?                      @unique
-}
-
-model AdBusinessPlaceCategory {
+model AdPlace {
   id                Int               @id @default(autoincrement())
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @default(now()) @updatedAt
-  primaryCategory   String
-  secondaryCategory String
-  AdBusinessPlace   AdBusinessPlace[]
+  status            AdPlaceStatus     @default(NEW)
+  subscribe         Boolean           @default(false) /// 구독상태인지 아닌지
+  title             String /// 상호명
+  mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  photos            IBPhotos[] ///  기타 매장 사진 
+  category          AdPlaceCategory[]
+  desc              String? /// 소개글
+  address           String? /// 지번주소
+  roadAddress       String? /// 도로명주소
+  openWeek          String?           @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay         String?           @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일
+  contact           String? /// 대표번호
+  siteUrl           String?           @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber    String?           @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
+  nationalCode      String            @default("82") @db.Char(7)
+  tourPlace         TourPlace?        @relation(fields: [tourPlaceId], references: [id])
+  tourPlaceId       Int?              @unique
+}
 
-  @@unique([primaryCategory, secondaryCategory])
+model AdPlaceCategory {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  primary   String
+  secondary String
+  AdPlace   AdPlace[]
+
+  @@unique([primary, secondary])
 }

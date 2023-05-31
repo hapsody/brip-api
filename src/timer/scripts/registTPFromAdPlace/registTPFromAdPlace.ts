@@ -1,35 +1,35 @@
 import { isNil, isEmpty } from 'lodash';
 import {
   PrismaClient,
-  AdBusinessPlace,
-  AdBusinessPlaceStatus,
+  AdPlace,
+  AdPlaceStatus,
   IBPhotos,
-  AdBusinessPlaceCategory,
+  AdPlaceCategory,
   PlaceType,
 } from '@prisma/client';
 import { addrToGeoCode } from '@src/utils';
 
 const prisma = new PrismaClient();
 
-async function registTPFromAdBusinessPlace(): Promise<void> {
-  const getNextAdBusinessPlace = {
+async function registTPFromAdPlace(): Promise<void> {
+  const getNextAdPlace = {
     [Symbol.asyncIterator]() {
       const take = 1000;
       let skip = 0;
       // let lastId = 1;
-      let adBP: (AdBusinessPlace & {
+      let adBP: (AdPlace & {
         photos: IBPhotos[];
-        category: AdBusinessPlaceCategory[];
+        category: AdPlaceCategory[];
       })[];
 
       return {
         async next() {
           try {
-            adBP = await prisma.adBusinessPlace.findMany({
+            adBP = await prisma.adPlace.findMany({
               where: {
                 OR: [
-                  { status: AdBusinessPlaceStatus.APPROVED },
-                  { status: AdBusinessPlaceStatus.REOPEN_WAIT },
+                  { status: AdPlaceStatus.APPROVED },
+                  { status: AdPlaceStatus.REOPEN_WAIT },
                 ],
               },
               take,
@@ -63,7 +63,7 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
   let notFoundCnt = 0;
   /// 한국내 데이터 주소 및 우편번호 표준화
   // eslint-disable-next-line no-restricted-syntax
-  for await (const adBP of getNextAdBusinessPlace) {
+  for await (const adBP of getNextAdPlace) {
     const result = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-loop-func
       adBP.map(async v => {
@@ -100,14 +100,14 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
 
           const tourPlaceType = (() => {
             if (
-              v.category[0].primaryCategory === '음식점' ||
-              v.category[0].primaryCategory === '카페' ||
-              v.category[0].secondaryCategory === '술집' ||
-              v.category[0].secondaryCategory === '바'
+              v.category[0].primary === '음식점' ||
+              v.category[0].primary === '카페' ||
+              v.category[0].secondary === '술집' ||
+              v.category[0].secondary === '바'
             ) {
-              return PlaceType.ADBUSINESS_RESTAURANT;
+              return PlaceType.ADPLACE_RESTAURANT;
             }
-            return PlaceType.ADBUSINESS_SPOT;
+            return PlaceType.ADPLACE_SPOT;
           })();
 
           const alreadyExist = await prisma.tourPlace.findFirst({
@@ -142,7 +142,7 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
                 },
                 desc: v.desc,
                 nationalCode: v.nationalCode,
-                AdBusinessPlace: {
+                adPlace: {
                   connect: {
                     id: v.id,
                   },
@@ -184,11 +184,11 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
     }, notFound Failed Items: ${notFoundCnt}`,
   );
 
-  // const getNextAdBusinessPlace = {
+  // const getNextAdPlace = {
   //   [Symbol.asyncIterator]() {
   //     const take = 1000;
   //     let lastId = 1;
-  //     let adBP: AdBusinessPlace[];
+  //     let adBP: AdPlace[];
 
   //     return {
   //       async next() {
@@ -215,7 +215,7 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
   // let updatedCnt = 0;
   // /// 한국내 데이터 주소 및 우편번호 표준화
   // // eslint-disable-next-line no-restricted-syntax
-  // for await (const adBP of getNextAdBusinessPlace) {
+  // for await (const adBP of getNextAdPlace) {
   //   const result = await Promise.all(
   //     // eslint-disable-next-line @typescript-eslint/no-loop-func
   //     adBP.map(async v => {
@@ -267,7 +267,7 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
 //   };
 // }
 
-// registTPFromAdBusinessPlace()
+// registTPFromAdPlace()
 //   .catch(e => {
 //     console.error(e);
 //     process.exit(1);
@@ -278,4 +278,4 @@ async function registTPFromAdBusinessPlace(): Promise<void> {
 //     }),
 //   );
 
-export default registTPFromAdBusinessPlace;
+export default registTPFromAdPlace;

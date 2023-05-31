@@ -237,7 +237,7 @@ export interface AddTripMemoryRequestType {
         super: string;
         name: string;
       }[];
-      eval?: string; /// for only MAIN fields
+      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
       desc?: string; /// for only MAIN fields
       publicInfo?: string; /// for DETAIL fields
     };
@@ -461,7 +461,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            eval: v.photoMetaInfo!.eval,
+            // eval: v.photoMetaInfo!.eval, /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
             desc: v.photoMetaInfo!.desc,
             publicInfo: v.photoMetaInfo?.publicInfo,
             photo: {
@@ -796,7 +796,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            eval: v.photoMetaInfo!.eval,
+            // eval: v.photoMetaInfo!.eval, /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
             desc: v.photoMetaInfo!.desc,
             publicInfo: v.photoMetaInfo?.publicInfo,
             photo: {
@@ -1579,6 +1579,31 @@ export const addShareTripMemory = asyncWrapper(
             }
             return findResult;
           })();
+
+        await (async () => {
+          /// 만약 '기억'만 먼저 생성했다가 '공유'한 경우에는 기존에 '기억'을 생성할때 사진이 등록되어 있다.
+          /// 그러나 평가는 '기억'을 생성하는 시나리오에서만 존재하므로 기존에 저장된 MAIN 타입의 사진의 eval은 결정되어지지 않은 상태일 것이다.
+          /// 이것은 이후에 '공유 기억'을 생성할때 평가하는 recommendGrade 값에 따라 기존에 저장되어있던 MAIN 타입의 사진의 photoMetaInfo에서 eval을 수정해주는 과정이 필요하며 해당 과정을 이 클로저에서 처리한다.
+          const mainPhoto = createdOrFoundTripMem.photos.find(
+            v => v.photoMetaInfo?.type === 'MAIN',
+          );
+
+          if (isNil(mainPhoto) || isNil(mainPhoto.photoMetaInfo)) {
+            throw new IBError({
+              type: 'INVALIDSTATUS',
+              message:
+                '저장된 photos중에 MAIN 타입으로 지정된 사진이 존재하지 않습니다.',
+            });
+          }
+          await tx.iBPhotoMetaInfo.update({
+            where: {
+              id: mainPhoto.photoMetaInfo.id,
+            },
+            data: {
+              eval: recommendGrade,
+            },
+          });
+        })();
 
         const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
           .map(v => {

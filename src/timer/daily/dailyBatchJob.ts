@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import registTPFromAdBusinessPlace from '../scripts/registTPFromAdBusinessPlace/registTPFromAdBusinessPlace';
+import registTPFromAdPlace from '../scripts/registTPFromAdPlace/registTPFromAdPlace';
 
 const prisma = new PrismaClient();
 
 async function batchJob(): Promise<void> {
-  await registTPFromAdBusinessPlace();
+  await registTPFromAdPlace();
 }
 
 function wrapper(func: () => Promise<void>): () => void {

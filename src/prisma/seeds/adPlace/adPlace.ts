@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax
 
-  const existCheck = await prisma.adBusinessPlace.findFirst({
+  const existCheck = await prisma.adPlace.findFirst({
     where: {
       title: '테스트 비즈니스 스토어',
     },
@@ -17,7 +17,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = await prisma.adBusinessPlace.create({
+  const result = await prisma.adPlace.create({
     data: {
       status: 'NEW',
       subscribe: false,
@@ -26,14 +26,14 @@ async function main(): Promise<void> {
       category: {
         connectOrCreate: {
           where: {
-            primaryCategory_secondaryCategory: {
-              primaryCategory: '기타',
-              secondaryCategory: '오피스',
+            primary_secondary: {
+              primary: '기타',
+              secondary: '오피스',
             },
           },
           create: {
-            primaryCategory: '기타',
-            secondaryCategory: '오피스',
+            primary: '기타',
+            secondary: '오피스',
           },
         },
       },
