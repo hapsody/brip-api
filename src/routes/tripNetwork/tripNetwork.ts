@@ -354,6 +354,7 @@ const addTripMemory = async (
       message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
     });
 
+  /// addShareTrip api 호출 이후 => addTripMemory 요청의 경우
   if (!isNil(transaction)) {
     const tx = transaction;
     const alreadyExist = await tx.tripMemory.findUnique({
@@ -417,51 +418,6 @@ const addTripMemory = async (
       },
     });
 
-    /// tourPlaceId가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
-    /// 반환된 tourPlace는 tripMemory 생성할때 connect해준다.
-    const createdOrFoundTP = await (async () => {
-      /// 1. tourPlaceId가 제공되었을 경우
-      if (!isNil(tourPlaceId)) {
-        const matchedTP = await tx.tourPlace.findUnique({
-          where: {
-            id: Number(tourPlaceId),
-          },
-        });
-        if (isNull(matchedTP)) {
-          throw new IBError({
-            type: 'INVALIDPARAMS',
-            message: '유효하지 않은 tourPlaceId 값입니다.',
-          });
-        }
-        return matchedTP;
-      }
-
-      /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
-      const createdTP = await tx.tourPlace.create({
-        data: {
-          title,
-          lat: Number(lat),
-          lng: Number(lng),
-          address,
-          // tourPlaceType: 'USER_SPOT',
-          tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
-          photos: {
-            createMany: {
-              data: photos.map(k => {
-                return {
-                  key: k.key,
-                };
-              }),
-            },
-            // create: {
-            //   key: img,
-            // },
-          },
-        },
-      });
-      return createdTP;
-    })();
-
     /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
     const photoMetaInfo = await Promise.all(
       photos.map((v, index) => {
@@ -517,6 +473,64 @@ const addTripMemory = async (
         });
       }),
     );
+
+    /// tourPlaceId가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
+    /// 반환된 tourPlace는 tripMemory 생성할때 connect해준다.
+    const createdOrFoundTP = await (async () => {
+      /// 1. tourPlaceId가 제공되었을 경우
+      if (!isNil(tourPlaceId)) {
+        const matchedTP = await tx.tourPlace.findUnique({
+          where: {
+            id: Number(tourPlaceId),
+          },
+        });
+
+        if (isNull(matchedTP)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: '유효하지 않은 tourPlaceId 값입니다.',
+          });
+        }
+
+        /// 기존에 존재하는 tourPlaceId 에 shareTripMemory를 생성하는 경우에는 기존 tourPlace에 해당 shareTripMemory에서 제공하는 사진을 추가한다.
+        await tx.tourPlace.update({
+          where: {
+            id: Number(tourPlaceId),
+          },
+          data: {
+            photos: {
+              connect: photoMetaInfo.map(k => {
+                return {
+                  id: k.photoId,
+                };
+              }),
+            },
+          },
+        });
+
+        return matchedTP;
+      }
+
+      /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+      const createdTP = await tx.tourPlace.create({
+        data: {
+          title,
+          lat: Number(lat),
+          lng: Number(lng),
+          address,
+          // tourPlaceType: 'USER_SPOT',
+          tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
+          photos: {
+            connect: photoMetaInfo.map(k => {
+              return {
+                id: k.photoId,
+              };
+            }),
+          },
+        },
+      });
+      return createdTP;
+    })();
 
     const createdTripMem = await tx.tripMemory.create({
       data: {
@@ -629,6 +643,7 @@ const addTripMemory = async (
     return createdTripMem;
   }
 
+  /// 직접 addTripMemory 요청의 경우
   const createdTripMem = await prisma.$transaction(async tx => {
     const alreadyExist = await tx.tripMemory.findUnique({
       where: {
@@ -719,19 +734,20 @@ const addTripMemory = async (
           address,
           // tourPlaceType: 'USER_SPOT',
           tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
-          photos: {
-            createMany: {
-              data: photos.map(k => {
-                return {
-                  key: k.key,
-                };
-              }),
-            },
+          /// TripMemory 만 생성하는 경우에는 유저가 아직 'share'를 허용한 케이스가 아니기 때문에 사진이 tourPlace에 공유되면 안된다.
+          // photos: {
+          //   createMany: {
+          //     data: photos.map(k => {
+          //       return {
+          //         key: k.key,
+          //       };
+          //     }),
+          //   },
 
-            // create: {
-            //   key: img,
-            // },
-          },
+          //   // create: {
+          //   //   key: img,
+          //   // },
+          // },
         },
       });
       return createdTP;
