@@ -446,9 +446,16 @@ const addTripMemory = async (
           // tourPlaceType: 'USER_SPOT',
           tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
           photos: {
-            create: {
-              key: img,
+            createMany: {
+              data: photos.map(k => {
+                return {
+                  key: k.key,
+                };
+              }),
             },
+            // create: {
+            //   key: img,
+            // },
           },
         },
       });
@@ -713,9 +720,17 @@ const addTripMemory = async (
           // tourPlaceType: 'USER_SPOT',
           tourPlaceType: 'USER_PRIV_MEMORY_SPOT' as PlaceType,
           photos: {
-            create: {
-              key: img,
+            createMany: {
+              data: photos.map(k => {
+                return {
+                  key: k.key,
+                };
+              }),
             },
+
+            // create: {
+            //   key: img,
+            // },
           },
         },
       });
@@ -1598,9 +1613,14 @@ export const addShareTripMemory = asyncWrapper(
                   // tourPlaceType: 'USER_SPOT',
                   tourPlaceType: categoryToIBTravelTag.tourPlaceType,
                   photos: {
-                    create: {
-                      key: img,
-                    },
+                    connect: createdOrFoundTripMem.photos.map(v => {
+                      return {
+                        id: v.photoMetaInfo!.photoId,
+                      };
+                    }),
+                    // create: {
+                    //   key: img,
+                    // },
                   },
                   ...(!isNil(ibTravelTagNames) &&
                     !isEmpty(ibTravelTagNames) && {
