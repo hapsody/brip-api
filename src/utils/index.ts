@@ -31,7 +31,7 @@ import {
   getBoundingBox,
   getDistFromTwoGeoLoc,
 } from './geoLocation';
-import { searchKRJuso, geoCodeToAddr } from './externalApi';
+import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
 
 export {
@@ -64,5 +64,6 @@ export {
   getDistFromTwoGeoLoc,
   searchKRJuso,
   geoCodeToAddr,
+  addrToGeoCode,
   sendEmail,
 };

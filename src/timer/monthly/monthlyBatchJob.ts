@@ -9,13 +9,13 @@ import {
   getPlaceDataFromVJ,
   // getPlaceByGglTxtSrch,
   // getPlaceDetail,
-} from '../routes/schedule/inner';
+} from '@src/routes/schedule/inner';
 // import {
 //   // GglTextSearchReqOpt,
 //   GglPlaceResultRawData,
 //   GglPlaceDetailType,
-// } from '../routes/schedule/types/schduleTypes';
-// import dummyRestaurants from './restaurantDummyData';
+// } from '@src/routes/schedule/types/schduleTypes';
+// import dummyRestaurants from '../restaurantDummyData';
 
 const prisma = new PrismaClient();
 

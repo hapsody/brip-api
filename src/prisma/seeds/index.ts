@@ -7,6 +7,8 @@ import iBTravelTag from './iBTravelTag/iBTravelTag';
 // import tourPlace from './tourPlace'; /// big size data
 import iBEventPromotion from './iBEventPromotion/iBEventPromotion';
 import mainBackgroundImg from './mainBackgroundImg/mainBackgroundImg';
+import adBusinessPlaceCategory from './adBusinessPlaceCategory/adBusinessPlaceCategory';
+import adBusinessPlace from './adBusinessPlace/adBusinessPlace';
 
 const abcd = async () => {
   await userSeed();
@@ -17,6 +19,8 @@ const abcd = async () => {
   await iBTravelTag();
   await iBEventPromotion();
   await mainBackgroundImg();
+  await adBusinessPlaceCategory();
+  await adBusinessPlace();
 };
 
 abcd().catch(e => {

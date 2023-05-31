@@ -1,0 +1,11 @@
+[Unit]
+Description=travelit-api Daily Batch
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/travelit-api/node_modules/.bin/ts-node -r tsconfig-paths/register /home/ubuntu/travelit-api/src/timer/daily/dailyBatchJob.ts
+EnvironmentFile=/home/ubuntu/travelit-api/src/timer/daily/EnvironmentFile
+
+[Install]
+WantedBy=multi-user.target
+

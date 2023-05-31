@@ -226,6 +226,7 @@ export interface AddTripMemoryRequestType {
   photos: {
     key: string;
     photoMetaInfo?: {
+      /// common fields
       type?: IBPhotoMetaInfoType;
       title?: string;
       lat?: string;
@@ -236,9 +237,9 @@ export interface AddTripMemoryRequestType {
         super: string;
         name: string;
       }[];
-      eval?: string;
-      desc?: string;
-      publicInfo?: string;
+      eval?: string; /// for only MAIN fields
+      desc?: string; /// for only MAIN fields
+      publicInfo?: string; /// for DETAIL fields
     };
   }[];
 }
