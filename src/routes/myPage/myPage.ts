@@ -540,15 +540,19 @@ export type DelAdPlacePhotoRequestType = {
   adPlaceId: string; /// 수정할 adPlace의 Id
   delPhotoList: string[]; /// 삭제할 photoId
 };
-export type DelAdPlacePhotoSuccessResType = Omit<
-  AdPlace & {
-    photos: IBPhotos[];
-    category: AdPlaceCategory[];
-  },
-  'userId'
->;
+// export type DelAdPlacePhotoSuccessResType = Omit<
+//   AdPlace & {
+//     photos: IBPhotos[];
+//     category: AdPlaceCategory[];
+//   },
+//   'userId'
+// >;
 export type DelAdPlacePhotoResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {};
+  IBparams:
+    | {
+        count: number; ///  DB에서 삭제 성공한 숫자
+      }
+    | {};
 };
 
 export const delAdPlacePhoto = asyncWrapper(
