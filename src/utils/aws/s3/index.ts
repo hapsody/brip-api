@@ -154,7 +154,7 @@ export const putS3SignedUrl = async (
 
 export const delObjectsFromS3 = async (
   s3ObjectKeys: string[],
-): Promise<void> => {
+): Promise<AWS.S3.DeleteObjectsOutput> => {
   if (isNil(s3ObjectKeys) || isEmpty(s3ObjectKeys)) {
     throw new IBError({
       type: 'INVALIDSTATUS',
@@ -168,7 +168,7 @@ export const delObjectsFromS3 = async (
       message: 'AWS S3 엑세스에 문제가 있습니다.',
     });
   }
-  const deletePromise = s3
+  const deleteResult = await s3
     .deleteObjects({
       Bucket: process.env.AWS_S3_BUCKET as string,
       Delete: {
@@ -179,7 +179,7 @@ export const delObjectsFromS3 = async (
     })
     .promise();
 
-  await Promise.all([deletePromise]);
+  return deleteResult;
 };
 
 export const s3FileUpload = async (params: {

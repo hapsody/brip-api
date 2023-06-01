@@ -88,12 +88,15 @@ async function registTPFromAdPlace(): Promise<void> {
 
           if (isNil(geoCodeNRegionCode)) {
             notFoundCnt += 1;
-            console.log('\n주소->위경도 변환 api 결과가 올바르지 않습니다.\n', {
-              id: v.id,
-              title: v.title,
-              address: v.address,
-              roadAddress: v.roadAddress,
-            });
+            console.log(
+              `\nFail: AddrToGeoCoord [adPlaceId: ${v.id}, title:${v.title}] 주소->위경도 변환 api 결과가 올바르지 않습니다.\n`,
+              {
+                id: v.id,
+                title: v.title,
+                address: v.address,
+                roadAddress: v.roadAddress,
+              },
+            );
             return null;
           }
           const { regionCode1, regionCode2, lng, lat } = geoCodeNRegionCode;
@@ -168,6 +171,9 @@ async function registTPFromAdPlace(): Promise<void> {
               regionCode2: createdResult.regionCode2,
             };
           }
+          console.log(
+            `Fail:AlreadyExist: [adPlaceId: ${v.id}, title: ${v.title}] => 해당 adPlace의 tourPlace는 이미 존재합니다.`,
+          );
           return null;
         } catch (error) {
           console.log(error);

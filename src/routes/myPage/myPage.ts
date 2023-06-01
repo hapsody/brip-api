@@ -7,6 +7,7 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  delObjectsFromS3,
 } from '@src/utils';
 import { isNil, isEmpty, omit } from 'lodash';
 
@@ -111,13 +112,21 @@ export const registAdPlace = asyncWrapper(
 
       const existCheck = await prisma.adPlace.findFirst({
         where: {
-          title,
-          address,
-          roadAddress,
+          OR: [
+            {
+              AND: [{ title }, { address }, { roadAddress }],
+            },
+            { businessNumber },
+          ],
         },
       });
 
       if (!isNil(existCheck)) {
+        if (existCheck.businessNumber === businessNumber)
+          throw new IBError({
+            type: 'DUPLICATEDDATA',
+            message: '이미 등록된 사업자등록번호입니다.',
+          });
         throw new IBError({
           type: 'DUPLICATEDDATA',
           message: '이미 존재하는 AdPlace입니다.',
@@ -430,14 +439,15 @@ export const modifyAdPlace = asyncWrapper(
                 },
               }),
               ...(!isNil(photos) &&
-                (await (async () => {
-                  /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
-                  /// 추가 todo: s3에 해당 key를 삭제까지 구현할것.
-                  await prisma.iBPhotos.deleteMany({
-                    where: {
-                      adPlaceId: Number(adPlaceId),
-                    },
-                  });
+                (() => {
+                  /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
+                  // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
+                  // /// 추가 todo: s3에 해당 key를 삭제까지 구현할것.
+                  // await prisma.iBPhotos.deleteMany({
+                  //   where: {
+                  //     adPlaceId: Number(adPlaceId),
+                  //   },
+                  // });
                   return {
                     photos: {
                       createMany: {
@@ -445,7 +455,7 @@ export const modifyAdPlace = asyncWrapper(
                       },
                     },
                   };
-                })())),
+                })()),
               desc,
               address,
               roadAddress,
@@ -526,8 +536,151 @@ export const modifyAdPlace = asyncWrapper(
   },
 );
 
+export type DelAdPlacePhotoRequestType = {
+  adPlaceId: string; /// 수정할 adPlace의 Id
+  delPhotoList: string[]; /// 삭제할 photoId
+};
+export type DelAdPlacePhotoSuccessResType = Omit<
+  AdPlace & {
+    photos: IBPhotos[];
+    category: AdPlaceCategory[];
+  },
+  'userId'
+>;
+export type DelAdPlacePhotoResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+export const delAdPlacePhoto = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DelAdPlacePhotoRequestType>,
+    res: Express.IBTypedResponse<DelAdPlacePhotoResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const { adPlaceId, delPhotoList } = req.body;
+
+      if (isNil(adPlaceId) || isNil(delPhotoList || isEmpty(delPhotoList))) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'adPlaceId, delPhotoList는 필수 파라미터입니다.',
+        });
+      }
+
+      const existCheck = await prisma.adPlace.findFirst({
+        where: {
+          id: Number(adPlaceId),
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              userTokenId: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(existCheck)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 AdPlace입니다.',
+        });
+      }
+      if (existCheck.user.userTokenId !== userTokenId) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '변경 권한이 없는 항목의 adPlace입니다.',
+        });
+      }
+
+      const targetPhotos = await prisma.iBPhotos.findMany({
+        where: {
+          id: { in: delPhotoList.map(v => Number(v)) },
+        },
+      });
+
+      if (targetPhotos.length !== delPhotoList.length) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: '존재하지 않는 photoId가 포함되었습니다.',
+        });
+      }
+
+      const prismaDelResult = await prisma.iBPhotos.deleteMany({
+        where: {
+          id: { in: targetPhotos.map(v => v.id) },
+        },
+      });
+
+      const deleteFromS3Result = await delObjectsFromS3(
+        targetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+      );
+
+      console.log(deleteFromS3Result);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: prismaDelResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 myPageRouter.post('/registAdPlace', accessTokenValidCheck, registAdPlace);
 myPageRouter.get('/getMyAdPlace', accessTokenValidCheck, getMyAdPlace);
 myPageRouter.post('/modifyAdPlace', accessTokenValidCheck, modifyAdPlace);
-
+myPageRouter.post('/delAdPlacePhoto', accessTokenValidCheck, delAdPlacePhoto);
 export default myPageRouter;
