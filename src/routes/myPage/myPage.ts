@@ -1,5 +1,6 @@
 import express from 'express';
 import prisma from '@src/prisma';
+import { AdPlace } from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -7,7 +8,7 @@ import {
   IBError,
   accessTokenValidCheck,
 } from '@src/utils';
-import { isNil, isEmpty } from 'lodash';
+import { isNil, isEmpty, omit } from 'lodash';
 
 const myPageRouter: express.Application = express();
 
@@ -169,6 +170,11 @@ export const registAdPlace = asyncWrapper(
           siteUrl,
           businessNumber,
           nationalCode,
+          user: {
+            connect: {
+              userTokenId,
+            },
+          },
         },
       });
 
@@ -201,6 +207,73 @@ export const registAdPlace = asyncWrapper(
   },
 );
 
+export type GetMyAdPlaceRequestType = {};
+export type GetMyAdPlaceSuccessResType = Omit<AdPlace, 'userId'>;
+export type GetMyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyAdPlaceSuccessResType[] | {};
+};
+
+export const getMyAdPlace = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetMyAdPlaceRequestType>,
+    res: Express.IBTypedResponse<GetMyAdPlaceResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const myAdPlaces = await prisma.adPlace.findMany({
+        where: {
+          user: {
+            userTokenId,
+          },
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: myAdPlaces.map(v => omit(v, ['userId'])),
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 myPageRouter.post('/registAdPlace', accessTokenValidCheck, registAdPlace);
+myPageRouter.get('/getMyAdPlace', accessTokenValidCheck, getMyAdPlace);
 
 export default myPageRouter;

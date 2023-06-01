@@ -46,6 +46,7 @@ model User {
   likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
   likeTourPlace                   TourPlace[]
   IBEventApplication              IBEventApplication[]
+  adPlace                         AdPlace[]
 }
 
 model FavoriteTravelType {
@@ -982,6 +983,8 @@ model AdPlace {
   nationalCode      String            @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace?        @relation(fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?              @unique
+  user              User              @relation(fields: [userId], references: [id])
+  userId            Int
 }
 
 model AdPlaceCategory {
