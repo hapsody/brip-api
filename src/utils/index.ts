@@ -18,6 +18,7 @@ import {
   getS3SignedUrl,
   putS3SignedUrl,
   getS3ClientViaAssumeRole,
+  delObjectsFromS3,
 } from './aws/s3';
 import { getToday, getTomorrow, getNDaysLater } from './time';
 import {
@@ -66,4 +67,5 @@ export {
   geoCodeToAddr,
   addrToGeoCode,
   sendEmail,
+  delObjectsFromS3,
 };

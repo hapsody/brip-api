@@ -152,6 +152,36 @@ export const putS3SignedUrl = async (
   return signedUrl;
 };
 
+export const delObjectsFromS3 = async (
+  s3ObjectKeys: string[],
+): Promise<void> => {
+  if (isNil(s3ObjectKeys) || isEmpty(s3ObjectKeys)) {
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: 's3ObjectKey는 length가 1이상인 string 배열이어야 합니다.',
+    });
+  }
+  const s3 = await getS3ClientViaAssumeRole();
+  if (isNil(s3)) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: 'AWS S3 엑세스에 문제가 있습니다.',
+    });
+  }
+  const deletePromise = s3
+    .deleteObjects({
+      Bucket: process.env.AWS_S3_BUCKET as string,
+      Delete: {
+        Objects: s3ObjectKeys.map(v => {
+          return { Key: v };
+        }),
+      },
+    })
+    .promise();
+
+  await Promise.all([deletePromise]);
+};
+
 export const s3FileUpload = async (params: {
   dir?: string;
   fileName?: string;
