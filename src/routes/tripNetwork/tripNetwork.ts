@@ -989,6 +989,15 @@ export const addTripMemoryWrapper = asyncWrapper(
         IBparams: createdTripMem,
       });
     } catch (err) {
+      if (err.type === 'INVALIDPARAMS') {
+        res.status(400).json({
+          ...ibDefs.INVALIDPARAMS,
+          IBdetail: (err as Error).message,
+          IBparams: {} as object,
+        });
+        return;
+      }
+
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
           res.status(403).json({
@@ -1802,6 +1811,15 @@ export const addShareTripMemory = asyncWrapper(
       });
     } catch (err) {
       if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
         if (err.type === 'NOTAUTHORIZED') {
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,

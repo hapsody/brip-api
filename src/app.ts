@@ -15,6 +15,7 @@ import tripNetworkRouter from './routes/tripNetwork';
 import devRouter from './routes/dev';
 import utilRouter from './routes/util';
 import eventRouter from './routes/event';
+import myPageRouter from './routes/myPage';
 
 import passportConfig from './passport';
 
@@ -74,6 +75,7 @@ app.use('/tripNetwork', tripNetworkRouter);
 app.use('/dev', devRouter);
 app.use('/util', utilRouter);
 app.use('/event', eventRouter);
+app.use('/myPage', myPageRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

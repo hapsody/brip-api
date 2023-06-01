@@ -959,7 +959,7 @@ enum AdPlaceStatus {
   REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
 }
 
-/// 관광지로 유료 등록하기위해 구독 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
+/// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
 model AdPlace {
   id                Int               @id @default(autoincrement())
   createdAt         DateTime          @default(now())
@@ -971,15 +971,15 @@ model AdPlace {
   photos            IBPhotos[] ///  기타 매장 사진 
   category          AdPlaceCategory[]
   desc              String? /// 소개글
-  address           String? /// 지번주소
+  address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
   roadAddress       String? /// 도로명주소
   openWeek          String?           @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  closedDay         String?           @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일
+  closedDay         String?           @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
   contact           String? /// 대표번호
   siteUrl           String?           @db.Text /// 홈페이지 또는 소셜 계정
   businessNumber    String?           @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
-  nationalCode      String            @default("82") @db.Char(7)
+  nationalCode      String            @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace?        @relation(fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?              @unique
 }
