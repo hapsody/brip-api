@@ -622,6 +622,16 @@ export const delAdPlacePhoto = asyncWrapper(
         });
       }
 
+      const notAuthorizedPhoto = targetPhotos.find(
+        v => v.adPlaceId !== Number(adPlaceId),
+      );
+      if (!isNil(notAuthorizedPhoto)) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: `id:${notAuthorizedPhoto.id}는 해당 유저에게 삭제 권한이 없는 IBPhoto 항목입니다.`,
+        });
+      }
+
       const prismaDelResult = await prisma.iBPhotos.deleteMany({
         where: {
           id: { in: targetPhotos.map(v => v.id) },
