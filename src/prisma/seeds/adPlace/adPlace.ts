@@ -1,9 +1,34 @@
 import { PrismaClient } from '@prisma/client';
 import { isNil } from 'lodash';
+import request from 'supertest';
+import server from '@src/app';
+import { SignInResponse, SaveScheduleResponsePayload } from '@src/routes/auth';
+import userSeedModule from '../user/user';
+import adPlaceCategory from '../adPlaceCategory/adPlaceCategory';
 
 const prisma = new PrismaClient();
 
+const login = async () => {
+  let userRawRes = await request(server).post('/auth/signIn').send({
+    id: 'hawaii@gmail.com',
+    password: 'qwer1234',
+  });
+
+  let userRes = userRawRes.body as SignInResponse;
+  if (userRes.IBcode === '1000')
+    return userRes.IBparams as SaveScheduleResponsePayload;
+  await userSeedModule();
+  userRawRes = await request(server).post('/auth/signIn').send({
+    id: 'hawaii@gmail.com',
+    password: 'qwer1234',
+  });
+  userRes = userRawRes.body as SignInResponse;
+  return userRes.IBparams as SaveScheduleResponsePayload;
+};
+
 async function main(): Promise<void> {
+  const user = await login();
+  await adPlaceCategory();
   // eslint-disable-next-line no-restricted-syntax
 
   const existCheck = await prisma.adPlace.findFirst({
@@ -53,6 +78,7 @@ async function main(): Promise<void> {
       siteUrl: 'https://www.google.com',
       businessNumber: '249-12-01776',
       nationalCode: '82',
+      userId: user.userId,
     },
   });
 
