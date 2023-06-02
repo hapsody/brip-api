@@ -1,6 +1,6 @@
 import prisma from '@src/prisma';
-import { IBTravelTag } from '@prisma/client';
-import { isNull } from 'lodash';
+import { IBTravelTag, PrismaClient, Prisma } from '@prisma/client';
+import { isNull, isNil } from 'lodash';
 
 export type IBTravelTagList = {
   ibType: {
@@ -30,8 +30,17 @@ export type IBTravelTagList = {
  * @param seed IBTravelTagList 타입으로 전달되는 파라미터
  * @return ibTravelTag들의 생성결과중 대표값으로 반환되는 가장 말단태그의 ibTravelTag id값
  */
+type PrismaTransaction = Omit<
+  PrismaClient<
+    Prisma.PrismaClientOptions,
+    never,
+    Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+  >,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+>;
 export const ibTravelTagCategorize = async (
   seed: IBTravelTagList,
+  transaction?: PrismaTransaction,
 ): Promise<number> => {
   const {
     ibType: { typePath, minDifficulty, maxDifficulty },
@@ -40,17 +49,84 @@ export const ibTravelTagCategorize = async (
   let firstCreatedId = 0;
   let subType: IBTravelTag | null = null;
 
+  if (isNil(transaction)) {
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const type of types) {
+      // eslint-disable-next-line @typescript-eslint/no-loop-func
+      const curIBTType = await prisma.$transaction(async tx => {
+        let cur = await tx.iBTravelTag.findUnique({
+          where: {
+            value: type,
+          },
+        });
+        if (!cur) {
+          cur = await tx.iBTravelTag.create({
+            data: {
+              value: type,
+              minDifficulty,
+              maxDifficulty,
+            },
+          });
+          console.log(cur);
+        }
+
+        /// firstCreated는 가장 먼저 처리된 말단 태그(가장 세분류 태그 ex) oceanActivity>beach 이면 beach 태그)
+        if (firstCreatedId === 0) {
+          firstCreatedId = cur.id;
+        }
+
+        /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
+        /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
+        if (subType !== null) {
+          cur = await tx.iBTravelTag.update({
+            where: {
+              id: cur.id,
+            },
+            data: {
+              minDifficulty:
+                cur.minDifficulty! > subType.minDifficulty!
+                  ? subType.minDifficulty
+                  : cur.minDifficulty,
+              maxDifficulty:
+                cur.maxDifficulty! < subType.maxDifficulty!
+                  ? subType.maxDifficulty
+                  : cur.maxDifficulty,
+              ...(!isNull(subType) && {
+                related: {
+                  connectOrCreate: {
+                    where: {
+                      fromId_toId: {
+                        fromId: cur.id,
+                        toId: subType.id,
+                      },
+                    },
+                    create: {
+                      toId: subType.id,
+                    },
+                  },
+                },
+              }),
+            },
+          });
+        }
+        return cur;
+      });
+      subType = curIBTType!;
+    }
+    return firstCreatedId;
+  }
+
   // eslint-disable-next-line no-restricted-syntax
   for await (const type of types) {
     // eslint-disable-next-line @typescript-eslint/no-loop-func
-    const curIBTType = await prisma.$transaction(async tx => {
-      let cur = await tx.iBTravelTag.findUnique({
+    const curIBTType = await (async (): Promise<IBTravelTag> => {
+      let cur = await transaction.iBTravelTag.findUnique({
         where: {
           value: type,
         },
       });
       if (!cur) {
-        cur = await tx.iBTravelTag.create({
+        cur = await transaction.iBTravelTag.create({
           data: {
             value: type,
             minDifficulty,
@@ -68,7 +144,7 @@ export const ibTravelTagCategorize = async (
       /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
       /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
       if (subType !== null) {
-        cur = await tx.iBTravelTag.update({
+        cur = await transaction.iBTravelTag.update({
           where: {
             id: cur.id,
           },
@@ -100,8 +176,7 @@ export const ibTravelTagCategorize = async (
         });
       }
       return cur;
-    });
-
+    })();
     subType = curIBTType!;
   }
   return firstCreatedId;

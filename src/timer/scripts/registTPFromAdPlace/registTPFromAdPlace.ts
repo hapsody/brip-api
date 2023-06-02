@@ -4,8 +4,9 @@ import {
   AdPlace,
   AdPlaceStatus,
   IBPhotos,
-  AdPlaceCategory,
+  IBTravelTag,
   PlaceType,
+  RModelBetweenTravelType,
 } from '@prisma/client';
 import { addrToGeoCode } from '@src/utils';
 
@@ -17,15 +18,19 @@ async function registTPFromAdPlace(): Promise<void> {
       const take = 1000;
       let skip = 0;
       // let lastId = 1;
-      let adBP: (AdPlace & {
+      let adPlace: (AdPlace & {
         photos: IBPhotos[];
-        category: AdPlaceCategory[];
+        category: (IBTravelTag & {
+          related: (RModelBetweenTravelType & {
+            to: IBTravelTag;
+          })[];
+        })[];
       })[];
 
       return {
         async next() {
           try {
-            adBP = await prisma.adPlace.findMany({
+            adPlace = await prisma.adPlace.findMany({
               where: {
                 OR: [
                   { status: AdPlaceStatus.APPROVED },
@@ -36,18 +41,26 @@ async function registTPFromAdPlace(): Promise<void> {
               skip,
               include: {
                 photos: true,
-                category: true,
+                category: {
+                  include: {
+                    related: {
+                      include: {
+                        to: true,
+                      },
+                    },
+                  },
+                },
               },
             });
 
-            if (isNil(adBP) || isEmpty(adBP)) {
-              return { done: true, value: adBP };
+            if (isNil(adPlace) || isEmpty(adPlace)) {
+              return { done: true, value: adPlace };
             }
 
-            // lastId += adBP[adBP.length - 1].id;
+            // lastId += adPlace[adPlace.length - 1].id;
             skip += take;
 
-            return { done: false, value: adBP };
+            return { done: false, value: adPlace };
           } catch (error) {
             console.log('prismaError');
             console.error(error);
@@ -63,10 +76,10 @@ async function registTPFromAdPlace(): Promise<void> {
   let notFoundCnt = 0;
   /// 한국내 데이터 주소 및 우편번호 표준화
   // eslint-disable-next-line no-restricted-syntax
-  for await (const adBP of getNextAdPlace) {
+  for await (const adPlace of getNextAdPlace) {
     const result = await Promise.all(
       // eslint-disable-next-line @typescript-eslint/no-loop-func
-      adBP.map(async v => {
+      adPlace.map(async v => {
         try {
           const geoCodeNRegionCode = await (async () => {
             if (!isNil(v.roadAddress)) {
@@ -101,12 +114,27 @@ async function registTPFromAdPlace(): Promise<void> {
           }
           const { regionCode1, regionCode2, lng, lat } = geoCodeNRegionCode;
 
+          // const tourPlaceType = (() => {
+
+          //   if (
+          //     v.category[0].primary === '음식점' ||
+          //     v.category[0].primary === '카페' ||
+          //     v.category[0].secondary === '술집' ||
+          //     v.category[0].secondary === '바'
+          //   ) {
+          //     return PlaceType.ADPLACE_RESTAURANT;
+          //   }
+          //   return PlaceType.ADPLACE_SPOT;
+          // })();
           const tourPlaceType = (() => {
             if (
-              v.category[0].primary === '음식점' ||
-              v.category[0].primary === '카페' ||
-              v.category[0].secondary === '술집' ||
-              v.category[0].secondary === '바'
+              v.category[0].value === '음식점' ||
+              v.category[0].value === '카페' ||
+              !isNil(
+                v.category[0].related.find(
+                  k => k.to.value.includes('술집') || k.to.value.includes('바'),
+                ),
+              )
             ) {
               return PlaceType.ADPLACE_RESTAURANT;
             }
@@ -194,11 +222,11 @@ async function registTPFromAdPlace(): Promise<void> {
   //   [Symbol.asyncIterator]() {
   //     const take = 1000;
   //     let lastId = 1;
-  //     let adBP: AdPlace[];
+  //     let adPlace: AdPlace[];
 
   //     return {
   //       async next() {
-  //         adBP = await prisma.tourPlace.findMany({
+  //         adPlace = await prisma.tourPlace.findMany({
   //           where: {
   //             status: 'IN_USE',
   //             OR: [{ roadAddress: { not: null } }, { address: { not: null } }],
@@ -209,10 +237,10 @@ async function registTPFromAdPlace(): Promise<void> {
   //           },
   //         });
 
-  //         lastId += adBP[adBP.length - 1].id;
+  //         lastId += adPlace[adPlace.length - 1].id;
 
-  //         if (isEmpty(adBP)) return { done: true, value: adBP };
-  //         return { done: false, value: adBP };
+  //         if (isEmpty(adPlace)) return { done: true, value: adPlace };
+  //         return { done: false, value: adPlace };
   //       },
   //     };
   //   },
@@ -221,10 +249,10 @@ async function registTPFromAdPlace(): Promise<void> {
   // let updatedCnt = 0;
   // /// 한국내 데이터 주소 및 우편번호 표준화
   // // eslint-disable-next-line no-restricted-syntax
-  // for await (const adBP of getNextAdPlace) {
+  // for await (const adPlace of getNextAdPlace) {
   //   const result = await Promise.all(
   //     // eslint-disable-next-line @typescript-eslint/no-loop-func
-  //     adBP.map(async v => {
+  //     adPlace.map(async v => {
   //       const juso = await (() => {
   //         if (!isNil(v.roadAddress)) {
   //           return searchKRJuso(v.roadAddress);

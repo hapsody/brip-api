@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { isNil } from 'lodash';
 import request from 'supertest';
+import { adPlaceCategoryToIBTravelTag } from '@src/routes/myPage/myPage';
 import server from '@src/app';
 import { SignInResponse, SaveScheduleResponsePayload } from '@src/routes/auth';
 import userSeedModule from '../user/user';
@@ -48,20 +49,14 @@ async function main(): Promise<void> {
       subscribe: false,
       title: '테스트 비즈니스 스토어',
       mainImgUrl: 'public/tourPlace/fastfive.png',
-      category: {
-        connectOrCreate: {
-          where: {
-            primary_secondary: {
-              primary: '기타',
-              secondary: '오피스',
-            },
-          },
-          create: {
+      category: await adPlaceCategoryToIBTravelTag({
+        category: [
+          {
             primary: '기타',
             secondary: '오피스',
           },
-        },
-      },
+        ],
+      }),
       photos: {
         createMany: {
           data: [

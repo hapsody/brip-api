@@ -1,6 +1,13 @@
 import express from 'express';
 import prisma from '@src/prisma';
-import { AdPlace, IBPhotos, AdPlaceCategory, TourPlace } from '@prisma/client';
+import {
+  AdPlace,
+  IBPhotos,
+  TourPlace,
+  Prisma,
+  IBTravelTag,
+  PrismaClient,
+} from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -8,10 +15,90 @@ import {
   IBError,
   accessTokenValidCheck,
   delObjectsFromS3,
+  ibTravelTagCategorize,
 } from '@src/utils';
 import { isNil, isEmpty, omit } from 'lodash';
 
 const myPageRouter: express.Application = express();
+
+/**
+ * myPage쪽에 광고 비즈니스 업체 등록시에 분류하는 category를 IBTravelTag 형식의 connectOrCreate를 할수 있도록 변환해주는 함수
+ * modify일 경우에는 adPlaceId와 tx를 같이 넣어주면 해당 adPlace와 관계되어 있던 IBTravelTag관계를 모두 삭제해주는 기능까지 포함한다.
+ *  */
+export const adPlaceCategoryToIBTravelTag = async (param: {
+  /// 유저로부터 입력받은 adPlace 카테고리
+  category: {
+    primary: string;
+    secondary: string;
+  }[];
+  adPlaceId?: number; /// modify일 경우 수정할 대상 adPlaceId
+  /// modify일 경우
+  tx?: Omit<
+    PrismaClient<
+      Prisma.PrismaClientOptions,
+      never,
+      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+    >,
+    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  >;
+}): Promise<{ connect: { id: number }[] }> => {
+  const { category, adPlaceId, tx } = param;
+
+  /// modify일 경우 기존에 adPlace <=> IBtravelTag와 관계를 끊어주고(reset) 입력된 category와의 관계로 덮어씌운다.
+  const prevTags = await prisma.iBTravelTag.findMany({
+    where: {
+      AdPlace: {
+        some: {
+          id: adPlaceId,
+        },
+      },
+    },
+  });
+  if (!isNil(tx) && !isNil(adPlaceId)) {
+    const a = Prisma.sql`delete from _AdPlaceToIBTravelTag where A = ${adPlaceId} and B in (${Prisma.join(
+      prevTags.map(v => v.id),
+    )});`;
+    await prisma.$queryRaw(a);
+  }
+
+  return {
+    connect: await (async () => {
+      const ibTravelTagIds = await Promise.all(
+        category
+          .map(async v => {
+            const { primary, secondary } = v;
+            if (isNil(primary) || isNil(secondary)) {
+              throw new IBError({
+                type: 'INVALIDPARAMS',
+                message:
+                  'category의 primary, secondary는 필수 제출 파라미터입니다.',
+              });
+            }
+
+            const categoryId = await ibTravelTagCategorize(
+              {
+                ibType: {
+                  typePath: `${primary}>${secondary}`,
+                  minDifficulty: 1,
+                  maxDifficulty: 1,
+                },
+              },
+              tx,
+            );
+
+            return categoryId;
+          })
+          .filter(v => v),
+      );
+
+      return ibTravelTagIds.map(v => {
+        return {
+          id: v,
+        };
+      });
+    })(),
+  };
+};
 
 export type RegistAdPlaceRequestType = {
   title: string; /// 상호명
@@ -139,31 +226,7 @@ export const registAdPlace = asyncWrapper(
           subscribe: false,
           title,
           mainImgUrl,
-          category: {
-            connectOrCreate: category.map(v => {
-              const { primary, secondary } = v;
-              if (isNil(primary) || isNil(secondary)) {
-                throw new IBError({
-                  type: 'INVALIDPARAMS',
-                  message:
-                    'category의 primary, secondary는 필수 제출 파라미터입니다.',
-                });
-              }
-
-              return {
-                where: {
-                  primary_secondary: {
-                    primary,
-                    secondary,
-                  },
-                },
-                create: {
-                  primary,
-                  secondary,
-                },
-              };
-            }),
-          },
+          category: await adPlaceCategoryToIBTravelTag({ category }),
           ...(!isNil(photos) && {
             photos: {
               createMany: {
@@ -222,7 +285,7 @@ export type GetMyAdPlaceRequestType = {};
 export type GetMyAdPlaceSuccessResType = Omit<
   AdPlace & {
     photos: IBPhotos[];
-    category: AdPlaceCategory[];
+    category: IBTravelTag[];
   },
   'userId'
 >;
@@ -319,7 +382,7 @@ export type ModifyAdPlaceRequestType = {
 export type ModifyAdPlaceSuccessResType = Omit<
   AdPlace & {
     photos: IBPhotos[];
-    category: AdPlaceCategory[];
+    category: IBTravelTag[];
   },
   'userId'
 >;
@@ -384,6 +447,7 @@ export const modifyAdPlace = asyncWrapper(
               userTokenId: true,
             },
           },
+          category: true,
         },
       });
 
@@ -406,7 +470,7 @@ export const modifyAdPlace = asyncWrapper(
         ): Promise<
           AdPlace & {
             photos: IBPhotos[];
-            category: AdPlaceCategory[];
+            category: IBTravelTag[];
             tourPlace: TourPlace | undefined;
           }
         > => {
@@ -418,25 +482,11 @@ export const modifyAdPlace = asyncWrapper(
               title,
               mainImgUrl,
               ...(!isNil(category) && {
-                category: {
-                  connect: category.map(v => {
-                    const { primary, secondary } = v;
-                    if (isNil(primary) || isNil(secondary)) {
-                      throw new IBError({
-                        type: 'INVALIDPARAMS',
-                        message:
-                          'category의 primary, secondary는 필수 제출 파라미터입니다.',
-                      });
-                    }
-
-                    return {
-                      primary_secondary: {
-                        primary,
-                        secondary,
-                      },
-                    };
-                  }),
-                },
+                category: await adPlaceCategoryToIBTravelTag({
+                  category,
+                  adPlaceId: Number(adPlaceId),
+                  tx,
+                }),
               }),
               ...(!isNil(photos) &&
                 (() => {
