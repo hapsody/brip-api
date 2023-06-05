@@ -153,7 +153,7 @@ model IBPhotoMetaInfo {
   /// for DETAIL fields
   publicInfo String? /// Price, Open/Close hour, contact info, etc
 
-  photo   IBPhotos @relation(fields: [photoId], references: [id])
+  photo   IBPhotos @relation(fields: [photoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   photoId Int      @unique
 }
 

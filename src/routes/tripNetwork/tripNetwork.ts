@@ -9,6 +9,7 @@ import {
   accessTokenValidCheck,
   IBContext,
   getS3SignedUrl,
+  delObjectsFromS3,
 } from '@src/utils';
 import {
   Prisma,
@@ -26,8 +27,9 @@ import {
   IBTravelTag,
   IBPhotoMetaInfoType,
   IBPhotoMetaInfo,
+  IBPhotoTag,
 } from '@prisma/client';
-import { isEmpty, isNil, isNull } from 'lodash';
+import { isEmpty, isNil, isNull, remove } from 'lodash';
 import moment from 'moment';
 
 const tripNetworkRouter: express.Application = express();
@@ -332,6 +334,18 @@ const addTripMemory = async (
       message: 'photos는 필수 파라미터입니다.',
     });
   }
+
+  // const mainImg = photos.find(v =>
+  //   v.photoMetaInfo?.type?.toUpperCase().includes('MAIN'),
+  // );
+
+  // if (isNil(mainImg)) {
+  //   throw new IBError({
+  //     type: 'INVALIDPARAMS',
+  //     message: 'photos중에 MAIN type 이미지는 반드시 지정해야 합니다.',
+  //   });
+  // }
+
   const img = photos[0].key;
 
   const tripMemoryGroup = await (
@@ -654,6 +668,7 @@ const addTripMemory = async (
       },
     });
 
+    console.log(alreadyExist);
     if (!isNil(alreadyExist)) {
       throw new IBError({
         type: 'DUPLICATEDDATA',
@@ -4344,11 +4359,38 @@ export interface ModifyTripMemoryRequestType {
   address?: string;
   lat?: string;
   lng?: string;
-  img?: string;
+  // img?: string; ///deprecated photos에서 첫번째 해당하는 사진을 메인 이미지로 설정함.
+  photos?: {
+    key: string;
+    photoMetaInfo?: {
+      /// common fields
+      type?: IBPhotoMetaInfoType;
+      title?: string;
+      lat?: string;
+      lng?: string;
+      shotTime?: string;
+      keyword?: string[];
+      feature?: {
+        super: string;
+        name: string;
+      }[];
+      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
+      desc?: string; /// for only MAIN fields
+      publicInfo?: string; /// for DETAIL fields
+    };
+  }[];
 }
 export interface ModifyTripMemorySuccessResType extends TripMemory {
-  tag: TripMemoryTag[];
+  photos: (IBPhotos & {
+    photoMetaInfo:
+      | (IBPhotoMetaInfo & {
+          feature: TripMemoryCategory[];
+          keyword: IBPhotoTag[];
+        })
+      | null;
+  })[];
   group: TripMemoryGroup;
+  tag: TripMemoryTag[];
 }
 
 export type ModifyTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
@@ -4361,7 +4403,17 @@ const modifyTripMemory = async (
   param: ModifyTripMemoryRequestType,
   ctx: ContextModifyTripMemory,
 ): Promise<ModifyTripMemorySuccessResType> => {
-  const { tripMemoryId, title, comment, address, lat, lng, img } = param;
+  const { tripMemoryId, title, comment, address, lat, lng, photos } = param;
+
+  const photosWithOrder = photos?.map((v, idx) => {
+    return {
+      ...v,
+      photoMetaInfo: {
+        ...v.photoMetaInfo,
+        order: idx,
+      },
+    };
+  });
 
   if (isNil(tripMemoryId) || isEmpty(tripMemoryId)) {
     throw new IBError({
@@ -4380,6 +4432,7 @@ const modifyTripMemory = async (
           tripMemory: true,
         },
       },
+      photos: true,
     },
   });
 
@@ -4397,24 +4450,221 @@ const modifyTripMemory = async (
     });
   }
 
-  const updatedOne = await prisma.tripMemory.update({
-    where: {
-      id: Number(tripMemoryId),
-    },
-    data: {
-      title,
-      comment,
-      lat: !isNil(lat) ? Number(lat) : undefined,
-      lng: !isNil(lng) ? Number(lng) : undefined,
-      address,
-      img,
-    },
-    include: {
-      tag: true,
-      group: true,
-    },
+  const updatedTxRes = await prisma.$transaction(async tx => {
+    /// 수정시에 제공되지 않은 photo key값을 찾아 기존 포토에서 삭제하기 위해 삭제 후보사진키 delCandPhotos 체크
+
+    let newCreatedPhotoMetaInfo: IBPhotoMetaInfo[] = [];
+    if (!isNil(photosWithOrder)) {
+      const exPics = [...tripMemory.photos];
+      const newPics = [...photosWithOrder];
+
+      /// 삭제 후보사진 표시하기
+      const delCandPhotos = exPics.reduce<IBPhotos[]>((acc, exPic) => {
+        /// 이전 사진들중 새 사진과 일치하는 key가 있다면 지울 대상이 아니다.
+        const isDel = !newPics.find(
+          newPic => !isNil(exPic.key) && newPic.key.includes(exPic.key),
+        );
+
+        if (isDel) {
+          return [...acc, exPic];
+        }
+
+        return acc;
+      }, []);
+
+      if (!isEmpty(delCandPhotos)) {
+        /// delete From IBPhotos DB model
+        await Promise.all(
+          delCandPhotos.map(v => {
+            return tx.iBPhotos.delete({
+              where: {
+                id: v.id,
+              },
+            });
+          }),
+        );
+
+        /// delete From S3 Photo key
+        const deleteFromS3Result = await delObjectsFromS3(
+          delCandPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+        );
+        console.log(deleteFromS3Result);
+      }
+
+      /// 기존에 존재하고 있던 사진
+      const notChangePhotos = [...exPics];
+      remove(notChangePhotos, exPic => {
+        return !!delCandPhotos.find(delPic => exPic.id === delPic.id);
+      });
+
+      /// 이번 수정요청에서 새롭게 생성해야할 사진
+      const newCreatePhoto = [...photosWithOrder];
+      const modifyAlreadyExPhoto = remove(newCreatePhoto, newPic => {
+        const a = !!notChangePhotos.find(
+          notChangePic =>
+            !isNil(notChangePic.key) && notChangePic.key?.includes(newPic.key),
+        );
+        return a;
+      });
+
+      /// 새롭게 생성해야할 IBPhotos를 DB에 생성함
+      /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
+      newCreatedPhotoMetaInfo = await Promise.all(
+        newCreatePhoto.map((v, index) => {
+          return tx.iBPhotoMetaInfo.create({
+            data: {
+              type: v.photoMetaInfo.type as IBPhotoMetaInfoType,
+              order: index,
+              title: v.photoMetaInfo.title!,
+              lat: Number(v.photoMetaInfo.lat!),
+              lng: Number(v.photoMetaInfo.lng!),
+              shotTime: v.photoMetaInfo.shotTime,
+              ...(v.photoMetaInfo.keyword && {
+                keyword: {
+                  connectOrCreate: v.photoMetaInfo.keyword.map(k => {
+                    return {
+                      where: {
+                        name: k,
+                      },
+                      create: {
+                        name: k,
+                      },
+                    };
+                  }),
+                },
+              }),
+              // eval: v.photoMetaInfo!.eval, /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
+              desc: v.photoMetaInfo.desc,
+              publicInfo: v.photoMetaInfo?.publicInfo,
+              photo: {
+                create: {
+                  key: v.key,
+                },
+              },
+            },
+          });
+        }),
+      );
+
+      await Promise.all(
+        modifyAlreadyExPhoto.map(v => {
+          const matched = notChangePhotos.find(k => k.key?.includes(v.key));
+          if (isNil(v.photoMetaInfo)) return null;
+          return tx.iBPhotos.update({
+            where: {
+              id: matched!.id,
+            },
+            data: {
+              photoMetaInfo: {
+                update: {
+                  order: v.photoMetaInfo.order,
+                  ...(!isNil(v.photoMetaInfo.type) && {
+                    type: v.photoMetaInfo.type,
+                  }),
+                  ...(!isNil(v.photoMetaInfo.title) && {
+                    title: v.photoMetaInfo.title,
+                  }),
+                  ...(!isNil(v.photoMetaInfo.lat) && {
+                    lat: Number(v.photoMetaInfo.lat),
+                  }),
+                  ...(!isNil(v.photoMetaInfo.lng) && {
+                    lng: Number(v.photoMetaInfo.lng),
+                  }),
+                  ...(!isNil(v.photoMetaInfo.shotTime) && {
+                    shotTime: v.photoMetaInfo.shotTime,
+                  }),
+                  ...(!isNil(v.photoMetaInfo.desc) && {
+                    desc: v.photoMetaInfo.desc,
+                  }),
+                  ...(!isNil(v.photoMetaInfo.publicInfo) && {
+                    publicInfo: v.photoMetaInfo.publicInfo,
+                  }),
+                  ...(!isNil(v.photoMetaInfo.keyword) && {
+                    keyword: {
+                      set: [],
+                      connectOrCreate: v.photoMetaInfo.keyword.map(
+                        keywordName => {
+                          return {
+                            where: {
+                              name: keywordName,
+                            },
+                            create: {
+                              name: keywordName,
+                            },
+                          };
+                        },
+                      ),
+                    },
+                  }),
+                  ...(!isNil(v.photoMetaInfo.feature) && {
+                    feature: {
+                      set: [],
+                      connectOrCreate: v.photoMetaInfo.feature.map(k => {
+                        return {
+                          where: {
+                            super_name: {
+                              super: k.super,
+                              name: k.name,
+                            },
+                          },
+                          create: {
+                            super: k.super,
+                            name: k.name,
+                          },
+                        };
+                      }),
+                    },
+                  }),
+                },
+              },
+            },
+          });
+        }),
+      );
+    }
+
+    const updateResult = await tx.tripMemory.update({
+      where: {
+        id: Number(tripMemoryId),
+      },
+      data: {
+        title,
+        comment,
+        lat: !isNil(lat) ? Number(lat) : undefined,
+        lng: !isNil(lng) ? Number(lng) : undefined,
+        address,
+        ...(photosWithOrder && {
+          img: photosWithOrder[0].key,
+        }),
+        ...(!isEmpty(newCreatedPhotoMetaInfo) && {
+          photos: {
+            connect: newCreatedPhotoMetaInfo.map(v => {
+              return {
+                id: v.photoId,
+              };
+            }),
+          },
+        }),
+      },
+      include: {
+        tag: true,
+        group: true,
+        photos: {
+          include: {
+            photoMetaInfo: {
+              include: {
+                feature: true,
+                keyword: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return updateResult;
   });
-  return updatedOne;
+
+  return updatedTxRes;
 };
 
 export const modifyTripMemoryWrapper = asyncWrapper(

@@ -142,6 +142,12 @@ export type RegistAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
 
+/**
+ * 업체측에서 관광지로 등록하기위해 식당, 호텔, 매장, 관광지 등을 장소로 등록신청하는 api.
+ * 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3279-2978&t=e8DwiRk4nm91ziEk-4
+ */
+
 export const registAdPlace = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<RegistAdPlaceRequestType>,
@@ -293,6 +299,10 @@ export type GetMyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetMyAdPlaceSuccessResType[] | {};
 };
 
+/**
+ * 수정페이지에서 기 요청한 내 adPlace 정보를 먼저 반환 요청한다.
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3577-2555&t=aNXuVNwswvfxSqgP-4
+ */
 export const getMyAdPlace = asyncWrapper(
   async (
     req: Express.IBTypedReqQuery<GetMyAdPlaceRequestType>,
@@ -389,6 +399,14 @@ export type ModifyAdPlaceSuccessResType = Omit<
 export type ModifyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
+
+/**
+ * photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
+ * 때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
+ * category는 전달하는 파라미터로 기존 저장된 카테고리 정보를 덮어쓴다. 즉 A 카테고리를 가지고 있었더라도 B,C를
+ * category 파라미터로 전달하면 A카테고리는 상실하고 B,C 카테고리만 등록된다.
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3577-2555&t=aNXuVNwswvfxSqgP-4
+ */
 
 export const modifyAdPlace = asyncWrapper(
   async (
