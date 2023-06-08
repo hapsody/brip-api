@@ -266,18 +266,25 @@ export type TourPlaceCommonType = Pick<
   | 'bad'
   | 'like'
 > & {
-  photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[];
+  // photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[]; /// deprecated 예정 => TourPlaceCommonType을 사용하고 있는 api의 리턴값에서 AddTripMemorySuccessResType.photo 또는 GetShareTripMemListByPlaceSuccessResType.photo 등과 같이 리턴값에서 TourPlace 상위의 photos 프로퍼티로 반환정보를 대체함
   likeFrom: Pick<
     User,
     'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
   >[];
 };
+
+type PhotoWithMetaType = Partial<IBPhotos> & {
+  photoMetaInfo?:
+    | (IBPhotoMetaInfo & {
+        feature: TripMemoryCategory[];
+        keyword: IBPhotoTag[];
+      })
+    | null;
+};
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
   group: TripMemoryGroup;
-  photos: (IBPhotos & {
-    photoMetaInfo: IBPhotoMetaInfo | null;
-  })[];
+  photos: PhotoWithMetaType[];
   TourPlace: TourPlaceCommonType | null;
   // TourPlace: {
   //   id: number;
@@ -610,7 +617,12 @@ const addTripMemory = async (
         group: true,
         photos: {
           include: {
-            photoMetaInfo: true,
+            photoMetaInfo: {
+              include: {
+                feature: true,
+                keyword: true,
+              },
+            },
           },
         },
         TourPlace: {
@@ -630,13 +642,13 @@ const addTripMemory = async (
             postcode: true,
             rating: true,
             desc: true,
-            photos: {
-              select: {
-                id: true,
-                key: true,
-                url: true,
-              },
-            },
+            // photos: {
+            //   select: {
+            //     id: true,
+            //     key: true,
+            //     url: true,
+            //   },
+            // },
             good: true,
             notBad: true,
             bad: true,
@@ -668,7 +680,6 @@ const addTripMemory = async (
       },
     });
 
-    console.log(alreadyExist);
     if (!isNil(alreadyExist)) {
       throw new IBError({
         type: 'DUPLICATEDDATA',
@@ -888,7 +899,12 @@ const addTripMemory = async (
         group: true,
         photos: {
           include: {
-            photoMetaInfo: true,
+            photoMetaInfo: {
+              include: {
+                feature: true,
+                keyword: true,
+              },
+            },
           },
         },
         TourPlace: {
@@ -908,13 +924,13 @@ const addTripMemory = async (
             postcode: true,
             rating: true,
             desc: true,
-            photos: {
-              select: {
-                id: true,
-                key: true,
-                url: true,
-              },
-            },
+            // photos: {
+            //   select: {
+            //     id: true,
+            //     key: true,
+            //     url: true,
+            //   },
+            // },
             good: true,
             notBad: true,
             bad: true,
@@ -944,18 +960,18 @@ export const getAccessableUrl = async (url: string): Promise<string> => {
   return result;
 };
 
-export const getIBPhotoUrl = async (photo: {
-  id: number;
-  key: string | null;
-  url: string | null;
-}): Promise<{ url: string }> => {
-  if (!isNull(photo.url)) {
+export const getIBPhotoUrl = async (
+  photo: PhotoWithMetaType,
+): Promise<PhotoWithMetaType> => {
+  if (!isNil(photo.url)) {
     return {
+      photoMetaInfo: photo.photoMetaInfo,
       url: photo.url,
     };
   }
-  if (!isNull(photo.key)) {
+  if (!isNil(photo.key)) {
     return {
+      photoMetaInfo: photo.photoMetaInfo,
       url: await getS3SignedUrl(photo.key),
     };
   }
@@ -1257,9 +1273,7 @@ export interface AddShareTripMemoryRequestType {
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
   TourPlace: TourPlaceCommonType | null;
-  photos: (IBPhotos & {
-    photoMetaInfo: IBPhotoMetaInfo | null;
-  })[];
+  photos: PhotoWithMetaType[];
   tripMemory:
     | (TripMemory & {
         tag: TripMemoryTag[];
@@ -1550,7 +1564,12 @@ export const addShareTripMemory = asyncWrapper(
                 group: true,
                 photos: {
                   include: {
-                    photoMetaInfo: true,
+                    photoMetaInfo: {
+                      include: {
+                        keyword: true,
+                        feature: true,
+                      },
+                    },
                   },
                 },
                 TourPlace: {
@@ -3416,6 +3435,7 @@ export interface GetTripMemListSuccessResType {
     id: number;
     tourPlaceId: number | null;
   } | null;
+  photos: PhotoWithMetaType[];
   TourPlace: TourPlaceCommonType | null;
 }
 
@@ -3506,6 +3526,16 @@ export const getTripMemList = asyncWrapper(
                 tourPlaceId: true,
               },
             },
+            photos: {
+              include: {
+                photoMetaInfo: {
+                  include: {
+                    keyword: true,
+                    feature: true,
+                  },
+                },
+              },
+            },
             TourPlace: {
               select: {
                 id: true,
@@ -3523,13 +3553,13 @@ export const getTripMemList = asyncWrapper(
                 postcode: true,
                 rating: true,
                 desc: true,
-                photos: {
-                  select: {
-                    id: true,
-                    key: true,
-                    url: true,
-                  },
-                },
+                // photos: {
+                //   select: {
+                //     id: true,
+                //     key: true,
+                //     url: true,
+                //   },
+                // },
                 good: true,
                 notBad: true,
                 bad: true,
@@ -3578,16 +3608,9 @@ export const getTripMemList = asyncWrapper(
                     : await getS3SignedUrl(profileImg),
                 }),
               },
-              TourPlace: foundTripMem.TourPlace
-                ? {
-                    ...foundTripMem.TourPlace,
-                    photos:
-                      !isNil(foundTripMem.TourPlace?.photos) &&
-                      (await Promise.all(
-                        foundTripMem.TourPlace?.photos.map(getIBPhotoUrl),
-                      )),
-                  }
-                : null,
+              photos: isNil(foundTripMem.photos)
+                ? null
+                : await Promise.all(foundTripMem.photos.map(getIBPhotoUrl)),
             },
           ],
         });
@@ -3661,6 +3684,16 @@ export const getTripMemList = asyncWrapper(
               tourPlaceId: true,
             },
           },
+          photos: {
+            include: {
+              photoMetaInfo: {
+                include: {
+                  keyword: true,
+                  feature: true,
+                },
+              },
+            },
+          },
           TourPlace: {
             select: {
               id: true,
@@ -3674,13 +3707,13 @@ export const getTripMemList = asyncWrapper(
               postcode: true,
               rating: true,
               desc: true,
-              photos: {
-                select: {
-                  id: true,
-                  key: true,
-                  url: true,
-                },
-              },
+              // photos: {
+              //   select: {
+              //     id: true,
+              //     key: true,
+              //     url: true,
+              //   },
+              // },
             },
           },
         },
@@ -3713,33 +3746,9 @@ export const getTripMemList = asyncWrapper(
                 ...v.user,
                 profileImg: userImg,
               },
-              TourPlace: v.TourPlace
-                ? {
-                    ...v.TourPlace,
-                    photos:
-                      !isNil(v.TourPlace?.photos) &&
-                      (await Promise.all(
-                        v.TourPlace?.photos.map(async k => {
-                          if (!isNull(k.url)) {
-                            return {
-                              url: k.url,
-                            };
-                          }
-                          if (!isNull(k.key)) {
-                            return {
-                              url: await getS3SignedUrl(k.key),
-                            };
-                          }
-
-                          throw new IBError({
-                            type: 'INVALIDSTATUS',
-                            message:
-                              'photos의 url과 key값이 둘다 존재하지 않습니다.',
-                          });
-                        }),
-                      )),
-                  }
-                : null,
+              photos: isNil(v.photos)
+                ? null
+                : await Promise.all(v.photos.map(getIBPhotoUrl)),
             };
 
             return ret;
@@ -3841,6 +3850,7 @@ export interface GetTripMemListByGroupSuccessResType {
       tourPlaceId: number | null;
     } | null;
     TourPlace: TourPlaceCommonType | null;
+    photos: PhotoWithMetaType[];
     // TourPlace: {
     //   title: string | null;
     //   lat: number | null;
@@ -3995,13 +4005,13 @@ export const getTripMemListByGroup = asyncWrapper(
                   postcode: true,
                   rating: true,
                   desc: true,
-                  photos: {
-                    select: {
-                      id: true,
-                      key: true,
-                      url: true,
-                    },
-                  },
+                  // photos: {
+                  //   select: {
+                  //     id: true,
+                  //     key: true,
+                  //     url: true,
+                  //   },
+                  // },
                   good: true,
                   notBad: true,
                   bad: true,
@@ -4013,6 +4023,16 @@ export const getTripMemListByGroup = asyncWrapper(
                       profileImg: true,
                       createdAt: true,
                       updatedAt: true,
+                    },
+                  },
+                },
+              },
+              photos: {
+                include: {
+                  photoMetaInfo: {
+                    include: {
+                      keyword: true,
+                      feature: true,
                     },
                   },
                 },
@@ -4053,36 +4073,14 @@ export const getTripMemListByGroup = asyncWrapper(
                     img: k.img.includes('http')
                       ? k.img
                       : await getS3SignedUrl(k.img),
-                    TourPlace: k.TourPlace
-                      ? {
-                          ...k.TourPlace,
-                          photos:
-                            !isNil(k.TourPlace?.photos) &&
-                            (await Promise.all(
-                              k.TourPlace?.photos.map(async m => {
-                                if (!isNull(m.url)) {
-                                  return {
-                                    url: m.url,
-                                  };
-                                }
-                                if (!isNull(m.key)) {
-                                  return {
-                                    url: await getS3SignedUrl(m.key),
-                                  };
-                                }
-
-                                throw new IBError({
-                                  type: 'INVALIDSTATUS',
-                                  message:
-                                    'photos의 url과 key값이 둘다 존재하지 않습니다.',
-                                });
-                              }),
-                            )),
-                        }
-                      : null,
+                    TourPlace: k.TourPlace,
+                    photos: isNil(k.photos)
+                      ? null
+                      : await Promise.all(k.photos.map(getIBPhotoUrl)),
                   };
                 }),
               ),
+
               user: {
                 ...v.user,
                 profileImg: userImg,
@@ -4381,14 +4379,7 @@ export interface ModifyTripMemoryRequestType {
   }[];
 }
 export interface ModifyTripMemorySuccessResType extends TripMemory {
-  photos: (IBPhotos & {
-    photoMetaInfo:
-      | (IBPhotoMetaInfo & {
-          feature: TripMemoryCategory[];
-          keyword: IBPhotoTag[];
-        })
-      | null;
-  })[];
+  photos: PhotoWithMetaType[];
   group: TripMemoryGroup;
   tag: TripMemoryTag[];
 }
@@ -4399,12 +4390,18 @@ export type ModifyTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
 
 export interface ContextModifyTripMemory extends IBContext {}
 
+/**
+ * 트립네트워크의 기억 정보 변경 요청 api.
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=498:1572&t=fxdTKyUVsRIw7Rd9-4
+ * 2023-06-08 기준 해당 API에서 comment와 각 photos안의 tag인 keyword만 수정 가능함.
+ */
 const modifyTripMemory = async (
   param: ModifyTripMemoryRequestType,
   ctx: ContextModifyTripMemory,
 ): Promise<ModifyTripMemorySuccessResType> => {
   const { tripMemoryId, title, comment, address, lat, lng, photos } = param;
 
+  /// 들어온순서대로 사진 순서 부여
   const photosWithOrder = photos?.map((v, idx) => {
     return {
       ...v,
