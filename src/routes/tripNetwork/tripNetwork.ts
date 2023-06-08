@@ -267,6 +267,7 @@ export type TourPlaceCommonType = Pick<
   | 'like'
 > & {
   // photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[]; /// deprecated 예정 => TourPlaceCommonType을 사용하고 있는 api의 리턴값에서 AddTripMemorySuccessResType.photo 또는 GetShareTripMemListByPlaceSuccessResType.photo 등과 같이 리턴값에서 TourPlace 상위의 photos 프로퍼티로 반환정보를 대체함
+  photos?: Partial<IBPhotos>[];
   likeFrom: Pick<
     User,
     'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
@@ -965,13 +966,13 @@ export const getIBPhotoUrl = async (
 ): Promise<PhotoWithMetaType> => {
   if (!isNil(photo.url)) {
     return {
-      photoMetaInfo: photo.photoMetaInfo,
+      ...photo,
       url: photo.url,
     };
   }
   if (!isNil(photo.key)) {
     return {
-      photoMetaInfo: photo.photoMetaInfo,
+      ...photo,
       url: await getS3SignedUrl(photo.key),
     };
   }
@@ -1589,13 +1590,13 @@ export const addShareTripMemory = asyncWrapper(
                     postcode: true,
                     rating: true,
                     desc: true,
-                    photos: {
-                      select: {
-                        id: true,
-                        key: true,
-                        url: true,
-                      },
-                    },
+                    // photos: {
+                    //   select: {
+                    //     id: true,
+                    //     key: true,
+                    //     url: true,
+                    //   },
+                    // },
                     good: true,
                     notBad: true,
                     bad: true,
@@ -1733,7 +1734,12 @@ export const addShareTripMemory = asyncWrapper(
             },
             photos: {
               include: {
-                photoMetaInfo: true,
+                photoMetaInfo: {
+                  include: {
+                    feature: true,
+                    keyword: true,
+                  },
+                },
               },
             },
             TourPlace: {
@@ -1753,13 +1759,13 @@ export const addShareTripMemory = asyncWrapper(
                 postcode: true,
                 rating: true,
                 desc: true,
-                photos: {
-                  select: {
-                    id: true,
-                    key: true,
-                    url: true,
-                  },
-                },
+                // photos: {
+                //   select: {
+                //     id: true,
+                //     key: true,
+                //     url: true,
+                //   },
+                // },
                 good: true,
                 notBad: true,
                 bad: true,
@@ -2780,6 +2786,7 @@ export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
       nickName: string;
     }[];
   };
+  photos: PhotoWithMetaType[];
 }
 
 export type GetShareTripMemListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -2861,13 +2868,13 @@ export const getShareTripMemList = asyncWrapper(
                 postcode: true,
                 rating: true,
                 desc: true,
-                photos: {
-                  select: {
-                    id: true,
-                    key: true,
-                    url: true,
-                  },
-                },
+                // photos: {
+                //   select: {
+                //     id: true,
+                //     key: true,
+                //     url: true,
+                //   },
+                // },
                 good: true,
                 notBad: true,
                 bad: true,
@@ -2879,6 +2886,16 @@ export const getShareTripMemList = asyncWrapper(
                     profileImg: true,
                     createdAt: true,
                     updatedAt: true,
+                  },
+                },
+              },
+            },
+            photos: {
+              include: {
+                photoMetaInfo: {
+                  include: {
+                    feature: true,
+                    keyword: true,
                   },
                 },
               },
@@ -2915,6 +2932,11 @@ export const getShareTripMemList = asyncWrapper(
                     : await getS3SignedUrl(profileImg),
                 }),
               },
+              photos: isNil(foundShareTripMem.photos)
+                ? null
+                : await Promise.all(
+                    foundShareTripMem.photos.map(getIBPhotoUrl),
+                  ),
             },
           ],
         });
@@ -2973,13 +2995,13 @@ export const getShareTripMemList = asyncWrapper(
               postcode: true,
               rating: true,
               desc: true,
-              photos: {
-                select: {
-                  id: true,
-                  key: true,
-                  url: true,
-                },
-              },
+              // photos: {
+              //   select: {
+              //     id: true,
+              //     key: true,
+              //     url: true,
+              //   },
+              // },
               good: true,
               notBad: true,
               bad: true,
@@ -2991,6 +3013,16 @@ export const getShareTripMemList = asyncWrapper(
                   profileImg: true,
                   createdAt: true,
                   updatedAt: true,
+                },
+              },
+            },
+          },
+          photos: {
+            include: {
+              photoMetaInfo: {
+                include: {
+                  keyword: true,
+                  feature: true,
                 },
               },
             },
@@ -3038,10 +3070,9 @@ export const getShareTripMemList = asyncWrapper(
                 ...v.user,
                 profileImg: userImg,
               },
-              TourPlace:
-                isNil(v.TourPlace) || isNil(v.TourPlace.photos)
-                  ? null
-                  : await Promise.all(v.TourPlace?.photos.map(getIBPhotoUrl)),
+              photos: isNil(v.photos)
+                ? null
+                : await Promise.all(v.photos.map(getIBPhotoUrl)),
             };
 
             // return omit(ret, ['TourPlace']);
@@ -3141,6 +3172,7 @@ export interface GetShareTripMemListByPlaceSuccessResType
   // vj_title: string | null;
   ibTravelTag: IBTravelTag[];
   shareTripMemory: ShareTripMemory & {
+    photos: PhotoWithMetaType[];
     tripMemoryCategory: TripMemoryCategory[];
     user: {
       id: number;
@@ -3261,6 +3293,16 @@ export const getShareTripMemListByPlace = asyncWrapper(
                   },
                 },
               },
+              photos: {
+                include: {
+                  photoMetaInfo: {
+                    include: {
+                      feature: true,
+                      keyword: true,
+                    },
+                  },
+                },
+              },
             },
             ...(!isNil(shareTripMemory) &&
               !isNil(shareTripMemory.orderBy) &&
@@ -3332,6 +3374,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                       ...s.user,
                       profileImg: userImg,
                     },
+                    photos: await Promise.all(s.photos.map(getIBPhotoUrl)),
                   };
                   return ret;
                 }),
