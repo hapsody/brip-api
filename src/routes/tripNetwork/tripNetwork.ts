@@ -9,7 +9,7 @@ import {
   accessTokenValidCheck,
   IBContext,
   getS3SignedUrl,
-  delObjectsFromS3,
+  // delObjectsFromS3,
 } from '@src/utils';
 import {
   Prisma,
@@ -4437,6 +4437,7 @@ export interface ContextModifyTripMemory extends IBContext {}
  * 트립네트워크의 기억 정보 변경 요청 api.
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=498:1572&t=fxdTKyUVsRIw7Rd9-4
  * 2023-06-08 기준 해당 API에서 comment와 각 photos안의 tag인 keyword만 수정 가능함.
+ * 만약 '공유'를 했던 tripMemory의 사진정보를 수정한다면 해당shareTripMemory의 사진도 함께 수정된다. 연관된 tourPlace의 사진정보는 수정되지 않는다.
  */
 const modifyTripMemory = async (
   param: ModifyTripMemoryRequestType,
@@ -4492,7 +4493,6 @@ const modifyTripMemory = async (
 
   const updatedTxRes = await prisma.$transaction(async tx => {
     /// 수정시에 제공되지 않은 photo key값을 찾아 기존 포토에서 삭제하기 위해 삭제 후보사진키 delCandPhotos 체크
-
     let newCreatedPhotoMetaInfo: IBPhotoMetaInfo[] = [];
     if (!isNil(photosWithOrder)) {
       const exPics = [...tripMemory.photos];
@@ -4512,23 +4512,39 @@ const modifyTripMemory = async (
         return acc;
       }, []);
 
+      // /// s3와 db에서의 직접 사진 삭제기능은 보류한다. 관계만 끊는것으로 대체함
       if (!isEmpty(delCandPhotos)) {
-        /// delete From IBPhotos DB model
+        /// disconnect all with IBPhotos relations
         await Promise.all(
           delCandPhotos.map(v => {
-            return tx.iBPhotos.delete({
+            return tx.iBPhotos.update({
               where: {
                 id: v.id,
+              },
+              data: {
+                tripMemoryId: null,
+                shareTripMemoryId: null,
+                // tourPlaceId: null,
               },
             });
           }),
         );
+        /// delete From IBPhotos DB model
+        // await Promise.all(
+        //   delCandPhotos.map(v => {
+        //     return tx.iBPhotos.delete({
+        //       where: {
+        //         id: v.id,
+        //       },
+        //     });
+        //   }),
+        // );
 
-        /// delete From S3 Photo key
-        const deleteFromS3Result = await delObjectsFromS3(
-          delCandPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
-        );
-        console.log(deleteFromS3Result);
+        //   /// delete From S3 Photo key
+        //   const deleteFromS3Result = await delObjectsFromS3(
+        //     delCandPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+        //   );
+        //   console.log(deleteFromS3Result);
       }
 
       /// 기존에 존재하고 있던 사진
@@ -4703,6 +4719,24 @@ const modifyTripMemory = async (
             }),
           },
         }),
+        ShareTripMemory: {
+          update: {
+            title,
+            ...(photosWithOrder && {
+              img: photosWithOrder[0].key,
+            }),
+            ...(!isEmpty(newCreatedPhotoMetaInfo) && {
+              photos: {
+                connect: newCreatedPhotoMetaInfo.map(v => {
+                  return {
+                    id: v.photoId,
+                  };
+                }),
+              },
+            }),
+            comment,
+          },
+        },
       },
       include: {
         tag: true,
@@ -5001,6 +5035,12 @@ export type ModifyShareTripMemoryResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ModifyShareTripMemorySuccessResType | {};
 };
 
+/**
+ * 공유 기억을 수정하는 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=464:2593&t=fxdTKyUVsRIw7Rd9-4
+ * 1. modifyTripMemory와 다르게 한번 '공유'된 기억은 이미 공공에 공개된 정보로 같은 사진을 공유하는 '공유'의 사진정보를 수정하면 관련한 해당 유저의 tripMemory 사진정보도 수정된다.
+ * 2. 만약 shareTripMemory에서 신규장소로 생성해서 tourPlace를 함께 생성한 shareTripMemory라면 최초 공유했을때의 사진또한 tourPlace와 공유하고 있다. 이후 본 api를 통해 사진 정보를 수정하면 tourPlace사진은 바뀌지 않는다.
+ */
 export const modifyShareTripMemory = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<ModifyShareTripMemoryRequestType>,
@@ -5099,26 +5139,42 @@ export const modifyShareTripMemory = asyncWrapper(
             return acc;
           }, []);
 
-          /// s3와 db에서의 직접 사진 삭제기능은 보류한다. 관계만 끊는것으로
+          // /// s3와 db에서의 직접 사진 삭제기능은 보류한다. 관계만 끊는것으로 대체함
           if (!isEmpty(delCandPhotos)) {
-            /// delete From IBPhotos DB model
+            /// disconnect all with IBPhotos relations
             await Promise.all(
               delCandPhotos.map(v => {
-                return tx.iBPhotos.delete({
+                return tx.iBPhotos.update({
                   where: {
                     id: v.id,
+                  },
+                  data: {
+                    tripMemoryId: null,
+                    shareTripMemoryId: null,
+                    // tourPlaceId: null,
                   },
                 });
               }),
             );
 
-            /// delete From S3 Photo key
-            const deleteFromS3Result = await delObjectsFromS3(
-              delCandPhotos
-                .map(v => v.key)
-                .filter((v): v is string => !isNil(v)),
-            );
-            console.log(deleteFromS3Result);
+            //   /// delete From IBPhotos DB model
+            //   await Promise.all(
+            //     delCandPhotos.map(v => {
+            //       return tx.iBPhotos.delete({
+            //         where: {
+            //           id: v.id,
+            //         },
+            //       });
+            //     }),
+            //   );
+
+            //   /// delete From S3 Photo key
+            //   const deleteFromS3Result = await delObjectsFromS3(
+            //     delCandPhotos
+            //       .map(v => v.key)
+            //       .filter((v): v is string => !isNil(v)),
+            //   );
+            //   console.log(deleteFromS3Result);
           }
 
           /// 기존에 존재하고 있던 사진
@@ -5279,6 +5335,7 @@ export const modifyShareTripMemory = asyncWrapper(
           data: {
             title,
             comment,
+            img,
             ...(!isEmpty(newCreatedPhotoMetaInfo) && {
               photos: {
                 connect: newCreatedPhotoMetaInfo.map(v => {
@@ -5288,7 +5345,23 @@ export const modifyShareTripMemory = asyncWrapper(
                 }),
               },
             }),
-            img,
+
+            tripMemory: {
+              update: {
+                title,
+                img,
+                comment,
+                ...(!isEmpty(newCreatedPhotoMetaInfo) && {
+                  photos: {
+                    connect: newCreatedPhotoMetaInfo.map(v => {
+                      return {
+                        id: v.photoId,
+                      };
+                    }),
+                  },
+                }),
+              },
+            },
           },
 
           include: {
