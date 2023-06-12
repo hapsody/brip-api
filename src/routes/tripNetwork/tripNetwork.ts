@@ -443,13 +443,22 @@ const addTripMemory = async (
     /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
     const photoMetaInfo = await Promise.all(
       photos.map((v, index) => {
+        const latitude =
+          isNil(v.photoMetaInfo!.lat) || isEmpty(v.photoMetaInfo!.lat)
+            ? undefined
+            : Number(v.photoMetaInfo!.lat);
+        const longitude =
+          isNil(v.photoMetaInfo!.lng) || isEmpty(v.photoMetaInfo!.lng)
+            ? undefined
+            : Number(v.photoMetaInfo!.lng);
+
         return tx.iBPhotoMetaInfo.create({
           data: {
             type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
             order: index,
             title: v.photoMetaInfo!.title!,
-            lat: Number(v.photoMetaInfo!.lat!),
-            lng: Number(v.photoMetaInfo!.lng!),
+            lat: latitude,
+            lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
             ...(v.photoMetaInfo!.keyword && {
               keyword: {
@@ -783,13 +792,21 @@ const addTripMemory = async (
     /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
     const photoMetaInfo = await Promise.all(
       photos.map((v, index) => {
+        const latitude =
+          isNil(v.photoMetaInfo!.lat) || isEmpty(v.photoMetaInfo!.lat)
+            ? undefined
+            : Number(v.photoMetaInfo!.lat);
+        const longitude =
+          isNil(v.photoMetaInfo!.lng) || isEmpty(v.photoMetaInfo!.lng)
+            ? undefined
+            : Number(v.photoMetaInfo!.lng);
         return tx.iBPhotoMetaInfo.create({
           data: {
             type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
             order: index,
             title: v.photoMetaInfo!.title!,
-            lat: Number(v.photoMetaInfo!.lat!),
-            lng: Number(v.photoMetaInfo!.lng!),
+            lat: latitude,
+            lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
             ...(v.photoMetaInfo!.keyword && {
               keyword: {
