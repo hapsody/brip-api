@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  </head>
+  <body>
+    <script>
+      var es;
+      $(document).ready(() => {
+        //브라우저가 SSE지원하는지 체크
+        if (typeof EventSource !== 'undefined') {
+          console.log('sse is supported');
+        } else {
+          console.log('sse is unsupported');
+        }
+
+        const clientId = Math.floor(Math.random() * 10000);
+        console.log(`clientId: ${clientId}`);
+
+        es = new EventSource(`/dev/sseSubscribe?id=${clientId}`, {
+          withCredentials: true,
+        });
+        es.onopen = event => {
+          // when connection success
+          console.log('ready');
+          console.log(event);
+        };
+
+        es.onerror = error => {
+          // when an error occurs
+          console.log('error');
+          console.error(error);
+        };
+        es.onmessage = stream => {
+          // when message is received
+          const parsedData = JSON.parse(stream.data);
+          console.log(parsedData);
+        };
+
+        // specific event name test
+        es.addEventListener(`EventNo${clientId}`, event => {
+          const data = JSON.parse(event.data);
+          console.log(`for specific user ${clientId} : ${data.message}`);
+        });
+        // specific event name test
+        es.addEventListener('red', event => {
+          const data = JSON.parse(event.data);
+          console.log(`red : ${data.message}`);
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 Arguments: 
-  /Users/hjkang/.nvm/versions/node/v17.9.1/bin/node /Users/hjkang/.yarn/bin/yarn.js prisma studio --browser none
+  /Users/hjkang/.nvm/versions/node/v17.9.1/bin/node /Users/hjkang/.yarn/bin/yarn.js add @types/express-sse-ts
 
 PATH: 
-  /var/folders/2m/z2yr1yln0bx8vyjdkmnhcmj80000gn/T/yarn--1685511817558-0.8369560871400026:/Users/hjkang/Documents/idealbloom/outsources/travelit-api/node_modules/.bin:/Users/hjkang/.config/yarn/link/node_modules/.bin:/Users/hjkang/.nvm/versions/node/v17.9.1/libexec/lib/node_modules/npm/bin/node-gyp-bin:/Users/hjkang/.nvm/versions/node/v17.9.1/lib/node_modules/npm/bin/node-gyp-bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin/node_modules/npm/bin/node-gyp-bin:/opt/homebrew/opt/mysql-client/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin
+  /opt/homebrew/opt/mysql-client/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/opt/homebrew/opt/mysql-client/bin:/Users/hjkang/.nvm/versions/node/v17.9.1/bin:/Users/hjkang/.yarn/bin:/Users/hjkang/.config/yarn/global/node_modules/.bin:/Users/hjkang/miniforge3/bin:/opt/usr/loca/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin:/Users/hjkang/Library/Android/sdk/platform-tools/:/Users/hjkang/Library/Android/sdk/emulator:/Users/hjkang/Library/Android/sdk/tools:/Users/hjkang/Library/Android/sdk/tools/bin:/Users/hjkang/Library/Android/sdk/platform-tools:/Users/hjkang/Library/Python/3.8/bin
 
 Yarn version: 
   1.22.19
@@ -14,12 +14,17 @@ Platform:
   darwin arm64
 
 Trace: 
-  SyntaxError: /Users/hjkang/Documents/idealbloom/outsources/travelit-api/package.json: Unexpected string in JSON at position 2483
-      at JSON.parse (<anonymous>)
-      at /Users/hjkang/.yarn/lib/cli.js:1629:59
-      at Generator.next (<anonymous>)
-      at step (/Users/hjkang/.yarn/lib/cli.js:310:30)
-      at /Users/hjkang/.yarn/lib/cli.js:321:13
+  Error: https://registry.yarnpkg.com/@types%2fexpress-sse-ts: Not found
+      at Request.params.callback [as _callback] (/Users/hjkang/.yarn/lib/cli.js:66145:18)
+      at Request.self.callback (/Users/hjkang/.yarn/lib/cli.js:140890:22)
+      at Request.emit (node:events:527:28)
+      at Request.<anonymous> (/Users/hjkang/.yarn/lib/cli.js:141862:10)
+      at Request.emit (node:events:527:28)
+      at IncomingMessage.<anonymous> (/Users/hjkang/.yarn/lib/cli.js:141784:12)
+      at Object.onceWrapper (node:events:641:28)
+      at IncomingMessage.emit (node:events:539:35)
+      at endReadableNT (node:internal/streams/readable:1345:12)
+      at processTicksAndRejections (node:internal/process/task_queues:83:21)
 
 npm manifest: 
   {
@@ -55,15 +60,16 @@ npm manifest:
       "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
       "seed:iBEventPromotion": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBEventPromotion",
       "seed:mainBackgroundImg": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/mainBackgroundImg",
-      "seed:adBusinessPlaceCategory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adBusinessPlaceCategory",
-      "seed:adBusinessPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adBusinessPlace",
+      "seed:adPlaceCategory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adPlaceCategory",
+      "seed:adPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adPlace",
       "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
       "batch": "yarn batch:monthly",
-      "batch:daily": "yarn ts-node -r tsconfig-paths/register ./src/timer/daily/dailyBatchJob.ts"
+      "batch:daily": "yarn ts-node -r tsconfig-paths/register ./src/timer/daily/dailyBatchJob.ts",
       "batch:monthly": "yarn batch:dataresource; yarn batch:dupCheck; yarn batch:areaCodeAsign",
       "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/monthly/monthlyBatchJob.ts",
-      "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceDupChecker.ts",
-      "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceAreaCodeAsigner.ts",
+      "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/tourPlaceDupChecker.ts",
+      "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/tourPlaceAreaCodeAsigner.ts",
+      "batch:registTPFromAdPlace": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/registTPFromAdPlace",
       "prismastudio": "pm2 start --only prismastudio2 ecosystem.config.js"
     },
     "husky": {

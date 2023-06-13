@@ -294,6 +294,74 @@ export const prismaTest = asyncWrapper(
   },
 );
 
+const clients: express.Response[] = [];
+settingRouter.get(
+  '/sseSubscribe',
+  (req: express.Request, res: express.Response) => {
+    const { id } = req.query;
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'text/event-stream',
+      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache',
+    };
+    res.set(headers);
+    res.write('connected');
+    clients[Number(id)] = res;
+    // clients.add(res);
+
+    // req.on('close', () => {
+    //   console.log('clients closed');
+    //   clients.clear();
+    // });
+    req.on('close', () => {
+      console.log(`client closed `);
+      delete clients[Number(id)];
+    });
+  },
+);
+
+settingRouter.post('/sseEvents', (req, res) => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const { to } = req.body;
+  if (isNil(to)) {
+    // eslint-disable-next-line no-restricted-syntax
+    clients.forEach((client, i) => {
+      client.write(`id: ${i}\n`);
+      client.write(`event: EventNo${i}\n`);
+      client.write(
+        `data: {"message" : "hello SSE ${i}!", "text" : "blah-blah"}\n\n`,
+      );
+    });
+    res.json(200);
+    return;
+  }
+
+  clients[Number(to)].write(`id: ${to as string}\n`);
+  clients[Number(to)].write(`event: EventNo${to as string}\n`);
+  clients[Number(to)].write(
+    `data: {"message" : "hello SSE ${
+      to as string
+    }!", "text" : "blah-blah"}\n\n`,
+  );
+  res.json(200);
+
+  // // eslint-disable-next-line no-restricted-syntax
+  // for (const client of clients) {
+  //   try {
+  //     client.write(
+  //       'id: testN1\n' +
+  //         'event: red\n' +
+  //         'data: {"message" : "hello SSE!", "text" : "blah-blah"}\n\n',
+  //     );
+  //     // client.end();
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // }
+  // res.json(200);
+});
+
 settingRouter.post(
   '/s3FileUpload',
   accessTokenValidCheck,

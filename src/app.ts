@@ -91,6 +91,9 @@ app.get('/mapTest', (req: Request, res: Response) => {
   const { type } = req.query;
   res.render(`mapSample`, { type });
 });
+app.get('/eventsource', (req: Request, res: Response) => {
+  res.render(`eventsourceTest`);
+});
 
 // app.get('/resJsonTest', (req: express.Request, res: express.Response) => {
 //     res.json([
