@@ -5,47 +5,65 @@
   <body>
     <script>
       var es;
-      $(document).ready(() => {
+      $(document).ready(async () => {
         //브라우저가 SSE지원하는지 체크
-        if (typeof EventSource !== 'undefined') {
-          console.log('sse is supported');
-        } else {
+        if (typeof EventSource == 'undefined') {
           console.log('sse is unsupported');
         }
+        console.log('sse is supported');
 
-        const clientId = Math.floor(Math.random() * 10000);
-        console.log(`clientId: ${clientId}`);
-
-        es = new EventSource(`/dev/sseSubscribe?id=${clientId}`, {
-          withCredentials: true,
+        const accessToken =
+          'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiaGF3YWlpQGdtYWlsLmNvbSIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjg2NzIzODgyLCJleHAiOjE2ODc5MzM0ODJ9.KO7LHyVOwxkVQb2alcVPnazE4qXCRsky17twrv5JSC4';
+        /// 1. getSSEKey api 호출.
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          Authorization: accessToken,
         });
+
+        const getSSEKeyResponse = await fetch(
+          'http://localhost:3000/noti/getSSEKey',
+          {
+            method: 'POST',
+            headers,
+            redirect: 'follow',
+          },
+        );
+        const getSSEKeyResult = await getSSEKeyResponse.json();
+        const { sseKey } = getSSEKeyResult.IBparams;
+
+        const sseSubscribeHeaders = new Headers({
+          Authorization: accessToken,
+        });
+        es = new EventSource(`/noti/sseSubscribe`, {
+          headers: {
+            authorizationHeader: accessToken,
+          },
+          // withCredentials: true,
+        });
+
         es.onopen = event => {
           // when connection success
           console.log('ready');
           console.log(event);
+
+          es.onmessage = stream => {
+            // when message is received
+            const parsedData = JSON.parse(stream.data);
+            console.log(parsedData);
+          };
+
+          // specific event name test
+          es.addEventListener(`EventNo${sseKey}`, event => {
+            const data = JSON.parse(event.data);
+            console.log(`for specific user ${sseKey} : ${data.message}`);
+          });
         };
 
         es.onerror = error => {
           // when an error occurs
-          console.log('error');
-          console.error(error);
-        };
-        es.onmessage = stream => {
-          // when message is received
-          const parsedData = JSON.parse(stream.data);
-          console.log(parsedData);
-        };
 
-        // specific event name test
-        es.addEventListener(`EventNo${clientId}`, event => {
-          const data = JSON.parse(event.data);
-          console.log(`for specific user ${clientId} : ${data.message}`);
-        });
-        // specific event name test
-        es.addEventListener('red', event => {
-          const data = JSON.parse(event.data);
-          console.log(`red : ${data.message}`);
-        });
+          console.error('error', error);
+        };
       });
     </script>
   </body>

@@ -112,6 +112,7 @@
     "@types/supertest": "^2.0.12",
     "@types/turf": "^3.5.32",
     "@types/uuid": "^8.3.4",
+    "@types/ws": "^8.5.5",
     "async": "^3.2.4",
     "aws-sdk": "^2.1302.0",
     "axios": "^0.26.1",
@@ -138,6 +139,7 @@
     "randomstring": "^1.2.3",
     "supertest": "^6.2.2",
     "ts-jest": "^27.1.4",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "ws": "^8.13.0"
   }
 }

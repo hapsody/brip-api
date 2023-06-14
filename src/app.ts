@@ -16,6 +16,7 @@ import devRouter from './routes/dev';
 import utilRouter from './routes/util';
 import eventRouter from './routes/event';
 import myPageRouter from './routes/myPage';
+import notiRouter from './routes/noti';
 
 import passportConfig from './passport';
 
@@ -76,6 +77,7 @@ app.use('/dev', devRouter);
 app.use('/util', utilRouter);
 app.use('/event', eventRouter);
 app.use('/myPage', myPageRouter);
+app.use('/noti', notiRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

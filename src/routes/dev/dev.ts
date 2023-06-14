@@ -303,7 +303,7 @@ settingRouter.get(
       'Access-Control-Allow-Origin': '*',
       'Content-Type': 'text/event-stream',
       Connection: 'keep-alive',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
     };
     res.set(headers);
     res.write('connected');
@@ -330,7 +330,7 @@ settingRouter.post('/sseEvents', (req, res) => {
       client.write(`id: ${i}\n`);
       client.write(`event: EventNo${i}\n`);
       client.write(
-        `data: {"message" : "hello SSE ${i}!", "text" : "blah-blah"}\n\n`,
+        `data: {"message" : "userId: 1242, api는 예약확인 api를 콜하세요. hello SSE ${i}!", "text" : "blah-blah"}\n\n`,
       );
     });
     res.json(200);
