@@ -20,15 +20,15 @@ const sseClients: SSEClientType = {
   '1': null,
 };
 
-export type SseSubscribeRequestType = {};
-// export type SseSubscribeSuccessResType = {};
-export type SseSubscribeResType = Omit<IBResFormat, 'IBparams'> & {
+export type SSESubscribeRequestType = {};
+// export type SSESubscribeSuccessResType = {};
+export type SSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
 
 export const sseSubscribe = (
-  req: Express.IBTypedReqQuery<SseSubscribeRequestType>,
-  res: Express.IBTypedResponse<SseSubscribeResType>,
+  req: Express.IBTypedReqQuery<SSESubscribeRequestType>,
+  res: Express.IBTypedResponse<SSESubscribeResType>,
 ): void => {
   try {
     const { locals } = req;
@@ -57,6 +57,55 @@ export const sseSubscribe = (
     res.set(headers);
     res.write(`userId:${userId} connected`);
 
+    sseClients[userId] = res;
+    // console.log(sseClients);
+
+    req.on('close', () => {
+      console.log(`userId: ${userId} closed `);
+      //   delete clients[Number(sseKey)];
+      delete sseClients[userId];
+    });
+    return;
+  } catch (err) {
+    if (err instanceof IBError) {
+      if (err.type === 'INVALIDPARAMS') {
+        res.status(400).json({
+          ...ibDefs.INVALIDPARAMS,
+          IBdetail: (err as Error).message,
+          IBparams: {} as object,
+        });
+        return;
+      }
+    }
+
+    throw err;
+  }
+};
+
+export type TestSSESubscribeRequestType = {
+  userId: string;
+};
+// export type TestSSESubscribeSuccessResType = {};
+export type TestSSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+export const testSSESubscribe = (
+  req: Express.IBTypedReqQuery<TestSSESubscribeRequestType>,
+  res: Express.IBTypedResponse<TestSSESubscribeResType>,
+): void => {
+  try {
+    const { userId } = req.query;
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'text/event-stream',
+      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache, no-transform',
+    };
+    res.set(headers);
+    res.write(`userId:${userId} connected`);
+
+    console.log(userId);
     sseClients[userId] = res;
     // console.log(sseClients);
 
@@ -310,6 +359,7 @@ export const storeChatLog = asyncWrapper(
   },
 );
 
+notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 
 notiRouter.post(
