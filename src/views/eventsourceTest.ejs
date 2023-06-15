@@ -1,12 +1,13 @@
+<!-- sseKey는 deprecated됨. accessToken에 포함된 userId로 클라이언트를 구별함, EventSource 생성하는단계에서 Authorization 헤더도 포함해야 하므로 본 스크립트는 정상동작하지 않음 -->
 <html>
   <head>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-    <!-- <script
+    <script
       src="https://cdnjs.cloudflare.com/ajax/libs/eventsource-polyfill/0.9.6/eventsource.js"
       integrity="sha512-5u7AZWLl5+D87Z4b8n7lgV+aMaIZxAnR1+zE9iGk7h3gecBIVR08HRCZxpQuyJTS+TG7vaC0mj7l7ArmHQmE3g=="
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
-    ></script> -->
+    ></script>
   </head>
   <body>
     <button id="company">run as company</button>
@@ -14,12 +15,20 @@
     <input
       id="askBookingAvailableTo"
       type="text"
-      placeholder="ask to <userTokenId>"
+      placeholder="ask to <userId>"
       value=""
     />
     <script>
       var es;
       var userType, askBookingAvailableTo, accessToken;
+
+      let server_url = (() => {
+        let execute_env = '<%= process.env.EXECUTE_ENV %>';
+        if (execute_env === 'dev') return 'https://dev-api.idealbloom.co.kr';
+        else if (execute_env === 'prod') return 'https://api.idealbloom.co.kr';
+        return 'http://localhost:3000';
+      })();
+
       async function run() {
         //브라우저가 SSE지원하는지 체크
         if (typeof EventSource == 'undefined') {
@@ -31,35 +40,33 @@
           es.close();
         }
         /// 1. getSSEKey api 호출.
-        const headers = new Headers({
-          'Content-Type': 'application/json',
-          Authorization: accessToken,
-        });
+        // const headers = new Headers({
+        //   'Content-Type': 'application/json',
+        //   Authorization: accessToken,
+        // });
 
-        const getSSEKeyResponse = await fetch('noti/getSSEKey', {
-          method: 'POST',
-          headers,
-          redirect: 'follow',
-        });
-        const getSSEKeyResult = await getSSEKeyResponse.json();
-        const { sseKey } = getSSEKeyResult.IBparams;
+        // const getSSEKeyResponse = await fetch('noti/getSSEKey', {
+        //   method: 'POST',
+        //   headers,
+        //   redirect: 'follow',
+        // });
+        // const getSSEKeyResult = await getSSEKeyResponse.json();
+        // const { sseKey } = getSSEKeyResult.IBparams;
 
         const sseSubscribeHeaders = new Headers({
           Authorization: accessToken,
         });
-        es = new EventSource(`/noti/sseSubscribe?sseKey=${sseKey}`, {
-          // es = new EventSource(`/noti/sseSubscribe`, {
-          // headers: {
-          //   Authorization: accessToken,
-          // },
+        es = new EventSource(`/noti/sseSubscribe`, {
+          headers: {
+            Authorization: accessToken,
+          },
           withCredentials: true,
         });
 
         es.onopen = async event => {
           // when connection success
           console.log('ready');
-          console.log(event);
-          console.log(`i'm ${userType} and sseKey ${sseKey}`);
+          // console.log(event);
 
           es.onmessage = stream => {
             // when message is received
@@ -68,19 +75,19 @@
           };
 
           // specific event name test
-          es.addEventListener(`sseKey${sseKey}`, event => {
+          es.addEventListener(`userId${userId}`, event => {
             const data = JSON.parse(event.data);
             console.log(`From Server message: ${data.message}`);
           });
 
           if (userType === 'customer') {
             console.log(
-              `trying to call askBookingAvailable to userTokenId ${$(
+              `trying to call askBookingAvailable to userId ${$(
                 'input#askBookingAvailableTo',
               ).val()}...`,
             );
             const askBookingAvailableResponse = await fetch(
-              'http://localhost:3000/noti/askBookingAvailable',
+              `${server_url}/noti/askBookingAvailable`,
               {
                 method: 'POST',
                 headers,
@@ -88,7 +95,7 @@
                 body: JSON.stringify({
                   date: new Date().toISOString(),
                   numOfPeople: 2,
-                  toUserTokenId: $('input#askBookingAvailableTo').val(),
+                  toUserId: $('input#askBookingAvailableTo').val(),
                 }),
               },
             );
@@ -106,15 +113,13 @@
         $('#customer').on('click', () => {
           console.log('customer');
           userType = 'customer';
-          accessToken =
-            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiaGF3YWlpQGdtYWlsLmNvbSIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjg2NzIzODgyLCJleHAiOjE2ODc5MzM0ODJ9.KO7LHyVOwxkVQb2alcVPnazE4qXCRsky17twrv5JSC4';
+          accessToken = `Bearer <%=${process.env.testUserAccessToken1}%>`;
           run();
         });
         $('#company').on('click', () => {
           console.log('company');
           userType = 'company';
-          accessToken =
-            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiY2hpbWNoYWttYW5AZ21haWwuY29tIiwidG9rZW5JZCI6IjMiLCJpYXQiOjE2ODY3MzgxMTQsImV4cCI6MTY4Nzk0NzcxNH0.L4jz_SXTqfDCZkVS51m8TnpEeme_qvs2GogfORPqjYA';
+          accessToken = `Bearer <%=${process.env.testUserAccessToken2}%>`;
           run();
         });
         $('#askBookingAvailableTo').on('keypress', () => {
