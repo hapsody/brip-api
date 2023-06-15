@@ -1009,11 +1009,3 @@ model AdPlace {
 
 //   @@id([adPlaceId, adPlaceCategoryId])
 // }
-
-model SSEKeyMap {
-  id                  Int      @id @default(autoincrement())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @default(now()) @updatedAt
-  userTokenIdToSSEKey String   @db.LongText
-  sseClients          String   @db.LongText
-}
