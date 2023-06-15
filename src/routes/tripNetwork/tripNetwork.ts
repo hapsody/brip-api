@@ -3983,13 +3983,15 @@ export const getTripMemListByGroup = asyncWrapper(
                 some: {
                   AND: [
                     {
-                      tag: {
-                        some: {
-                          name: {
-                            contains: tagKeyword,
+                      ...(!isEmpty(tagKeyword) && {
+                        tag: {
+                          some: {
+                            name: {
+                              contains: tagKeyword,
+                            },
                           },
                         },
-                      },
+                      }),
                     },
                     {
                       lat: isNil(minLat) ? undefined : { gte: Number(minLat) },
