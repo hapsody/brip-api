@@ -1,50 +1,65 @@
 <html>
   <head>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <!-- <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/eventsource-polyfill/0.9.6/eventsource.js"
+      integrity="sha512-5u7AZWLl5+D87Z4b8n7lgV+aMaIZxAnR1+zE9iGk7h3gecBIVR08HRCZxpQuyJTS+TG7vaC0mj7l7ArmHQmE3g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script> -->
   </head>
   <body>
+    <button id="company">run as company</button>
+    <button id="customer">run as customer</button>
+    <input
+      id="askBookingAvailableTo"
+      type="text"
+      placeholder="ask to <userTokenId>"
+      value=""
+    />
     <script>
       var es;
-      $(document).ready(async () => {
+      var userType, askBookingAvailableTo, accessToken;
+      async function run() {
         //브라우저가 SSE지원하는지 체크
         if (typeof EventSource == 'undefined') {
           console.log('sse is unsupported');
         }
         console.log('sse is supported');
 
-        const accessToken =
-          'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiaGF3YWlpQGdtYWlsLmNvbSIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjg2NzIzODgyLCJleHAiOjE2ODc5MzM0ODJ9.KO7LHyVOwxkVQb2alcVPnazE4qXCRsky17twrv5JSC4';
+        if (es) {
+          es.close();
+        }
         /// 1. getSSEKey api 호출.
         const headers = new Headers({
           'Content-Type': 'application/json',
           Authorization: accessToken,
         });
 
-        const getSSEKeyResponse = await fetch(
-          'http://localhost:3000/noti/getSSEKey',
-          {
-            method: 'POST',
-            headers,
-            redirect: 'follow',
-          },
-        );
+        const getSSEKeyResponse = await fetch('noti/getSSEKey', {
+          method: 'POST',
+          headers,
+          redirect: 'follow',
+        });
         const getSSEKeyResult = await getSSEKeyResponse.json();
         const { sseKey } = getSSEKeyResult.IBparams;
 
         const sseSubscribeHeaders = new Headers({
           Authorization: accessToken,
         });
-        es = new EventSource(`/noti/sseSubscribe`, {
-          headers: {
-            authorizationHeader: accessToken,
-          },
-          // withCredentials: true,
+        es = new EventSource(`/noti/sseSubscribe?sseKey=${sseKey}`, {
+          // es = new EventSource(`/noti/sseSubscribe`, {
+          // headers: {
+          //   Authorization: accessToken,
+          // },
+          withCredentials: true,
         });
 
-        es.onopen = event => {
+        es.onopen = async event => {
           // when connection success
           console.log('ready');
           console.log(event);
+          console.log(`i'm ${userType} and sseKey ${sseKey}`);
 
           es.onmessage = stream => {
             // when message is received
@@ -53,10 +68,31 @@
           };
 
           // specific event name test
-          es.addEventListener(`EventNo${sseKey}`, event => {
+          es.addEventListener(`sseKey${sseKey}`, event => {
             const data = JSON.parse(event.data);
-            console.log(`for specific user ${sseKey} : ${data.message}`);
+            console.log(`From Server message: ${data.message}`);
           });
+
+          if (userType === 'customer') {
+            console.log(
+              `trying to call askBookingAvailable to userTokenId ${$(
+                'input#askBookingAvailableTo',
+              ).val()}...`,
+            );
+            const askBookingAvailableResponse = await fetch(
+              'http://localhost:3000/noti/askBookingAvailable',
+              {
+                method: 'POST',
+                headers,
+                redirect: 'follow',
+                body: JSON.stringify({
+                  date: new Date().toISOString(),
+                  numOfPeople: 2,
+                  toUserTokenId: $('input#askBookingAvailableTo').val(),
+                }),
+              },
+            );
+          }
         };
 
         es.onerror = error => {
@@ -64,6 +100,27 @@
 
           console.error('error', error);
         };
+      }
+
+      $(document).ready(() => {
+        $('#customer').on('click', () => {
+          console.log('customer');
+          userType = 'customer';
+          accessToken =
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiaGF3YWlpQGdtYWlsLmNvbSIsInRva2VuSWQiOiIxIiwiaWF0IjoxNjg2NzIzODgyLCJleHAiOjE2ODc5MzM0ODJ9.KO7LHyVOwxkVQb2alcVPnazE4qXCRsky17twrv5JSC4';
+          run();
+        });
+        $('#company').on('click', () => {
+          console.log('company');
+          userType = 'company';
+          accessToken =
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncmFkZSI6Im1lbWJlciIsImVtYWlsIjoiY2hpbWNoYWttYW5AZ21haWwuY29tIiwidG9rZW5JZCI6IjMiLCJpYXQiOjE2ODY3MzgxMTQsImV4cCI6MTY4Nzk0NzcxNH0.L4jz_SXTqfDCZkVS51m8TnpEeme_qvs2GogfORPqjYA';
+          run();
+        });
+        $('#askBookingAvailableTo').on('keypress', () => {
+          askBookingAvailableTo = $('#askBookingAvailableTo').val();
+          console.log(askBookingAvailableTo);
+        });
       });
     </script>
   </body>
