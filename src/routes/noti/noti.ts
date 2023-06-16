@@ -1,5 +1,6 @@
 import express from 'express';
 import prisma from '@src/prisma';
+import { v4 as uuidv4 } from 'uuid';
 import {
   ibDefs,
   asyncWrapper,
@@ -21,6 +22,7 @@ const sseClients: SSEClientType = {
 };
 
 type ChatMessageType = {
+  uuid: string;
   createdAt: string;
   order: number;
   message: string;
@@ -32,7 +34,14 @@ const messageBox: {
   };
 } = {
   '0': {
-    '67': [{ createdAt: '2023-05-01T00:00:00Z', order: 1, message: '' }],
+    '67': [
+      {
+        uuid: uuidv4(),
+        createdAt: '2023-05-01T00:00:00Z',
+        order: 1,
+        message: '',
+      },
+    ],
   },
 };
 
@@ -223,6 +232,7 @@ export const askBookingAvailable = asyncWrapper(
 
       /// 보내려고 하는 사람의 메시지함에서 나한테서 온 메시지 함에 새로운 메시지 추가
       messageBox[toUserId][userId].push({
+        uuid: uuidv4(),
         createdAt: new Date().toISOString(),
         order:
           messageBetweenUs.length === 0
@@ -343,7 +353,7 @@ export const storeChatLog = asyncWrapper(
         return false;
       });
 
-      if (isNil(chatLogValidCheckResult)) {
+      if (!isNil(chatLogValidCheckResult)) {
         throw new IBError({
           type: 'INVALIDPARAMS',
           message:

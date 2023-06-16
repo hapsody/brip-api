@@ -7,9 +7,10 @@
     <div>
       <h3>[company] userId: 3</h3>
       <div id="companyConsoles">
-        <button id="companyConnectBtn" style="display: block">
-          sse connect
-        </button>
+        <button id="companyConnectBtn">sse connect</button>
+        <button id="cpStoreChatLog">store chat</button>
+        <span id="cpCallStoreChatLogCallParams"></span> <br />
+        <br />
 
         <input
           id="cpApiNameForGetMessage"
@@ -34,19 +35,21 @@
       <textarea
         name="companySSEEvents"
         id="companySSEEvents"
-        cols="80"
+        cols="70"
         rows="20"
       ></textarea>
+      <textarea name="cpChatBox" id="cpChatBox" cols="50" rows="20"></textarea>
     </div>
 
-    <div id="seprator" style="display: block; width: 100%; height: 200px"></div>
+    <div id="seprator" style="display: block; width: 100%; height: 100px"></div>
 
     <div>
       <h3>[customer] userId: 1</h3>
       <div id="customerConsoles">
-        <button id="customerConnectBtn" style="display: block">
-          sse connect
-        </button>
+        <button id="customerConnectBtn">sse connect</button>
+        <button id="csStoreChatLog">store chat</button>
+        <span id="csCallStoreChatLogCallParams"></span> <br />
+        <br />
 
         <input
           id="csApiNameForGetMessage"
@@ -71,9 +74,10 @@
       <textarea
         name="customerSSEEvents"
         id="customerSSEEvents"
-        cols="80"
+        cols="70"
         rows="20"
       ></textarea>
+      <textarea name="csChatBox" id="csChatBox" cols="60" rows="20"></textarea>
     </div>
 
     <script>
@@ -117,8 +121,8 @@
             // specific event name test
             es.addEventListener(`userId${userId}`, event => {
               const data = JSON.parse(event.data);
-              const prevChat = companyTextarea.val();
-              companyTextarea.val(`${prevChat}\n${data.message}`);
+              const prevChat = cpSSETextarea.val();
+              cpSSETextarea.val(`${prevChat}\n${data.message}`);
             });
           };
 
@@ -152,7 +156,7 @@
         });
       }
 
-      async function callAskBookingAvailable() {
+      async function callAskBookingAvailable(params) {
         console.log(
           `call askBookingAvailable to userId ${$(
             'input#sendToUserFromCustomer',
@@ -163,21 +167,16 @@
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
 
-        const callParams = {
-          date: new Date().toISOString(),
-          numOfPeople: 2,
-          toUserId: $('input#sendToUserFromCustomer').val(),
-        };
         const askBookingAvailableResponse = await fetch(
           `${server_url}/noti/askBookingAvailable`,
           {
             method: 'POST',
             headers: myHeaders,
             redirect: 'follow',
-            body: JSON.stringify(callParams),
+            body: JSON.stringify(params),
           },
         );
-        $('#askBookingAvailableCallParam').text(JSON.stringify(callParams));
+        $('#askBookingAvailableCallParam').text(JSON.stringify(params));
         const data = await askBookingAvailableResponse.json();
         return data;
       }
@@ -209,9 +208,30 @@
         return data;
       }
 
+      async function callStoreChatLog(params) {
+        console.log(`call storeChatLog...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const storeChatLogResponse = await fetch(
+          `${server_url}/noti/storeChatLog`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await storeChatLogResponse.json();
+        return data;
+      }
+
       $(document).ready(() => {
-        companyTextarea = $('#companySSEEvents');
-        customerTextarea = $('#customerSSEEvents');
+        cpSSETextarea = $('#companySSEEvents');
+        csSSETextarea = $('#customerSSEEvents');
+        cpChatBoxTextarea = $('#cpChatBox');
+        csChatBoxTextarea = $('#csChatBox');
         $('#customerConnectBtn').on('click', async () => {
           console.log('customer');
           contextSwitch('customer');
@@ -226,7 +246,7 @@
           };
           const getMessageResult = await callGetMessage(callParams);
           console.log(getMessageResult);
-          $('#csGetMessageResult').text(JSON.stringify(callParams));
+          $('#csGetMessageCallParam').text(JSON.stringify(callParams));
         });
         $('#companyConnectBtn').on('click', async () => {
           console.log('company');
@@ -242,7 +262,7 @@
           };
           const getMessageResult = await callGetMessage(callParams);
           console.log(getMessageResult);
-          $('#cpGetMessageResult').text(JSON.stringify(callParams));
+          $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
         });
 
         $('#sendToUserFromCompany').on('keypress', () => {
@@ -256,11 +276,83 @@
 
         $('#csCallAskBookingAvailableBtn').on('click', async () => {
           contextSwitch('customer');
-          const result = await callAskBookingAvailable();
+          const callParams = {
+            date: new Date().toISOString(),
+            numOfPeople: 2,
+            toUserId: $('input#sendToUserFromCustomer').val(),
+          };
+          const result = await callAskBookingAvailable(callParams);
+          const prevChatBox = $('#csChatBox').val();
+          $('#csChatBox').val(
+            `${prevChatBox}[${new Date().getTime()}]: 김다다님이 ${
+              callParams.date
+            },${callParams.numOfPeople}명\n예약 가능 여부를 문의했어요!
+            \n\n`,
+          );
         });
 
         $('#cpAnsBookingAvailableBtn').on('click', async () => {
+          contextSwitch('company');
           await callAnsBookingAvailable();
+        });
+
+        $('#cpStoreChatLog').on('click', async () => {
+          contextSwitch('company');
+          const chatBoxSnapShot = $('#cpChatBox').val();
+
+          const chatArr = chatBoxSnapShot.split('\n\n').map((v, i) => {
+            const date = new Date(v.match(/\[\d+\]/));
+            return {
+              msg: v,
+              date: date,
+              order: i,
+            };
+          });
+
+          const callParams = {
+            chatLog: chatArr,
+            toUserId: customerUserId,
+          };
+          const storeChatLogResult = await callStoreChatLog(callParams);
+
+          console.log(JSON.stringify(storeChatLogResult));
+          $('#cpCallStoreChatLogCallParams').text(JSON.stringify(callParams));
+        });
+
+        $('#csStoreChatLog').on('click', async () => {
+          contextSwitch('customer');
+          const chatBoxSnapShot = $('#csChatBox').val();
+
+          const chatArr = chatBoxSnapShot
+            .split('\n\n')
+            .map((v, i) => {
+              const matchedWord = v.match(/\[\d+\]/);
+
+              if (!matchedWord) return null;
+
+              console.log(matchedWord);
+              const timestamp = matchedWord[0].substring(
+                1,
+                matchedWord[0].length - 2,
+              );
+              const date = new Date(Number(timestamp)).toISOString();
+              return {
+                msg: v.substr(matchedWord[0].length + 2),
+                date: date,
+                order: i.toString(),
+              };
+            })
+            .filter(v => v);
+
+          const callParams = {
+            chatLog: chatArr,
+            toUserId: companyUserId,
+          };
+          console.log(callParams);
+          const storeChatLogResult = await callStoreChatLog(callParams);
+
+          console.log(JSON.stringify(storeChatLogResult));
+          $('#csCallStoreChatLogCallParams').text(JSON.stringify(callParams));
         });
       });
     </script>
