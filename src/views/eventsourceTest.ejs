@@ -7,21 +7,33 @@
     <div>
       <h3>[company] userId: 3</h3>
       <div id="companyConsoles">
-        <button id="companyConnectBtn">sse connect</button>
-        <button id="cpAnswerBookingAvailableBtn">
-          2 answerBookingAvailable
+        <button id="companyConnectBtn" style="display: block">
+          sse connect
         </button>
+
+        <input
+          id="cpApiNameForGetMessage"
+          type="text"
+          placeholder="apiName for GetMessage "
+          value=""
+        />
+        <button id="cpGetMessageBtn">getMessage</button>
+        <span id="cpGetMessageResult"></span> <br />
+
+        <input
+          id="sendToUserFromCompany"
+          type="text"
+          placeholder="from company send to.. <userId>"
+          value="1"
+        />
+        <button id="cpAnsBookingAvailableBtn">2 answerBookingAvailable</button>
+
+        <br />
       </div>
 
-      <input
-        id="sendToUserFromCompany"
-        type="text"
-        placeholder="from company send to.. <userId>"
-        value="1"
-      />
       <textarea
-        name="companyChatBox"
-        id="companyChatBox"
+        name="companySSEEvents"
+        id="companySSEEvents"
         cols="80"
         rows="20"
       ></textarea>
@@ -32,18 +44,33 @@
     <div>
       <h3>[customer] userId: 1</h3>
       <div id="customerConsoles">
-        <button id="customerConnectBtn">sse connect</button>
+        <button id="customerConnectBtn" style="display: block">
+          sse connect
+        </button>
+
+        <input
+          id="csApiNameForGetMessage"
+          type="text"
+          placeholder="apiName for GetMessage "
+          value=""
+        />
+        <button id="csGetMessageBtn">getMessage</button>
+        <span id="csGetMessageResult"></span> <br />
+
+        <input
+          id="sendToUserFromCustomer"
+          type="text"
+          placeholder="from customer send to.. <userId>"
+          value="3"
+        />
         <button id="csCallAskBookingAvailableBtn">1 askBookingAvailable</button>
+        <span id="askBookingAvailableCallParam"></span>
+        <br />
       </div>
-      <input
-        id="sendToUserFromCustomer"
-        type="text"
-        placeholder="from customer send to.. <userId>"
-        value="3"
-      />
+
       <textarea
-        name="customerChatBox"
-        id="customerChatBox"
+        name="customerSSEEvents"
+        id="customerSSEEvents"
         cols="80"
         rows="20"
       ></textarea>
@@ -91,9 +118,7 @@
             es.addEventListener(`userId${userId}`, event => {
               const data = JSON.parse(event.data);
               const prevChat = companyTextarea.val();
-              companyTextarea.val(
-                `${prevChat}\nFrom Server message: ${data.message}`,
-              );
+              companyTextarea.val(`${prevChat}\n${data.message}`);
             });
           };
 
@@ -109,16 +134,20 @@
       function contextSwitch(type) {
         if (type === 'customer') {
           accessToken = 'Bearer <%=process.env.testUserAccessToken1%>';
+          userType = 'customer';
+          customerUserId = '1';
           return context({
-            userType: 'customer',
-            userId: '1',
+            userType,
+            userId: customerUserId,
             accessToken,
           });
         }
         accessToken = `Bearer <%=process.env.testUserAccessToken2%>`;
+        userType = 'company';
+        companyUserId = '3';
         return context({
-          userType: 'company',
-          userId: '3',
+          userType,
+          userId: companyUserId,
           accessToken,
         });
       }
@@ -134,43 +163,86 @@
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
 
+        const callParams = {
+          date: new Date().toISOString(),
+          numOfPeople: 2,
+          toUserId: $('input#sendToUserFromCustomer').val(),
+        };
         const askBookingAvailableResponse = await fetch(
           `${server_url}/noti/askBookingAvailable`,
           {
             method: 'POST',
             headers: myHeaders,
             redirect: 'follow',
-            body: JSON.stringify({
-              date: new Date().toISOString(),
-              numOfPeople: 2,
-              toUserId: $('input#sendToUserFromCustomer').val(),
-            }),
+            body: JSON.stringify(callParams),
           },
         );
+        $('#askBookingAvailableCallParam').text(JSON.stringify(callParams));
+        const data = await askBookingAvailableResponse.json();
+        return data;
       }
 
-      async function callAnswerBookingAvailable() {
+      async function callGetMessage(params) {
+        const { apiName, fromUserId } = params;
         console.log(
           `call answerBookingAvailable to userId ${$(
             'input#sendToUserFromCompany',
           ).val()}...`,
         );
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const getMessageResponse = await fetch(
+          `${server_url}/noti/getMessage`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify({
+              apiName: 'askBookingAvailable',
+              fromUserId,
+            }),
+          },
+        );
+        const data = await getMessageResponse.json();
+        return data;
       }
 
       $(document).ready(() => {
-        companyTextarea = $('#companyChatBox');
-        customerTextarea = $('#customerChatBox');
+        companyTextarea = $('#companySSEEvents');
+        customerTextarea = $('#customerSSEEvents');
         $('#customerConnectBtn').on('click', async () => {
           console.log('customer');
           contextSwitch('customer');
           const initAndConnect = contextSwitch('customer');
           await initAndConnect();
         });
+        $('#csGetMessageBtn').on('click', async () => {
+          contextSwitch('customer');
+          const callParams = {
+            apiName: $('input#csApiNameForGetMessage').val(),
+            fromUserId: companyUserId,
+          };
+          const getMessageResult = await callGetMessage(callParams);
+          console.log(getMessageResult);
+          $('#csGetMessageResult').text(JSON.stringify(callParams));
+        });
         $('#companyConnectBtn').on('click', async () => {
           console.log('company');
           const initAndConnect = contextSwitch('company');
 
           await initAndConnect();
+        });
+        $('#cpGetMessageBtn').on('click', async () => {
+          contextSwitch('company');
+          const callParams = {
+            apiName: $('input#cpApiNameForGetMessage').val(),
+            fromUserId: customerUserId,
+          };
+          const getMessageResult = await callGetMessage(callParams);
+          console.log(getMessageResult);
+          $('#cpGetMessageResult').text(JSON.stringify(callParams));
         });
 
         $('#sendToUserFromCompany').on('keypress', () => {
@@ -183,11 +255,12 @@
         });
 
         $('#csCallAskBookingAvailableBtn').on('click', async () => {
-          await callAskBookingAvailable();
+          contextSwitch('customer');
+          const result = await callAskBookingAvailable();
         });
 
-        $('#cpAnswerBookingAvailableBtn').on('click', async () => {
-          await callAnswerBookingAvailable();
+        $('#cpAnsBookingAvailableBtn').on('click', async () => {
+          await callAnsBookingAvailable();
         });
       });
     </script>

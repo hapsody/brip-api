@@ -17,7 +17,23 @@ type SSEClientType = {
 };
 
 const sseClients: SSEClientType = {
-  '1': null,
+  '0': null,
+};
+
+type ChatMessageType = {
+  createdAt: string;
+  order: number;
+  message: string;
+};
+
+const messageBox: {
+  [userId: string]: {
+    [fromUserId: string]: ChatMessageType[];
+  };
+} = {
+  '0': {
+    '67': [{ createdAt: '2023-05-01T00:00:00Z', order: 1, message: '' }],
+  },
 };
 
 export type SSESubscribeRequestType = {};
@@ -183,23 +199,43 @@ export const askBookingAvailable = asyncWrapper(
         });
       }
 
-      // if (isNil(sseClients[userId])) {
-      //   throw new IBError({
-      //     type: 'INVALIDSTATUS',
-      //     message: 'userId에 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-      //   });
-      // }
-
       if (isNil(sseClients[toUserId])) {
         throw new IBError({
           type: 'INVALIDSTATUS',
           message: 'toUserId에 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
         });
       }
+
+      /// 보내려고 하는 유저의 메시지 박스에 넣어둔다.
+      const herMessages = messageBox[toUserId];
+      if (
+        isNil(herMessages) ||
+        isEmpty(herMessages) ||
+        isNil(herMessages[userId]) ||
+        isEmpty(herMessages[userId])
+      ) {
+        const a = {};
+        a[userId] = [];
+        messageBox[toUserId] = a;
+      }
+
+      const messageBetweenUs = messageBox[toUserId][userId];
+
+      /// 보내려고 하는 사람의 메시지함에서 나한테서 온 메시지 함에 새로운 메시지 추가
+      messageBox[toUserId][userId].push({
+        createdAt: new Date().toISOString(),
+        order:
+          messageBetweenUs.length === 0
+            ? 0
+            : messageBetweenUs[messageBetweenUs.length - 1].order + 1,
+
+        message: `date:${date}, numOfPeople:${numOfPeople}`,
+      });
+
       sseClients[toUserId]!.write(`id: 00\n`);
       sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
       sseClients[toUserId]!.write(
-        `data: {"message" : "nextAPI:replyForAskBookingAvailable, from:${userId}"}\n\n`,
+        `data: {"message" : "calledAPI:askBookingAvailable, nextAPI:ansForAskBookingAvailable, from:${userId}"}\n\n`,
       );
 
       await (async () => {})();
@@ -359,6 +395,199 @@ export const storeChatLog = asyncWrapper(
   },
 );
 
+export type GetMessageRequestType = {
+  apiName: string;
+  fromUserId: string;
+};
+export type GetMessageSuccessResType = ChatMessageType[];
+export type GetMessageResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMessageSuccessResType | {};
+};
+
+/**
+ *
+ */
+export const getMessage = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetMessageRequestType>,
+    res: Express.IBTypedResponse<GetMessageResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { apiName, fromUserId } = params;
+
+      if (
+        isNil(apiName) ||
+        isEmpty(apiName) ||
+        isNil(fromUserId) ||
+        isEmpty(fromUserId)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'apiName과 fromUserId가 제공되어야 합니다.',
+        });
+      }
+
+      if (isNil(sseClients[fromUserId])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'fromUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+
+      const myMessageFromSpecificUser = [...messageBox[userId][fromUserId]];
+      messageBox[userId][fromUserId] = [];
+      await (async () => {})();
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: myMessageFromSpecificUser,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export type AnsBookingAvailableRequestType = {
+  available: string;
+  unavailableReason?:
+    | 'CLOSEDTIME'
+    | 'INVALIDTIME'
+    | 'FULLBOOKINGATDATE'
+    | 'FULLBOOKINGONTIME'
+    | 'INVALIDNUMOFPERSON';
+  toUserId: string;
+};
+export type AnsBookingAvailableSuccessResType = {};
+export type AnsBookingAvailableResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: {};
+};
+
+/**
+ *
+ */
+export const ansBookingAvailable = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AnsBookingAvailableRequestType>,
+    res: Express.IBTypedResponse<AnsBookingAvailableResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { available, unavailableReason, toUserId } = params;
+
+      if (isNil(available) || isNil(toUserId)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            '"true"/"false" 형식의 avaiable string 파라미터와 toUserId가 제공되어야 합니다.',
+        });
+      }
+
+      if (available === 'false' && isNil(unavailableReason)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            '"available이 false라면 unavailableReason은 반드시 제공되어야 합니다.',
+        });
+      }
+
+      if (isNil(sseClients[toUserId])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'toUserId에 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+      sseClients[toUserId]!.write(`id: 00\n`);
+      sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
+      sseClients[toUserId]!.write(
+        `data: {"message" : "calledAPI:ansBookingAvailable, nextAPI:ansForAskBookingAvailable, from:${userId}"}\n\n`,
+      );
+
+      await (async () => {})();
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 
@@ -367,5 +596,11 @@ notiRouter.post(
   accessTokenValidCheck,
   askBookingAvailable,
 );
+notiRouter.post(
+  '/ansBookingAvailable',
+  accessTokenValidCheck,
+  ansBookingAvailable,
+);
 notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
+notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 export default notiRouter;
