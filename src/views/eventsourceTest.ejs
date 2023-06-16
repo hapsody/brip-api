@@ -4,28 +4,64 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
   </head>
   <body>
-    <button id="company">run as company</button>
-    <button id="customer">run as customer</button>
-    <input
-      id="askBookingAvailableTo"
-      type="text"
-      placeholder="ask to <userId>"
-      value=""
-    />
+    <div>
+      <h3>[company] userId: 3</h3>
+      <div id="companyConsoles">
+        <button id="companyConnectBtn">sse connect</button>
+        <button id="cpAnswerBookingAvailableBtn">
+          2 answerBookingAvailable
+        </button>
+      </div>
+
+      <input
+        id="sendToUserFromCompany"
+        type="text"
+        placeholder="from company send to.. <userId>"
+        value="1"
+      />
+      <textarea
+        name="companyChatBox"
+        id="companyChatBox"
+        cols="80"
+        rows="20"
+      ></textarea>
+    </div>
+
+    <div id="seprator" style="display: block; width: 100%; height: 200px"></div>
+
+    <div>
+      <h3>[customer] userId: 1</h3>
+      <div id="customerConsoles">
+        <button id="customerConnectBtn">sse connect</button>
+        <button id="csCallAskBookingAvailableBtn">1 askBookingAvailable</button>
+      </div>
+      <input
+        id="sendToUserFromCustomer"
+        type="text"
+        placeholder="from customer send to.. <userId>"
+        value="3"
+      />
+      <textarea
+        name="customerChatBox"
+        id="customerChatBox"
+        cols="80"
+        rows="20"
+      ></textarea>
+    </div>
+
     <script>
       const context = params => {
         let es;
         const { userType, userId, accessToken } = params;
 
-        let server_url = (() => {
+        server_url = (() => {
           let execute_env = '<%= process.env.EXECUTE_ENV %>';
           if (execute_env === 'dev') return 'https://dev-api.idealbloom.co.kr';
           else if (execute_env === 'prod')
             return 'https://api.idealbloom.co.kr';
           return 'http://localhost:3000';
         })();
-
-        async function run() {
+        async function initAndConnect() {
           //브라우저가 SSE지원하는지 체크
           if (typeof EventSource == 'undefined') {
             console.log('sse is unsupported');
@@ -54,35 +90,11 @@
             // specific event name test
             es.addEventListener(`userId${userId}`, event => {
               const data = JSON.parse(event.data);
-              const prevChat = textarea.val();
-              textarea.val(`${prevChat}\nFrom Server message: ${data.message}`);
+              const prevChat = companyTextarea.val();
+              companyTextarea.val(
+                `${prevChat}\nFrom Server message: ${data.message}`,
+              );
             });
-
-            if (userType === 'customer') {
-              console.log(
-                `call askBookingAvailable to userId ${$(
-                  'input#askBookingAvailableTo',
-                ).val()}...`,
-              );
-
-              var myHeaders = new Headers();
-              myHeaders.append('Content-Type', 'application/json');
-              myHeaders.append('Authorization', accessToken);
-
-              const askBookingAvailableResponse = await fetch(
-                `${server_url}/noti/askBookingAvailable`,
-                {
-                  method: 'POST',
-                  headers: myHeaders,
-                  redirect: 'follow',
-                  body: JSON.stringify({
-                    date: new Date().toISOString(),
-                    numOfPeople: 2,
-                    toUserId: $('input#askBookingAvailableTo').val(),
-                  }),
-                },
-              );
-            }
           };
 
           es.onerror = error => {
@@ -91,41 +103,91 @@
             console.error('error', error);
           };
         }
-        return run;
+        return initAndConnect;
       };
 
-      $(document).ready(() => {
-        $('#customer').on('click', async () => {
-          console.log('customer');
-
-          const run = context({
+      function contextSwitch(type) {
+        if (type === 'customer') {
+          accessToken = 'Bearer <%=process.env.testUserAccessToken1%>';
+          return context({
             userType: 'customer',
             userId: '1',
-            accessToken: 'Bearer <%=process.env.testUserAccessToken1%>',
+            accessToken,
           });
-          await run();
+        }
+        accessToken = `Bearer <%=process.env.testUserAccessToken2%>`;
+        return context({
+          userType: 'company',
+          userId: '3',
+          accessToken,
         });
-        $('#company').on('click', async () => {
-          console.log('company');
-          const run = context({
-            userType: 'company',
-            userId: '3',
-            accessToken: `Bearer <%=process.env.testUserAccessToken2%>`,
-          });
+      }
 
-          textarea = $('<textarea>', {
-            id: 'chatBox',
-            css: {
-              width: '300px',
-              height: '400px',
-            },
-          });
-          $('#company').after(textarea);
-          await run();
+      async function callAskBookingAvailable() {
+        console.log(
+          `call askBookingAvailable to userId ${$(
+            'input#sendToUserFromCustomer',
+          ).val()}...`,
+        );
+
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const askBookingAvailableResponse = await fetch(
+          `${server_url}/noti/askBookingAvailable`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify({
+              date: new Date().toISOString(),
+              numOfPeople: 2,
+              toUserId: $('input#sendToUserFromCustomer').val(),
+            }),
+          },
+        );
+      }
+
+      async function callAnswerBookingAvailable() {
+        console.log(
+          `call answerBookingAvailable to userId ${$(
+            'input#sendToUserFromCompany',
+          ).val()}...`,
+        );
+      }
+
+      $(document).ready(() => {
+        companyTextarea = $('#companyChatBox');
+        customerTextarea = $('#customerChatBox');
+        $('#customerConnectBtn').on('click', async () => {
+          console.log('customer');
+          contextSwitch('customer');
+          const initAndConnect = contextSwitch('customer');
+          await initAndConnect();
         });
-        $('#askBookingAvailableTo').on('keypress', () => {
-          askBookingAvailableTo = $('#askBookingAvailableTo').val();
-          console.log(askBookingAvailableTo);
+        $('#companyConnectBtn').on('click', async () => {
+          console.log('company');
+          const initAndConnect = contextSwitch('company');
+
+          await initAndConnect();
+        });
+
+        $('#sendToUserFromCompany').on('keypress', () => {
+          sendToUserFromCompany = $('#sendToUserFromCompany').val();
+          console.log(sendToUserFromCompany);
+        });
+        $('#sendToUserFromCustomer').on('keypress', () => {
+          sendToUserFromCustomer = $('#sendToUserFromCustomer').val();
+          console.log(sendToUserFromCustomer);
+        });
+
+        $('#csCallAskBookingAvailableBtn').on('click', async () => {
+          await callAskBookingAvailable();
+        });
+
+        $('#cpAnswerBookingAvailableBtn').on('click', async () => {
+          await callAnswerBookingAvailable();
         });
       });
     </script>
