@@ -21,11 +21,22 @@ const sseClients: SSEClientType = {
   '0': null,
 };
 
+type ChatMessageActionType =
+  | 'BOOKINGAVAILABLE'
+  | 'ANSBOOKINGAVAILABLE'
+  | 'CONFIRMBOOKING'
+  | 'PRIVACYAGREE'
+  | 'FINALBOOKINGCHECK'
+  | 'TEXT';
+
 type ChatMessageType = {
   uuid: string;
   createdAt: string;
   order: number;
   message: string;
+  actionType: ChatMessageActionType;
+  from: string;
+  to: string;
 };
 
 const messageBox: {
@@ -34,15 +45,63 @@ const messageBox: {
   };
 } = {
   '0': {
-    '67': [
-      {
-        uuid: uuidv4(),
-        createdAt: '2023-05-01T00:00:00Z',
-        order: 1,
-        message: '',
-      },
-    ],
+    '67': [],
   },
+};
+
+const putInMessage = (params: {
+  from: string; /// userId 기준
+  to: string; /// userId
+  data: {
+    createdAt: string;
+    order: string;
+    message: string;
+    type: ChatMessageActionType;
+  }[];
+}) => {
+  const {
+    to, /// toUserId
+    from, /// fromUserId
+    data,
+  } = params;
+
+  /// 보내려고 하는 유저의 메시지 박스를 찾는다.
+  const herMessages = messageBox[to];
+
+  /// 첫 메시지라면 초기화
+  if (
+    isNil(herMessages) ||
+    isEmpty(herMessages) ||
+    isNil(herMessages[from]) ||
+    isEmpty(herMessages[from])
+  ) {
+    const a = {};
+    a[from] = [];
+    messageBox[to] = a;
+  }
+
+  /// 보내려고 하는 사람의 메시지함중 나와의 대화 메시지 큐에 새로운 메시지 추가
+  data.map(v => {
+    return messageBox[to][from].push({
+      uuid: uuidv4(),
+      createdAt: v.createdAt,
+      order: Number(v.order),
+      message: v.message,
+      actionType: v.type,
+      from,
+      to,
+    });
+  });
+};
+
+const takeOutMessage = (params: {
+  from: string; /// userId 기준
+  userId: string; /// userId 기준
+}) => {
+  const { from, userId } = params;
+  const myMessageFromSpecificUser = [...messageBox[userId][from]];
+  messageBox[userId][from] = [];
+  return myMessageFromSpecificUser;
 };
 
 export type SSESubscribeRequestType = {};
@@ -227,7 +286,6 @@ export const askBookingAvailable = asyncWrapper(
         a[userId] = [];
         messageBox[toUserId] = a;
       }
-
       const messageBetweenUs = messageBox[toUserId][userId];
 
       /// 보내려고 하는 사람의 메시지함에서 나한테서 온 메시지 함에 새로운 메시지 추가
@@ -240,6 +298,9 @@ export const askBookingAvailable = asyncWrapper(
             : messageBetweenUs[messageBetweenUs.length - 1].order + 1,
 
         message: `date:${date}, numOfPeople:${numOfPeople}`,
+        actionType: 'TEXT',
+        to: toUserId,
+        from: userId,
       });
 
       sseClients[toUserId]!.write(`id: 00\n`);
@@ -405,8 +466,152 @@ export const storeChatLog = asyncWrapper(
   },
 );
 
+export type SendMessageRequestType = {
+  toUserId: string;
+  data: {
+    createdAt: string;
+    order: string;
+    message: string;
+    type: ChatMessageActionType;
+    actionInputParams?: {
+      [actionType: string]: {
+        // askBookingAvailable
+        date?: string;
+        numOfPeople?: string;
+      };
+    };
+  }[];
+};
+export type SendMessageSuccessResType = ChatMessageType[];
+export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SendMessageSuccessResType | {};
+};
+
+/**
+ *
+ */
+export const sendMessage = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SendMessageRequestType>,
+    res: Express.IBTypedResponse<SendMessageResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { toUserId, data } = params;
+
+      if (
+        isNil(toUserId) ||
+        isEmpty(toUserId) ||
+        isNil(data) ||
+        isEmpty(data)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'toUserId와 data 배열이 제공되어야 합니다.',
+        });
+      }
+
+      data.find(v => {
+        if (isNil(v.createdAt) || isEmpty(v.createdAt)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'data 배열중 createdAt 파라미터는 제공되어야 합니다.',
+          });
+        }
+
+        if (isNil(v.message) || isEmpty(v.message)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'data 배열중 message 파라미터는 제공되어야 합니다.',
+          });
+        }
+
+        if (isNil(v.order) || isEmpty(v.order)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'data 배열중 order 파라미터는 제공되어야 합니다.',
+          });
+        }
+
+        if (isNil(v.type) || isEmpty(v.type)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'data 배열중 type 파라미터는 제공되어야 합니다.',
+          });
+        }
+
+        return false;
+      });
+
+      if (isNil(sseClients[toUserId])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+
+      putInMessage({
+        from: userId,
+        to: toUserId,
+        data,
+      });
+
+      sseClients[toUserId]!.write(`id: 00\n`);
+      sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
+      sseClients[toUserId]!.write(
+        `data: {"message" : "[sse meesage]: count:${data.length}, from:${userId}"}\n\n`,
+      );
+
+      await (async () => {})();
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 export type GetMessageRequestType = {
-  apiName: string;
+  // apiName: string;
   fromUserId: string;
 };
 export type GetMessageSuccessResType = ChatMessageType[];
@@ -441,11 +646,11 @@ export const getMessage = asyncWrapper(
       }
 
       const params = req.body;
-      const { apiName, fromUserId } = params;
+      const { fromUserId } = params;
 
       if (
-        isNil(apiName) ||
-        isEmpty(apiName) ||
+        // isNil(apiName) ||
+        // isEmpty(apiName) ||
         isNil(fromUserId) ||
         isEmpty(fromUserId)
       ) {
@@ -462,8 +667,13 @@ export const getMessage = asyncWrapper(
         });
       }
 
-      const myMessageFromSpecificUser = [...messageBox[userId][fromUserId]];
-      messageBox[userId][fromUserId] = [];
+      // const myMessageFromSpecificUser = [...messageBox[userId][fromUserId]];
+      // messageBox[userId][fromUserId] = [];
+      const myMessageFromSpecificUser = takeOutMessage({
+        from: fromUserId,
+        userId,
+      });
+
       await (async () => {})();
       res.json({
         ...ibDefs.SUCCESS,
@@ -613,4 +823,5 @@ notiRouter.post(
 );
 notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
+notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
 export default notiRouter;
