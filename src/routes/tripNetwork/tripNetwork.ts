@@ -4492,6 +4492,11 @@ const modifyTripMemory = async (
           tripMemory: true,
         },
       },
+      ShareTripMemory: {
+        select: {
+          id: true,
+        },
+      },
       photos: true,
     },
   });
@@ -4738,24 +4743,26 @@ const modifyTripMemory = async (
             }),
           },
         }),
-        ShareTripMemory: {
-          update: {
-            title,
-            ...(photosWithOrder && {
-              img: photosWithOrder[0].key,
-            }),
-            ...(!isEmpty(newCreatedPhotoMetaInfo) && {
-              photos: {
-                connect: newCreatedPhotoMetaInfo.map(v => {
-                  return {
-                    id: v.photoId,
-                  };
-                }),
-              },
-            }),
-            comment,
+        ...(!isNil(tripMemory.ShareTripMemory) && {
+          ShareTripMemory: {
+            update: {
+              title,
+              ...(photosWithOrder && {
+                img: photosWithOrder[0].key,
+              }),
+              ...(!isEmpty(newCreatedPhotoMetaInfo) && {
+                photos: {
+                  connect: newCreatedPhotoMetaInfo.map(v => {
+                    return {
+                      id: v.photoId,
+                    };
+                  }),
+                },
+              }),
+              comment,
+            },
           },
-        },
+        }),
       },
       include: {
         tag: true,
