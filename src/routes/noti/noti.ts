@@ -99,6 +99,12 @@ const takeOutMessage = (params: {
   userId: string; /// userId 기준
 }) => {
   const { from, userId } = params;
+  if (
+    isNil(messageBox[userId]) ||
+    isNil(messageBox[userId][from]) ||
+    isEmpty(messageBox[userId][from])
+  )
+    return [];
   const myMessageFromSpecificUser = [...messageBox[userId][from]];
   messageBox[userId][from] = [];
   return myMessageFromSpecificUser;
@@ -503,7 +509,7 @@ export const sendMessage = asyncWrapper(
         // return locals?.tokenId;
         throw new IBError({
           type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
+          message: 'member 등급it만 접근 가능합니다.',
         });
       })();
       if (isNil(userId)) {

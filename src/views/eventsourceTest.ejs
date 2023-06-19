@@ -38,13 +38,26 @@
         <span id="cpGetMessageResult"></span> <br />
       </div>
 
-      <textarea name="cpChatBox" id="cpChatBox" cols="50" rows="20"></textarea>
-      <textarea name="cpChatLine" id="cpChatLine" cols="50" rows="3"></textarea>
+      <textarea
+        name="cpChatBox"
+        id="cpChatBox"
+        cols="50"
+        rows="20"
+        placeholder="사업자 채팅방"
+      ></textarea>
+      <textarea
+        name="cpChatLine"
+        id="cpChatLine"
+        cols="50"
+        rows="3"
+        placeholder="사업자 채팅입력창"
+      ></textarea>
       <textarea
         name="companySSEEvents"
         id="companySSEEvents"
         cols="70"
         rows="20"
+        placeholder="서버에서 오는 사업자 sse event msg"
       ></textarea>
     </div>
 
@@ -82,13 +95,26 @@
         <span id="csGetMessageResult"></span> <br />
       </div>
 
-      <textarea name="csChatBox" id="csChatBox" cols="60" rows="20"></textarea>
-      <textarea name="csChatLine" id="csChatLine" cols="50" rows="3"></textarea>
+      <textarea
+        name="csChatBox"
+        id="csChatBox"
+        cols="60"
+        rows="20"
+        placeholder="고객 채팅방"
+      ></textarea>
+      <textarea
+        name="csChatLine"
+        id="csChatLine"
+        cols="50"
+        rows="3"
+        placeholder="고객 채팅입력창"
+      ></textarea>
       <textarea
         name="customerSSEEvents"
         id="customerSSEEvents"
         cols="70"
         rows="20"
+        placeholder="서버에서 오는 고객 sse event msg"
       ></textarea>
     </div>
 
@@ -106,6 +132,7 @@
             return 'https://api.idealbloom.co.kr';
           return 'http://localhost:3000';
         })();
+
         async function initAndConnect() {
           //브라우저가 SSE지원하는지 체크
           if (typeof EventSource == 'undefined') {
@@ -283,6 +310,7 @@
         cpChatLine.on('keypress', async e => {
           try {
             if (e.key === 'Enter') {
+              console.log('enter');
               contextSwitch('company');
               const message = cpChatLine.val();
               const callParams = {
@@ -297,11 +325,14 @@
                 ],
               };
               const result = await callSendMessage(callParams);
+              console.log(result);
               if (result.IBcode === '1000') {
                 cpChatLine.val('');
 
                 const prevChatBoxVal = cpChatBoxTextarea.val();
-                cpChatBoxTextarea.val(`${prevChatBoxVal}${message}\n`);
+                cpChatBoxTextarea.val(
+                  `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+                );
               }
             }
           } catch (err) {
@@ -312,6 +343,7 @@
         csChatLine.on('keypress', async e => {
           try {
             if (e.key === 'Enter') {
+              console.log('enter');
               contextSwitch('customer');
               const message = csChatLine.val();
               const callParams = {
@@ -326,11 +358,14 @@
                 ],
               };
               const result = await callSendMessage(callParams);
+              console.log(result);
               if (result.IBcode === '1000') {
                 csChatLine.val('');
 
                 const prevChatBoxVal = csChatBoxTextarea.val();
-                csChatBoxTextarea.val(`${prevChatBoxVal}${message}\n`);
+                csChatBoxTextarea.val(
+                  `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+                );
               }
             }
           } catch (err) {
@@ -353,12 +388,15 @@
           };
           const getMessageResult = await callGetMessage(callParams);
           console.log(getMessageResult);
-          $('#csGetMessageCallParam').text(JSON.stringify(callParams));
-          const prevChat = csChatBoxTextarea.val();
-          const messages = getMessageResult.IBparams.map(v => {
-            return `${v.message}\n`;
-          });
-          csChatBoxTextarea.val(`${prevChat}${messages.toString()}\n`);
+          if (getMessageResult.IBcode === '1000') {
+            $('#csGetMessageCallParam').text(JSON.stringify(callParams));
+            const prevChat = csChatBoxTextarea.val();
+            const messages = getMessageResult.IBparams.reduce((acc, v) => {
+              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+            }, '');
+
+            csChatBoxTextarea.val(`${prevChat}${messages}`);
+          }
         });
 
         $('#companyConnectBtn').on('click', async () => {
@@ -376,12 +414,15 @@
           };
           const getMessageResult = await callGetMessage(callParams);
           console.log(getMessageResult);
-          $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
-          const prevChat = cpChatBoxTextarea.val();
-          const messages = getMessageResult.IBparams.map(v => {
-            return `${v.message}\n`;
-          });
-          cpChatBoxTextarea.val(`${prevChat}${messages.toString()}\n`);
+          if (getMessageResult.IBcode === '1000') {
+            $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
+            const prevChat = cpChatBoxTextarea.val();
+            const messages = getMessageResult.IBparams.reduce((acc, v) => {
+              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+            }, '');
+
+            cpChatBoxTextarea.val(`${prevChat}${messages}`);
+          }
         });
 
         $('#sendToUserFromCompany').on('keypress', () => {
@@ -419,14 +460,26 @@
           contextSwitch('company');
           const chatBoxSnapShot = $('#cpChatBox').val();
 
-          const chatArr = chatBoxSnapShot.split('\n\n').map((v, i) => {
-            const date = new Date(v.match(/\[\d+\]/));
-            return {
-              msg: v,
-              date: date,
-              order: i,
-            };
-          });
+          const chatArr = chatBoxSnapShot
+            .split('\n\n')
+            .map((v, i) => {
+              if (_.isEmpty(v)) return null;
+              const matchedWord = v.match(/\[\d+-\d+-\d+T\d+:\d+:\d+\.\d+Z\]/);
+
+              if (!matchedWord) return null;
+
+              console.log(matchedWord);
+              const date = matchedWord[0].substring(
+                1,
+                matchedWord[0].length - 2,
+              );
+              return {
+                msg: v,
+                date: date,
+                order: i,
+              };
+            })
+            .filter(v => v);
 
           const callParams = {
             chatLog: chatArr,
@@ -445,16 +498,17 @@
           const chatArr = chatBoxSnapShot
             .split('\n\n')
             .map((v, i) => {
-              const matchedWord = v.match(/\[\d+\]/);
+              if (_.isEmpty(v)) return null;
+              const matchedWord = v.match(/\[\d+-\d+-\d+T\d+:\d+:\d+\.\d+Z\]/);
 
               if (!matchedWord) return null;
 
               console.log(matchedWord);
-              const timestamp = matchedWord[0].substring(
+              const date = matchedWord[0].substring(
                 1,
                 matchedWord[0].length - 2,
               );
-              const date = new Date(Number(timestamp)).toISOString();
+
               return {
                 msg: v.substr(matchedWord[0].length + 2),
                 date: date,
