@@ -11,6 +11,7 @@ import {
 import redis from '@src/redis';
 import moment from 'moment';
 import { isNil, isNaN, isEmpty } from 'lodash';
+// import 'moment/locale/ko';
 
 const notiRouter: express.Application = express();
 
@@ -30,14 +31,29 @@ type ChatMessageActionType =
   | 'FINALBOOKINGCHECK'
   | 'TEXT';
 
+// type ChatMessageType = {
+//   uuid: string;
+//   createdAt: string;
+//   order: number;
+//   message: string;
+//   actionType: ChatMessageActionType;
+//   from: string;
+//   to: string;
+// };
 type ChatMessageType = {
-  uuid: string;
   createdAt: string;
-  order: number;
+  order: string;
   message: string;
-  actionType: ChatMessageActionType;
-  from: string;
-  to: string;
+  type: ChatMessageActionType;
+  actionInputParams?: {
+    // askBookingAvailable
+    date?: string;
+    numOfPeople?: string;
+
+    /// ansBookingAvailable
+    answer?: 'APPROVE' | 'REJECT';
+    rejectReason?: BookingRejectReasonType;
+  };
 };
 
 /// redis로 동일 로직 구현함
@@ -54,12 +70,13 @@ type ChatMessageType = {
 const putInMessage = async (params: {
   from: string; /// userId 기준
   to: string; /// userId
-  data: {
-    createdAt: string;
-    order: string;
-    message: string;
-    type: ChatMessageActionType;
-  }[];
+  data: ChatMessageType;
+  // data: {
+  //   createdAt: string;
+  //   order: string;
+  //   message: string;
+  //   type: ChatMessageActionType;
+  // };
 }) => {
   const {
     to, /// toUserId
@@ -97,28 +114,25 @@ const putInMessage = async (params: {
 
   await redis.sAdd(from, to);
 
-  await Promise.all(
-    data.map(v => {
-      return redis.rPush(
-        `${from}=>${to}`,
-        JSON.stringify({
-          uuid: uuidv4(),
-          createdAt: v.createdAt,
-          order: Number(v.order),
-          message: v.message,
-          actionType: v.type,
-          from,
-          to,
-        }),
-      );
-    }),
+  await redis.rPush(
+    `${from}=>${to}`,
+    JSON.stringify({ uuid: uuidv4(), ...data }),
+    // JSON.stringify({
+    //   uuid: uuidv4(),
+    //   createdAt: data.createdAt,
+    //   order: Number(data.order),
+    //   message: data.message,
+    //   actionType: data.type,
+    //   from,
+    //   to,
+    // }),
   );
 };
 
 const takeOutMessage = async (params: {
   from: string; /// userId 기준
   userId: string; /// userId 기준
-}) => {
+}): Promise<ChatMessageType[]> => {
   const { from, userId } = params;
   // if (
   //   isNil(messageBox[userId]) ||
@@ -137,7 +151,10 @@ const takeOutMessage = async (params: {
       `${from}=>${userId}`,
       len,
     ); /// get all messages and delete all
-    return isNil(myMessageFromUserId) ? [] : myMessageFromUserId;
+
+    return isNil(myMessageFromUserId)
+      ? []
+      : myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
   }
 
   return [];
@@ -506,22 +523,17 @@ export const storeChatLog = asyncWrapper(
   },
 );
 
-export type SendMessageDataParamType = {
-  createdAt: string;
-  order: string;
-  message: string;
-  type: ChatMessageActionType;
-  actionInputParams?: {
-    // askBookingAvailable
-    date?: string;
-    numOfPeople?: string;
-  };
-};
+export type BookingRejectReasonType =
+  | 'CLOSEDTIME'
+  | 'INVALIDTIME'
+  | 'FULLBOOKINGATDATE'
+  | 'FULLBOOKINGONTIME'
+  | 'INVALIDNUMOFPERSON';
 
 const pubSSEvent = (params: {
   from: string;
   to: string;
-  data: SendMessageDataParamType[];
+  data: ChatMessageType[];
 }) => {
   const { from, to, data } = params;
   sseClients[to]!.write(`id: 00\n`);
@@ -533,7 +545,7 @@ const pubSSEvent = (params: {
 
 export type SendMessageRequestType = {
   toUserId: string;
-  data: SendMessageDataParamType[];
+  data: ChatMessageType[];
 };
 export type SendMessageSuccessResType = ChatMessageType[];
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
@@ -625,14 +637,15 @@ export const sendMessage = asyncWrapper(
           const { type, actionInputParams } = d;
 
           switch (type) {
+            case 'TEXT':
+              break;
             case 'ASKBOOKINGAVAILABLE':
               /// 양측 메시지 박스에 모두 넣기
               await (() => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
-                    message:
-                      'type이 ASKBOOKINGAVAILABLE 이면 actionInputParams는 필수입니다.',
+                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
                   });
                 }
 
@@ -641,8 +654,7 @@ export const sendMessage = asyncWrapper(
                 if (isNil(date) || isEmpty(date) || !moment(date).isValid()) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
-                    message:
-                      'type이 ASKBOOKINGAVAILABLE 이면 유효한 date string(ISO string)은 필수입니다.',
+                    message: `type이 ${type} 이면 유효한 date string(ISO string)은 필수입니다.`,
                   });
                 }
 
@@ -653,20 +665,64 @@ export const sendMessage = asyncWrapper(
                 ) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
-                    message:
-                      'type이 ASKBOOKINGAVAILABLE 이면 numOfPeople은 필수입니다.',
+                    message: `type이 ${type} 이면 numOfPeople은 필수입니다.`,
+                  });
+                }
+
+                // const mTargetDate = moment(date);
+                // const targetMonth = mTargetDate.month() + 1;
+                // const targetDay = mTargetDate.date();
+                // const targetWeekday = mTargetDate.format('dddd');
+                // const targetHour = mTargetDate.format('H');
+
+                return putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data: d,
+                  // data: {
+                  //   ...d,
+                  //   message: `${
+                  //     locals.user!.nickName
+                  //   }님이\n${targetMonth}/${targetDay} ${targetWeekday} ${targetHour}시 ${numOfPeople}명\n예약 가능여부를 문의했어요!`,
+                  // },
+                });
+              })();
+
+              break;
+            case 'ANSBOOKINGAVAILABLE':
+              await (() => {
+                if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                  });
+                }
+
+                const { answer, rejectReason } = actionInputParams;
+
+                if (isNil(answer) || isEmpty(answer)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 유효한 actionInputParams의 answer 파라미터는 필수입니다.`,
+                  });
+                }
+
+                if (
+                  answer === 'REJECT' &&
+                  (isNil(rejectReason) || isEmpty(rejectReason))
+                ) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 actionInputParams의 rejectReason은 필수입니다.`,
                   });
                 }
 
                 return putInMessage({
                   from: userId,
                   to: toUserId,
-                  data,
+                  data: d,
                 });
               })();
-
-              break;
-            case 'TEXT':
               break;
             default:
               throw new IBError({
@@ -779,7 +835,10 @@ export const getMessage = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: myMessageFromSpecificUser,
+        IBparams: {
+          fromUserId,
+          data: myMessageFromSpecificUser,
+        },
       });
       return;
     } catch (err) {

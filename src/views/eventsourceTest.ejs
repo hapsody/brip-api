@@ -17,6 +17,11 @@
         <button id="companyConnectBtn">sse connect</button>
         <button id="cpStoreChatLog">store chat</button>
         <span id="cpCallStoreChatLogCallParams"></span> <br />
+        <span>Set Params => </span>
+        <button id="setParamsToAnsBookingAvailable">
+          [ansBookingAvailable]
+        </button>
+        <br />
         <br />
 
         <input
@@ -392,10 +397,8 @@
             $('#csGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = csChatBoxTextarea.val();
 
-            const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              const obj = JSON.parse(v);
-
-              return `${acc}[${obj.createdAt}]:${obj.message}\n\n`;
+            const messages = getMessageResult.IBparams.data.reduce((acc, v) => {
+              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
             }, '');
 
             csChatBoxTextarea.val(`${prevChat}${messages}`);
@@ -420,9 +423,9 @@
           if (getMessageResult.IBcode === '1000') {
             $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = cpChatBoxTextarea.val();
-            const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              const obj = JSON.parse(v);
-              return `${acc}[${obj.createdAt}]:${obj.message}\n\n`;
+
+            const messages = getMessageResult.IBparams.data.reduce((acc, v) => {
+              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
             }, '');
 
             cpChatBoxTextarea.val(`${prevChat}${messages}`);
@@ -535,9 +538,7 @@
         $('#setParamsToAskBookingAvailable').on('click', async () => {
           contextSwitch('customer');
 
-          const message = `유쾌한인어님이
-7/2 목 14시 2명
-예약 가능여부를 문의했어요!`;
+          const message = `유쾌한인어님이\n7/3 월 14시 2명\n예약 가능여부를 문의했어요!`;
           csChatLine.val('');
 
           const callParams = {
@@ -549,7 +550,7 @@
                 message,
                 type: 'ASKBOOKINGAVAILABLE',
                 actionInputParams: {
-                  date: '2023-07-02T23:30:00.000Z',
+                  date: '2023-07-03T05:00:00.000Z',
                   numOfPeople: '2',
                 },
               },
@@ -563,6 +564,41 @@
 
             const prevChatBoxVal = csChatBoxTextarea.val();
             csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+          }
+        });
+
+        $('#setParamsToAnsBookingAvailable').on('click', async () => {
+          contextSwitch('company');
+
+          const message = `예약이 불가능해요.
+같은 날짜에 예약이 꽉찼어요.`;
+          cpChatLine.val('');
+
+          const callParams = {
+            toUserId: customerUserId,
+            data: [
+              {
+                createdAt: moment().toISOString(),
+                order: csChatBoxOrder.toString(),
+                message,
+                type: 'ANSBOOKINGAVAILABLE',
+                actionInputParams: {
+                  answer: 'REJECT',
+                  rejectReason: 'FULLBOOKINGATDATE',
+                },
+              },
+            ],
+          };
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            csChatLine.val('');
+
+            const prevChatBoxVal = cpChatBoxTextarea.val();
+            cpChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
           }
