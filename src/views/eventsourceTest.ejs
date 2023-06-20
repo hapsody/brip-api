@@ -91,8 +91,6 @@
           placeholder="from customer send to.. <userId>"
           value="3"
         />
-        <!-- <button id="csCallSendMessageBtn">sendMessage</button>
-        <span id="csSendMessageCallParam"></span> -->
         <br />
         <input
           id="csApiNameForGetMessage"
@@ -130,6 +128,8 @@
     <script>
       var csChatBoxOrder = 0,
         cpChatBoxOrder = 0;
+      csStartCursor = '0';
+      cpStartCursor = '0';
       const context = params => {
         let es;
         const { userType, userId, accessToken } = params;
@@ -160,12 +160,13 @@
           es.onopen = async event => {
             // when connection success
             console.log('ready');
+            console.log('\n');
             // console.log(event);
 
             es.onmessage = stream => {
               // when message is received
               const parsedData = JSON.parse(stream.data);
-              console.log(parsedData);
+              // console.log(parsedData);
             };
 
             // specific event name test
@@ -188,26 +189,32 @@
             console.error('error', error);
           };
         }
+
         return initAndConnect;
       };
 
       function contextSwitch(type) {
         if (type === 'customer') {
+          console.log(
+            `[contextSwitch] CS_cursor: ${csStartCursor}, order:${csChatBoxOrder}`,
+          );
           accessToken = 'Bearer <%=process.env.testUserAccessToken1%>';
           userType = 'customer';
           customerUserId = '1';
-          csChatBoxOrder += 1;
+          // csChatBoxOrder += 1;
           return context({
             userType,
             userId: customerUserId,
             accessToken,
           });
         }
+        console.log(
+          `[contextSwitch] CP_cursor: ${csStartCursor}, order:${csChatBoxOrder}`,
+        );
         accessToken = `Bearer <%=process.env.testUserAccessToken2%>`;
         userType = 'company';
         companyUserId = '3';
-        cpChatBoxOrder += 1;
-        console.log(`cpChatBoxOrder:${cpChatBoxOrder}`);
+        // cpChatBoxOrder += 1;
         return context({
           userType,
           userId: companyUserId,
@@ -241,13 +248,14 @@
       // }
 
       async function callSendMessage(params) {
-        const { toUserId } = params;
-        console.log(`call sendMessage to userId ${toUserId}...`);
+        const { to } = params;
+        console.log(`[callSendMessage] userId ${to}...`);
 
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
 
+        console.log(`[callSendMessage] params:`, params);
         const sendMessageResponse = await fetch(
           `${server_url}/noti/sendMessage`,
           {
@@ -259,16 +267,12 @@
         );
         $('#csSendMessageCallParam').text(JSON.stringify(params));
         const data = await sendMessageResponse.json();
+        console.log('\n');
         return data;
       }
 
       async function callGetMessage(params) {
-        const { apiName, fromUserId } = params;
-        console.log(
-          `call answerBookingAvailable to userId ${$(
-            'input#sendToUserFromCompany',
-          ).val()}...`,
-        );
+        const { startCursor, from } = params;
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
@@ -280,8 +284,8 @@
             headers: myHeaders,
             redirect: 'follow',
             body: JSON.stringify({
-              apiName: 'askBookingAvailable',
-              fromUserId,
+              from,
+              startCursor,
             }),
           },
         );
@@ -290,7 +294,7 @@
       }
 
       async function callStoreChatLog(params) {
-        console.log(`call storeChatLog...`);
+        // console.log(`call storeChatLog...`);
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
@@ -309,7 +313,7 @@
       }
 
       async function callReqBookingChat(params) {
-        console.log(`call reqBookingChat...`);
+        // console.log(`call reqBookingChat...`);
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
@@ -338,20 +342,18 @@
         cpChatLine.on('keypress', async e => {
           try {
             if (e.key === 'Enter') {
-              console.log('enter');
               contextSwitch('company');
               const message = cpChatLine.val();
-              const callParams = {
-                toUserId: customerUserId,
-                data: [
-                  {
-                    createdAt: moment().toISOString(),
-                    order: cpChatBoxOrder.toString(),
-                    message,
-                    type: 'TEXT',
-                  },
-                ],
-              };
+              const callParams = [
+                {
+                  to: customerUserId,
+                  from: companyUserId,
+                  createdAt: moment().toISOString(),
+                  order: cpChatBoxOrder.toString(),
+                  message,
+                  type: 'TEXT',
+                },
+              ];
               const result = await callSendMessage(callParams);
               console.log(result);
               if (result.IBcode === '1000') {
@@ -361,6 +363,8 @@
                 cpChatBoxTextarea.val(
                   `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
                 );
+                cpStartCursor = `${Number(cpStartCursor) + 1}`;
+                cpChatBoxOrder += 1;
               }
             }
           } catch (err) {
@@ -374,17 +378,17 @@
               console.log('enter');
               contextSwitch('customer');
               const message = csChatLine.val();
-              const callParams = {
-                toUserId: companyUserId,
-                data: [
-                  {
-                    createdAt: moment().toISOString(),
-                    order: csChatBoxOrder.toString(),
-                    message,
-                    type: 'TEXT',
-                  },
-                ],
-              };
+              const callParams = [
+                {
+                  to: customerUserId,
+                  from: companyUserId,
+                  createdAt: moment().toISOString(),
+                  order: csChatBoxOrder.toString(),
+                  message,
+                  type: 'TEXT',
+                },
+              ];
+
               const result = await callSendMessage(callParams);
               console.log(result);
               if (result.IBcode === '1000') {
@@ -394,37 +398,12 @@
                 csChatBoxTextarea.val(
                   `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
                 );
+                csStartCursor = `${Number(csStartCursor) + 1}`;
+                csChatBoxOrder += 1;
               }
             }
           } catch (err) {
             console.error(err);
-          }
-        });
-
-        $('#customerConnectBtn').on('click', async () => {
-          console.log('customer');
-          contextSwitch('customer');
-          const initAndConnect = contextSwitch('customer');
-          await initAndConnect();
-        });
-
-        $('#csGetMessageBtn').on('click', async () => {
-          contextSwitch('customer');
-          const callParams = {
-            apiName: $('input#csApiNameForGetMessage').val(),
-            fromUserId: companyUserId,
-          };
-          const getMessageResult = await callGetMessage(callParams);
-          console.log(getMessageResult);
-          if (getMessageResult.IBcode === '1000') {
-            $('#csGetMessageCallParam').text(JSON.stringify(callParams));
-            const prevChat = csChatBoxTextarea.val();
-
-            const messages = getMessageResult.IBparams.data.reduce((acc, v) => {
-              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
-            }, '');
-
-            csChatBoxTextarea.val(`${prevChat}${messages}`);
           }
         });
 
@@ -434,25 +413,79 @@
 
           await initAndConnect();
         });
+        $('#customerConnectBtn').on('click', async () => {
+          console.log('customer');
+          contextSwitch('customer');
+          const initAndConnect = contextSwitch('customer');
+          await initAndConnect();
+        });
+
+        $('#csGetMessageBtn').on('click', async () => {
+          contextSwitch('customer');
+          // console.log(`csStartCursor:${csStartCursor}`);
+          const callParams = {
+            from: companyUserId,
+            startCursor: csStartCursor,
+          };
+          console.log(`getMessage callParams:`, callParams);
+          const getMessageResult = await callGetMessage(callParams);
+          if (getMessageResult.IBcode === '1000') {
+            $('#csGetMessageCallParam').text(JSON.stringify(callParams));
+            const prevChat = csChatBoxTextarea.val();
+
+            const messages = getMessageResult.IBparams.reduce((acc, v) => {
+              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+            }, '');
+
+            csChatBoxTextarea.val(`${prevChat}${messages}`);
+            csStartCursor = `${
+              Number(csStartCursor) + getMessageResult.IBparams.length
+            }`;
+            const lastMsg = getMessageResult.IBparams.pop();
+            console.log(`[csGetMessageBtn] lastMsg:`, lastMsg);
+            if (!_.isNil(lastMsg) && !_.isNaN(Number(lastMsg.order))) {
+              csChatBoxOrder = Number(lastMsg.order) + 1;
+            }
+          }
+          console.log(
+            `[after getMessage call] CS_cursor:${csStartCursor}, order:${csChatBoxOrder}`,
+          );
+          console.log('\n');
+        });
 
         $('#cpGetMessageBtn').on('click', async () => {
           contextSwitch('company');
+          // console.log(`cpStartCursor:${cpStartCursor}`);
           const callParams = {
-            apiName: $('input#cpApiNameForGetMessage').val(),
-            fromUserId: customerUserId,
+            from: customerUserId,
+            startCursor: cpStartCursor,
           };
+          console.log(`getMessage callParams: `, callParams);
           const getMessageResult = await callGetMessage(callParams);
-          console.log(getMessageResult);
           if (getMessageResult.IBcode === '1000') {
             $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = cpChatBoxTextarea.val();
 
-            const messages = getMessageResult.IBparams.data.reduce((acc, v) => {
+            const messages = getMessageResult.IBparams.reduce((acc, v) => {
               return `${acc}[${v.createdAt}]:${v.message}\n\n`;
             }, '');
 
             cpChatBoxTextarea.val(`${prevChat}${messages}`);
+            cpStartCursor = `${
+              Number(cpStartCursor) + getMessageResult.IBparams.length
+            }`;
+
+            const lastMsg = getMessageResult.IBparams.pop();
+            console.log(`[cpGetMessageBtn] lastMsg:`, lastMsg);
+
+            if (!_.isNil(lastMsg) && !_.isNaN(Number(lastMsg.order))) {
+              cpChatBoxOrder = Number(lastMsg.order) + 1;
+            }
           }
+          console.log(
+            `[after getMessage call] CP_cursor:${cpStartCursor}, order:${cpChatBoxOrder}`,
+          );
+          console.log('\n');
         });
 
         $('#sendToUserFromCompany').on('keypress', () => {
@@ -463,27 +496,6 @@
         $('#sendToUserFromCustomer').on('keypress', () => {
           sendToUserFromCustomer = $('#sendToUserFromCustomer').val();
           console.log(sendToUserFromCustomer);
-        });
-
-        $('#csCallSendMessageBtn').on('click', async () => {
-          contextSwitch('customer');
-          console.log(moment().toISOString());
-          const callParams = {
-            toUserId: companyUserId,
-            data: {
-              createdAt: moment().toISOString(),
-              order: csChatBoxOrder.toString(),
-              message: 'message',
-            },
-          };
-          const result = await callAskBookingAvailable(callParams);
-          const prevChatBox = $('#csChatBox').val();
-          $('#csChatBox').val(
-            `${prevChatBox}[${new Date().getTime()}]: 김다다님이 ${
-              callParams.date
-            },${callParams.numOfPeople}명\n예약 가능 여부를 문의했어요!
-            \n\n`,
-          );
         });
 
         $('#cpStoreChatLog').on('click', async () => {
@@ -519,6 +531,7 @@
 
           console.log(JSON.stringify(storeChatLogResult));
           $('#cpCallStoreChatLogCallParams').text(JSON.stringify(callParams));
+          console.log('\n');
         });
 
         $('#csStoreChatLog').on('click', async () => {
@@ -564,24 +577,22 @@
           const message = `유쾌한인어님이\n7/3 월 14시 2명\n예약 가능여부를 문의했어요!`;
           csChatLine.val('');
 
-          const callParams = {
-            toUserId: companyUserId,
-            data: [
-              {
-                createdAt: moment().toISOString(),
-                order: cpChatBoxOrder.toString(),
-                message,
-                type: 'ASKBOOKINGAVAILABLE',
-                actionInputParams: {
-                  date: '2023-07-03T05:00:00.000Z',
-                  numOfPeople: '2',
-                },
+          const callParams = [
+            {
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'ASKBOOKINGAVAILABLE',
+              actionInputParams: {
+                date: '2023-07-03T05:00:00.000Z',
+                numOfPeople: '2',
               },
-            ],
-          };
-
+            },
+          ];
           const result = await callSendMessage(callParams);
-          console.log(result);
+          console.log(`askBookingAvailable sendMessage Call res`, result);
           if (result.IBcode === '1000') {
             csChatLine.val('');
 
@@ -589,6 +600,8 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
+            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csChatBoxOrder += 1;
           }
         });
 
@@ -596,27 +609,25 @@
           contextSwitch('company');
 
           const message = `예약이 불가능해요.
-같은 날짜에 예약이 꽉찼어요.`;
+      같은 날짜에 예약이 꽉찼어요.`;
           cpChatLine.val('');
 
-          const callParams = {
-            toUserId: customerUserId,
-            data: [
-              {
-                createdAt: moment().toISOString(),
-                order: csChatBoxOrder.toString(),
-                message,
-                type: 'ANSBOOKINGAVAILABLE',
-                actionInputParams: {
-                  answer: 'REJECT',
-                  rejectReason: 'FULLBOOKINGATDATE',
-                },
+          const callParams = [
+            {
+              from: companyUserId,
+              to: customerUserId,
+              createdAt: moment().toISOString(),
+              order: cpChatBoxOrder.toString(),
+              message,
+              type: 'ANSBOOKINGAVAILABLE',
+              actionInputParams: {
+                answer: 'REJECT',
+                rejectReason: 'FULLBOOKINGATDATE',
               },
-            ],
-          };
-
+            },
+          ];
           const result = await callSendMessage(callParams);
-          console.log(result);
+          console.log(`ansBookingAvailable sendMessage call res: `, result);
           if (result.IBcode === '1000') {
             csChatLine.val('');
 
@@ -624,6 +635,8 @@
             cpChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
+            cpStartCursor = `${Number(cpStartCursor) + 1}`;
+            cpChatBoxOrder += 1;
           }
         });
         $('#setParamsToReqBookingChat').on('click', async () => {
@@ -634,10 +647,12 @@
 
           const callParams = {
             toUserId: companyUserId,
+            order: `${csChatBoxOrder}`,
           };
 
           const result = await callReqBookingChat(callParams);
-          console.log(result);
+          console.log(`reqBookingChat call res: `, result);
+          console.log('\n');
         });
 
         $('#setParamsToConfirmBooking').on('click', async () => {
@@ -646,20 +661,19 @@
           const message = `네, 확정할게요`;
           cpChatLine.val('');
 
-          const callParams = {
-            toUserId: companyUserId,
-            data: [
-              {
-                createdAt: moment().toISOString(),
-                order: csChatBoxOrder.toString(),
-                message,
-                type: 'CONFIRMBOOKING',
-                actionInputParams: {
-                  confirmAnswer: 'CONFIRM', /// or CANCEL
-                },
+          const callParams = [
+            {
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'CONFIRMBOOKING',
+              actionInputParams: {
+                confirmAnswer: 'CONFIRM', /// or CANCEL
               },
-            ],
-          };
+            },
+          ];
 
           const result = await callSendMessage(callParams);
           console.log(result);
@@ -670,6 +684,8 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
+            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csChatBoxOrder += 1;
           }
         });
 
@@ -679,23 +695,22 @@
           const message = `동의`;
           cpChatLine.val('');
 
-          const callParams = {
-            toUserId: companyUserId,
-            data: [
-              {
-                createdAt: moment().toISOString(),
-                order: csChatBoxOrder.toString(),
-                message,
-                type: 'PRIVACYAGREE',
-                actionInputParams: {
-                  agreeAnswer: 'TRUE', /// or CANCEL
-                },
+          const callParams = [
+            {
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'PRIVACYAGREE',
+              actionInputParams: {
+                agreeAnswer: 'TRUE', /// or CANCEL
               },
-            ],
-          };
+            },
+          ];
 
           const result = await callSendMessage(callParams);
-          console.log(result);
+          console.log(`[privacyAgree] call sendMessage res:`,result);
           if (result.IBcode === '1000') {
             cpChatLine.val('');
 
@@ -703,7 +718,10 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
+            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csChatBoxOrder += 1;
           }
+          console.log('\n');
         });
       });
     </script>

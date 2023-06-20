@@ -41,8 +41,10 @@ type ChatMessageActionType =
 //   to: string;
 // };
 type ChatMessageType = {
+  from: string; /// 보내는 UserId
+  to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각
-  order: string; /// 메시지 순번
+  order: string; /// 채팅방에서의 메시지 순번
   message: string; /// 메시지 본문
   type: ChatMessageActionType; /// 메시지 타입
   actionInputParams?: {
@@ -72,80 +74,162 @@ type ChatMessageType = {
  * 메시지 송신시에 보내고자 하는 상대(to)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from으로부터의 메시지 큐에
  * 보내고자 하는 메시지 data를 등록해두는 함수
  */
-const putInMessage = async (params: {
-  from: string; /// userId 기준
-  to: string; /// userId
-  data: ChatMessageType;
-}) => {
-  const {
-    to, /// toUserId
-    from, /// fromUserId
-    data,
-  } = params;
+const putInMessage = async (params: ChatMessageType) => {
+  const data = params;
+  const { from, to } = data;
 
-  /**
-   * 레디스 Set 데이터타입에 키를 메시지 수신처(to), Sets의 value 집합은 송신자 (from)을 기록해둔다.
-   * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
-   * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
-   * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
-   * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
-   * 수신자가 열린 채팅방을 모두 조회하고 싶을 경우에는 Lists만으로는 키값을 알수 없어서 조회가 불가능하다.
-   * 이럴경우 Sets를 사용하여 저장된 송수신자와의 관계를 먼저 파악하고 후에 Lists 키값을 추측하여 조회할수 있다.
-   */
-  await redis.sAdd(to, from);
-  const len = await redis.lLen(`${from}=>${to}`);
-  if (len === 0) {
-    await redis.rPush(`${from}=>${to}`, [
-      '1', /// list 좌측 맨 첫번째는 (0번째 자리) 메시지를 수신할때 다음에 읽어가야할 커서인 인덱스 번호를 써준다.
-      JSON.stringify({ uuid: uuidv4(), ...data }),
-    ]);
-    return;
-  }
+  const { key } = await (async () => {
+    const candKey1 = `${from}<=>${to}`;
+    const candKey2 = `${to}<=>${from}`;
 
-  await redis.rPush(
-    `${from}=>${to}`,
-    JSON.stringify({ uuid: uuidv4(), ...data }),
-  );
+    const result = await redis.lLen(candKey1);
+    if (result > 0) return { key: candKey1, len: result };
+
+    // result = await redis.lLen(candKey1);
+    return { key: candKey2, len: result };
+  })();
+
+  await redis.rPush(key, [JSON.stringify({ uuid: uuidv4(), ...data })]);
+  return data.order;
+
+  // /**
+  //  * 레디스 Set 데이터타입에 키를 메시지 수신처(to), Sets의 value 집합은 송신자 (from)을 기록해둔다.
+  //  * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
+  //  * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
+  //  * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
+  //  * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
+  //  * 수신자가 열린 채팅방을 모두 조회하고 싶을 경우에는 Lists만으로는 키값을 알수 없어서 조회가 불가능하다.
+  //  * 이럴경우 Sets를 사용하여 저장된 송수신자와의 관계를 먼저 파악하고 후에 Lists 키값을 추측하여 조회할수 있다.
+  //  */
+  // await redis.sAdd(to, from);
+  // const len = await redis.lLen(`${from}=>${to}`);
+  // if (len === 0) {
+  //   await redis.rPush(`${from}=>${to}`, [
+  //     '1', /// list 좌측 맨 첫번째는 (0번째 자리) 메시지를 수신할때 다음에 읽어가야할 커서인 인덱스 번호를 써준다. len이 0인상황(메시지 큐에 아무 값도 없는 상태)이므로 다음 읽어야 할 인덱스 값은 현재 집어넣는 데이터인 1이다.
+  //     JSON.stringify({ uuid: uuidv4(), ...data }),
+  //   ]);
+  //   return;
+  // }
+
+  // await redis.rPush(
+  //   `${from}=>${to}`,
+  //   JSON.stringify({ uuid: uuidv4(), ...data }),
+  // );
 };
 
 /**
- * 메시지 수신시에 수신하고자하는 대상(userId)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from 으로부터의 메시지 큐를 조회하여 쌓여있는 데이터를 모두 꺼내오는 함수
+ * 메시지 수신시에 수신하고자하는 대상(userId)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from 으로부터의 메시지 큐를 조회하여 쌓여있는 데이터를 모두 꺼내오는 함수, 꺼내고 바로 지우지는 않는다
  */
 const takeOutMessage = async (params: {
   from: string; /// userId 기준
   userId: string; /// userId 기준
-}): Promise<ChatMessageType[]> => {
-  const { from, userId } = params;
+  startCursor: string;
+}) => {
+  const { from, userId, startCursor } = params;
 
-  const existRelation = await redis.sIsMember(userId, from);
+  const key = await (async () => {
+    const candKey1 = `${from}<=>${userId}`;
+    const candKey2 = `${userId}<=>${from}`;
 
-  if (existRelation) {
-    const len = await redis.lLen(`${from}=>${userId}`);
-    const startCursor = Number(
-      (await redis.lRange(`${from}=>${userId}`, 0, 0))[0],
-    );
+    const len = await redis.lLen(candKey1);
+    if (len > 0) return candKey1;
 
-    if (len === startCursor) return []; /// 읽을 데이터가 없음
+    // result = await redis.lLen(candKey1);
+    return candKey2;
+  })();
 
-    const myMessageFromUserId = await redis.lRange(
-      `${from}=>${userId}`,
-      startCursor,
-      -1,
-    ); /// startCursor index부터 끝까지 조회
-    await redis.lSet(`${from}=>${userId}`, 0, len.toString()); /// 다음에 읽을 인덱스 재지정 (0번째 인덱스값이 cursor 표시값으로 쓰인다.)
+  const result = await redis.lRange(key, Number(startCursor), -1);
+  if (isNil(result)) return [];
+  return result.map(v => JSON.parse(v) as ChatMessageType);
 
-    return myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
-    // const myMessageFromUserId = await redis.lPopCount(
-    //   `${from}=>${userId}`,
-    //   len,
-    // ); /// get all messages and delete all
+  // const existRelation = await redis.sIsMember(userId, from);
 
-    // return isNil(myMessageFromUserId)
-    //   ? []
-    //   : myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
+  // if (existRelation) {
+  //   const len = await redis.lLen(`${from}=>${userId}`);
+  //   const startCursor = Number(
+  //     (await redis.lRange(`${from}=>${userId}`, 0, 0))[0],
+  //   );
+
+  //   if (len === startCursor) return []; /// 읽을 데이터가 없음
+
+  //   const myMessageFromUserId = await redis.lRange(
+  //     `${from}=>${userId}`,
+  //     startCursor,
+  //     -1,
+  //   ); /// startCursor index부터 끝까지 조회
+  //   await redis.lSet(`${from}=>${userId}`, 0, len.toString()); /// 다음에 읽을 인덱스 재지정 (0번째 인덱스값이 cursor 표시값으로 쓰인다.)
+
+  //   return myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
+
+  // }
+
+  // return [];
+};
+
+const syncToMainDB = async (params: { from: string; to: string }) => {
+  const { from, to } = params;
+
+  if (
+    isNil(from) ||
+    isEmpty(from) ||
+    isNaN(from) ||
+    isNil(to) ||
+    isEmpty(to) ||
+    isNaN(to)
+  ) {
+    return false;
   }
 
-  return [];
+  const { key, len } = await (async () => {
+    const candKey1 = `${from}<=>${to}`;
+    const candKey2 = `${to}<=>${from}`;
+
+    let result = await redis.lLen(candKey1);
+    if (result > 0) return { key: candKey1, len: result };
+
+    result = await redis.lLen(candKey1);
+    return { key: candKey2, len: result };
+  })();
+
+  const messages = await redis.lRange(key, 0, -1);
+  await prisma.userChatLog.createMany({
+    data: messages.map(v => {
+      const data = JSON.parse(v) as ChatMessageType;
+
+      return {
+        date: data.createdAt,
+        order: Number(data.order),
+        message: data.message,
+        toUserId: Number(data.to),
+        userId: Number(data.from),
+      };
+    }),
+  });
+
+  await redis.lPopCount(key, len); /// delete all
+  return true;
+  // const key = `${from}=>${to}`;
+  // const len = await redis.lLen(key);
+  // if (len > 2) {
+  //   /// sync할 값이 있을때만 sync
+  //   const messages = await redis.lRange(key, 1, -1);
+  //   await prisma.userChatLog.createMany({
+  //     data: messages.map(v => {
+  //       const data = JSON.parse(v) as ChatMessageType;
+
+  //       return {
+  //         date: data.createdAt,
+  //         order: Number(data.order),
+  //         message: data.message,
+  //         toUserId: Number(to),
+  //         userId: Number(from),
+  //       };
+  //     }),
+  //   });
+  //   await redis.lPopCount(key, len); /// delete all
+  // }
+
+  // return true;
 };
 
 export type SSESubscribeRequestType = {};
@@ -393,26 +477,20 @@ export type BookingRejectReasonType =
   | 'FULLBOOKINGONTIME'
   | 'INVALIDNUMOFPERSON';
 
-const pubSSEvent = (params: {
-  from: string;
-  to: string;
-  data: ChatMessageType[];
-}) => {
-  const { from, to, data } = params;
+const pubSSEvent = (params: ChatMessageType) => {
+  const { from, to } = params;
   sseClients[to]!.write(`id: 00\n`);
   sseClients[to]!.write(`event: userId${to}\n`);
   sseClients[to]!.write(
-    `data: {"message" : "[sse meesage]: count:${data.length}, from:${from}"}\n\n`,
+    `data: {"message" : "[sse meesage]: from:${from}, lastOrderId:"}\n\n`,
   );
 };
 
-export type SendMessageRequestType = {
-  toUserId: string; /// 보내고자하는 목적지 유저의 id
-  data: ChatMessageType[]; /// 보낼 메시지
-};
-export type SendMessageSuccessResType = ChatMessageType[];
+export type SendMessageRequestType = ChatMessageType[]; /// 보낼 메시지
+
+// export type SendMessageSuccessResType = {};
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: SendMessageSuccessResType | {};
+  IBparams: {};
 };
 
 /**
@@ -445,21 +523,23 @@ export const sendMessage = asyncWrapper(
       }
 
       const params = req.body;
-      const { toUserId, data } = params;
-
-      if (
-        isNil(toUserId) ||
-        isEmpty(toUserId) ||
-        isNil(data) ||
-        isEmpty(data)
-      ) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message: 'toUserId와 data 배열이 제공되어야 합니다.',
-        });
-      }
+      const data = params;
 
       data.find(v => {
+        if (isNil(v.from) || isEmpty(v.from) || isNil(v.to) || isEmpty(v.to)) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'data 배열중 from와 to 파라미터는 제공되어야 합니다.',
+          });
+        }
+
+        if (isNil(sseClients[v.to])) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+          });
+        }
+
         if (isNil(v.createdAt) || isEmpty(v.createdAt)) {
           throw new IBError({
             type: 'INVALIDPARAMS',
@@ -491,13 +571,6 @@ export const sendMessage = asyncWrapper(
         return false;
       });
 
-      if (isNil(sseClients[toUserId])) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-        });
-      }
-
       await Promise.all(
         data.map(async d => {
           const { type, actionInputParams } = d;
@@ -505,11 +578,7 @@ export const sendMessage = asyncWrapper(
           switch (type) {
             case 'TEXT':
               await (() => {
-                return putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: d,
-                });
+                return putInMessage(d);
               })();
               break;
             case 'ASKBOOKINGAVAILABLE':
@@ -547,17 +616,7 @@ export const sendMessage = asyncWrapper(
                 // const targetWeekday = mTargetDate.format('dddd');
                 // const targetHour = mTargetDate.format('H');
 
-                return putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: d,
-                  // data: {
-                  //   ...d,
-                  //   message: `${
-                  //     locals.user!.nickName
-                  //   }님이\n${targetMonth}/${targetDay} ${targetWeekday} ${targetHour}시 ${numOfPeople}명\n예약 가능여부를 문의했어요!`,
-                  // },
-                });
+                return putInMessage(d);
               })();
 
               break;
@@ -589,11 +648,7 @@ export const sendMessage = asyncWrapper(
                   });
                 }
 
-                return putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: d,
-                });
+                return putInMessage(d);
               })();
               break;
             case 'CONFIRMBOOKING':
@@ -614,15 +669,11 @@ export const sendMessage = asyncWrapper(
                   });
                 }
 
-                return putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: d,
-                });
+                return putInMessage(d);
               })();
               break;
             case 'PRIVACYAGREE':
-              await (() => {
+              await (async () => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
@@ -639,16 +690,14 @@ export const sendMessage = asyncWrapper(
                   });
                 }
 
-                const agreeMsgPromise = putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: d,
-                });
+                await putInMessage(d);
 
                 const finalBookingCheckMsgData: ChatMessageType = {
+                  from: d.to, /// 사업자
+                  to: d.from, /// 고객
                   createdAt: new Date().toISOString(),
                   type: 'FINALBOOKINGCHECK',
-                  order: '-1',
+                  order: `${Number(d.order) + 1}`,
                   message:
                     '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
                   actionInputParams: {
@@ -658,24 +707,11 @@ export const sendMessage = asyncWrapper(
                     numOfPeople: '저장되어 있는 예약인원',
                   },
                 };
-                const finalBookingCheckMsgToCompany = putInMessage({
-                  from: userId,
-                  to: toUserId,
-                  data: finalBookingCheckMsgData,
-                });
-
-                const finalBookingCheckMsgToCustomer = putInMessage({
-                  from: toUserId,
-                  to: userId,
-                  data: finalBookingCheckMsgData,
-                });
-
-                return Promise.all([
-                  agreeMsgPromise,
-                  finalBookingCheckMsgToCompany,
-                  finalBookingCheckMsgToCustomer,
-                ]);
+                await putInMessage(finalBookingCheckMsgData);
+                pubSSEvent(finalBookingCheckMsgData);
               })();
+
+              await syncToMainDB({ from: d.from, to: d.to });
               break;
 
             default:
@@ -685,11 +721,7 @@ export const sendMessage = asyncWrapper(
               });
           }
 
-          pubSSEvent({
-            from: userId,
-            to: toUserId,
-            data,
-          });
+          pubSSEvent(d);
         }),
       );
 
@@ -724,8 +756,8 @@ export const sendMessage = asyncWrapper(
 );
 
 export type GetMessageRequestType = {
-  // apiName: string;
-  fromUserId: string;
+  from: string;
+  startCursor: string; /// 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
 };
 export type GetMessageSuccessResType = ChatMessageType[];
 export type GetMessageResType = Omit<IBResFormat, 'IBparams'> & {
@@ -761,40 +793,59 @@ export const getMessage = asyncWrapper(
       }
 
       const params = req.body;
-      const { fromUserId } = params;
+      const { from, startCursor } = params;
 
       if (
         // isNil(apiName) ||
         // isEmpty(apiName) ||
-        isNil(fromUserId) ||
-        isEmpty(fromUserId)
+        isNil(from) ||
+        isEmpty(from)
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'fromUserId가 제공되어야 합니다.',
+          message: 'from가 제공되어야 합니다.',
         });
       }
 
-      if (isNil(sseClients[fromUserId])) {
+      if (
+        isNil(startCursor) ||
+        isEmpty(startCursor) ||
+        isNaN(Number(startCursor))
+      ) {
         throw new IBError({
           type: 'INVALIDSTATUS',
-          message: 'fromUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+          message: 'startCursor가 제공되어야 합니다.',
         });
       }
 
-      // const myMessageFromSpecificUser = [...messageBox[userId][fromUserId]];
-      // messageBox[userId][fromUserId] = [];
+      if (isNil(sseClients[from])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'from 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+
+      // const myMessageFromSpecificUser = [...messageBox[userId][from]];
+      // messageBox[userId][from] = [];
       const myMessageFromSpecificUser = await takeOutMessage({
-        from: fromUserId,
+        from,
         userId,
+        startCursor,
       });
+
+      // if(isEmpty(myMessageFromSpecificUser)){
+      //   await prisma.userChatLog.findMany({
+      //     where:{
+      //       id:{
+      //         gte:
+      //       }
+      //     }
+      //   })
+      // }
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          fromUserId,
-          data: myMessageFromSpecificUser,
-        },
+        IBparams: myMessageFromSpecificUser,
       });
       return;
     } catch (err) {
@@ -824,6 +875,7 @@ export const getMessage = asyncWrapper(
 
 export type ReqBookingChagRequestType = {
   toUserId: string;
+  order: string;
 };
 export type ReqBookingChagSuccessResType = {};
 export type ReqBookingChagResType = Omit<IBResFormat, 'IBparams'> & {
@@ -858,12 +910,19 @@ export const reqBookingChat = asyncWrapper(
       }
 
       const params = req.body;
-      const { toUserId } = params;
+      const { toUserId, order } = params;
 
-      if (isNil(toUserId) || isEmpty(toUserId)) {
+      if (
+        isNil(toUserId) ||
+        isEmpty(toUserId) ||
+        isNaN(Number(toUserId)) ||
+        isNil(order) ||
+        isEmpty(order) ||
+        isNaN(Number(order))
+      ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'toUserId가 제공되어야 합니다.',
+          message: 'toUserId와 order가 제공되어야 합니다.',
         });
       }
 
@@ -874,43 +933,42 @@ export const reqBookingChat = asyncWrapper(
         });
       }
 
-      const data: ChatMessageType = {
+      const nextOrder = await (async () => {
+        const lastMsg = await takeOutMessage({
+          from: userId,
+          userId: toUserId,
+          startCursor: order,
+        });
+        if (isEmpty(lastMsg)) return order;
+        return lastMsg.pop()!.order;
+      })();
+
+      const data = {
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
-        order: '-1',
-        type: 'TEXT',
+        order: `${nextOrder}`,
+        type: 'TEXT' as ChatMessageActionType,
+      };
+      const forwardData: ChatMessageType = {
+        ...data,
+        from: userId, /// 고객
+        to: toUserId, /// 사업자
+      };
+      const reverseData: ChatMessageType = {
+        ...data,
+        from: toUserId, /// 사업자
+        to: userId, /// 고객
       };
 
       /// 양측에 같이 날린다.
-      await Promise.all([
-        putInMessage({
-          from: toUserId, /// 사업자
-          to: userId, /// 고객
-          data,
-        }),
-        putInMessage({
-          from: userId, /// 고객
-          to: toUserId, /// 사업자
-          data,
-        }),
-      ]);
-
-      pubSSEvent({
-        from: toUserId, /// 사업자
-        to: userId, /// 고객
-        data: [data],
-      });
-      pubSSEvent({
-        from: userId, /// 고객
-        to: toUserId, /// 사업자
-        data: [data],
-      });
+      await putInMessage(reverseData); /// 사업자 => 고객 메시지 전송
+      pubSSEvent(forwardData);
+      pubSSEvent(reverseData);
 
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
           toUserId,
-          data: {},
         },
       });
       return;
