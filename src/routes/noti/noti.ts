@@ -68,27 +68,14 @@ type ChatMessageType = {
   };
 };
 
-/// redis로 동일 로직 구현함
-// const messageBox: {
-//   [userId: string]: {
-//     [fromUserId: string]: ChatMessageType[];
-//   };
-// } = {
-//   '0': {
-//     '67': [],
-//   },
-// };
-
+/**
+ * 메시지 송신시에 보내고자 하는 상대(to)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from으로부터의 메시지 큐에
+ * 보내고자 하는 메시지 data를 등록해두는 함수
+ */
 const putInMessage = async (params: {
   from: string; /// userId 기준
   to: string; /// userId
   data: ChatMessageType;
-  // data: {
-  //   createdAt: string;
-  //   order: string;
-  //   message: string;
-  //   type: ChatMessageActionType;
-  // };
 }) => {
   const {
     to, /// toUserId
@@ -96,66 +83,33 @@ const putInMessage = async (params: {
     data,
   } = params;
 
-  // /// 보내려고 하는 유저의 메시지 박스를 찾는다.
-  // const herMessages = messageBox[to];
-
-  // /// 첫 메시지라면 초기화
-  // if (
-  //   isNil(herMessages) ||
-  //   isEmpty(herMessages) ||
-  //   isNil(herMessages[from]) ||
-  //   isEmpty(herMessages[from])
-  // ) {
-  //   const a = {};
-  //   a[from] = [];
-  //   messageBox[to] = a;
-  // }
-
-  /// 보내려고 하는 사람의 메시지함중 나와의 대화 메시지 큐에 새로운 메시지 추가
-  // data.map(v => {
-  // return messageBox[to][from].push({
-  //   uuid: uuidv4(),
-  //   createdAt: v.createdAt,
-  //   order: Number(v.order),
-  //   message: v.message,
-  //   actionType: v.type,
-  //   from,
-  //   to,
-  // });
-  // });
-
-  await redis.sAdd(from, to);
+  /**
+   * 레디스 Set 데이터타입에 키를 메시지 수신처(to), Sets의 value 집합은 송신자 (from)을 기록해둔다.
+   * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
+   * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
+   * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
+   * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인하는데
+   * Set을 통한 사전 송수신 관계 여부를 확인하지 않으면 정의되지 않은 Lists 키값인 'from=>to' 조회로 인한 에러가 발생한다.
+   * Sets 키설정은 이를 방지하기 위해 사용한다.
+   */
+  await redis.sAdd(to, from);
 
   await redis.rPush(
     `${from}=>${to}`,
     JSON.stringify({ uuid: uuidv4(), ...data }),
-    // JSON.stringify({
-    //   uuid: uuidv4(),
-    //   createdAt: data.createdAt,
-    //   order: Number(data.order),
-    //   message: data.message,
-    //   actionType: data.type,
-    //   from,
-    //   to,
-    // }),
   );
 };
 
+/**
+ * 메시지 수신시에 수신하고자하는 대상(userId)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from 으로부터의 메시지 큐를 조회하여 쌓여있는 데이터를 모두 꺼내오는 함수
+ */
 const takeOutMessage = async (params: {
   from: string; /// userId 기준
   userId: string; /// userId 기준
 }): Promise<ChatMessageType[]> => {
   const { from, userId } = params;
-  // if (
-  //   isNil(messageBox[userId]) ||
-  //   isNil(messageBox[userId][from]) ||
-  //   isEmpty(messageBox[userId][from])
-  // )
-  //   return [];
-  // const myMessageFromSpecificUser = [...messageBox[userId][from]];
-  // messageBox[userId][from] = [];
-  // return myMessageFromSpecificUser;
-  const existRelation = await redis.sIsMember(from, userId);
+
+  const existRelation = await redis.sIsMember(userId, from);
 
   if (existRelation) {
     const len = await redis.lLen(`${from}=>${userId}`);
@@ -283,131 +237,6 @@ export const testSSESubscribe = (
     throw err;
   }
 };
-
-// export type AskBookingAvailableRequestType = {
-//   date: string;
-//   numOfPeople: string;
-//   toUserId: string;
-// };
-// export type AskBookingAvailableSuccessResType = {};
-// export type AskBookingAvailableResType = Omit<IBResFormat, 'IBparams'> & {
-//   IBparams: {};
-// };
-
-// /**
-//  *
-//  */
-// export const askBookingAvailable = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<AskBookingAvailableRequestType>,
-//     res: Express.IBTypedResponse<AskBookingAvailableResType>,
-//   ) => {
-//     try {
-//       const { locals } = req;
-//       const userId = (() => {
-//         if (locals && locals?.grade === 'member')
-//           return locals?.user?.id.toString();
-//         // return locals?.tokenId;
-//         throw new IBError({
-//           type: 'NOTAUTHORIZED',
-//           message: 'member 등급만 접근 가능합니다.',
-//         });
-//       })();
-//       if (isNil(userId)) {
-//         throw new IBError({
-//           type: 'NOTEXISTDATA',
-//           message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
-//         });
-//       }
-
-//       const params = req.body;
-//       const { date, numOfPeople, toUserId } = params;
-
-//       if (
-//         isNil(date) ||
-//         isNil(numOfPeople) ||
-//         isNaN(Number(numOfPeople)) ||
-//         isNil(toUserId)
-//       ) {
-//         throw new IBError({
-//           type: 'INVALIDPARAMS',
-//           message:
-//             '올바른 형식의 date, numOfPeople, toUserId 파라미터가 제공되어야 합니다.',
-//         });
-//       }
-
-//       if (isNil(sseClients[toUserId])) {
-//         throw new IBError({
-//           type: 'INVALIDSTATUS',
-//           message: 'toUserId에 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-//         });
-//       }
-
-//       /// 보내려고 하는 유저의 메시지 박스에 넣어둔다.
-//       const herMessages = messageBox[toUserId];
-//       if (
-//         isNil(herMessages) ||
-//         isEmpty(herMessages) ||
-//         isNil(herMessages[userId]) ||
-//         isEmpty(herMessages[userId])
-//       ) {
-//         const a = {};
-//         a[userId] = [];
-//         messageBox[toUserId] = a;
-//       }
-//       const messageBetweenUs = messageBox[toUserId][userId];
-
-//       /// 보내려고 하는 사람의 메시지함에서 나한테서 온 메시지 함에 새로운 메시지 추가
-//       messageBox[toUserId][userId].push({
-//         uuid: uuidv4(),
-//         createdAt: new Date().toISOString(),
-//         order:
-//           messageBetweenUs.length === 0
-//             ? 0
-//             : messageBetweenUs[messageBetweenUs.length - 1].order + 1,
-
-//         message: `date:${date}, numOfPeople:${numOfPeople}`,
-//         actionType: 'TEXT',
-//         to: toUserId,
-//         from: userId,
-//       });
-
-//       sseClients[toUserId]!.write(`id: 00\n`);
-//       sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
-//       sseClients[toUserId]!.write(
-//         `data: {"message" : "calledAPI:askBookingAvailable, nextAPI:ansForAskBookingAvailable, from:${userId}"}\n\n`,
-//       );
-
-//       await (async () => {})();
-//       res.json({
-//         ...ibDefs.SUCCESS,
-//         IBparams: {},
-//       });
-//       return;
-//     } catch (err) {
-//       if (err instanceof IBError) {
-//         if (err.type === 'INVALIDPARAMS') {
-//           res.status(400).json({
-//             ...ibDefs.INVALIDPARAMS,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//         if (err.type === 'DUPLICATEDDATA') {
-//           res.status(409).json({
-//             ...ibDefs.DUPLICATEDDATA,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//       }
-
-//       throw err;
-//     }
-//   },
-// );
 
 export type StoreChatLogRequestType = {
   chatLog: {
@@ -1088,122 +917,8 @@ export const reqBookingChat = asyncWrapper(
   },
 );
 
-// export type AnsBookingAvailableRequestType = {
-//   available: string;
-//   unavailableReason?:
-//     | 'CLOSEDTIME'
-//     | 'INVALIDTIME'
-//     | 'FULLBOOKINGATDATE'
-//     | 'FULLBOOKINGONTIME'
-//     | 'INVALIDNUMOFPERSON';
-//   toUserId: string;
-// };
-// export type AnsBookingAvailableSuccessResType = {};
-// export type AnsBookingAvailableResType = Omit<IBResFormat, 'IBparams'> & {
-//   IBparams: {};
-// };
-
-// /**
-//  *
-//  */
-// export const ansBookingAvailable = asyncWrapper(
-//   async (
-//     req: Express.IBTypedReqBody<AnsBookingAvailableRequestType>,
-//     res: Express.IBTypedResponse<AnsBookingAvailableResType>,
-//   ) => {
-//     try {
-//       const { locals } = req;
-//       const userId = (() => {
-//         if (locals && locals?.grade === 'member')
-//           return locals?.user?.id.toString();
-//         // return locals?.tokenId;
-//         throw new IBError({
-//           type: 'NOTAUTHORIZED',
-//           message: 'member 등급만 접근 가능합니다.',
-//         });
-//       })();
-//       if (isNil(userId)) {
-//         throw new IBError({
-//           type: 'NOTEXISTDATA',
-//           message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
-//         });
-//       }
-
-//       const params = req.body;
-//       const { available, unavailableReason, toUserId } = params;
-
-//       if (isNil(available) || isNil(toUserId)) {
-//         throw new IBError({
-//           type: 'INVALIDPARAMS',
-//           message:
-//             '"true"/"false" 형식의 avaiable string 파라미터와 toUserId가 제공되어야 합니다.',
-//         });
-//       }
-
-//       if (available === 'false' && isNil(unavailableReason)) {
-//         throw new IBError({
-//           type: 'INVALIDPARAMS',
-//           message:
-//             '"available이 false라면 unavailableReason은 반드시 제공되어야 합니다.',
-//         });
-//       }
-
-//       if (isNil(sseClients[toUserId])) {
-//         throw new IBError({
-//           type: 'INVALIDSTATUS',
-//           message: 'toUserId에 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-//         });
-//       }
-//       sseClients[toUserId]!.write(`id: 00\n`);
-//       sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
-//       sseClients[toUserId]!.write(
-//         `data: {"message" : "calledAPI:ansBookingAvailable, nextAPI:ansForAskBookingAvailable, from:${userId}"}\n\n`,
-//       );
-
-//       await (async () => {})();
-//       res.json({
-//         ...ibDefs.SUCCESS,
-//         IBparams: {},
-//       });
-//       return;
-//     } catch (err) {
-//       if (err instanceof IBError) {
-//         if (err.type === 'INVALIDPARAMS') {
-//           res.status(400).json({
-//             ...ibDefs.INVALIDPARAMS,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//         if (err.type === 'DUPLICATEDDATA') {
-//           res.status(409).json({
-//             ...ibDefs.DUPLICATEDDATA,
-//             IBdetail: (err as Error).message,
-//             IBparams: {} as object,
-//           });
-//           return;
-//         }
-//       }
-
-//       throw err;
-//     }
-//   },
-// );
-
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
-
-// notiRouter.post(
-//   '/askBookingAvailable',
-//   accessTokenValidCheck,
-//   askBookingAvailable,
-// );
-// notiRouter.post(
-//   '/ansBookingAvailable',
-//   accessTokenValidCheck,
-//   ansBookingAvailable,
-// );
 notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
