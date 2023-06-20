@@ -75,9 +75,11 @@
         <button id="csStoreChatLog">store chat</button>
         <span id="csCallStoreChatLogCallParams"></span> <br />
         <span>Set Params => </span>
+        <button id="setParamsToReqBookingChat">[reqBookingChat]</button>
         <button id="setParamsToAskBookingAvailable">
           [askBookingAvailable]
         </button>
+
         <br />
         <br />
 
@@ -301,6 +303,25 @@
           },
         );
         const data = await storeChatLogResponse.json();
+        return data;
+      }
+
+      async function callReqBookingChat(params) {
+        console.log(`call reqBookingChat...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const reqBookingChatResponse = await fetch(
+          `${server_url}/noti/reqBookingChat`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await reqBookingChatResponse.json();
         return data;
       }
 
@@ -602,6 +623,19 @@
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
           }
+        });
+        $('#setParamsToReqBookingChat').on('click', async () => {
+          contextSwitch('customer');
+
+          const message = `예약하기`;
+          csChatLine.val('');
+
+          const callParams = {
+            toUserId: companyUserId,
+          };
+
+          const result = await callReqBookingChat(callParams);
+          console.log(result);
         });
       });
     </script>

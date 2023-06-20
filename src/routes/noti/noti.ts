@@ -544,8 +544,8 @@ const pubSSEvent = (params: {
 };
 
 export type SendMessageRequestType = {
-  toUserId: string;
-  data: ChatMessageType[];
+  toUserId: string; /// 보내고자하는 목적지 유저의 id
+  data: ChatMessageType[]; /// 보낼 메시지
 };
 export type SendMessageSuccessResType = ChatMessageType[];
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
@@ -553,7 +553,10 @@ export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- *
+ * 채팅창에서 메시지 전송시에 호출할 api
+ * 본 시스템에서 채팅은 Server sent event를 통해 채팅의 형태로 보여지지만 엄밀한의미의 동시성을 가진 채팅기능은 아니다.
+ * sse 메시지로는 프론트에서 수신할 타이밍의 기준으로만 동작하며 실제 메시지는 보안상 sendMessage라는 본 REST API 호출로 이뤄진다.
+ * 마찬가지로 보내어진 메시지는 sse 이벤트 수신후 getMessage 호출을 통해 실제 데이터를 받게된다.
  */
 export const sendMessage = asyncWrapper(
   async (
@@ -638,9 +641,15 @@ export const sendMessage = asyncWrapper(
 
           switch (type) {
             case 'TEXT':
+              await (() => {
+                return putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data: d,
+                });
+              })();
               break;
             case 'ASKBOOKINGAVAILABLE':
-              /// 양측 메시지 박스에 모두 넣기
               await (() => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
                   throw new IBError({
@@ -779,7 +788,9 @@ export type GetMessageResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- *
+ * 채팅창에서 메시지 수신시에 호출할 api
+ * 본 시스템에서 채팅은 Server sent event를 통해 채팅의 형태로 보여지지만 엄밀한의미의 동시성을 가진 채팅기능은 아니다.
+ * sse 메시지로는 프론트에서 REST API 호출 수신할 타이밍의 기준으로만 동작하며 실제 메시지는 보안상 sendMessage라는 REST API 호출로 이뤄지고 해당 메시지는 상대 클라이언트의 sse 이벤트 수신후 getMessage 호출을 통해 실제 데이터를 받게된다.
  */
 export const getMessage = asyncWrapper(
   async (
@@ -815,7 +826,7 @@ export const getMessage = asyncWrapper(
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'apiName과 fromUserId가 제공되어야 합니다.',
+          message: 'fromUserId가 제공되어야 합니다.',
         });
       }
 
@@ -838,6 +849,123 @@ export const getMessage = asyncWrapper(
         IBparams: {
           fromUserId,
           data: myMessageFromSpecificUser,
+        },
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export type ReqBookingChagRequestType = {
+  toUserId: string;
+};
+export type ReqBookingChagSuccessResType = {};
+export type ReqBookingChagResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqBookingChagSuccessResType | {};
+};
+
+/**
+ * 고객측(사용자)가 채팅방입장시에 호출할 api
+ * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
+ */
+export const reqBookingChat = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqBookingChagRequestType>,
+    res: Express.IBTypedResponse<ReqBookingChagResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { toUserId } = params;
+
+      if (isNil(toUserId) || isEmpty(toUserId)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'toUserId가 제공되어야 합니다.',
+        });
+      }
+
+      if (isNil(sseClients[toUserId])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+
+      const data: ChatMessageType = {
+        createdAt: new Date().toISOString(),
+        message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
+        order: '-1',
+        type: 'TEXT',
+      };
+
+      /// 양측에 같이 날린다.
+      await Promise.all([
+        putInMessage({
+          from: toUserId, /// 사업자
+          to: userId, /// 고객
+          data,
+        }),
+        putInMessage({
+          from: userId, /// 고객
+          to: toUserId, /// 사업자
+          data,
+        }),
+      ]);
+
+      pubSSEvent({
+        from: toUserId, /// 사업자
+        to: userId, /// 고객
+        data: [data],
+      });
+      pubSSEvent({
+        from: userId, /// 고객
+        to: toUserId, /// 사업자
+        data: [data],
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          toUserId,
+          data: {},
         },
       });
       return;
@@ -985,4 +1113,5 @@ notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
+notiRouter.post('/reqBookingChat', accessTokenValidCheck, reqBookingChat);
 export default notiRouter;
