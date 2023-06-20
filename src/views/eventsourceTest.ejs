@@ -311,7 +311,9 @@
           try {
             if (e.key === 'Enter') {
               console.log('enter');
+              console.log(accessToken);
               contextSwitch('company');
+              console.log(accessToken);
               const message = cpChatLine.val();
               const callParams = {
                 toUserId: customerUserId,
@@ -391,8 +393,11 @@
           if (getMessageResult.IBcode === '1000') {
             $('#csGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = csChatBoxTextarea.val();
+
             const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              const obj = JSON.parse(v);
+
+              return `${acc}[${obj.createdAt}]:${obj.message}\n\n`;
             }, '');
 
             csChatBoxTextarea.val(`${prevChat}${messages}`);
@@ -418,7 +423,8 @@
             $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = cpChatBoxTextarea.val();
             const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              const obj = JSON.parse(v);
+              return `${acc}[${obj.createdAt}]:${obj.message}\n\n`;
             }, '');
 
             cpChatBoxTextarea.val(`${prevChat}${messages}`);

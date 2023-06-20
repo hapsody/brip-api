@@ -8,6 +8,7 @@ import {
   IBError,
   accessTokenValidCheck,
 } from '@src/utils';
+import redis from '@src/redis';
 import moment from 'moment';
 import { isNil, isNaN, isEmpty } from 'lodash';
 
@@ -49,7 +50,7 @@ const messageBox: {
   },
 };
 
-const putInMessage = (params: {
+const putInMessage = async (params: {
   from: string; /// userId 기준
   to: string; /// userId
   data: {
@@ -81,33 +82,64 @@ const putInMessage = (params: {
   }
 
   /// 보내려고 하는 사람의 메시지함중 나와의 대화 메시지 큐에 새로운 메시지 추가
-  data.map(v => {
-    return messageBox[to][from].push({
-      uuid: uuidv4(),
-      createdAt: v.createdAt,
-      order: Number(v.order),
-      message: v.message,
-      actionType: v.type,
-      from,
-      to,
-    });
-  });
+  // data.map(v => {
+  // return messageBox[to][from].push({
+  //   uuid: uuidv4(),
+  //   createdAt: v.createdAt,
+  //   order: Number(v.order),
+  //   message: v.message,
+  //   actionType: v.type,
+  //   from,
+  //   to,
+  // });
+  // });
+
+  await redis.sAdd(from, to);
+
+  await Promise.all(
+    data.map(v => {
+      return redis.rPush(
+        `${from}=>${to}`,
+        JSON.stringify({
+          uuid: uuidv4(),
+          createdAt: v.createdAt,
+          order: Number(v.order),
+          message: v.message,
+          actionType: v.type,
+          from,
+          to,
+        }),
+      );
+    }),
+  );
 };
 
-const takeOutMessage = (params: {
+const takeOutMessage = async (params: {
   from: string; /// userId 기준
   userId: string; /// userId 기준
 }) => {
   const { from, userId } = params;
-  if (
-    isNil(messageBox[userId]) ||
-    isNil(messageBox[userId][from]) ||
-    isEmpty(messageBox[userId][from])
-  )
-    return [];
-  const myMessageFromSpecificUser = [...messageBox[userId][from]];
-  messageBox[userId][from] = [];
-  return myMessageFromSpecificUser;
+  // if (
+  //   isNil(messageBox[userId]) ||
+  //   isNil(messageBox[userId][from]) ||
+  //   isEmpty(messageBox[userId][from])
+  // )
+  //   return [];
+  // const myMessageFromSpecificUser = [...messageBox[userId][from]];
+  // messageBox[userId][from] = [];
+  // return myMessageFromSpecificUser;
+  const existRelation = await redis.sIsMember(from, userId);
+
+  if (existRelation) {
+    const len = await redis.lLen(`${from}=>${userId}`);
+    const myMessageFromUserId = await redis.lPopCount(
+      `${from}=>${userId}`,
+      len,
+    ); /// get all messages and delete all
+    return isNil(myMessageFromUserId) ? [] : myMessageFromUserId;
+  }
+
+  return [];
 };
 
 export type SSESubscribeRequestType = {};
@@ -146,6 +178,7 @@ export const sseSubscribe = (
     };
     res.set(headers);
     res.write(`userId:${userId} connected`);
+    console.log(`userId: ${userId} is connected to sse`);
 
     sseClients[userId] = res;
     // console.log(sseClients);
@@ -195,7 +228,7 @@ export const testSSESubscribe = (
     res.set(headers);
     res.write(`userId:${userId} connected`);
 
-    console.log(userId);
+    console.log(`userId: ${userId} is connected to sse`);
     sseClients[userId] = res;
     // console.log(sseClients);
 
@@ -573,7 +606,7 @@ export const sendMessage = asyncWrapper(
         });
       }
 
-      putInMessage({
+      await putInMessage({
         from: userId,
         to: toUserId,
         data,
@@ -585,7 +618,6 @@ export const sendMessage = asyncWrapper(
         `data: {"message" : "[sse meesage]: count:${data.length}, from:${userId}"}\n\n`,
       );
 
-      await (async () => {})();
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {},
@@ -675,12 +707,11 @@ export const getMessage = asyncWrapper(
 
       // const myMessageFromSpecificUser = [...messageBox[userId][fromUserId]];
       // messageBox[userId][fromUserId] = [];
-      const myMessageFromSpecificUser = takeOutMessage({
+      const myMessageFromSpecificUser = await takeOutMessage({
         from: fromUserId,
         userId,
       });
 
-      await (async () => {})();
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: myMessageFromSpecificUser,

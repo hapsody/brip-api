@@ -5,6 +5,7 @@ import passport from 'passport';
 import path from 'path';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import redis from '@src/redis';
 // import fs from 'fs';
 // import cors from 'cors';
 import authRouter from './routes/auth';
@@ -108,5 +109,21 @@ app.get('/eventsource', (req: Request, res: Response) => {
 // app.listen(process.env.PORT, () => {
 //   console.log(`ts-express Server listening on port: ${process.env.PORT}`);
 // });
+
+(async (): Promise<void> => {
+  redis.on('error', err => console.log('Redis Client Error', err));
+  await redis.connect();
+  console.log(">>> It's done to create redis server connection <<<");
+  // await redis.set(
+  //   'myObjKey',
+  //   JSON.stringify({
+  //     hey: '123',
+  //     mr: 'nnnn',
+  //   }),
+  // );
+  // const value = await redis.get('myObjKey');
+})().catch((err: Error) => {
+  console.error(err.message);
+});
 
 export default app;
