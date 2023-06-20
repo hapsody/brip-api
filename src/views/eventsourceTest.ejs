@@ -311,9 +311,7 @@
           try {
             if (e.key === 'Enter') {
               console.log('enter');
-              console.log(accessToken);
               contextSwitch('company');
-              console.log(accessToken);
               const message = cpChatLine.val();
               const callParams = {
                 toUserId: customerUserId,
@@ -534,13 +532,40 @@
           $('#csCallStoreChatLogCallParams').text(JSON.stringify(callParams));
         });
 
-        $('#setParamsToAskBookingAvailable').on('click', () => {
+        $('#setParamsToAskBookingAvailable').on('click', async () => {
           contextSwitch('customer');
-          callParams = {
-            date: new Date().toISOString(),
-            numOfPeople: 2,
-            toUserId: $('input#sendToUserFromCustomer').val(),
+
+          const message = `유쾌한인어님이
+7/2 목 14시 2명
+예약 가능여부를 문의했어요!`;
+          csChatLine.val('');
+
+          const callParams = {
+            toUserId: companyUserId,
+            data: [
+              {
+                createdAt: moment().toISOString(),
+                order: cpChatBoxOrder.toString(),
+                message,
+                type: 'ASKBOOKINGAVAILABLE',
+                actionInputParams: {
+                  date: '2023-07-02T23:30:00.000Z',
+                  numOfPeople: '2',
+                },
+              },
+            ],
           };
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            csChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+          }
         });
       });
     </script>

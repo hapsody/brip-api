@@ -23,7 +23,7 @@ const sseClients: SSEClientType = {
 };
 
 type ChatMessageActionType =
-  | 'BOOKINGAVAILABLE'
+  | 'ASKBOOKINGAVAILABLE'
   | 'ANSBOOKINGAVAILABLE'
   | 'CONFIRMBOOKING'
   | 'PRIVACYAGREE'
@@ -506,21 +506,34 @@ export const storeChatLog = asyncWrapper(
   },
 );
 
+export type SendMessageDataParamType = {
+  createdAt: string;
+  order: string;
+  message: string;
+  type: ChatMessageActionType;
+  actionInputParams?: {
+    // askBookingAvailable
+    date?: string;
+    numOfPeople?: string;
+  };
+};
+
+const pubSSEvent = (params: {
+  from: string;
+  to: string;
+  data: SendMessageDataParamType[];
+}) => {
+  const { from, to, data } = params;
+  sseClients[to]!.write(`id: 00\n`);
+  sseClients[to]!.write(`event: userId${to}\n`);
+  sseClients[to]!.write(
+    `data: {"message" : "[sse meesage]: count:${data.length}, from:${from}"}\n\n`,
+  );
+};
+
 export type SendMessageRequestType = {
   toUserId: string;
-  data: {
-    createdAt: string;
-    order: string;
-    message: string;
-    type: ChatMessageActionType;
-    actionInputParams?: {
-      [actionType: string]: {
-        // askBookingAvailable
-        date?: string;
-        numOfPeople?: string;
-      };
-    };
-  }[];
+  data: SendMessageDataParamType[];
 };
 export type SendMessageSuccessResType = ChatMessageType[];
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
@@ -607,16 +620,67 @@ export const sendMessage = asyncWrapper(
         });
       }
 
-      await putInMessage({
-        from: userId,
-        to: toUserId,
-        data,
-      });
+      await Promise.all(
+        data.map(async d => {
+          const { type, actionInputParams } = d;
 
-      sseClients[toUserId]!.write(`id: 00\n`);
-      sseClients[toUserId]!.write(`event: userId${toUserId}\n`);
-      sseClients[toUserId]!.write(
-        `data: {"message" : "[sse meesage]: count:${data.length}, from:${userId}"}\n\n`,
+          switch (type) {
+            case 'ASKBOOKINGAVAILABLE':
+              /// 양측 메시지 박스에 모두 넣기
+              await (() => {
+                if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message:
+                      'type이 ASKBOOKINGAVAILABLE 이면 actionInputParams는 필수입니다.',
+                  });
+                }
+
+                const { date, numOfPeople } = actionInputParams;
+
+                if (isNil(date) || isEmpty(date) || !moment(date).isValid()) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message:
+                      'type이 ASKBOOKINGAVAILABLE 이면 유효한 date string(ISO string)은 필수입니다.',
+                  });
+                }
+
+                if (
+                  isNil(numOfPeople) ||
+                  isEmpty(numOfPeople) ||
+                  isNaN(numOfPeople)
+                ) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message:
+                      'type이 ASKBOOKINGAVAILABLE 이면 numOfPeople은 필수입니다.',
+                  });
+                }
+
+                return putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data,
+                });
+              })();
+
+              break;
+            case 'TEXT':
+              break;
+            default:
+              throw new IBError({
+                type: 'INVALIDPARAMS',
+                message: 'ChatMessageActionType에 정의되지 않은 type입니다.',
+              });
+          }
+
+          pubSSEvent({
+            from: userId,
+            to: toUserId,
+            data,
+          });
+        }),
       );
 
       res.json({
