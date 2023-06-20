@@ -88,11 +88,19 @@ const putInMessage = async (params: {
    * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
    * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
    * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
-   * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인하는데
-   * Set을 통한 사전 송수신 관계 여부를 확인하지 않으면 정의되지 않은 Lists 키값인 'from=>to' 조회로 인한 에러가 발생한다.
-   * Sets 키설정은 이를 방지하기 위해 사용한다.
+   * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
+   * 수신자가 열린 채팅방을 모두 조회하고 싶을 경우에는 Lists만으로는 키값을 알수 없어서 조회가 불가능하다.
+   * 이럴경우 Sets를 사용하여 저장된 송수신자와의 관계를 먼저 파악하고 후에 Lists 키값을 추측하여 조회할수 있다.
    */
   await redis.sAdd(to, from);
+  const len = await redis.lLen(`${from}=>${to}`);
+  if (len === 0) {
+    await redis.rPush(`${from}=>${to}`, [
+      '1', /// list 좌측 맨 첫번째는 (0번째 자리) 메시지를 수신할때 다음에 읽어가야할 커서인 인덱스 번호를 써준다.
+      JSON.stringify({ uuid: uuidv4(), ...data }),
+    ]);
+    return;
+  }
 
   await redis.rPush(
     `${from}=>${to}`,
@@ -113,14 +121,28 @@ const takeOutMessage = async (params: {
 
   if (existRelation) {
     const len = await redis.lLen(`${from}=>${userId}`);
-    const myMessageFromUserId = await redis.lPopCount(
-      `${from}=>${userId}`,
-      len,
-    ); /// get all messages and delete all
+    const startCursor = Number(
+      (await redis.lRange(`${from}=>${userId}`, 0, 0))[0],
+    );
 
-    return isNil(myMessageFromUserId)
-      ? []
-      : myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
+    if (len === startCursor) return []; /// 읽을 데이터가 없음
+
+    const myMessageFromUserId = await redis.lRange(
+      `${from}=>${userId}`,
+      startCursor,
+      -1,
+    ); /// startCursor index부터 끝까지 조회
+    await redis.lSet(`${from}=>${userId}`, 0, len.toString()); /// 다음에 읽을 인덱스 재지정 (0번째 인덱스값이 cursor 표시값으로 쓰인다.)
+
+    return myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
+    // const myMessageFromUserId = await redis.lPopCount(
+    //   `${from}=>${userId}`,
+    //   len,
+    // ); /// get all messages and delete all
+
+    // return isNil(myMessageFromUserId)
+    //   ? []
+    //   : myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
   }
 
   return [];
