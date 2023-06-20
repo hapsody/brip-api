@@ -41,18 +41,30 @@ type ChatMessageActionType =
 //   to: string;
 // };
 type ChatMessageType = {
-  createdAt: string;
-  order: string;
-  message: string;
-  type: ChatMessageActionType;
+  createdAt: string; /// 메시지 전송된 시각
+  order: string; /// 메시지 순번
+  message: string; /// 메시지 본문
+  type: ChatMessageActionType; /// 메시지 타입
   actionInputParams?: {
     // askBookingAvailable
-    date?: string;
-    numOfPeople?: string;
+    date?: string; /// 예약일(문의일x)
+    numOfPeople?: string; /// 예약 인원
 
     /// ansBookingAvailable
-    answer?: 'APPROVE' | 'REJECT';
-    rejectReason?: BookingRejectReasonType;
+    answer?: 'APPROVE' | 'REJECT'; /// 예약문의 응답
+    rejectReason?: BookingRejectReasonType; /// 예약문의가 거절일경우 거절사유
+
+    /// confirmBooking
+    confirmAnswer?: 'CONFIRM' | 'CANCEL'; /// 예약 확정 여부
+
+    /// privacyAgree
+    agreeAnswer?: 'TRUE' | 'FALSE'; /// 개인정보 이용동의
+
+    /// finalBookingCheck
+    reqUserNickname?: string;
+    reqUserContact: string;
+    /// date?: string;
+    /// numOfPeople?: string;
   };
 };
 
@@ -733,6 +745,88 @@ export const sendMessage = asyncWrapper(
                 });
               })();
               break;
+            case 'CONFIRMBOOKING':
+              await (() => {
+                if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                  });
+                }
+
+                const { confirmAnswer } = actionInputParams;
+
+                if (isNil(confirmAnswer) || isEmpty(confirmAnswer)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 유효한 confirmAnswer은 필수입니다.`,
+                  });
+                }
+
+                return putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data: d,
+                });
+              })();
+              break;
+            case 'PRIVACYAGREE':
+              await (() => {
+                if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                  });
+                }
+
+                const { agreeAnswer } = actionInputParams;
+
+                if (isNil(agreeAnswer) || isEmpty(agreeAnswer)) {
+                  throw new IBError({
+                    type: 'INVALIDPARAMS',
+                    message: `type이 ${type} 이면 유효한 agreeAnswer 필수입니다.`,
+                  });
+                }
+
+                const agreeMsgPromise = putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data: d,
+                });
+
+                const finalBookingCheckMsgData: ChatMessageType = {
+                  createdAt: new Date().toISOString(),
+                  type: 'FINALBOOKINGCHECK',
+                  order: '-1',
+                  message:
+                    '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
+                  actionInputParams: {
+                    reqUserNickname: locals.user!.nickName,
+                    reqUserContact: locals.user!.phone,
+                    date: '저장되어있는 예약날짜',
+                    numOfPeople: '저장되어 있는 예약인원',
+                  },
+                };
+                const finalBookingCheckMsgToCompany = putInMessage({
+                  from: userId,
+                  to: toUserId,
+                  data: finalBookingCheckMsgData,
+                });
+
+                const finalBookingCheckMsgToCustomer = putInMessage({
+                  from: toUserId,
+                  to: userId,
+                  data: finalBookingCheckMsgData,
+                });
+
+                return Promise.all([
+                  agreeMsgPromise,
+                  finalBookingCheckMsgToCompany,
+                  finalBookingCheckMsgToCustomer,
+                ]);
+              })();
+              break;
+
             default:
               throw new IBError({
                 type: 'INVALIDPARAMS',

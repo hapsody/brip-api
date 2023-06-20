@@ -79,6 +79,8 @@
         <button id="setParamsToAskBookingAvailable">
           [askBookingAvailable]
         </button>
+        <button id="setParamsToConfirmBooking">[confirmBooking]</button>
+        <button id="setParamsToPrivacyAgree">[privacyAgree]</button>
 
         <br />
         <br />
@@ -636,6 +638,72 @@
 
           const result = await callReqBookingChat(callParams);
           console.log(result);
+        });
+
+        $('#setParamsToConfirmBooking').on('click', async () => {
+          contextSwitch('customer');
+
+          const message = `네, 확정할게요`;
+          cpChatLine.val('');
+
+          const callParams = {
+            toUserId: companyUserId,
+            data: [
+              {
+                createdAt: moment().toISOString(),
+                order: csChatBoxOrder.toString(),
+                message,
+                type: 'CONFIRMBOOKING',
+                actionInputParams: {
+                  confirmAnswer: 'CONFIRM', /// or CANCEL
+                },
+              },
+            ],
+          };
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+          }
+        });
+
+        $('#setParamsToPrivacyAgree').on('click', async () => {
+          contextSwitch('customer');
+
+          const message = `동의`;
+          cpChatLine.val('');
+
+          const callParams = {
+            toUserId: companyUserId,
+            data: [
+              {
+                createdAt: moment().toISOString(),
+                order: csChatBoxOrder.toString(),
+                message,
+                type: 'PRIVACYAGREE',
+                actionInputParams: {
+                  agreeAnswer: 'TRUE', /// or CANCEL
+                },
+              },
+            ],
+          };
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+          }
         });
       });
     </script>
