@@ -49,6 +49,8 @@ model User {
   adPlace                         AdPlace[]
   myChatLog                       UserChatLog[]                     @relation("FromUserChat")
   ToUserChatLog                   UserChatLog[]                     @relation("ToUserChat")
+  // customerBookingInfo             BookingInfo[]                     @relation("customer")
+  // companyBookingInfo              BookingInfo[]                     @relation("company")
 }
 
 model FavoriteTravelType {
@@ -1012,15 +1014,66 @@ model AdPlace {
 //   @@id([adPlaceId, adPlaceCategoryId])
 // }
 
+enum UserChatActionType {
+  ASKBOOKINGWELCOME /// 예약문의 첫 환영 인사
+  ASKBOOKINGAVAILABLE /// 예약문의 고객 => 사업자
+  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객
+  CONFIRMBOOKING /// 예약확정 고객 => 사업자
+  PRIVACYAGREE /// 정보동의 고객 => 사업자
+  FINALBOOKINGCHECK /// 예약성사 사업자 => 고객
+  TEXT /// 일반 채팅 메시지
+}
+
 model UserChatLog {
+  id               Int                       @id @default(autoincrement())
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @default(now()) @updatedAt
+  date             DateTime /// 메시지가 전송된 시각
+  order            Int                       @default(0) /// userId와 toUserId 간 메시지 순서
+  message          String                    @db.VarChar(8000) /// 메시지 본문
+  actionType       UserChatActionType
+  actionInputParam UserChatActionInputParam?
+  subjectGroupId   Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+
+  user     User @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId   Int
+  toUser   User @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  toUserId Int
+}
+
+model UserChatActionInputParam {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  date      DateTime
-  order     Int      @default(0)
-  message   String   @db.VarChar(8000)
-  user      User     @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId    Int
-  toUser    User     @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  toUserId  Int
+
+  /// askBookingAvailable 액션 관련 파라미터
+  bkDate        DateTime? /// 예약일
+  bkNumOfPeople Int? /// 예약인원
+
+  /// ansBookingAvailable 액션 관련 파라미터
+  bkAnswer       Boolean? /// 예약 APPROVE: true, REJECT: false
+  bkRejectReason String? /// 예약문의가 거절일경우 거절사유
+
+  /// confirmBooking 액션 관련 파라미터
+  bkConfirmAnswer Boolean? /// 예약 확정 여부 CONFIRM: true, CANCEL: false
+
+  /// privacyAgree
+  bkAgreeAnswer Boolean? /// 개인정보 이용동의 여부
+
+  userChatLog   UserChatLog @relation(fields: [userChatLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userChatLogId Int         @unique
 }
+
+// /// 예약문의 관련 정보
+// model BookingInfo {
+//   id             Int      @id @default(autoincrement())
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @default(now()) @updatedAt
+//   date           DateTime
+//   numOfPeople    Int
+//   subjectGroupId Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+//   customer       User     @relation(name: "customer", fields: [customerId], references: [id])
+//   customerId     Int
+//   company        User     @relation(name: "company", fields: [companyId], references: [id])
+//   companyId      Int
+// }

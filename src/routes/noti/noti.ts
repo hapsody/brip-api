@@ -24,6 +24,7 @@ const sseClients: SSEClientType = {
 };
 
 type ChatMessageActionType =
+  | 'ASKBOOKINGWELCOME'
   | 'ASKBOOKINGAVAILABLE'
   | 'ANSBOOKINGAVAILABLE'
   | 'CONFIRMBOOKING'
@@ -117,53 +118,213 @@ const putInMessage = async (params: ChatMessageType) => {
   // );
 };
 
+type RetrieveMessageParamType = {
+  from: string; /// userId 기준
+  userId: string; /// userId 기준
+  startOrder: string; /// redis에서 내가 받고자 하는 메시지가 삭제됐을 경우(DB sync하면 redis에서는 삭제됨.) DB에서 메시지를 찾기 위한 메시지 순번
+  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
+};
+
+const retrieveFromDb = async (
+  params: RetrieveMessageParamType,
+): Promise<{
+  messages: ChatMessageType[];
+  nextOrder: number;
+  nextCursor: number;
+}> => {
+  const { from, userId, startOrder, startCursor } = params;
+  // const msgWithOrder = await prisma.userChatLog.findFirst({
+  //   where: {
+  //     order: Number(startOrder),
+  //     OR: [
+  //       { AND: [{ userId: Number(from) }, { toUserId: Number(userId) }] },
+  //       { AND: [{ userId: Number(userId) }, { toUserId: Number(from) }] },
+  //     ],
+  //   },
+  //   select: {
+  //     id: true,
+  //   },
+  // });
+
+  // if (isNil(msgWithOrder)) {
+  //   return {
+  //     messages: [],
+  //     nextOrder: 0,
+  //     nextCursor: 0,
+  //   };
+  // }
+
+  const targetMsgsFromDB = await prisma.userChatLog.findMany({
+    where: {
+      order: { gte: Number(startOrder) },
+      OR: [
+        { AND: [{ userId: Number(from) }, { toUserId: Number(userId) }] },
+        { AND: [{ userId: Number(userId) }, { toUserId: Number(from) }] },
+      ],
+    },
+    include: {
+      actionInputParam: true,
+      user: true,
+    },
+  });
+  if (isNil(targetMsgsFromDB) || isEmpty(targetMsgsFromDB)) {
+    return {
+      messages: [],
+      nextOrder: 0,
+      nextCursor: 0,
+    };
+  }
+
+  const orderedTypedReturn = targetMsgsFromDB
+    .map<ChatMessageType | null>(v => {
+      if (v.order < Number(startOrder)) return null;
+      return {
+        createdAt: new Date(v.date).toISOString(),
+        from: `${v.userId}`,
+        to: `${v.toUserId}`,
+        order: `${v.order}`,
+        message: v.message,
+        type: v.actionType as ChatMessageActionType,
+        ...(!isNil(v.actionInputParam) && {
+          actionInputParams: {
+            // askBookingAvailable
+            ...(!isNil(v.actionInputParam.bkDate) && {
+              date: new Date(v.actionInputParam.bkDate).toISOString(),
+            }),
+            ...(!isNil(v.actionInputParam.bkNumOfPeople) && {
+              numOfPeople: `${v.actionInputParam.bkNumOfPeople}`,
+            }),
+
+            /// ansBookingAvailable
+            ...(!isNil(v.actionInputParam.bkAnswer) && {
+              answer: v.actionInputParam.bkAnswer ? 'APPROVE' : 'REJECT',
+            }),
+            ...(!isNil(v.actionInputParam.bkRejectReason) && {
+              rejectReason: v.actionInputParam
+                .bkRejectReason as BookingRejectReasonType,
+            }),
+
+            /// confirmBooking
+            ...(!isNil(v.actionInputParam.bkConfirmAnswer) && {
+              confirmAnswer: v.actionInputParam.bkConfirmAnswer
+                ? 'CONFIRM'
+                : 'CANCEL',
+            }),
+
+            /// privacyAgree
+            ...(!isNil(v.actionInputParam.bkAgreeAnswer) && {
+              agreeAnswer: v.actionInputParam.bkAgreeAnswer ? 'TRUE' : 'FALSE',
+            }),
+
+            /// finalBookingCheck
+            reqUserNickname: v.user.nickName,
+            reqUserContact: v.user.phone,
+          },
+        }),
+      };
+    })
+    .filter((v): v is ChatMessageType => v !== null)
+    .sort((a, b) => Number(a.order) - Number(b.order));
+
+  return {
+    nextOrder:
+      Number(orderedTypedReturn[orderedTypedReturn.length - 1].order) + 1,
+
+    nextCursor: Number(startCursor),
+    messages: orderedTypedReturn,
+  };
+};
+
 /**
  * 메시지 수신시에 수신하고자하는 대상(userId)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from 으로부터의 메시지 큐를 조회하여 쌓여있는 데이터를 모두 꺼내오는 함수, 꺼내고 바로 지우지는 않는다
  */
-const takeOutMessage = async (params: {
-  from: string; /// userId 기준
-  userId: string; /// userId 기준
-  startCursor: string;
-}) => {
-  const { from, userId, startCursor } = params;
+const takeOutMessage = async (
+  params: RetrieveMessageParamType,
+): Promise<{
+  messages: ChatMessageType[];
+  nextOrder: number;
+  nextCursor: number;
+}> => {
+  const { from, userId, startCursor, startOrder } = params;
 
-  const key = await (async () => {
+  /// redis 에서 나와 그와의(n<=>m) 대화 메시지큐 key값 찾기
+  const { key, len } = await (async () => {
+    /// candKey1 아니면 candKey2 둘중 하나만 존재한다.
     const candKey1 = `${from}<=>${userId}`;
     const candKey2 = `${userId}<=>${from}`;
 
-    const len = await redis.lLen(candKey1);
-    if (len > 0) return candKey1;
+    /// candKey1이 존재하는경우
+    let result = await redis.lLen(candKey1);
+    if (result > 0) return { key: candKey1, len: result };
 
-    // result = await redis.lLen(candKey1);
-    return candKey2;
+    /// candKey2가 존재하는경우
+    result = await redis.lLen(candKey2);
+    if (result > 0) return { key: candKey2, len: result };
+
+    return {};
   })();
 
-  const result = await redis.lRange(key, Number(startCursor), -1);
-  if (isNil(result)) return [];
-  return result.map(v => JSON.parse(v) as ChatMessageType);
+  if (isNil(key)) {
+    const msgsFromDB = await retrieveFromDb(params);
 
-  // const existRelation = await redis.sIsMember(userId, from);
+    return {
+      ...msgsFromDB,
+      nextCursor: 0,
+    };
+  }
 
-  // if (existRelation) {
-  //   const len = await redis.lLen(`${from}=>${userId}`);
-  //   const startCursor = Number(
-  //     (await redis.lRange(`${from}=>${userId}`, 0, 0))[0],
-  //   );
+  /// startCursor 인덱스부터 메시지 큐에 있는 값들 다 가져오기.
+  let rawMsgsFromRedis = await redis.lRange(key, Number(startCursor), -1);
 
-  //   if (len === startCursor) return []; /// 읽을 데이터가 없음
+  if (isNil(rawMsgsFromRedis) || isEmpty(rawMsgsFromRedis)) {
+    /// redis 메시지큐가 비어있을 경우는 두가지다.
+    ///  실제로 아무 메시지도 전송된적이 없거나 dbsync가 일어난 이후 메시지가 아직 쌓이지 않은 경우다.
 
-  //   const myMessageFromUserId = await redis.lRange(
-  //     `${from}=>${userId}`,
-  //     startCursor,
-  //     -1,
-  //   ); /// startCursor index부터 끝까지 조회
-  //   await redis.lSet(`${from}=>${userId}`, 0, len.toString()); /// 다음에 읽을 인덱스 재지정 (0번째 인덱스값이 cursor 표시값으로 쓰인다.)
+    if (len! > 0) {
+      /// 테스트 필요 부분
+      return {
+        messages: [],
+        nextCursor: Number(startCursor),
+        nextOrder: Number(startOrder),
+      };
+    }
 
-  //   return myMessageFromUserId.map(v => JSON.parse(v) as ChatMessageType);
+    /// 후자의 경우는 DB도 뒤져봐야한다. 만약 DB에서도 찾을수 없다면 정말로 메시지 전송이 된적이 없는것이다.
+    const msgsFromDB = await retrieveFromDb(params);
+    return msgsFromDB;
+  }
 
-  // }
+  const msgAtStartCursor = JSON.parse(rawMsgsFromRedis[0]) as ChatMessageType;
 
-  // return [];
+  /// redis의 startCursor 인덱스에 위치했었던 메시지값이 실제 찾고자 하는 메시지 order값과 같아야만 한다.
+  if (msgAtStartCursor.order === startOrder) {
+    const messages = rawMsgsFromRedis.map(
+      v => JSON.parse(v) as ChatMessageType,
+    );
+    return {
+      messages,
+      nextOrder: Number(messages[messages.length - 1].order) + 1,
+      nextCursor: Number(startCursor) + 1,
+    };
+  }
+
+  /// 만약 다르다면 이전에 DB로 sync한 이후 redis에서는 현재 클라이언트가 요청하는 메시지는 삭제된 상태기 때문에
+  /// 아래 과정대로 DB를 추가적으로 찾아봐야한다.
+  const msgsFromDB = await retrieveFromDb(params);
+
+  rawMsgsFromRedis = await redis.lRange(key, 0, -1);
+  const msgsFromRedis = rawMsgsFromRedis.map(
+    v => JSON.parse(v) as ChatMessageType,
+  );
+
+  return {
+    messages: [
+      ...msgsFromDB.messages,
+      ...rawMsgsFromRedis.map(v => JSON.parse(v) as ChatMessageType),
+    ],
+    nextOrder: Number(msgsFromRedis[msgsFromRedis.length - 1].order) + 1,
+    nextCursor: Number(len),
+  };
 };
 
 const syncToMainDB = async (params: { from: string; to: string }) => {
@@ -191,22 +352,103 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
     return { key: candKey2, len: result };
   })();
 
-  const messages = await redis.lRange(key, 0, -1);
-  await prisma.userChatLog.createMany({
-    data: messages.map(v => {
-      const data = JSON.parse(v) as ChatMessageType;
+  const startIdxNOrder = await redis.get(`dbSyncStartIdxNOrder:${key}`);
+  const idxNOrder = isNil(startIdxNOrder) ? [] : startIdxNOrder.split(':');
+  const startIndex = isEmpty(idxNOrder) ? 0 : Number(idxNOrder[0]);
+  // const startOrder = isEmpty(cursor) ? 0 : Number(cursor[1]);
+  const messages = await redis.lRange(key, startIndex, -1);
 
-      return {
-        date: data.createdAt,
-        order: Number(data.order),
-        message: data.message,
-        toUserId: Number(data.to),
-        userId: Number(data.from),
-      };
+  const nextSubjectGroupId = await (async () => {
+    const userChatLog = await prisma.userChatLog.findFirst({
+      where: {
+        subjectGroupId: { not: null },
+        OR: [
+          { AND: [{ userId: Number(from) }, { toUserId: Number(to) }] },
+          { AND: [{ userId: Number(to) }, { toUserId: Number(from) }] },
+        ],
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        subjectGroupId: true,
+      },
+    });
+
+    if (isNil(userChatLog) || isNil(userChatLog.subjectGroupId)) {
+      return 0;
+    }
+    return userChatLog.subjectGroupId + 1;
+  })();
+
+  /// 직전에 sync했던곳 이후부터 DB sync
+  await Promise.all(
+    messages.map(v => {
+      const data = JSON.parse(v) as ChatMessageType;
+      const { actionInputParams } = data;
+
+      return prisma.userChatLog.create({
+        data: {
+          date: data.createdAt,
+          order: Number(data.order),
+          message: data.message,
+          toUserId: Number(data.to),
+          userId: Number(data.from),
+          actionType: data.type,
+          subjectGroupId: nextSubjectGroupId,
+          ...(!isNil(actionInputParams) &&
+            (() => {
+              const {
+                date,
+                numOfPeople,
+                answer,
+                rejectReason,
+                confirmAnswer,
+                agreeAnswer,
+              } = actionInputParams;
+              return {
+                actionInputParam: {
+                  create: {
+                    ...(!isNil(date) && {
+                      bkDate: new Date(date).toISOString(),
+                    }),
+                    ...(!isNil(numOfPeople) && {
+                      bkNumOfPeople: Number(numOfPeople),
+                    }),
+                    ...(!isNil(answer) && {
+                      bkAnswer: answer === 'APPROVE',
+                    }),
+                    ...(!isNil(rejectReason) && {
+                      bkRejectReason: rejectReason as string,
+                    }),
+                    ...(!isNil(confirmAnswer) && {
+                      bkConfirmAnswer: confirmAnswer === 'CONFIRM',
+                    }),
+                    ...(!isNil(agreeAnswer) && {
+                      bkAgreeAnswer: agreeAnswer === 'TRUE',
+                    }),
+                  },
+                },
+              };
+            })()),
+        },
+      });
     }),
-  });
+  );
 
   await redis.lPopCount(key, len); /// delete all
+
+  /// 다음번에 sync할 index 기록
+  const lastMsg = messages.slice(-1);
+  if (!isEmpty(lastMsg)) {
+    const lastMsgObj = JSON.parse(lastMsg[0]) as ChatMessageType;
+
+    await redis.set(
+      `dbSyncStartIdxNOrder:${key}`,
+      `${0}:${Number(lastMsgObj.order) + 1}`,
+    ); /// 가장 최근에 DB에 저장된 메시지의(last message) redis list index+1값. 다음번 DB sync할때 이 index '부터'하면 된다.
+  }
+
   return true;
   // const key = `${from}=>${to}`;
   // const len = await redis.lLen(key);
@@ -344,131 +586,131 @@ export const testSSESubscribe = (
   }
 };
 
-export type StoreChatLogRequestType = {
-  chatLog: {
-    msg: string; /// 메시지 본문
-    date: string; /// 메시지가 생성된 시각(유저에 노출 표기된 시각과 동일함)
-    order: string; /// 메시지 순서(전체기준))
-  }[];
-  toUserId: string;
-};
-export type StoreChatLogSuccessResType = {};
-export type StoreChatLogResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {};
-};
+// export type StoreChatLogRequestType = {
+//   chatLog: {
+//     msg: string; /// 메시지 본문
+//     date: string; /// 메시지가 생성된 시각(유저에 노출 표기된 시각과 동일함)
+//     order: string; /// 메시지 순서(전체기준))
+//   }[];
+//   toUserId: string;
+// };
+// export type StoreChatLogSuccessResType = {};
+// export type StoreChatLogResType = Omit<IBResFormat, 'IBparams'> & {
+//   IBparams: {};
+// };
 
-/**
- * 대화로그를 저장요청하는 api.
- * order는 각 메시지들의 순서를 말하며 해당 api 한번에 해당하지 않고 해당 유저가 보유한 chatLog 전체중의 순서를 말한다.
- * 클라이언트에서 이전 storeChatLog를 호출한적이 있고 성공했다면 해당 order 이후로 msg order를 부여하여 보내어야 한다.
- */
-export const storeChatLog = asyncWrapper(
-  async (
-    req: Express.IBTypedReqBody<StoreChatLogRequestType>,
-    res: Express.IBTypedResponse<StoreChatLogResType>,
-  ) => {
-    try {
-      const { locals } = req;
-      const userId = (() => {
-        if (locals && locals?.grade === 'member')
-          return locals?.user?.id.toString();
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
-      })();
-      if (isNil(userId)) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
-        });
-      }
+// /**
+//  * 대화로그를 저장요청하는 api.
+//  * order는 각 메시지들의 순서를 말하며 해당 api 한번에 해당하지 않고 해당 유저가 보유한 chatLog 전체중의 순서를 말한다.
+//  * 클라이언트에서 이전 storeChatLog를 호출한적이 있고 성공했다면 해당 order 이후로 msg order를 부여하여 보내어야 한다.
+//  */
+// export const storeChatLog = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<StoreChatLogRequestType>,
+//     res: Express.IBTypedResponse<StoreChatLogResType>,
+//   ) => {
+//     try {
+//       const { locals } = req;
+//       const userId = (() => {
+//         if (locals && locals?.grade === 'member')
+//           return locals?.user?.id.toString();
+//         // return locals?.tokenId;
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: 'member 등급만 접근 가능합니다.',
+//         });
+//       })();
+//       if (isNil(userId)) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+//         });
+//       }
 
-      const params = req.body;
-      const { chatLog, toUserId } = params;
+//       const params = req.body;
+//       const { chatLog, toUserId } = params;
 
-      if (
-        isNil(chatLog) ||
-        isEmpty(chatLog) ||
-        isNil(toUserId) ||
-        isNaN(Number(toUserId))
-      ) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message:
-            '올바른 형식의 chatLog, toUserId 파라미터가 제공되어야 합니다.',
-        });
-      }
-      const chatLogValidCheckResult = chatLog.find(v => {
-        const { msg, date, order } = v;
-        if (isNil(msg) || isNil(date) || isNil(order)) {
-          throw new IBError({
-            type: 'INVALIDPARAMS',
-            message:
-              'chatLog의 msg, date, order는 undefined / null 이지 않은 파라미터가 제공되어야 합니다.',
-          });
-        }
-        if (isNaN(Number(order))) {
-          throw new IBError({
-            type: 'INVALIDPARAMS',
-            message: 'order는 숫자로 변환가능한 string이어야 합니다.',
-          });
-        }
-        return false;
-      });
+//       if (
+//         isNil(chatLog) ||
+//         isEmpty(chatLog) ||
+//         isNil(toUserId) ||
+//         isNaN(Number(toUserId))
+//       ) {
+//         throw new IBError({
+//           type: 'INVALIDPARAMS',
+//           message:
+//             '올바른 형식의 chatLog, toUserId 파라미터가 제공되어야 합니다.',
+//         });
+//       }
+//       const chatLogValidCheckResult = chatLog.find(v => {
+//         const { msg, date, order } = v;
+//         if (isNil(msg) || isNil(date) || isNil(order)) {
+//           throw new IBError({
+//             type: 'INVALIDPARAMS',
+//             message:
+//               'chatLog의 msg, date, order는 undefined / null 이지 않은 파라미터가 제공되어야 합니다.',
+//           });
+//         }
+//         if (isNaN(Number(order))) {
+//           throw new IBError({
+//             type: 'INVALIDPARAMS',
+//             message: 'order는 숫자로 변환가능한 string이어야 합니다.',
+//           });
+//         }
+//         return false;
+//       });
 
-      if (!isNil(chatLogValidCheckResult)) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message:
-            'chatLog 배열 항목중 적어도 1개이상 파라미터의 값이 올바르지 않습니다.',
-        });
-      }
+//       if (!isNil(chatLogValidCheckResult)) {
+//         throw new IBError({
+//           type: 'INVALIDPARAMS',
+//           message:
+//             'chatLog 배열 항목중 적어도 1개이상 파라미터의 값이 올바르지 않습니다.',
+//         });
+//       }
 
-      await prisma.userChatLog.createMany({
-        data: chatLog.map(v => {
-          const { msg, date, order } = v;
-          return {
-            date: moment(date).toISOString(),
-            order: Number(order),
-            message: msg,
-            userId: Number(userId),
-            toUserId: Number(toUserId),
-          };
-        }),
-        skipDuplicates: true, // Skip 'Bobo'
-      });
+//       await prisma.userChatLog.createMany({
+//         data: chatLog.map(v => {
+//           const { msg, date, order } = v;
+//           return {
+//             date: moment(date).toISOString(),
+//             order: Number(order),
+//             message: msg,
+//             userId: Number(userId),
+//             toUserId: Number(toUserId),
+//           };
+//         }),
+//         skipDuplicates: true, // Skip 'Bobo'
+//       });
 
-      res.json({
-        ...ibDefs.SUCCESS,
-        IBparams: {},
-      });
-      return;
-    } catch (err) {
-      if (err instanceof IBError) {
-        if (err.type === 'INVALIDPARAMS') {
-          res.status(400).json({
-            ...ibDefs.INVALIDPARAMS,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-        if (err.type === 'DUPLICATEDDATA') {
-          res.status(409).json({
-            ...ibDefs.DUPLICATEDDATA,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-      }
+//       res.json({
+//         ...ibDefs.SUCCESS,
+//         IBparams: {},
+//       });
+//       return;
+//     } catch (err) {
+//       if (err instanceof IBError) {
+//         if (err.type === 'INVALIDPARAMS') {
+//           res.status(400).json({
+//             ...ibDefs.INVALIDPARAMS,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'DUPLICATEDDATA') {
+//           res.status(409).json({
+//             ...ibDefs.DUPLICATEDDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//       }
 
-      throw err;
-    }
-  },
-);
+//       throw err;
+//     }
+//   },
+// );
 
 export type BookingRejectReasonType =
   | 'CLOSEDTIME'
@@ -582,7 +824,7 @@ export const sendMessage = asyncWrapper(
               })();
               break;
             case 'ASKBOOKINGAVAILABLE':
-              await (() => {
+              await (async () => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
@@ -610,13 +852,13 @@ export const sendMessage = asyncWrapper(
                   });
                 }
 
-                // const mTargetDate = moment(date);
-                // const targetMonth = mTargetDate.month() + 1;
-                // const targetDay = mTargetDate.date();
-                // const targetWeekday = mTargetDate.format('dddd');
-                // const targetHour = mTargetDate.format('H');
+                // 문의 booking Info 임시저장
+                await redis.set(
+                  `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
+                  `${date},${numOfPeople}`,
+                );
 
-                return putInMessage(d);
+                await putInMessage(d);
               })();
 
               break;
@@ -692,6 +934,18 @@ export const sendMessage = asyncWrapper(
 
                 await putInMessage(d);
 
+                const bookingInfo = await redis.get(
+                  `bookingInfo:${d.from}=>${d.to}`,
+                );
+                if (isNil(bookingInfo)) {
+                  throw new IBError({
+                    type: 'INVALIDSTATUS',
+                    message: `bookingInfo 데이터가 유실되었습니다.`,
+                  });
+                }
+
+                const [date, numOfPeople] = bookingInfo.split(',');
+
                 const finalBookingCheckMsgData: ChatMessageType = {
                   from: d.to, /// 사업자
                   to: d.from, /// 고객
@@ -703,8 +957,8 @@ export const sendMessage = asyncWrapper(
                   actionInputParams: {
                     reqUserNickname: locals.user!.nickName,
                     reqUserContact: locals.user!.phone,
-                    date: '저장되어있는 예약날짜',
-                    numOfPeople: '저장되어 있는 예약인원',
+                    date,
+                    numOfPeople,
                   },
                 };
                 await putInMessage(finalBookingCheckMsgData);
@@ -757,9 +1011,14 @@ export const sendMessage = asyncWrapper(
 
 export type GetMessageRequestType = {
   from: string;
-  startCursor: string; /// 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
+  startOrder: string; /// redis에서 내가 받고자 하는 메시지가 삭제됐을 경우(DB sync하면 redis에서는 삭제됨.) DB에서 메시지를 찾기 위한 메시지 순번
+  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
 };
-export type GetMessageSuccessResType = ChatMessageType[];
+export type GetMessageSuccessResType = {
+  messages: ChatMessageType[];
+  nextCursor: number;
+  nextOrder: number;
+};
 export type GetMessageResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetMessageSuccessResType | {};
 };
@@ -793,7 +1052,7 @@ export const getMessage = asyncWrapper(
       }
 
       const params = req.body;
-      const { from, startCursor } = params;
+      const { from, startCursor, startOrder } = params;
 
       if (
         // isNil(apiName) ||
@@ -810,11 +1069,14 @@ export const getMessage = asyncWrapper(
       if (
         isNil(startCursor) ||
         isEmpty(startCursor) ||
-        isNaN(Number(startCursor))
+        isNaN(Number(startCursor)) ||
+        isNil(startOrder) ||
+        isEmpty(startOrder) ||
+        isNaN(Number(startOrder))
       ) {
         throw new IBError({
           type: 'INVALIDSTATUS',
-          message: 'startCursor가 제공되어야 합니다.',
+          message: 'startCursor와 startOrder가 제공되어야 합니다.',
         });
       }
 
@@ -825,27 +1087,16 @@ export const getMessage = asyncWrapper(
         });
       }
 
-      // const myMessageFromSpecificUser = [...messageBox[userId][from]];
-      // messageBox[userId][from] = [];
-      const myMessageFromSpecificUser = await takeOutMessage({
+      const result = await takeOutMessage({
         from,
         userId,
         startCursor,
+        startOrder,
       });
-
-      // if(isEmpty(myMessageFromSpecificUser)){
-      //   await prisma.userChatLog.findMany({
-      //     where:{
-      //       id:{
-      //         gte:
-      //       }
-      //     }
-      //   })
-      // }
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: myMessageFromSpecificUser,
+        IBparams: result,
       });
       return;
     } catch (err) {
@@ -875,7 +1126,8 @@ export const getMessage = asyncWrapper(
 
 export type ReqBookingChagRequestType = {
   toUserId: string;
-  order: string;
+  startCursor: string;
+  startOrder: string;
 };
 export type ReqBookingChagSuccessResType = {};
 export type ReqBookingChagResType = Omit<IBResFormat, 'IBparams'> & {
@@ -910,19 +1162,22 @@ export const reqBookingChat = asyncWrapper(
       }
 
       const params = req.body;
-      const { toUserId, order } = params;
+      const { toUserId, startOrder, startCursor } = params;
 
       if (
         isNil(toUserId) ||
         isEmpty(toUserId) ||
         isNaN(Number(toUserId)) ||
-        isNil(order) ||
-        isEmpty(order) ||
-        isNaN(Number(order))
+        isNil(startOrder) ||
+        isEmpty(startOrder) ||
+        isNaN(Number(startOrder)) ||
+        isNil(startCursor) ||
+        isEmpty(startCursor) ||
+        isNaN(Number(startCursor))
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'toUserId와 order가 제공되어야 합니다.',
+          message: 'toUserId와 startOrder와 startCursor가 제공되어야 합니다.',
         });
       }
 
@@ -933,21 +1188,18 @@ export const reqBookingChat = asyncWrapper(
         });
       }
 
-      const nextOrder = await (async () => {
-        const lastMsg = await takeOutMessage({
-          from: userId,
-          userId: toUserId,
-          startCursor: order,
-        });
-        if (isEmpty(lastMsg)) return order;
-        return lastMsg.pop()!.order;
-      })();
+      const result = await takeOutMessage({
+        from: userId,
+        userId: toUserId,
+        startCursor,
+        startOrder,
+      });
 
       const data = {
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
-        order: `${nextOrder}`,
-        type: 'TEXT' as ChatMessageActionType,
+        order: `${result.nextOrder}`,
+        type: 'ASKBOOKINGWELCOME' as ChatMessageActionType,
       };
       const forwardData: ChatMessageType = {
         ...data,
@@ -999,7 +1251,7 @@ export const reqBookingChat = asyncWrapper(
 
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
-notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
+// notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
 notiRouter.post('/reqBookingChat', accessTokenValidCheck, reqBookingChat);

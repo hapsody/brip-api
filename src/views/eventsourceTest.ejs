@@ -127,9 +127,9 @@
 
     <script>
       var csChatBoxOrder = 0,
-        cpChatBoxOrder = 0;
-      csStartCursor = '0';
-      cpStartCursor = '0';
+        cpChatBoxOrder = 0,
+        csStartCursor = 0,
+        cpStartCursor = 0;
       const context = params => {
         let es;
         const { userType, userId, accessToken } = params;
@@ -222,33 +222,8 @@
         });
       }
 
-      // async function callAskBookingAvailable(params) {
-      //   console.log(
-      //     `call askBookingAvailable to userId ${$(
-      //       'input#sendToUserFromCustomer',
-      //     ).val()}...`,
-      //   );
-
-      //   var myHeaders = new Headers();
-      //   myHeaders.append('Content-Type', 'application/json');
-      //   myHeaders.append('Authorization', accessToken);
-
-      //   const askBookingAvailableResponse = await fetch(
-      //     `${server_url}/noti/askBookingAvailable`,
-      //     {
-      //       method: 'POST',
-      //       headers: myHeaders,
-      //       redirect: 'follow',
-      //       body: JSON.stringify(params),
-      //     },
-      //   );
-      //   $('#csSendMessageCallParam').text(JSON.stringify(params));
-      //   const data = await askBookingAvailableResponse.json();
-      //   return data;
-      // }
-
       async function callSendMessage(params) {
-        const { to } = params;
+        const [{ to }] = params;
         console.log(`[callSendMessage] userId ${to}...`);
 
         var myHeaders = new Headers();
@@ -272,7 +247,6 @@
       }
 
       async function callGetMessage(params) {
-        const { startCursor, from } = params;
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
@@ -283,13 +257,11 @@
             method: 'POST',
             headers: myHeaders,
             redirect: 'follow',
-            body: JSON.stringify({
-              from,
-              startCursor,
-            }),
+            body: JSON.stringify(params),
           },
         );
         const data = await getMessageResponse.json();
+        console.log(`[callGetMessage]:`, data);
         return data;
       }
 
@@ -363,7 +335,7 @@
                 cpChatBoxTextarea.val(
                   `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
                 );
-                cpStartCursor = `${Number(cpStartCursor) + 1}`;
+                cpStartCursor += 1;
                 cpChatBoxOrder += 1;
               }
             }
@@ -398,7 +370,7 @@
                 csChatBoxTextarea.val(
                   `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
                 );
-                csStartCursor = `${Number(csStartCursor) + 1}`;
+                csStartCursor += 1;
                 csChatBoxOrder += 1;
               }
             }
@@ -425,7 +397,8 @@
           // console.log(`csStartCursor:${csStartCursor}`);
           const callParams = {
             from: companyUserId,
-            startCursor: csStartCursor,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
           };
           console.log(`getMessage callParams:`, callParams);
           const getMessageResult = await callGetMessage(callParams);
@@ -433,19 +406,16 @@
             $('#csGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = csChatBoxTextarea.val();
 
-            const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
-            }, '');
+            const messages = getMessageResult.IBparams.messages.reduce(
+              (acc, v) => {
+                return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              },
+              '',
+            );
 
             csChatBoxTextarea.val(`${prevChat}${messages}`);
-            csStartCursor = `${
-              Number(csStartCursor) + getMessageResult.IBparams.length
-            }`;
-            const lastMsg = getMessageResult.IBparams.pop();
-            console.log(`[csGetMessageBtn] lastMsg:`, lastMsg);
-            if (!_.isNil(lastMsg) && !_.isNaN(Number(lastMsg.order))) {
-              csChatBoxOrder = Number(lastMsg.order) + 1;
-            }
+            csStartCursor = Number(getMessageResult.IBparams.nextCursor);
+            csChatBoxOrder = Number(getMessageResult.IBparams.nextOrder);
           }
           console.log(
             `[after getMessage call] CS_cursor:${csStartCursor}, order:${csChatBoxOrder}`,
@@ -458,7 +428,8 @@
           // console.log(`cpStartCursor:${cpStartCursor}`);
           const callParams = {
             from: customerUserId,
-            startCursor: cpStartCursor,
+            startCursor: `${cpStartCursor}`,
+            startOrder: `${cpChatBoxOrder}`,
           };
           console.log(`getMessage callParams: `, callParams);
           const getMessageResult = await callGetMessage(callParams);
@@ -466,21 +437,16 @@
             $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
             const prevChat = cpChatBoxTextarea.val();
 
-            const messages = getMessageResult.IBparams.reduce((acc, v) => {
-              return `${acc}[${v.createdAt}]:${v.message}\n\n`;
-            }, '');
+            const messages = getMessageResult.IBparams.messages.reduce(
+              (acc, v) => {
+                return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              },
+              '',
+            );
 
             cpChatBoxTextarea.val(`${prevChat}${messages}`);
-            cpStartCursor = `${
-              Number(cpStartCursor) + getMessageResult.IBparams.length
-            }`;
-
-            const lastMsg = getMessageResult.IBparams.pop();
-            console.log(`[cpGetMessageBtn] lastMsg:`, lastMsg);
-
-            if (!_.isNil(lastMsg) && !_.isNaN(Number(lastMsg.order))) {
-              cpChatBoxOrder = Number(lastMsg.order) + 1;
-            }
+            cpStartCursor = Number(getMessageResult.IBparams.nextCursor);
+            cpChatBoxOrder = Number(getMessageResult.IBparams.nextOrder);
           }
           console.log(
             `[after getMessage call] CP_cursor:${cpStartCursor}, order:${cpChatBoxOrder}`,
@@ -600,7 +566,7 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
-            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csStartCursor += 1;
             csChatBoxOrder += 1;
           }
         });
@@ -608,8 +574,7 @@
         $('#setParamsToAnsBookingAvailable').on('click', async () => {
           contextSwitch('company');
 
-          const message = `예약이 불가능해요.
-      같은 날짜에 예약이 꽉찼어요.`;
+          const message = `예약이 불가능해요.\n같은 날짜에 예약이 꽉찼어요.`;
           cpChatLine.val('');
 
           const callParams = [
@@ -635,7 +600,7 @@
             cpChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
-            cpStartCursor = `${Number(cpStartCursor) + 1}`;
+            cpStartCursor += 1;
             cpChatBoxOrder += 1;
           }
         });
@@ -647,7 +612,8 @@
 
           const callParams = {
             toUserId: companyUserId,
-            order: `${csChatBoxOrder}`,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
           };
 
           const result = await callReqBookingChat(callParams);
@@ -684,7 +650,7 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
-            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csStartCursor += 1;
             csChatBoxOrder += 1;
           }
         });
@@ -710,7 +676,7 @@
           ];
 
           const result = await callSendMessage(callParams);
-          console.log(`[privacyAgree] call sendMessage res:`,result);
+          console.log(`[privacyAgree] call sendMessage res:`, result);
           if (result.IBcode === '1000') {
             cpChatLine.val('');
 
@@ -718,7 +684,7 @@
             csChatBoxTextarea.val(
               `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
             );
-            csStartCursor = `${Number(csStartCursor) + 1}`;
+            csStartCursor += 1;
             csChatBoxOrder += 1;
           }
           console.log('\n');
