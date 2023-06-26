@@ -170,7 +170,7 @@ const retrieveFromDb = async (
   if (isNil(targetMsgsFromDB) || isEmpty(targetMsgsFromDB)) {
     return {
       messages: [],
-      nextOrder: 0,
+      nextOrder: Number(startOrder),
       nextCursor: 0,
     };
   }
@@ -304,7 +304,7 @@ const takeOutMessage = async (
     return {
       messages,
       nextOrder: Number(messages[messages.length - 1].order) + 1,
-      nextCursor: Number(startCursor) + 1,
+      nextCursor: Number(startCursor) + messages.length,
     };
   }
 

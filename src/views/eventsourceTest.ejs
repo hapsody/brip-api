@@ -337,6 +337,9 @@
                 );
                 cpStartCursor += 1;
                 cpChatBoxOrder += 1;
+                console.log(
+                  `[after getMessage call] CP_cursor:${cpStartCursor}, order:${cpChatBoxOrder}`,
+                );
               }
             }
           } catch (err) {
@@ -372,6 +375,9 @@
                 );
                 csStartCursor += 1;
                 csChatBoxOrder += 1;
+                console.log(
+                  `[after getMessage call] CS_cursor:${csStartCursor}, order:${csChatBoxOrder}`,
+                );
               }
             }
           } catch (err) {
