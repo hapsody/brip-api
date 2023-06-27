@@ -1129,9 +1129,9 @@ export const getMessage = asyncWrapper(
 );
 
 export type ReqBookingChagRequestType = {
-  toUserId: string;
-  startCursor: string;
-  startOrder: string;
+  toUserId: string; /// 보낼사용자 userId
+  startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
+  startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
 };
 export type ReqBookingChagSuccessResType = {};
 export type ReqBookingChagResType = Omit<IBResFormat, 'IBparams'> & {

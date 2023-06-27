@@ -114,14 +114,7 @@ app.get('/eventsource', (req: Request, res: Response) => {
   redis.on('error', err => console.log('Redis Client Error', err));
   await redis.connect();
   console.log(">>> It's done to create redis server connection <<<");
-  // await redis.set(
-  //   'myObjKey',
-  //   JSON.stringify({
-  //     hey: '123',
-  //     mr: 'nnnn',
-  //   }),
-  // );
-  // const value = await redis.get('myObjKey');
+  await redis.auth(process.env.REDIS_AUTH_TOKEN as string);
 })().catch((err: Error) => {
   console.error(err.message);
 });
