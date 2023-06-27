@@ -725,6 +725,15 @@ export type BookingRejectReasonType =
 
 const pubSSEvent = (params: ChatMessageType) => {
   const { from, to } = params;
+
+  if (isNil(sseClients[to])) {
+    // throw new IBError({
+    //   type: 'INVALIDSTATUS',
+    //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+    // });
+    console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
+    return;
+  }
   sseClients[to]!.write(`id: 00\n`);
   sseClients[to]!.write(`event: userId${to}\n`);
   sseClients[to]!.write(
@@ -779,12 +788,12 @@ export const sendMessage = asyncWrapper(
           });
         }
 
-        if (isNil(sseClients[v.to])) {
-          throw new IBError({
-            type: 'INVALIDSTATUS',
-            message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-          });
-        }
+        // if (isNil(sseClients[v.to])) {
+        //   throw new IBError({
+        //     type: 'INVALIDSTATUS',
+        //     message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        //   });
+        // }
 
         if (isNil(v.createdAt) || isEmpty(v.createdAt)) {
           throw new IBError({
