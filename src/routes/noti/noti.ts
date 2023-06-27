@@ -83,14 +83,14 @@ const putInMessage = async (params: ChatMessageType) => {
     const candKey1 = `${from}<=>${to}`;
     const candKey2 = `${to}<=>${from}`;
 
-    const result = await redis.lLen(candKey1);
+    const result = await redis.llen(candKey1);
     if (result > 0) return { key: candKey1, len: result };
 
-    // result = await redis.lLen(candKey1);
+    // result = await redis.llen(candKey1);
     return { key: candKey2, len: result };
   })();
 
-  await redis.rPush(key, [JSON.stringify({ uuid: uuidv4(), ...data })]);
+  await redis.rpush(key, JSON.stringify({ uuid: uuidv4(), ...data }));
   return data.order;
 
   // /**
@@ -98,21 +98,21 @@ const putInMessage = async (params: ChatMessageType) => {
   //  * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
   //  * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
   //  * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
-  //  * takeOutMessage 함수 호출시에 lLen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
+  //  * takeOutMessage 함수 호출시에 llen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
   //  * 수신자가 열린 채팅방을 모두 조회하고 싶을 경우에는 Lists만으로는 키값을 알수 없어서 조회가 불가능하다.
   //  * 이럴경우 Sets를 사용하여 저장된 송수신자와의 관계를 먼저 파악하고 후에 Lists 키값을 추측하여 조회할수 있다.
   //  */
   // await redis.sAdd(to, from);
-  // const len = await redis.lLen(`${from}=>${to}`);
+  // const len = await redis.llen(`${from}=>${to}`);
   // if (len === 0) {
-  //   await redis.rPush(`${from}=>${to}`, [
+  //   await redis.rpush(`${from}=>${to}`, [
   //     '1', /// list 좌측 맨 첫번째는 (0번째 자리) 메시지를 수신할때 다음에 읽어가야할 커서인 인덱스 번호를 써준다. len이 0인상황(메시지 큐에 아무 값도 없는 상태)이므로 다음 읽어야 할 인덱스 값은 현재 집어넣는 데이터인 1이다.
   //     JSON.stringify({ uuid: uuidv4(), ...data }),
   //   ]);
   //   return;
   // }
 
-  // await redis.rPush(
+  // await redis.rpush(
   //   `${from}=>${to}`,
   //   JSON.stringify({ uuid: uuidv4(), ...data }),
   // );
@@ -254,11 +254,11 @@ const takeOutMessage = async (
     const candKey2 = `${userId}<=>${from}`;
 
     /// candKey1이 존재하는경우
-    let result = await redis.lLen(candKey1);
+    let result = await redis.llen(candKey1);
     if (result > 0) return { key: candKey1, len: result };
 
     /// candKey2가 존재하는경우
-    result = await redis.lLen(candKey2);
+    result = await redis.llen(candKey2);
     if (result > 0) return { key: candKey2, len: result };
 
     return {};
@@ -274,7 +274,7 @@ const takeOutMessage = async (
   }
 
   /// startCursor 인덱스부터 메시지 큐에 있는 값들 다 가져오기.
-  let rawMsgsFromRedis = await redis.lRange(key, Number(startCursor), -1);
+  let rawMsgsFromRedis = await redis.lrange(key, Number(startCursor), -1);
 
   if (isNil(rawMsgsFromRedis) || isEmpty(rawMsgsFromRedis)) {
     /// redis 메시지큐가 비어있을 경우는 두가지다.
@@ -312,7 +312,7 @@ const takeOutMessage = async (
   /// 아래 과정대로 DB를 추가적으로 찾아봐야한다.
   const msgsFromDB = await retrieveFromDb(params);
 
-  rawMsgsFromRedis = await redis.lRange(key, 0, -1);
+  rawMsgsFromRedis = await redis.lrange(key, 0, -1);
   const msgsFromRedis = rawMsgsFromRedis.map(
     v => JSON.parse(v) as ChatMessageType,
   );
@@ -341,14 +341,17 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
     return false;
   }
 
-  const { key, len } = await (async () => {
+  const {
+    key,
+    // len
+  } = await (async () => {
     const candKey1 = `${from}<=>${to}`;
     const candKey2 = `${to}<=>${from}`;
 
-    let result = await redis.lLen(candKey1);
+    let result = await redis.llen(candKey1);
     if (result > 0) return { key: candKey1, len: result };
 
-    result = await redis.lLen(candKey1);
+    result = await redis.llen(candKey1);
     return { key: candKey2, len: result };
   })();
 
@@ -356,7 +359,7 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
   const idxNOrder = isNil(startIdxNOrder) ? [] : startIdxNOrder.split(':');
   const startIndex = isEmpty(idxNOrder) ? 0 : Number(idxNOrder[0]);
   // const startOrder = isEmpty(cursor) ? 0 : Number(cursor[1]);
-  const messages = await redis.lRange(key, startIndex, -1);
+  const messages = await redis.lrange(key, startIndex, -1);
 
   const nextSubjectGroupId = await (async () => {
     const userChatLog = await prisma.userChatLog.findFirst({
@@ -436,7 +439,8 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
     }),
   );
 
-  await redis.lPopCount(key, len); /// delete all
+  // await redis.lPopCount(key, len); /// delete all
+  await redis.del(key);
 
   /// 다음번에 sync할 index 기록
   const lastMsg = messages.slice(-1);
@@ -451,10 +455,10 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
 
   return true;
   // const key = `${from}=>${to}`;
-  // const len = await redis.lLen(key);
+  // const len = await redis.llen(key);
   // if (len > 2) {
   //   /// sync할 값이 있을때만 sync
-  //   const messages = await redis.lRange(key, 1, -1);
+  //   const messages = await redis.lrange(key, 1, -1);
   //   await prisma.userChatLog.createMany({
   //     data: messages.map(v => {
   //       const data = JSON.parse(v) as ChatMessageType;
