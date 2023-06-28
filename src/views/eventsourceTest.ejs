@@ -315,6 +315,8 @@
           try {
             if (e.key === 'Enter') {
               contextSwitch('company');
+              customerUserId = $('#sendToUserFromCompany').val();
+              companyUserId = $('#sendToUserFromCustomer').val();
               const message = cpChatLine.val();
               const callParams = [
                 {
@@ -352,11 +354,13 @@
             if (e.key === 'Enter') {
               console.log('enter');
               contextSwitch('customer');
+              customerUserId = $('#sendToUserFromCompany').val();
+              companyUserId = $('#sendToUserFromCustomer').val();
               const message = csChatLine.val();
               const callParams = [
                 {
-                  to: customerUserId,
-                  from: companyUserId,
+                  to: companyUserId,
+                  from: customerUserId,
                   createdAt: moment().toISOString(),
                   order: csChatBoxOrder.toString(),
                   message,
@@ -400,6 +404,8 @@
 
         $('#csGetMessageBtn').on('click', async () => {
           contextSwitch('customer');
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
           // console.log(`csStartCursor:${csStartCursor}`);
           const callParams = {
             from: companyUserId,
@@ -431,6 +437,8 @@
 
         $('#cpGetMessageBtn').on('click', async () => {
           contextSwitch('company');
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
           // console.log(`cpStartCursor:${cpStartCursor}`);
           const callParams = {
             from: customerUserId,
@@ -472,6 +480,8 @@
 
         $('#cpStoreChatLog').on('click', async () => {
           contextSwitch('company');
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
           const chatBoxSnapShot = $('#cpChatBox').val();
 
           const chatArr = chatBoxSnapShot
@@ -508,6 +518,7 @@
 
         $('#csStoreChatLog').on('click', async () => {
           contextSwitch('customer');
+          companyUserId = $('#sendToUserFromCompany').val();
           const chatBoxSnapShot = $('#csChatBox').val();
 
           const chatArr = chatBoxSnapShot
@@ -545,6 +556,8 @@
 
         $('#setParamsToAskBookingAvailable').on('click', async () => {
           contextSwitch('customer');
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
 
           const message = `유쾌한인어님이\n7/3 월 14시 2명\n예약 가능여부를 문의했어요!`;
           csChatLine.val('');
@@ -580,6 +593,9 @@
         $('#setParamsToAnsBookingAvailable').on('click', async () => {
           contextSwitch('company');
 
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
+
           const message = `예약이 불가능해요.\n같은 날짜에 예약이 꽉찼어요.`;
           cpChatLine.val('');
 
@@ -613,6 +629,9 @@
         $('#setParamsToReqBookingChat').on('click', async () => {
           contextSwitch('customer');
 
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
+
           const message = `예약하기`;
           csChatLine.val('');
 
@@ -629,6 +648,9 @@
 
         $('#setParamsToConfirmBooking').on('click', async () => {
           contextSwitch('customer');
+
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
 
           const message = `네, 확정할게요`;
           cpChatLine.val('');
@@ -663,6 +685,9 @@
 
         $('#setParamsToPrivacyAgree').on('click', async () => {
           contextSwitch('customer');
+
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
 
           const message = `동의`;
           cpChatLine.val('');
