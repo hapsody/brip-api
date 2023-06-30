@@ -75,6 +75,9 @@
         <button id="csStoreChatLog">store chat</button>
         <span id="csCallStoreChatLogCallParams"></span> <br />
         <span>Set Params => </span>
+        <button id="setParamsToReqBookingChatWelcome">
+          [reqBookingChatWelcome]
+        </button>
         <button id="setParamsToReqNewBooking">[reqNewBooking]</button>
         <button id="setParamsToAskBookingAvailable">
           [askBookingAvailable]
@@ -300,6 +303,25 @@
           },
         );
         const data = await reqNewBookingResponse.json();
+        return data;
+      }
+
+      async function callReqBookingChatWelcome(params) {
+        // console.log(`call reqNewBooking...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const reqBookingChatWelcome = await fetch(
+          `${server_url}/noti/reqBookingChatWelcome`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await reqBookingChatWelcome.json();
         return data;
       }
 
@@ -626,13 +648,32 @@
             cpChatBoxOrder += 1;
           }
         });
+
+        $('#setParamsToReqBookingChatWelcome').on('click', async () => {
+          contextSwitch('customer');
+
+          customerUserId = $('#sendToUserFromCompany').val();
+          companyUserId = $('#sendToUserFromCustomer').val();
+
+          csChatLine.val('');
+
+          const callParams = {
+            toUserId: companyUserId,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
+          };
+
+          const result = await callReqBookingChatWelcome(callParams);
+          console.log(`reqBookingChatWelcome call res: `, result);
+          console.log('\n');
+        });
+
         $('#setParamsToReqNewBooking').on('click', async () => {
           contextSwitch('customer');
 
           customerUserId = $('#sendToUserFromCompany').val();
           companyUserId = $('#sendToUserFromCustomer').val();
 
-          const message = `예약하기`;
           csChatLine.val('');
 
           const callParams = {

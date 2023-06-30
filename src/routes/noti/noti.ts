@@ -1150,8 +1150,8 @@ export type ReqNewBookingResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * 고객측(사용자)가 채팅방입장시에 호출할 api
- * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
+ * 고객측(사용자)가 예약하기 버튼을 누르면 호출할 api
+ * api 호출을하면 1. 고객측=>사업자측: '예약하기', 사업자측=>고객측: '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!' 메시지를 발송한다.
  */
 export const reqNewBooking = asyncWrapper(
   async (
@@ -1279,10 +1279,141 @@ export const reqNewBooking = asyncWrapper(
   },
 );
 
+export type ReqBookingChatWelcomeRequestType = {
+  toUserId: string; /// 보낼사용자 userId
+  startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
+  startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
+};
+export type ReqBookingChatWelcomeSuccessResType = {};
+export type ReqBookingChatWelcomeResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqBookingChatWelcomeSuccessResType | {};
+};
+
+/**
+ * 고객측(사용자)가 채팅방입장시에 호출할 api
+ * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
+ * 해당 사용자들끼리 최초 대화일때 단한번만 호출이된다.
+ */
+export const reqBookingChatWelcome = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ReqBookingChatWelcomeRequestType>,
+    res: Express.IBTypedResponse<ReqBookingChatWelcomeResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { toUserId, startOrder, startCursor } = params;
+
+      if (
+        isNil(toUserId) ||
+        isEmpty(toUserId) ||
+        isNaN(Number(toUserId)) ||
+        isNil(startOrder) ||
+        isEmpty(startOrder) ||
+        isNaN(Number(startOrder)) ||
+        isNil(startCursor) ||
+        isEmpty(startCursor) ||
+        isNaN(Number(startCursor))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'toUserId와 startOrder와 startCursor가 제공되어야 합니다.',
+        });
+      }
+
+      if (isNil(sseClients[toUserId])) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+        });
+      }
+
+      const result = await takeOutMessage({
+        from: userId,
+        userId: toUserId,
+        startCursor,
+        startOrder,
+      });
+
+      const data = {
+        createdAt: new Date().toISOString(),
+        message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
+        order: `${result.nextOrder}`,
+        type: 'ASKBOOKINGWELCOME' as ChatMessageActionType,
+      };
+      const forwardData: ChatMessageType = {
+        ...data,
+        from: userId, /// 고객
+        to: toUserId, /// 사업자
+      };
+      const reverseData: ChatMessageType = {
+        ...data,
+        from: toUserId, /// 사업자
+        to: userId, /// 고객
+      };
+
+      /// 양측에 같이 날린다.
+      await putInMessage(reverseData); /// 사업자 => 고객 메시지 전송
+      pubSSEvent(forwardData);
+      pubSSEvent(reverseData);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          toUserId,
+        },
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
 notiRouter.post('/reqNewBooking', accessTokenValidCheck, reqNewBooking);
+notiRouter.post(
+  '/reqBookingChatWelcome',
+  accessTokenValidCheck,
+  reqBookingChatWelcome,
+);
 export default notiRouter;
