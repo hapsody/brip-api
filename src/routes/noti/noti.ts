@@ -513,6 +513,7 @@ export const sseSubscribe = (
       'Content-Type': 'text/event-stream',
       Connection: 'keep-alive',
       'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
     };
     res.set(headers);
     res.write(`userId:${userId} connected`);
@@ -562,6 +563,7 @@ export const testSSESubscribe = (
       'Content-Type': 'text/event-stream',
       Connection: 'keep-alive',
       'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
     };
     res.set(headers);
     res.write(`userId:${userId} connected`);
@@ -1151,7 +1153,7 @@ export type ReqNewBookingResType = Omit<IBResFormat, 'IBparams'> & {
 
 /**
  * 고객측(사용자)가 예약하기 버튼을 누르면 호출할 api
- * api 호출을하면 1. 고객측=>사업자측: '예약하기', 사업자측=>고객측: '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!' 메시지를 발송한다.
+ * api 호출을하면 1. 고객측=>사업자측: '예약하기', 2. 사업자측=>고객측: '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!' 메시지를 발송한다.
  */
 export const reqNewBooking = asyncWrapper(
   async (
