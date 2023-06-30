@@ -23,9 +23,13 @@ const abcd = async () => {
   await adPlace();
 };
 
-abcd().catch(e => {
-  console.error(e);
-  process.exit(1);
-});
+abcd()
+  .catch(e => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => {
+    process.exit(0);
+  });
 
 // tourPlace.prototype = () => {};
