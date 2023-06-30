@@ -542,12 +542,44 @@ export const modifyAdPlace = asyncWrapper(
 
           /// 포토 수정이 있는데 tourPlace가 생성되어 있는 adPlace라면 IBPhotos가 위에서 deleteMany로 모두 삭제되고 재연결되었으므로 tourPlace의 IBPhotos connect도 수정해줘야한다.
           let tpUpdateResult: TourPlace | undefined;
-          if (!isNil(adPlaceUpdatedResult.tourPlaceId) && !isNil(photos)) {
+          if (!isNil(adPlaceUpdatedResult.mainTourPlaceId) && !isNil(photos)) {
             tpUpdateResult = await tx.tourPlace.update({
               where: {
-                id: adPlaceUpdatedResult.tourPlaceId,
+                id: adPlaceUpdatedResult.mainTourPlaceId,
               },
               data: {
+                title,
+                ...(!isNil(category) && {
+                  category: await adPlaceCategoryToIBTravelTag({
+                    category,
+                    adPlaceId: Number(adPlaceId),
+                    tx,
+                  }),
+                }),
+                ...(!isNil(photos) &&
+                  (() => {
+                    /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
+                    // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
+                    // /// 추가 todo: s3에 해당 key를 삭제까지 구현할것.
+                    // await prisma.iBPhotos.deleteMany({
+                    //   where: {
+                    //     adPlaceId: Number(adPlaceId),
+                    //   },
+                    // });
+                    return {
+                      photos: {
+                        createMany: {
+                          data: photos,
+                        },
+                      },
+                    };
+                  })()),
+                desc,
+                address,
+                roadAddress,
+                openWeek,
+                contact,
+
                 photos: {
                   connect: adPlaceUpdatedResult.photos.map(v => {
                     return {

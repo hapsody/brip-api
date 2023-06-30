@@ -268,14 +268,15 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good    Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad  Int      @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad     Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like    Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good      Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad    Int      @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad       Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like      Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
   // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
   // gglNearbySearchResTypeId Int?
-  adPlace AdPlace?
+  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
+  adPlaceId Int?
 
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
@@ -987,8 +988,8 @@ model AdPlace {
   businessNumber    String?       @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
   nationalCode      String        @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
-  tourPlace         TourPlace?    @relation(fields: [tourPlaceId], references: [id])
-  tourPlaceId       Int?          @unique
+  tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
+  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. mainTourPlaceId가 생성되는 시점은 등록 요청한 adPlace가 심사승인되고 IN_USE가 되는 시점이다.
   user              User          @relation(fields: [userId], references: [id])
   userId            Int
 }
