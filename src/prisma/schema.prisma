@@ -1016,6 +1016,8 @@ model AdPlace {
 
 enum UserChatActionType {
   ASKBOOKINGWELCOME /// 예약문의 첫 환영 인사
+  NEWBOOKINGMSG /// 예약하기 (다음 두 메시지:  '예약하기'
+  ANSNEWBOOKINGMSG /// '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!)
   ASKBOOKINGAVAILABLE /// 예약문의 고객 => 사업자
   ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객
   CONFIRMBOOKING /// 예약확정 고객 => 사업자

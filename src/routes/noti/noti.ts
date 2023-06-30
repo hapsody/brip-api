@@ -26,6 +26,8 @@ const sseClients: SSEClientType = {
 type ChatMessageActionType =
   | 'ASKBOOKINGWELCOME'
   | 'ASKBOOKINGAVAILABLE'
+  | 'NEWBOOKINGMSG'
+  | 'ANSNEWBOOKINGMSG'
   | 'ANSBOOKINGAVAILABLE'
   | 'CONFIRMBOOKING'
   | 'PRIVACYAGREE'
@@ -1137,24 +1139,24 @@ export const getMessage = asyncWrapper(
   },
 );
 
-export type ReqBookingChagRequestType = {
+export type ReqNewBookingRequestType = {
   toUserId: string; /// 보낼사용자 userId
   startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
   startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
 };
-export type ReqBookingChagSuccessResType = {};
-export type ReqBookingChagResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: ReqBookingChagSuccessResType | {};
+export type ReqNewBookingSuccessResType = {};
+export type ReqNewBookingResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ReqNewBookingSuccessResType | {};
 };
 
 /**
  * 고객측(사용자)가 채팅방입장시에 호출할 api
  * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
  */
-export const reqBookingChat = asyncWrapper(
+export const reqNewBooking = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<ReqBookingChagRequestType>,
-    res: Express.IBTypedResponse<ReqBookingChagResType>,
+    req: Express.IBTypedReqBody<ReqNewBookingRequestType>,
+    res: Express.IBTypedResponse<ReqNewBookingResType>,
   ) => {
     try {
       const { locals } = req;
@@ -1208,25 +1210,40 @@ export const reqBookingChat = asyncWrapper(
         startOrder,
       });
 
-      const data = {
+      const bookingData = {
         createdAt: new Date().toISOString(),
-        message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
+        message: `예약하기`,
         order: `${result.nextOrder}`,
-        type: 'ASKBOOKINGWELCOME' as ChatMessageActionType,
+        type: 'NEWBOOKINGMSG' as ChatMessageActionType,
       };
       const forwardData: ChatMessageType = {
-        ...data,
+        ...bookingData,
         from: userId, /// 고객
         to: toUserId, /// 사업자
       };
+      // const reverseData: ChatMessageType = {
+      //   ...data,
+      //   from: toUserId, /// 사업자
+      //   to: userId, /// 고객
+      // };
+
+      /// 양측에 같이 날린다
+      await putInMessage(forwardData); /// 고객 => 사업자 메시지 전송
+
+      const ansBookingData = {
+        createdAt: new Date().toISOString(),
+        message: `원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!`,
+        order: `${result.nextOrder + 1}`,
+        type: 'ANSNEWBOOKINGMSG' as ChatMessageActionType,
+      };
+
       const reverseData: ChatMessageType = {
-        ...data,
+        ...ansBookingData,
         from: toUserId, /// 사업자
         to: userId, /// 고객
       };
-
-      /// 양측에 같이 날린다.
       await putInMessage(reverseData); /// 사업자 => 고객 메시지 전송
+
       pubSSEvent(forwardData);
       pubSSEvent(reverseData);
 
@@ -1267,5 +1284,5 @@ notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
-notiRouter.post('/reqBookingChat', accessTokenValidCheck, reqBookingChat);
+notiRouter.post('/reqNewBooking', accessTokenValidCheck, reqNewBooking);
 export default notiRouter;

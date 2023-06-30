@@ -75,7 +75,7 @@
         <button id="csStoreChatLog">store chat</button>
         <span id="csCallStoreChatLogCallParams"></span> <br />
         <span>Set Params => </span>
-        <button id="setParamsToReqBookingChat">[reqBookingChat]</button>
+        <button id="setParamsToReqNewBooking">[reqNewBooking]</button>
         <button id="setParamsToAskBookingAvailable">
           [askBookingAvailable]
         </button>
@@ -284,14 +284,14 @@
         return data;
       }
 
-      async function callReqBookingChat(params) {
-        // console.log(`call reqBookingChat...`);
+      async function callReqNewBooking(params) {
+        // console.log(`call reqNewBooking...`);
         var myHeaders = new Headers();
         myHeaders.append('Content-Type', 'application/json');
         myHeaders.append('Authorization', accessToken);
 
-        const reqBookingChatResponse = await fetch(
-          `${server_url}/noti/reqBookingChat`,
+        const reqNewBookingResponse = await fetch(
+          `${server_url}/noti/reqNewBooking`,
           {
             method: 'POST',
             headers: myHeaders,
@@ -299,7 +299,7 @@
             body: JSON.stringify(params),
           },
         );
-        const data = await reqBookingChatResponse.json();
+        const data = await reqNewBookingResponse.json();
         return data;
       }
 
@@ -626,7 +626,7 @@
             cpChatBoxOrder += 1;
           }
         });
-        $('#setParamsToReqBookingChat').on('click', async () => {
+        $('#setParamsToReqNewBooking').on('click', async () => {
           contextSwitch('customer');
 
           customerUserId = $('#sendToUserFromCompany').val();
@@ -641,8 +641,8 @@
             startOrder: `${csChatBoxOrder}`,
           };
 
-          const result = await callReqBookingChat(callParams);
-          console.log(`reqBookingChat call res: `, result);
+          const result = await callReqNewBooking(callParams);
+          console.log(`reqNewBooking call res: `, result);
           console.log('\n');
         });
 
