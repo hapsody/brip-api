@@ -549,13 +549,13 @@ export const modifyAdPlace = asyncWrapper(
               },
               data: {
                 title,
-                ...(!isNil(category) && {
-                  category: await adPlaceCategoryToIBTravelTag({
-                    category,
-                    adPlaceId: Number(adPlaceId),
-                    tx,
-                  }),
-                }),
+                // ...(!isNil(category) && {
+                //   category: await adPlaceCategoryToIBTravelTag({
+                //     category,
+                //     adPlaceId: Number(adPlaceId),
+                //     tx,
+                //   }),
+                // }),
                 ...(!isNil(photos) &&
                   (() => {
                     /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.

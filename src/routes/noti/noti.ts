@@ -43,6 +43,27 @@ type ChatMessageActionType =
 //   from: string;
 //   to: string;
 // };
+type ActionInputParam = {
+  // askBookingAvailable
+  date?: string; /// 예약일(문의일x)
+  numOfPeople?: string; /// 예약 인원
+
+  /// ansBookingAvailable
+  answer?: 'APPROVE' | 'REJECT'; /// 예약문의 응답
+  rejectReason?: BookingRejectReasonType; /// 예약문의가 거절일경우 거절사유
+
+  /// confirmBooking
+  confirmAnswer?: 'CONFIRM' | 'CANCEL'; /// 예약 확정 여부
+
+  /// privacyAgree
+  agreeAnswer?: 'TRUE' | 'FALSE'; /// 개인정보 이용동의
+
+  /// finalBookingCheck
+  reqUserNickname?: string;
+  reqUserContact: string;
+  /// date?: string;
+  /// numOfPeople?: string;
+};
 type ChatMessageType = {
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
@@ -50,27 +71,7 @@ type ChatMessageType = {
   order: string; /// 채팅방에서의 메시지 순번
   message: string; /// 메시지 본문
   type: ChatMessageActionType; /// 메시지 타입
-  actionInputParams?: {
-    // askBookingAvailable
-    date?: string; /// 예약일(문의일x)
-    numOfPeople?: string; /// 예약 인원
-
-    /// ansBookingAvailable
-    answer?: 'APPROVE' | 'REJECT'; /// 예약문의 응답
-    rejectReason?: BookingRejectReasonType; /// 예약문의가 거절일경우 거절사유
-
-    /// confirmBooking
-    confirmAnswer?: 'CONFIRM' | 'CANCEL'; /// 예약 확정 여부
-
-    /// privacyAgree
-    agreeAnswer?: 'TRUE' | 'FALSE'; /// 개인정보 이용동의
-
-    /// finalBookingCheck
-    reqUserNickname?: string;
-    reqUserContact: string;
-    /// date?: string;
-    /// numOfPeople?: string;
-  };
+  actionInputParams?: ActionInputParam;
 };
 
 /**
@@ -745,7 +746,12 @@ const pubSSEvent = (params: ChatMessageType) => {
   );
 };
 
-export type SendMessageRequestType = ChatMessageType[]; /// 보낼 메시지
+export type SendMessageRequestType = (ChatMessageType & {
+  actionInputParams?: Omit<
+    ActionInputParam,
+    'reqUserNickname' | 'reqUserContact'
+  >;
+})[]; /// 보낼 메시지
 
 // export type SendMessageSuccessResType = {};
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {

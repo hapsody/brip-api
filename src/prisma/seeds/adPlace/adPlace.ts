@@ -119,7 +119,7 @@ async function main(): Promise<void> {
         closedDay: 'SAT, SUN',
         contact: '010-1234-5678',
         siteUrl: 'https://www.google.com',
-        businessNumber: '249-12-01777',
+        businessNumber: '249-12-01477',
         nationalCode: '82',
         userId: user.userId,
         tourPlace: {
@@ -160,8 +160,23 @@ async function main(): Promise<void> {
               }),
         },
       },
+      include: {
+        tourPlace: true,
+      },
     });
-    console.log(result2);
+
+    const updateRes = await prisma.adPlace.update({
+      where: {
+        id: result2.id,
+      },
+      data: {
+        mainTourPlaceId: result2.tourPlace[0].id,
+      },
+      include: {
+        tourPlace: true,
+      },
+    });
+    console.log(updateRes);
   }
 
   await prisma.$disconnect();
