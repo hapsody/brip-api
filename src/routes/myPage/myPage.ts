@@ -556,6 +556,34 @@ export const modifyAdPlace = asyncWrapper(
                 //     tx,
                 //   }),
                 // }),
+
+                ...(!isNil(category) &&
+                  (await (async () => {
+                    const tags = await Promise.all(
+                      category.map(v => {
+                        return ibTravelTagCategorize(
+                          {
+                            ibType: {
+                              typePath: `${v.primary}>${v.secondary}`,
+                              minDifficulty: 1,
+                              maxDifficulty: 1,
+                            },
+                          },
+                          tx,
+                        );
+                      }),
+                    );
+
+                    return {
+                      ibTravelTag: {
+                        connect: tags.map(v => {
+                          return {
+                            id: v,
+                          };
+                        }),
+                      },
+                    };
+                  })())),
                 ...(!isNil(photos) &&
                   (() => {
                     /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
