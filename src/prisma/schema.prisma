@@ -51,6 +51,8 @@ model User {
   ToUserChatLog                   UserChatLog[]                     @relation("ToUserChat")
   // customerBookingInfo             BookingInfo[]                     @relation("customer")
   // companyBookingInfo              BookingInfo[]                     @relation("company")
+  asCompanyBI                     BookingInfo[]                     @relation("asCustomer")
+  asCustomerBI                    BookingInfo[]                     @relation("asCompany")
 }
 
 model FavoriteTravelType {
@@ -989,7 +991,7 @@ model AdPlace {
   businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
   nationalCode      String        @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
-  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. mainTourPlaceId가 생성되는 시점은 등록 요청한 adPlace가 심사승인되고 IN_USE가 되는 시점이다.
+  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
   user              User          @relation(fields: [userId], references: [id])
   userId            Int
 }
@@ -1068,15 +1070,15 @@ model UserChatActionInputParam {
 }
 
 // /// 예약문의 관련 정보
-// model BookingInfo {
-//   id             Int      @id @default(autoincrement())
-//   createdAt      DateTime @default(now())
-//   updatedAt      DateTime @default(now()) @updatedAt
-//   date           DateTime
-//   numOfPeople    Int
-//   subjectGroupId Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
-//   customer       User     @relation(name: "customer", fields: [customerId], references: [id])
-//   customerId     Int
-//   company        User     @relation(name: "company", fields: [companyId], references: [id])
-//   companyId      Int
-// }
+model BookingInfo {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  date           DateTime
+  numOfPeople    Int
+  subjectGroupId Int /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+  customer       User     @relation(name: "asCustomer", fields: [customerId], references: [id])
+  customerId     Int
+  company        User     @relation(name: "asCompany", fields: [companyId], references: [id])
+  companyId      Int
+}

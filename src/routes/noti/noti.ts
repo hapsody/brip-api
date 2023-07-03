@@ -330,7 +330,10 @@ const takeOutMessage = async (
   };
 };
 
-const syncToMainDB = async (params: { from: string; to: string }) => {
+const syncToMainDB = async (params: {
+  from: string; /// 고객
+  to: string; /// 사업자
+}) => {
   const { from, to } = params;
 
   if (
@@ -387,98 +390,99 @@ const syncToMainDB = async (params: { from: string; to: string }) => {
     return userChatLog.subjectGroupId + 1;
   })();
 
-  /// 직전에 sync했던곳 이후부터 DB sync
-  await Promise.all(
-    messages.map(v => {
-      const data = JSON.parse(v) as ChatMessageType;
-      const { actionInputParams } = data;
+  await prisma.$transaction(async tx => {
+    /// 직전에 sync했던곳 이후부터 DB sync
+    await Promise.all(
+      messages.map(v => {
+        const data = JSON.parse(v) as ChatMessageType;
+        const { actionInputParams } = data;
 
-      return prisma.userChatLog.create({
-        data: {
-          date: data.createdAt,
-          order: Number(data.order),
-          message: data.message,
-          toUserId: Number(data.to),
-          userId: Number(data.from),
-          actionType: data.type,
-          subjectGroupId: nextSubjectGroupId,
-          ...(!isNil(actionInputParams) &&
-            (() => {
-              const {
-                date,
-                numOfPeople,
-                answer,
-                rejectReason,
-                confirmAnswer,
-                agreeAnswer,
-              } = actionInputParams;
-              return {
-                actionInputParam: {
-                  create: {
-                    ...(!isNil(date) && {
-                      bkDate: new Date(date).toISOString(),
-                    }),
-                    ...(!isNil(numOfPeople) && {
-                      bkNumOfPeople: Number(numOfPeople),
-                    }),
-                    ...(!isNil(answer) && {
-                      bkAnswer: answer === 'APPROVE',
-                    }),
-                    ...(!isNil(rejectReason) && {
-                      bkRejectReason: rejectReason as string,
-                    }),
-                    ...(!isNil(confirmAnswer) && {
-                      bkConfirmAnswer: confirmAnswer === 'CONFIRM',
-                    }),
-                    ...(!isNil(agreeAnswer) && {
-                      bkAgreeAnswer: agreeAnswer === 'TRUE',
-                    }),
+        return tx.userChatLog.create({
+          data: {
+            date: data.createdAt,
+            order: Number(data.order),
+            message: data.message,
+            toUserId: Number(data.to),
+            userId: Number(data.from),
+            actionType: data.type,
+            subjectGroupId: nextSubjectGroupId,
+            ...(!isNil(actionInputParams) &&
+              (() => {
+                const {
+                  date,
+                  numOfPeople,
+                  answer,
+                  rejectReason,
+                  confirmAnswer,
+                  agreeAnswer,
+                } = actionInputParams;
+                return {
+                  actionInputParam: {
+                    create: {
+                      ...(!isNil(date) && {
+                        bkDate: new Date(date).toISOString(),
+                      }),
+                      ...(!isNil(numOfPeople) && {
+                        bkNumOfPeople: Number(numOfPeople),
+                      }),
+                      ...(!isNil(answer) && {
+                        bkAnswer: answer === 'APPROVE',
+                      }),
+                      ...(!isNil(rejectReason) && {
+                        bkRejectReason: rejectReason as string,
+                      }),
+                      ...(!isNil(confirmAnswer) && {
+                        bkConfirmAnswer: confirmAnswer === 'CONFIRM',
+                      }),
+                      ...(!isNil(agreeAnswer) && {
+                        bkAgreeAnswer: agreeAnswer === 'TRUE',
+                      }),
+                    },
                   },
-                },
-              };
-            })()),
+                };
+              })()),
+          },
+        });
+      }),
+    );
+
+    // await redis.lPopCount(key, len); /// delete all
+    await redis.del(key);
+
+    /// 다음번에 sync할 index 기록
+    const lastMsg = messages.slice(-1);
+    if (!isEmpty(lastMsg)) {
+      const lastMsgObj = JSON.parse(lastMsg[0]) as ChatMessageType;
+
+      await redis.set(
+        `dbSyncStartIdxNOrder:${key}`,
+        `${0}:${Number(lastMsgObj.order) + 1}`,
+      ); /// 가장 최근에 DB에 저장된 메시지의(last message) redis list index+1값. 다음번 DB sync할때 이 index '부터'하면 된다.
+    }
+
+    /// move bookingInfo from redis to mysql
+    await (async () => {
+      const bookingInfo = await redis.get(
+        `bookingInfo:${from}=>${to}`, /// userId는 고객, d.to는 사업자
+      );
+
+      const date = bookingInfo?.split(',')[0]!;
+      const numOfPeople = Number(bookingInfo?.split(',')[1]);
+
+      await tx.bookingInfo.create({
+        data: {
+          date,
+          numOfPeople,
+          subjectGroupId: nextSubjectGroupId,
+          customerId: Number(from),
+          companyId: Number(to),
         },
       });
-    }),
-  );
 
-  // await redis.lPopCount(key, len); /// delete all
-  await redis.del(key);
-
-  /// 다음번에 sync할 index 기록
-  const lastMsg = messages.slice(-1);
-  if (!isEmpty(lastMsg)) {
-    const lastMsgObj = JSON.parse(lastMsg[0]) as ChatMessageType;
-
-    await redis.set(
-      `dbSyncStartIdxNOrder:${key}`,
-      `${0}:${Number(lastMsgObj.order) + 1}`,
-    ); /// 가장 최근에 DB에 저장된 메시지의(last message) redis list index+1값. 다음번 DB sync할때 이 index '부터'하면 된다.
-  }
-
+      await redis.del(`bookingInfo:${key}`);
+    })();
+  });
   return true;
-  // const key = `${from}=>${to}`;
-  // const len = await redis.llen(key);
-  // if (len > 2) {
-  //   /// sync할 값이 있을때만 sync
-  //   const messages = await redis.lrange(key, 1, -1);
-  //   await prisma.userChatLog.createMany({
-  //     data: messages.map(v => {
-  //       const data = JSON.parse(v) as ChatMessageType;
-
-  //       return {
-  //         date: data.createdAt,
-  //         order: Number(data.order),
-  //         message: data.message,
-  //         toUserId: Number(to),
-  //         userId: Number(from),
-  //       };
-  //     }),
-  //   });
-  //   await redis.lPopCount(key, len); /// delete all
-  // }
-
-  // return true;
 };
 
 export type SSESubscribeRequestType = {};
