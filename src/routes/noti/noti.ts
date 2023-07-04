@@ -1,5 +1,6 @@
 import express from 'express';
 import prisma from '@src/prisma';
+import { UserChatLog, UserChatActionInputParam, User } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
   ibDefs,
@@ -35,15 +36,6 @@ type ChatMessageActionType =
   | 'FINALBOOKINGCHECK' /// 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
   | 'TEXT'; /// 일반 유저 채팅 메시지
 
-// type ChatMessageType = {
-//   uuid: string;
-//   createdAt: string;
-//   order: number;
-//   message: string;
-//   actionType: ChatMessageActionType;
-//   from: string;
-//   to: string;
-// };
 type ActionInputParam = {
   // askBookingAvailable
   date?: string; /// 예약일(문의일x)
@@ -93,33 +85,243 @@ const putInMessage = async (params: ChatMessageType) => {
     // result = await redis.llen(candKey1);
     return { key: candKey2, len: result };
   })();
+  const msgData = JSON.stringify({ uuid: uuidv4(), ...data });
+  await redis.rpush(key, msgData);
 
-  await redis.rpush(key, JSON.stringify({ uuid: uuidv4(), ...data }));
+  await redis.hset(`lastMsg:iam:${from}`, `${to}`, msgData); /// from's lastMsg with to
+  await redis.hset(`lastMsg:iam:${to}`, `${from}`, msgData); /// to's lastMsg with from
+
   return data.order;
+};
 
-  // /**
-  //  * 레디스 Set 데이터타입에 키를 메시지 수신처(to), Sets의 value 집합은 송신자 (from)을 기록해둔다.
-  //  * 이렇게 되면 수신자에게 송신자로부터 과거 메시지를 송신한적이 있는지 여부를 알수 있다.
-  //  * 이것은 실제 메시지가 저장되는 redis의 Lists 타입과 함께 사용된다.
-  //  * Lists 타입은 실제 'from=>to' 란 이름의 key값을 가지게 되며,
-  //  * takeOutMessage 함수 호출시에 llen을 통해 먼저 from으로부터 to로의 메시지가 쌓여있는게 있는지를 확인할수 있다.
-  //  * 수신자가 열린 채팅방을 모두 조회하고 싶을 경우에는 Lists만으로는 키값을 알수 없어서 조회가 불가능하다.
-  //  * 이럴경우 Sets를 사용하여 저장된 송수신자와의 관계를 먼저 파악하고 후에 Lists 키값을 추측하여 조회할수 있다.
-  //  */
-  // await redis.sAdd(to, from);
-  // const len = await redis.llen(`${from}=>${to}`);
-  // if (len === 0) {
-  //   await redis.rpush(`${from}=>${to}`, [
-  //     '1', /// list 좌측 맨 첫번째는 (0번째 자리) 메시지를 수신할때 다음에 읽어가야할 커서인 인덱스 번호를 써준다. len이 0인상황(메시지 큐에 아무 값도 없는 상태)이므로 다음 읽어야 할 인덱스 값은 현재 집어넣는 데이터인 1이다.
-  //     JSON.stringify({ uuid: uuidv4(), ...data }),
-  //   ]);
-  //   return;
-  // }
+const userChatLogToChatMsg = (
+  params: UserChatLog & {
+    actionInputParam: UserChatActionInputParam | null;
+    user: User;
+  },
+): ChatMessageType | null => {
+  return {
+    createdAt: new Date(params.date).toISOString(),
+    from: `${params.userId}`,
+    to: `${params.toUserId}`,
+    order: `${params.order}`,
+    message: params.message,
+    type: params.actionType as ChatMessageActionType,
+    ...(!isNil(params.actionInputParam) && {
+      actionInputParams: {
+        // askBookingAvailable
+        ...(!isNil(params.actionInputParam.bkDate) && {
+          date: new Date(params.actionInputParam.bkDate).toISOString(),
+        }),
+        ...(!isNil(params.actionInputParam.bkNumOfPeople) && {
+          numOfPeople: `${params.actionInputParam.bkNumOfPeople}`,
+        }),
 
-  // await redis.rpush(
-  //   `${from}=>${to}`,
-  //   JSON.stringify({ uuid: uuidv4(), ...data }),
-  // );
+        /// ansBookingAvailable
+        ...(!isNil(params.actionInputParam.bkAnswer) && {
+          answer: params.actionInputParam.bkAnswer ? 'APPROVE' : 'REJECT',
+        }),
+        ...(!isNil(params.actionInputParam.bkRejectReason) && {
+          rejectReason: params.actionInputParam
+            .bkRejectReason as BookingRejectReasonType,
+        }),
+
+        /// confirmBooking
+        ...(!isNil(params.actionInputParam.bkConfirmAnswer) && {
+          confirmAnswer: params.actionInputParam.bkConfirmAnswer
+            ? 'CONFIRM'
+            : 'CANCEL',
+        }),
+
+        /// privacyAgree
+        ...(!isNil(params.actionInputParam.bkAgreeAnswer) && {
+          agreeAnswer: params.actionInputParam.bkAgreeAnswer ? 'TRUE' : 'FALSE',
+        }),
+
+        /// finalBookingCheck
+        reqUserNickname: params.user.nickName,
+        reqUserContact: params.user.phone,
+      },
+    }),
+  };
+};
+
+/**
+ * me에 해당하는 유저가 대화한 사람들과의 마지막 메시지들을 반환하는 함수.
+ * 현재까지 구현된 메커니즘은 다음과 같다.
+ * 1. redis hash 에(lastMsg:iam:${me}) 저장된 마지막 메시지들을 찾는다. 만약 redis가 정상적인 데이터들을 유지하고 있다면 1단계에서 끝난다. (현재 putIntMessage 할 때마다 마지막 메시지들을 갱신해 놓도록 해놓음.)
+ * 2. 그러나 redis의 데이터가 유실된 상황일 경우 해당 유저의 redis 메시지 큐들을 모두 검색해서 가장 마지막 메시지들을 뽑는다.
+ * 3. 현재 시스템은 redis의 대화 로그들을 주기적으로 mysql db로 sync한후 redis 버퍼를 비워놓기 때문에 redis 메세지큐 채널에 대화가 쌓여있지 않다고 해서 대화가 없었다를 보장하지 않는다. 그렇기 때문에 2번에서 뽑은 데이터가 존재하는 대화 채널( me<=>x간 대화 )을 제외하고(이것은 redis가 최신의 데이터기 때문에 redis 메시지 큐에 대화가 존재하는 채널은 굳이 mysql에서 검색할 필요가 없기 때문) db에 sync되어 있는 데이터가 있는지도 전체 검색한다.
+ * 4. 2+3 결과를 종합하여 반환
+ *
+ * !!!주의 제약사항) 현재까지 구현된 시스템은 기본적으로 메모리 db인 redis 데이터의 영속성이 완전하지 않다는것을 가정하고 구축되었다. 때문에 redis lastMsg 버퍼가 날아간다거나 하는 경우에는 mysql + redis msgQ 데이터 풀 스캔 후 가장 큰 order값을 갖는 데이터를 마지막 메시지로 간주한다.
+ * 그러나 아직 커버되지 않는 경우가 존재하는데 redis 데이터 유실 후 다시 채팅 시스템을 재가동하는 경우 부분적으로 메시지 큐 채널들과 lastMsg 버퍼가 쓰여진 상황이다.
+ * 이 경우에는 redis lastMsg를 조회했을때 값이 하나이상 존재할 수 있기 때문에 2번 이후의 과정을 진행하지 않게 되며 때문에 일부만 대화채널이 열려있는 것으로 착각할수 있다.
+ * 추가적인 수정이 필요하.
+ *  */
+const getMyLastMsgs = async (me: string): Promise<LastMessageType[]> => {
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let firstLoop = true;
+      let cursor = '0';
+      return {
+        async next() {
+          const scanResult = await redis.scan(cursor);
+          if (!firstLoop && cursor === '0') {
+            return { value: scanResult[1], done: true };
+          }
+          firstLoop = false;
+          // eslint-disable-next-line prefer-destructuring
+          cursor = scanResult[0];
+          return { value: scanResult[1], done: false };
+        },
+      };
+    },
+  };
+
+  const redisLastMsgBuffer = await redis.hgetall(`lastMsg:iam:${me}`);
+
+  if (!isNil(redisLastMsgBuffer) && !isEmpty(redisLastMsgBuffer)) {
+    const lastMsgs = Object.keys(redisLastMsgBuffer).map(v => {
+      const other = v;
+      const lastMsg = redisLastMsgBuffer[other];
+      return {
+        me,
+        other,
+        lastMsg: JSON.parse(lastMsg) as ChatMessageType,
+      };
+    });
+    return lastMsgs;
+  }
+
+  /// redis에  lastMsg hash가 존재하지 않으면 아래와 같이 redis와 mysql을 전부 뒤져야 한다.
+  /// redis 전체 채널키 중 me가 수신 또는 송신측 하나라도 위치한 메시지큐 검색
+  const redisMyMsgQKeys = await (async () => {
+    let matchedKeys: {
+      key: string;
+      me: string;
+      other: string;
+    }[] = [];
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const scanRes of asyncIterable) {
+      matchedKeys = [
+        ...matchedKeys,
+        ...scanRes
+          .filter(v => {
+            const regex = new RegExp(`^${me}<=>[0-9]+$|^[0-9]+<=>${me}$`);
+            const matchResult = v.match(regex);
+            return !isNil(matchResult) && matchResult.length > 0;
+          })
+          .map(v => {
+            if (v.split('<=>')[0] === me)
+              return {
+                key: v,
+                me,
+                other: v.split('<=>')[1],
+              };
+            return {
+              key: v,
+              me,
+              other: v.split('<=>')[0],
+            };
+          }),
+      ];
+    }
+    return matchedKeys;
+  })();
+
+  const redisLastMsgs = await Promise.all(
+    redisMyMsgQKeys.map(async v => {
+      const serializedLastMsg = (await redis.lrange(v.key, -1, -1))[0];
+      return {
+        lastMsg: JSON.parse(serializedLastMsg) as ChatMessageType,
+        me: v.me,
+        other: v.other,
+      };
+    }),
+  );
+
+  /// mysql searching
+  // const mysqlMsgs = await prisma.userChatLog.findMany({
+  //   where: {
+  //     AND: [
+  //       { OR: [{ userId: Number(me) }, { toUserId: Number(me) }] },
+
+  //       {
+  //         NOT: {
+  //           OR: redisLastMsgs.map(v => {
+  //             return {
+  //               OR: [
+  //                 {
+  //                   userId: Number(v.me),
+  //                   toUserId: Number(v.other),
+  //                 },
+  //                 {
+  //                   userId: Number(v.other),
+  //                   toUserId: Number(v.me),
+  //                 },
+  //               ],
+  //             };
+  //           }),
+  //         },
+  //       },
+  //     ],
+  //   },
+  //   orderBy: {
+  //     order: 'desc',
+  //   },
+  // });
+  const mysqlMsgs = await prisma.userChatLog.findMany({
+    where: {
+      OR: [{ userId: Number(me) }, { toUserId: Number(me) }],
+      redisKey: {
+        notIn: redisLastMsgs.map(v => {
+          return Number(v.me) > Number(v.other)
+            ? `${v.me}<=>${v.other}`
+            : `${v.other}<=>${v.me}`;
+        }),
+      },
+    },
+    orderBy: {
+      order: 'desc',
+    },
+    include: {
+      actionInputParam: true,
+      user: true,
+    },
+  });
+
+  /// db에서 찾은 데이터를 redisKey별 order가 가장 높은 메시지만 추림.
+  const lastMsgsGroupByRedisKey = mysqlMsgs.reduce<
+    (UserChatLog & {
+      actionInputParam: UserChatActionInputParam | null;
+      user: User;
+    })[]
+  >((acc, cur) => {
+    const alreadyExist = acc.find(v => v.redisKey === cur.redisKey);
+    if (isNil(alreadyExist)) {
+      return [...acc, cur];
+    }
+
+    return acc;
+  }, []);
+
+  const dbLastMsgs = lastMsgsGroupByRedisKey
+    .map(v => {
+      const lastMsg = userChatLogToChatMsg(v);
+      if (isNil(lastMsg)) {
+        return null;
+      }
+      return {
+        me,
+        other: v.userId === Number(me) ? `${v.toUserId}` : `${v.userId}`,
+        lastMsg,
+      } as LastMessageType;
+    })
+    .filter((v): v is LastMessageType => v !== null);
+
+  return [...redisLastMsgs, ...dbLastMsgs];
 };
 
 type RetrieveMessageParamType = {
@@ -182,50 +384,8 @@ const retrieveFromDb = async (
   const orderedTypedReturn = targetMsgsFromDB
     .map<ChatMessageType | null>(v => {
       if (v.order < Number(startOrder)) return null;
-      return {
-        createdAt: new Date(v.date).toISOString(),
-        from: `${v.userId}`,
-        to: `${v.toUserId}`,
-        order: `${v.order}`,
-        message: v.message,
-        type: v.actionType as ChatMessageActionType,
-        ...(!isNil(v.actionInputParam) && {
-          actionInputParams: {
-            // askBookingAvailable
-            ...(!isNil(v.actionInputParam.bkDate) && {
-              date: new Date(v.actionInputParam.bkDate).toISOString(),
-            }),
-            ...(!isNil(v.actionInputParam.bkNumOfPeople) && {
-              numOfPeople: `${v.actionInputParam.bkNumOfPeople}`,
-            }),
 
-            /// ansBookingAvailable
-            ...(!isNil(v.actionInputParam.bkAnswer) && {
-              answer: v.actionInputParam.bkAnswer ? 'APPROVE' : 'REJECT',
-            }),
-            ...(!isNil(v.actionInputParam.bkRejectReason) && {
-              rejectReason: v.actionInputParam
-                .bkRejectReason as BookingRejectReasonType,
-            }),
-
-            /// confirmBooking
-            ...(!isNil(v.actionInputParam.bkConfirmAnswer) && {
-              confirmAnswer: v.actionInputParam.bkConfirmAnswer
-                ? 'CONFIRM'
-                : 'CANCEL',
-            }),
-
-            /// privacyAgree
-            ...(!isNil(v.actionInputParam.bkAgreeAnswer) && {
-              agreeAnswer: v.actionInputParam.bkAgreeAnswer ? 'TRUE' : 'FALSE',
-            }),
-
-            /// finalBookingCheck
-            reqUserNickname: v.user.nickName,
-            reqUserContact: v.user.phone,
-          },
-        }),
-      };
+      return userChatLogToChatMsg(v);
     })
     .filter((v): v is ChatMessageType => v !== null)
     .sort((a, b) => Number(a.order) - Number(b.order));
@@ -407,6 +567,7 @@ const syncToMainDB = async (params: {
             userId: Number(data.from),
             actionType: data.type,
             subjectGroupId: nextSubjectGroupId,
+            redisKey: key,
             ...(!isNil(actionInputParams) &&
               (() => {
                 const {
@@ -1219,12 +1380,12 @@ export const reqNewBooking = asyncWrapper(
         });
       }
 
-      if (isNil(sseClients[toUserId])) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-        });
-      }
+      // if (isNil(sseClients[toUserId])) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+      //   });
+      // }
 
       const result = await takeOutMessage({
         from: userId,
@@ -1313,7 +1474,7 @@ export type ReqBookingChatWelcomeResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * 고객측(사용자)가 채팅방입장시에 호출할 api
+ * 고객측(사용자)가 최초 채팅방입장시에 호출할 api
  * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
  * 해당 사용자들끼리 최초 대화일때 단한번만 호출이된다.
  */
@@ -1360,12 +1521,12 @@ export const reqBookingChatWelcome = asyncWrapper(
         });
       }
 
-      if (isNil(sseClients[toUserId])) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-        });
-      }
+      // if (isNil(sseClients[toUserId])) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'toUserId 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+      //   });
+      // }
 
       const result = await takeOutMessage({
         from: userId,
@@ -1428,6 +1589,78 @@ export const reqBookingChatWelcome = asyncWrapper(
   },
 );
 
+type LastMessageType = {
+  lastMsg: ChatMessageType;
+  me: string;
+  other: string;
+};
+export type GetAskListToMeRequestType = {};
+export type GetAskListToMeSuccessResType = LastMessageType[];
+export type GetAskListToMeResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetAskListToMeSuccessResType | {};
+};
+
+/**
+ * 고객측(사용자)가 채팅방입장시에 호출할 api
+ * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
+ * 해당 사용자들끼리 최초 대화일때 단한번만 호출이된다.
+ *
+ */
+export const getAskListToMe = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetAskListToMeRequestType>,
+    res: Express.IBTypedResponse<GetAskListToMeResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const result = await getMyLastMsgs(userId);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: result,
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
@@ -1439,4 +1672,5 @@ notiRouter.post(
   accessTokenValidCheck,
   reqBookingChatWelcome,
 );
+notiRouter.get('/getAskListToMe', accessTokenValidCheck, getAskListToMe);
 export default notiRouter;

@@ -1040,11 +1040,11 @@ model UserChatLog {
   actionType       UserChatActionType
   actionInputParam UserChatActionInputParam?
   subjectGroupId   Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
-
-  user     User @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId   Int
-  toUser   User @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  toUserId Int
+  redisKey         String                    @db.Char(27)
+  user             User                      @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId           Int
+  toUser           User                      @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  toUserId         Int
 }
 
 model UserChatActionInputParam {
