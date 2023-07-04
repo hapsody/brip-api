@@ -24,15 +24,16 @@ const sseClients: SSEClientType = {
 };
 
 type ChatMessageActionType =
-  | 'ASKBOOKINGWELCOME'
-  | 'ASKBOOKINGAVAILABLE'
-  | 'NEWBOOKINGMSG'
-  | 'ANSNEWBOOKINGMSG'
-  | 'ANSBOOKINGAVAILABLE'
-  | 'CONFIRMBOOKING'
-  | 'PRIVACYAGREE'
-  | 'FINALBOOKINGCHECK'
-  | 'TEXT';
+  | 'ASKBOOKINGWELCOME' /// 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
+  | 'NEWBOOKINGMSG' /// 예약하기
+  | 'ANSNEWBOOKINGMSG' /// 원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!
+  | 'ASKBOOKINGAVAILABLE' /// 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
+  | 'ANSBOOKINGAVAILABLE' /// 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
+  | 'CONFIRMBOOKING' /// 네, 확정할게요
+  | 'ANSCONFIRMBOOKING' /// 예약 확정을 위해 연락처가 가게에 전달돼요.
+  | 'PRIVACYAGREE' /// 동의
+  | 'FINALBOOKINGCHECK' /// 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
+  | 'TEXT'; /// 일반 유저 채팅 메시지
 
 // type ChatMessageType = {
 //   uuid: string;
@@ -921,7 +922,7 @@ export const sendMessage = asyncWrapper(
               })();
               break;
             case 'CONFIRMBOOKING':
-              await (() => {
+              await (async () => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
                   throw new IBError({
                     type: 'INVALIDPARAMS',
@@ -937,8 +938,18 @@ export const sendMessage = asyncWrapper(
                     message: `type이 ${type} 이면 유효한 confirmAnswer은 필수입니다.`,
                   });
                 }
+                await putInMessage(d);
 
-                return putInMessage(d);
+                const systemGuideMsg: ChatMessageType = {
+                  from: d.to, /// 사업자
+                  to: d.from, /// 고객
+                  createdAt: new Date().toISOString(),
+                  type: 'ANSCONFIRMBOOKING',
+                  order: `${Number(d.order) + 1}`,
+                  message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
+                };
+                await putInMessage(systemGuideMsg);
+                pubSSEvent(systemGuideMsg);
               })();
               break;
             case 'PRIVACYAGREE':
