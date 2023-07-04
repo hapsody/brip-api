@@ -19,6 +19,7 @@ import eventRouter from './routes/event';
 import myPageRouter from './routes/myPage';
 import notiRouter from './routes/noti';
 import adPlaceRouter from './routes/adPlace';
+import myBookRouter from './routes/myBook';
 
 import passportConfig from './passport';
 
@@ -81,6 +82,7 @@ app.use('/event', eventRouter);
 app.use('/myPage', myPageRouter);
 app.use('/noti', notiRouter);
 app.use('/adPlace', adPlaceRouter);
+app.use('/myBook', myBookRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
