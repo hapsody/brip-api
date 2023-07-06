@@ -114,6 +114,7 @@ export type RegistAdPlaceRequestType = {
   desc?: string; /// 소개글
   address?: string; /// 지번주소.  도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
   roadAddress?: string; /// 도로명주소
+  detailAddress?: string; /// 존재할경우 상세주소
   openWeek?: string; /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
   closedDay?: string; /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
   contact: string; /// 대표번호
@@ -179,6 +180,7 @@ export const registAdPlace = asyncWrapper(
         address,
         roadAddress,
         openWeek,
+        detailAddress,
         closedDay,
         contact,
         siteUrl,
@@ -243,6 +245,7 @@ export const registAdPlace = asyncWrapper(
           desc,
           address,
           roadAddress,
+          detailAddress,
           openWeek,
           closedDay,
           contact,
@@ -382,6 +385,7 @@ export type ModifyAdPlaceRequestType = {
   desc?: string; /// 소개글
   address?: string; /// 지번주소.  도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
   roadAddress?: string; /// 도로명주소
+  detailAddress?: string; /// 존재할경우 상세주소
   openWeek?: string; /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
   closedDay?: string; /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
   contact?: string; /// 대표번호
@@ -439,6 +443,7 @@ export const modifyAdPlace = asyncWrapper(
         desc,
         address,
         roadAddress,
+        detailAddress,
         openWeek,
         closedDay,
         contact,
@@ -527,6 +532,7 @@ export const modifyAdPlace = asyncWrapper(
               desc,
               address,
               roadAddress,
+              detailAddress,
               openWeek,
               closedDay,
               contact,
@@ -605,6 +611,7 @@ export const modifyAdPlace = asyncWrapper(
                 desc,
                 address,
                 roadAddress,
+                detailAddress,
                 openWeek,
                 contact,
 
