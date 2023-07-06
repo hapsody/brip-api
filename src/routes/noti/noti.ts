@@ -894,7 +894,7 @@ export type BookingRejectReasonType =
   | 'FULLBOOKINGONTIME'
   | 'INVALIDNUMOFPERSON';
 
-const pubSSEvent = (params: ChatMessageType) => {
+export const pubSSEvent = (params: { from: string; to: string }): void => {
   const { from, to } = params;
 
   if (isNil(sseClients[to])) {
@@ -1661,10 +1661,138 @@ export const getAskListToMe = asyncWrapper(
   },
 );
 
+export type SysNotiActionType = 'REPLYFORMYSHARETRIPMEM' | 'REPLYFORMYREPLY';
+export type SysNotiMessageType = {
+  userId: string; /// 수신인 UserId
+  userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
+  createdAt: string; /// 메시지 전송된 시각
+  message: string; /// 메시지 본문
+  type: SysNotiActionType; /// 메시지 타입
+  // actionInputParams?: ActionInputParam;
+};
+export const putInSysNotiMessage = async (
+  params: SysNotiMessageType,
+): Promise<number> => {
+  const data = params;
+  const { userId } = data;
+
+  const key = `sysNoti:${userId}`;
+  const msgData = JSON.stringify({ uuid: uuidv4(), ...data });
+  const nextCursor = await redis.rpush(key, msgData);
+
+  // await redis.hset(`lastMsg:iam:${from}`, `${to}`, msgData); /// from's lastMsg with to
+  // await redis.hset(`lastMsg:iam:${to}`, `${from}`, msgData); /// to's lastMsg with from
+
+  return nextCursor;
+};
+
+export const takeOutSysNotiMessage = async (params: {
+  userId: string;
+  startCursor: string;
+}): Promise<string[]> => {
+  const { userId, startCursor } = params;
+
+  const key = `sysNoti:${userId}`;
+  const rawSysNotiMsgs = await redis.lrange(key, Number(startCursor), -1);
+
+  return rawSysNotiMsgs;
+};
+
+export type GetSysNotiMessageRequestType = {
+  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
+};
+export type GetSysNotiMessageSuccessResType = {
+  nextCursor: string;
+  sysNotiMessages: SysNotiMessageType[];
+};
+export type GetSysNotiMessageResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetSysNotiMessageSuccessResType | {};
+};
+
+/**
+ * 사용자에게 알림 메시지로 전달되는 메시지를 요청하는 api
+ * 기본적으로 sse 를 통한 이벤트 발생시 해당 API 호출을 통해 메시지를 확인한다.
+ * getMessage와 사용법은 동일하게 startCursor 이후의 값을 가져온다.
+ */
+export const getSysNotiMessage = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetSysNotiMessageRequestType>,
+    res: Express.IBTypedResponse<GetSysNotiMessageResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const params = req.body;
+      const { startCursor } = params;
+      if (
+        isNil(startCursor) ||
+        isEmpty(startCursor) ||
+        isNaN(Number(startCursor))
+      ) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'startCursor가 제공되어야 합니다.',
+        });
+      }
+
+      const result = await takeOutSysNotiMessage({
+        userId,
+        startCursor,
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          nextCursor: `${Number(startCursor) + result.length}`,
+          sysNotiMessages: result,
+        },
+      });
+      return;
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 notiRouter.get('/testSSESubscribe', testSSESubscribe);
 notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getMessage', accessTokenValidCheck, getMessage);
+
 notiRouter.post('/sendMessage', accessTokenValidCheck, sendMessage);
 notiRouter.post('/reqNewBooking', accessTokenValidCheck, reqNewBooking);
 notiRouter.post(
@@ -1673,4 +1801,5 @@ notiRouter.post(
   reqBookingChatWelcome,
 );
 notiRouter.get('/getAskListToMe', accessTokenValidCheck, getAskListToMe);
+notiRouter.post('/getSysNotiMessage', accessTokenValidCheck, getSysNotiMessage);
 export default notiRouter;

@@ -29,6 +29,12 @@ import {
   IBPhotoMetaInfo,
   IBPhotoTag,
 } from '@prisma/client';
+import {
+  putInSysNotiMessage,
+  // takeOutSysNotiMessage,
+  pubSSEvent,
+} from '@src/routes/noti/noti';
+
 import { isEmpty, isNil, isNull, remove } from 'lodash';
 import moment from 'moment';
 
@@ -2104,7 +2110,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         });
       }
 
-      const shareTripMemoryId = await (async () => {
+      const parentRpl = await (async () => {
         // if (isNil(userInputShareTripMemId) && !isNil(parentReplyId)) {
         if (!isNil(parentReplyId)) {
           const parentReply = await prisma.replyForShareTripMemory.findUnique({
@@ -2114,6 +2120,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
             select: {
               shareTripMemoryId: true,
               parentReplyId: true,
+              userId: true,
             },
           });
           if (!parentReply) {
@@ -2141,10 +2148,14 @@ export const addReplyToShareTripMemory = asyncWrapper(
             });
           }
 
-          return parentReply.shareTripMemoryId;
+          return parentReply;
         }
-        return Number(userInputShareTripMemId);
+        return null;
       })();
+
+      const shareTripMemoryId = isNil(parentRpl)
+        ? Number(userInputShareTripMemId)
+        : parentRpl.shareTripMemoryId;
 
       const createdOne = await prisma.$transaction(async tx => {
         await tx.notiNewCommentOnShareTripMemory.create({
@@ -2176,10 +2187,49 @@ export const addReplyToShareTripMemory = asyncWrapper(
           },
           include: {
             parentReply: true,
+            shareTripMemory: {
+              select: {
+                userId: true,
+              },
+
+              // select: {
+              //   user: true,
+
+              // },
+            },
           },
         });
         return result;
       });
+
+      /// 1. 댓글이 달린 shareTripMemory 소유자
+      await putInSysNotiMessage({
+        userId: `${createdOne.shareTripMemory.userId}`,
+        // userRole: createdOne.shareTripMemory.user
+        createdAt: new Date(createdOne.createdAt).toISOString(),
+        message: '내 게시물에 댓글이 달렸어요',
+        type: 'REPLYFORMYSHARETRIPMEM',
+      });
+      pubSSEvent({
+        from: 'system',
+        to: `${createdOne.shareTripMemory.userId}`,
+      });
+
+      /// 2. 대댓글인경우 부모 댓글 쓴사람
+      if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
+        /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
+        await putInSysNotiMessage({
+          userId: `${parentRpl.userId}`,
+          // userRole: createdOne.shareTripMemory.user
+          createdAt: new Date(createdOne.createdAt).toISOString(),
+          message: '내 게시물에 댓글이 달렸어요',
+          type: 'REPLYFORMYREPLY',
+        });
+        pubSSEvent({
+          from: 'system',
+          to: `${parentRpl.userId}`,
+        });
+      }
 
       res.json({
         ...ibDefs.SUCCESS,

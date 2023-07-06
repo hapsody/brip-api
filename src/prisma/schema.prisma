@@ -53,6 +53,7 @@ model User {
   // companyBookingInfo              BookingInfo[]                     @relation("company")
   asCompanyBI                     BookingInfo[]                     @relation("asCustomer")
   asCustomerBI                    BookingInfo[]                     @relation("asCompany")
+  notiMessages                    NotificationMessage[]
 }
 
 model FavoriteTravelType {
@@ -996,6 +997,16 @@ model AdPlace {
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
   user              User          @relation(fields: [userId], references: [id])
   userId            Int
+}
+
+model NotificationMessage {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  message   String
+  type      String /// 추후 확정되면 enum값으로 변경 필요
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
 }
 
 // model AdPlaceCategory {

@@ -110,5 +110,68 @@ export const getAdPlace = asyncWrapper(
     }
   },
 );
+
+// export type GetAdPlaceStatusRequestType = {};
+// export type GetAdPlaceStatusSuccessResType = {};
+// export type GetAdPlaceStatusResType = Omit<IBResFormat, 'IBparams'> & {
+//   IBparams: GetAdPlaceStatusSuccessResType | {};
+// };
+
+// export const getAdPlaceStatus = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqQuery<GetAdPlaceStatusRequestType>,
+//     res: Express.IBTypedResponse<GetAdPlaceStatusResType>,
+//   ) => {
+//     try {
+//       const { locals } = req;
+//       const userId = (() => {
+//         if (locals && locals?.grade === 'member')
+//           return locals?.user?.id.toString();
+//         // return locals?.tokenId;
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: 'member 등급만 접근 가능합니다.',
+//         });
+//       })();
+//       if (isNil(userId)) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+//         });
+//       }
+
+//       await prisma.adPlace.findUnique();
+
+//       res.json({
+//         ...ibDefs.SUCCESS,
+//         IBparams: result,
+//       });
+//       return;
+//     } catch (err) {
+//       if (err instanceof IBError) {
+//         if (err.type === 'INVALIDPARAMS') {
+//           res.status(400).json({
+//             ...ibDefs.INVALIDPARAMS,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'DUPLICATEDDATA') {
+//           res.status(409).json({
+//             ...ibDefs.DUPLICATEDDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//       }
+
+//       throw err;
+//     }
+//   },
+// );
+
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
+// adPlaceRouter.get('/getAdPlaceStatus', accessTokenValidCheck, getAdPlaceStatus);
 export default adPlaceRouter;
