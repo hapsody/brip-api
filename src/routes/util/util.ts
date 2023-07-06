@@ -209,6 +209,8 @@ export const getSignedUrlForFileUpload = asyncWrapper(
             return `public/content/cardNewsGroup/${fileName}`;
           case 'CONTENT/ADDCARDGRP/CARDNEWSCONTENT/BGPICURI':
             return `public/content/cardNewsContent/${fileName}`;
+          case 'MYPAGE/REGISTADPLACE':
+            return `public/myPage/adPlaceImg/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
