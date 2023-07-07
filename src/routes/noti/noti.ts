@@ -58,6 +58,7 @@ type ActionInputParam = {
   /// numOfPeople?: string;
 };
 type ChatMessageType = {
+  adPlaceId: string | null; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각
@@ -65,6 +66,55 @@ type ChatMessageType = {
   message: string; /// 메시지 본문
   type: ChatMessageActionType; /// 메시지 타입
   actionInputParams?: ActionInputParam;
+};
+
+export type SysNotiActionType =
+  | 'REPLYFORMYSHARETRIPMEM'
+  | 'REPLYFORMYREPLY'
+  | 'BOOKINGCOMPLETE';
+export type SysNotiMessageType = {
+  userId: string; /// 수신인 UserId
+  userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
+  createdAt: string; /// 메시지 전송된 시각
+  message: string; /// 메시지 본문
+  type: SysNotiActionType; /// 메시지 타입
+  // actionInputParams?: ActionInputParam;
+};
+export const putInSysNotiMessage = async (
+  params: SysNotiMessageType,
+): Promise<number> => {
+  const data = params;
+  const { userId } = data;
+
+  const key = `sysNoti:${userId}`;
+  const msgData = JSON.stringify({ uuid: uuidv4(), ...data });
+  const nextCursor = await redis.rpush(key, msgData);
+
+  // await redis.hset(`lastMsg:iam:${from}`, `${to}`, msgData); /// from's lastMsg with to
+  // await redis.hset(`lastMsg:iam:${to}`, `${from}`, msgData); /// to's lastMsg with from
+
+  return nextCursor;
+};
+
+export const takeOutSysNotiMessage = async (params: {
+  userId: string;
+  startCursor: string;
+}): Promise<{
+  messages: SysNotiMessageType[];
+  nextCursor: number;
+}> => {
+  const { userId, startCursor } = params;
+
+  const key = `sysNoti:${userId}`;
+  const rawSysNotiMsgs = await redis.lrange(key, Number(startCursor), -1);
+
+  const sysNotiMsgs = rawSysNotiMsgs.map(v => {
+    return JSON.parse(v) as SysNotiMessageType;
+  });
+  return {
+    messages: sysNotiMsgs,
+    nextCursor: Number(startCursor) + rawSysNotiMsgs.length,
+  };
 };
 
 /**
@@ -101,6 +151,7 @@ const userChatLogToChatMsg = (
   },
 ): ChatMessageType | null => {
   return {
+    adPlaceId: isNil(params.adPlaceId) ? null : `${params.adPlaceId}`,
     createdAt: new Date(params.date).toISOString(),
     from: `${params.userId}`,
     to: `${params.toUserId}`,
@@ -492,12 +543,16 @@ const takeOutMessage = async (
 };
 
 const syncToMainDB = async (params: {
+  adPlaceId: string; /// 사업자측 사업장
   from: string; /// 고객
   to: string; /// 사업자
 }) => {
-  const { from, to } = params;
+  const { adPlaceId, from, to } = params;
 
   if (
+    isNil(adPlaceId) ||
+    isEmpty(adPlaceId) ||
+    isNaN(adPlaceId) ||
     isNil(from) ||
     isEmpty(from) ||
     isNaN(from) ||
@@ -560,6 +615,9 @@ const syncToMainDB = async (params: {
 
         return tx.userChatLog.create({
           data: {
+            adPlaceId: isNil(data.adPlaceId)
+              ? undefined
+              : Number(data.adPlaceId),
             date: data.createdAt,
             order: Number(data.order),
             message: data.message,
@@ -624,8 +682,12 @@ const syncToMainDB = async (params: {
 
     /// move bookingInfo from redis to mysql
     await (async () => {
-      const bookingInfo = await redis.get(
+      // const bookingInfo = await redis.get(
+      //   `bookingInfo:${from}=>${to}`, /// userId는 고객, d.to는 사업자
+      // );
+      const bookingInfo = await redis.hget(
         `bookingInfo:${from}=>${to}`, /// userId는 고객, d.to는 사업자
+        `${adPlaceId}`,
       );
 
       const date = bookingInfo?.split(',')[0]!;
@@ -641,7 +703,8 @@ const syncToMainDB = async (params: {
         },
       });
 
-      await redis.del(`bookingInfo:${key}`);
+      // await redis.del(`bookingInfo:${key}`);
+      await redis.hdel(`bookingInfo:${key}`, `${adPlaceId}`);
     })();
   });
   return true;
@@ -908,7 +971,7 @@ export const pubSSEvent = (params: { from: string; to: string }): void => {
   sseClients[to]!.write(`id: 00\n`);
   sseClients[to]!.write(`event: userId${to}\n`);
   sseClients[to]!.write(
-    `data: {"message" : "[sse meesage]: from:${from}, lastOrderId:"}\n\n`,
+    `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
   );
 };
 
@@ -957,10 +1020,30 @@ export const sendMessage = asyncWrapper(
       const data = params;
 
       data.find(v => {
-        if (isNil(v.from) || isEmpty(v.from) || isNil(v.to) || isEmpty(v.to)) {
+        if (
+          isNil(v.adPlaceId) ||
+          isEmpty(v.adPlaceId) ||
+          isNaN(Number(v.adPlaceId))
+        ) {
           throw new IBError({
             type: 'INVALIDPARAMS',
-            message: 'data 배열중 from와 to 파라미터는 제공되어야 합니다.',
+            message:
+              'data 배열중 adPlaceId 파라미터는 숫자형태의 string으로 제공되어야 합니다.',
+          });
+        }
+
+        if (
+          isNil(v.from) ||
+          isEmpty(v.from) ||
+          isNaN(Number(v.from)) ||
+          isNil(v.to) ||
+          isEmpty(v.to) ||
+          isNaN(Number(v.to))
+        ) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message:
+              'data 배열중 from와 to 파라미터는 숫자형태의 string으로 제공되어야 합니다.',
           });
         }
 
@@ -1042,8 +1125,13 @@ export const sendMessage = asyncWrapper(
                 }
 
                 // 문의 booking Info 임시저장
-                await redis.set(
+                // await redis.set(
+                //   `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
+                //   `${date},${numOfPeople}`,
+                // );
+                await redis.hset(
                   `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
+                  `${d.adPlaceId!}`,
                   `${date},${numOfPeople}`,
                 );
 
@@ -1102,6 +1190,7 @@ export const sendMessage = asyncWrapper(
                 await putInMessage(d);
 
                 const systemGuideMsg: ChatMessageType = {
+                  adPlaceId: d.adPlaceId,
                   from: d.to, /// 사업자
                   to: d.from, /// 고객
                   createdAt: new Date().toISOString(),
@@ -1131,10 +1220,29 @@ export const sendMessage = asyncWrapper(
                   });
                 }
 
+                const adPlace = await prisma.adPlace.findUnique({
+                  where: {
+                    id: Number(d.adPlaceId!),
+                  },
+                });
+
+                if (isNil(adPlace)) {
+                  throw new IBError({
+                    type: 'INVALIDSTATUS',
+                    message:
+                      'adPlaceId에 해당하는 adPlace가 존재하지 않습니다.',
+                  });
+                }
+
                 await putInMessage(d);
 
-                const bookingInfo = await redis.get(
+                // const bookingInfo = await redis.get(
+                //   `bookingInfo:${d.from}=>${d.to}`,
+                // );
+
+                const bookingInfo = await redis.hget(
                   `bookingInfo:${d.from}=>${d.to}`,
+                  `${d.adPlaceId!}`,
                 );
                 if (isNil(bookingInfo)) {
                   throw new IBError({
@@ -1146,6 +1254,7 @@ export const sendMessage = asyncWrapper(
                 const [date, numOfPeople] = bookingInfo.split(',');
 
                 const finalBookingCheckMsgData: ChatMessageType = {
+                  adPlaceId: d.adPlaceId,
                   from: d.to, /// 사업자
                   to: d.from, /// 고객
                   createdAt: new Date().toISOString(),
@@ -1162,9 +1271,23 @@ export const sendMessage = asyncWrapper(
                 };
                 await putInMessage(finalBookingCheckMsgData);
                 pubSSEvent(finalBookingCheckMsgData);
-              })();
 
-              await syncToMainDB({ from: d.from, to: d.to });
+                await putInSysNotiMessage({
+                  userId: finalBookingCheckMsgData.to, // 고객
+                  createdAt: finalBookingCheckMsgData.createdAt,
+                  type: 'BOOKINGCOMPLETE',
+                  message: `${adPlace.title}에 예약이 확정되었어요.`,
+                });
+                pubSSEvent({
+                  from: 'system',
+                  to: finalBookingCheckMsgData.to,
+                });
+              })();
+              await syncToMainDB({
+                adPlaceId: d.adPlaceId!,
+                from: d.from,
+                to: d.to,
+              });
               break;
 
             default:
@@ -1188,6 +1311,14 @@ export const sendMessage = asyncWrapper(
         if (err.type === 'INVALIDPARAMS') {
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -1324,6 +1455,7 @@ export const getMessage = asyncWrapper(
 );
 
 export type ReqNewBookingRequestType = {
+  adPlaceId: string; /// 문의 업체/장소 id
   toUserId: string; /// 보낼사용자 userId
   startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
   startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
@@ -1361,9 +1493,12 @@ export const reqNewBooking = asyncWrapper(
       }
 
       const params = req.body;
-      const { toUserId, startOrder, startCursor } = params;
+      const { adPlaceId, toUserId, startOrder, startCursor } = params;
 
       if (
+        isNil(adPlaceId) ||
+        isEmpty(adPlaceId) ||
+        isNaN(Number(adPlaceId)) ||
         isNil(toUserId) ||
         isEmpty(toUserId) ||
         isNaN(Number(toUserId)) ||
@@ -1395,6 +1530,7 @@ export const reqNewBooking = asyncWrapper(
       });
 
       const bookingData = {
+        adPlaceId,
         createdAt: new Date().toISOString(),
         message: `예약하기`,
         order: `${result.nextOrder}`,
@@ -1415,6 +1551,7 @@ export const reqNewBooking = asyncWrapper(
       await putInMessage(forwardData); /// 고객 => 사업자 메시지 전송
 
       const ansBookingData = {
+        adPlaceId,
         createdAt: new Date().toISOString(),
         message: `원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!`,
         order: `${result.nextOrder + 1}`,
@@ -1464,6 +1601,7 @@ export const reqNewBooking = asyncWrapper(
 );
 
 export type ReqBookingChatWelcomeRequestType = {
+  adPlaceId: string;
   toUserId: string; /// 보낼사용자 userId
   startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
   startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
@@ -1502,9 +1640,12 @@ export const reqBookingChatWelcome = asyncWrapper(
       }
 
       const params = req.body;
-      const { toUserId, startOrder, startCursor } = params;
+      const { adPlaceId, toUserId, startOrder, startCursor } = params;
 
       if (
+        isNil(adPlaceId) ||
+        isEmpty(adPlaceId) ||
+        isNaN(Number(adPlaceId)) ||
         isNil(toUserId) ||
         isEmpty(toUserId) ||
         isNaN(Number(toUserId)) ||
@@ -1517,7 +1658,8 @@ export const reqBookingChatWelcome = asyncWrapper(
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'toUserId와 startOrder와 startCursor가 제공되어야 합니다.',
+          message:
+            'adPlaceId와 toUserId와 startOrder와 startCursor가 제공되어야 합니다.',
         });
       }
 
@@ -1536,6 +1678,7 @@ export const reqBookingChatWelcome = asyncWrapper(
       });
 
       const data = {
+        adPlaceId,
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
         order: `${result.nextOrder}`,
@@ -1661,43 +1804,6 @@ export const getAskListToMe = asyncWrapper(
   },
 );
 
-export type SysNotiActionType = 'REPLYFORMYSHARETRIPMEM' | 'REPLYFORMYREPLY';
-export type SysNotiMessageType = {
-  userId: string; /// 수신인 UserId
-  userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
-  createdAt: string; /// 메시지 전송된 시각
-  message: string; /// 메시지 본문
-  type: SysNotiActionType; /// 메시지 타입
-  // actionInputParams?: ActionInputParam;
-};
-export const putInSysNotiMessage = async (
-  params: SysNotiMessageType,
-): Promise<number> => {
-  const data = params;
-  const { userId } = data;
-
-  const key = `sysNoti:${userId}`;
-  const msgData = JSON.stringify({ uuid: uuidv4(), ...data });
-  const nextCursor = await redis.rpush(key, msgData);
-
-  // await redis.hset(`lastMsg:iam:${from}`, `${to}`, msgData); /// from's lastMsg with to
-  // await redis.hset(`lastMsg:iam:${to}`, `${from}`, msgData); /// to's lastMsg with from
-
-  return nextCursor;
-};
-
-export const takeOutSysNotiMessage = async (params: {
-  userId: string;
-  startCursor: string;
-}): Promise<string[]> => {
-  const { userId, startCursor } = params;
-
-  const key = `sysNoti:${userId}`;
-  const rawSysNotiMsgs = await redis.lrange(key, Number(startCursor), -1);
-
-  return rawSysNotiMsgs;
-};
-
 export type GetSysNotiMessageRequestType = {
   startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
 };
@@ -1757,10 +1863,7 @@ export const getSysNotiMessage = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {
-          nextCursor: `${Number(startCursor) + result.length}`,
-          sysNotiMessages: result,
-        },
+        IBparams: result,
       });
       return;
     } catch (err) {

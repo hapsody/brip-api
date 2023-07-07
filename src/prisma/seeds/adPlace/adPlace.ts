@@ -9,26 +9,23 @@ import adPlaceCategory from '../adPlaceCategory/adPlaceCategory';
 
 const prisma = new PrismaClient();
 
-const login = async () => {
-  let userRawRes = await request(server).post('/auth/signIn').send({
-    id: 'hawaii@gmail.com',
-    password: 'qwer1234',
-  });
+const login = async (params: { id: string; password: string }) => {
+  let userRawRes = await request(server).post('/auth/signIn').send(params);
 
   let userRes = userRawRes.body as SignInResponse;
   if (userRes.IBcode === '1000')
     return userRes.IBparams as SaveScheduleResponsePayload;
   await userSeedModule();
-  userRawRes = await request(server).post('/auth/signIn').send({
-    id: 'hawaii@gmail.com',
-    password: 'qwer1234',
-  });
+  userRawRes = await request(server).post('/auth/signIn').send(params);
   userRes = userRawRes.body as SignInResponse;
   return userRes.IBparams as SaveScheduleResponsePayload;
 };
 
 async function main(): Promise<void> {
-  const user = await login();
+  let user = await login({
+    id: 'hawaii@gmail.com',
+    password: 'qwer1234',
+  });
   await adPlaceCategory();
   // eslint-disable-next-line no-restricted-syntax
 
@@ -77,6 +74,10 @@ async function main(): Promise<void> {
   }
 
   /// case 2
+  user = await login({
+    id: 'chimchakman@gmail.com',
+    password: 'qwer1234',
+  });
   const title = 'IN_USE 테스트 비즈니스 스토어2';
   existCheck = await prisma.adPlace.findFirst({
     where: {

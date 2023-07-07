@@ -131,7 +131,8 @@
       var csChatBoxOrder = 0,
         cpChatBoxOrder = 0,
         csStartCursor = 0,
-        cpStartCursor = 0;
+        cpStartCursor = 0,
+        adPlaceId;
 
       const context = params => {
         let es;
@@ -165,6 +166,29 @@
             console.log(`${userType} ${userId} ready`);
             console.log('\n');
             // console.log(event);
+
+            if (userType === 'company') {
+              var myHeaders = new Headers();
+              myHeaders.append('Content-Type', 'application/json');
+              myHeaders.append('Authorization', accessToken);
+              const getMyAdPlaceResponse = await fetch(
+                `${server_url}/myPage/getMyAdPlace`,
+                {
+                  method: 'GET',
+                  headers: myHeaders,
+                  redirect: 'follow',
+                },
+              );
+              const data = await getMyAdPlaceResponse.json();
+
+              if (data.IBcode === '1000') {
+                const myAdPlaces = data.IBparams;
+                adPlaceId = myAdPlaces.find(v => {
+                  return v.status === 'IN_USE';
+                }).id;
+                console.log(`adPlaceId: ${adPlaceId}`);
+              }
+            }
 
             es.onmessage = stream => {
               // when message is received
@@ -371,6 +395,7 @@
               const message = cpChatLine.val();
               const callParams = [
                 {
+                  adPlaceId: `${adPlaceId}`,
                   to: customerUserId,
                   from: companyUserId,
                   createdAt: moment().toISOString(),
@@ -410,6 +435,7 @@
               const message = csChatLine.val();
               const callParams = [
                 {
+                  adPlaceId: `${adPlaceId}`,
                   to: companyUserId,
                   from: customerUserId,
                   createdAt: moment().toISOString(),
@@ -619,6 +645,7 @@
 
           const callParams = [
             {
+              adPlaceId: `${adPlaceId}`,
               from: customerUserId,
               to: companyUserId,
               createdAt: moment().toISOString(),
@@ -656,6 +683,7 @@
 
           const callParams = [
             {
+              adPlaceId: `${adPlaceId}`,
               from: companyUserId,
               to: customerUserId,
               createdAt: moment().toISOString(),
@@ -691,6 +719,7 @@
           csChatLine.val('');
 
           const callParams = {
+            adPlaceId: `${adPlaceId}`,
             toUserId: companyUserId,
             startCursor: `${csStartCursor}`,
             startOrder: `${csChatBoxOrder}`,
@@ -710,6 +739,7 @@
           csChatLine.val('');
 
           const callParams = {
+            adPlaceId: `${adPlaceId}`,
             toUserId: companyUserId,
             startCursor: `${csStartCursor}`,
             startOrder: `${csChatBoxOrder}`,
@@ -731,6 +761,7 @@
 
           const callParams = [
             {
+              adPlaceId: `${adPlaceId}`,
               from: customerUserId,
               to: companyUserId,
               createdAt: moment().toISOString(),
@@ -768,6 +799,7 @@
 
           const callParams = [
             {
+              adPlaceId: `${adPlaceId}`,
               from: customerUserId,
               to: companyUserId,
               createdAt: moment().toISOString(),
