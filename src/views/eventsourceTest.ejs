@@ -83,12 +83,17 @@
         <button id="setParamsToReqBookingChatWelcome">
           [reqBookingChatWelcome]
         </button>
-        <button id="setParamsToReqNewBooking">[reqNewBooking]</button>
+        <button id="setParamsToReqNewBooking">[reqNewBooking]</button><br />
         <button id="setParamsToAskBookingAvailable">
           [askBookingAvailable]
         </button>
-        <button id="setParamsToConfirmBooking">[confirmBooking]</button>
-        <button id="setParamsToPrivacyAgree">[privacyAgree]</button>
+        <button id="setParamsToAskBookingCancel">[cancelBooking]</button><br />
+        <button id="setParamsToConfirmBooking">[confirmBooking:confirm]</button>
+        <button id="setParamsToNoConfirmBooking">
+          [confirmBooking:noConfirm]</button
+        ><br />
+        <button id="setParamsToPrivacyAgree">[privacyAgree:true]</button>
+        <button id="setParamsToPrivacyDisagree">[privacyAgree:false]</button>
 
         <br />
         <br />
@@ -750,6 +755,44 @@
           console.log('\n');
         });
 
+        $('#setParamsToAskBookingCancel').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `예약취소`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'ASKBOOKINGCANCEL',
+              actionInputParams: {
+                customerCancel: 'TRUE', /// or FALSE
+              },
+            },
+          ];
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+        });
+
         $('#setParamsToConfirmBooking').on('click', async () => {
           contextSwitch('customer');
 
@@ -788,6 +831,41 @@
           }
         });
 
+        $('#setParamsToNoConfirmBooking').on('click', async () => {
+          contextSwitch('customer');
+
+          const message = `취소`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'CONFIRMBOOKING',
+              actionInputParams: {
+                confirmAnswer: 'CANCEL', /// or CANCEL
+              },
+            },
+          ];
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+        });
+
         $('#setParamsToPrivacyAgree').on('click', async () => {
           contextSwitch('customer');
 
@@ -808,6 +886,44 @@
               type: 'PRIVACYAGREE',
               actionInputParams: {
                 agreeAnswer: 'TRUE', /// or CANCEL
+              },
+            },
+          ];
+
+          const result = await callSendMessage(callParams);
+          console.log(`[privacyAgree] call sendMessage res:`, result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+          console.log('\n');
+        });
+        $('#setParamsToPrivacyDisagree').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `동의 안함`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'PRIVACYAGREE',
+              actionInputParams: {
+                agreeAnswer: 'FALSE',
               },
             },
           ];

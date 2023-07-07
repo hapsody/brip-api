@@ -25,15 +25,17 @@ const sseClients: SSEClientType = {
 };
 
 type ChatMessageActionType =
-  | 'ASKBOOKINGWELCOME' /// 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
-  | 'NEWBOOKINGMSG' /// 예약하기
-  | 'ANSNEWBOOKINGMSG' /// 원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!
-  | 'ASKBOOKINGAVAILABLE' /// 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
-  | 'ANSBOOKINGAVAILABLE' /// 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
-  | 'CONFIRMBOOKING' /// 네, 확정할게요
-  | 'ANSCONFIRMBOOKING' /// 예약 확정을 위해 연락처가 가게에 전달돼요.
-  | 'PRIVACYAGREE' /// 동의
-  | 'FINALBOOKINGCHECK' /// 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
+  | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
+  | 'NEWBOOKINGMSG' /// ex) 예약하기
+  | 'ANSNEWBOOKINGMSG' /// ex) 원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!
+  | 'ASKBOOKINGAVAILABLE' /// 예약문의 고객 => 사업자 ex) 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
+  | 'ANSBOOKINGAVAILABLE' /// 예약문의답변 사업자 => 고객 ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
+  | 'ASKBOOKINGCANCEL' /// 예약 문의 취소 ex) 예약 취소
+  | 'ASKBOOKINGCANCELCHK' /// 예약문의 취소 system 확인 메시지 ex) 예약이 취소 되었어요.
+  | 'CONFIRMBOOKING' /// 예약확정 고객 => 사업자 ex) 네, 확정할게요
+  | 'ANSCONFIRMBOOKING' /// 예약확정 system 확인 메시지 ex) 예약 확정을 위해 연락처가 가게에 전달돼요.
+  | 'PRIVACYAGREE' /// 정보동의 고객 => 사업자 ex) 동의
+  | 'FINALBOOKINGCHECK' /// 예약 확정 system 확인 메시지 ex) 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
   | 'TEXT'; /// 일반 유저 채팅 메시지
 
 type ActionInputParam = {
@@ -44,6 +46,9 @@ type ActionInputParam = {
   /// ansBookingAvailable
   answer?: 'APPROVE' | 'REJECT'; /// 예약문의 응답
   rejectReason?: BookingRejectReasonType; /// 예약문의가 거절일경우 거절사유
+
+  /// askBookingCancel
+  customerCancel?: 'TRUE' | 'FALSE'; /// 유저측 예약문의 취소여부
 
   /// confirmBooking
   confirmAnswer?: 'CONFIRM' | 'CANCEL'; /// 예약 확정 여부
@@ -635,6 +640,7 @@ const syncToMainDB = async (params: {
                   rejectReason,
                   confirmAnswer,
                   agreeAnswer,
+                  customerCancel,
                 } = actionInputParams;
                 return {
                   actionInputParam: {
@@ -656,6 +662,9 @@ const syncToMainDB = async (params: {
                       }),
                       ...(!isNil(agreeAnswer) && {
                         bkAgreeAnswer: agreeAnswer === 'TRUE',
+                      }),
+                      ...(!isNil(customerCancel) && {
+                        customerCancel: customerCancel === 'TRUE',
                       }),
                     },
                   },
@@ -988,7 +997,7 @@ export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * 채팅창에서 메시지 전송시에 호출할 api
+ * bookingChat 채팅창에서 메시지 전송시에 호출할 api
  * 본 시스템에서 채팅은 Server sent event를 통해 채팅의 형태로 보여지지만 엄밀한의미의 동시성을 가진 채팅기능은 아니다.
  * sse 메시지로는 프론트에서 수신할 타이밍의 기준으로만 동작하며 실제 메시지는 보안상 sendMessage라는 본 REST API 호출로 이뤄진다.
  * 마찬가지로 보내어진 메시지는 sse 이벤트 수신후 getMessage 호출을 통해 실제 데이터를 받게된다.
@@ -1170,6 +1179,28 @@ export const sendMessage = asyncWrapper(
                 return putInMessage(d);
               })();
               break;
+            case 'ASKBOOKINGCANCEL':
+              await (async () => {
+                await putInMessage(d);
+                const systemGuideMsg: ChatMessageType = {
+                  adPlaceId: d.adPlaceId,
+                  from: d.to, /// 사업자
+                  to: d.from, /// 고객
+                  createdAt: new Date().toISOString(),
+                  type: 'ASKBOOKINGCANCELCHK',
+                  order: `${Number(d.order) + 1}`,
+                  message: '예약이 취소 되었어요',
+                };
+
+                await putInMessage(systemGuideMsg);
+                pubSSEvent(systemGuideMsg);
+              })();
+              await syncToMainDB({
+                adPlaceId: d.adPlaceId!,
+                from: d.from,
+                to: d.to,
+              });
+              break;
             case 'CONFIRMBOOKING':
               await (async () => {
                 if (isNil(actionInputParams) || isEmpty(actionInputParams)) {
@@ -1189,17 +1220,43 @@ export const sendMessage = asyncWrapper(
                 }
                 await putInMessage(d);
 
+                /// 확정했을 경우
+                if (
+                  d.actionInputParams?.confirmAnswer &&
+                  d.actionInputParams?.confirmAnswer === 'CONFIRM'
+                ) {
+                  const systemGuideMsg: ChatMessageType = {
+                    adPlaceId: d.adPlaceId,
+                    from: d.to, /// 사업자
+                    to: d.from, /// 고객
+                    createdAt: new Date().toISOString(),
+                    type: 'ANSCONFIRMBOOKING',
+                    order: `${Number(d.order) + 1}`,
+                    message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
+                  };
+                  await putInMessage(systemGuideMsg);
+                  pubSSEvent(systemGuideMsg);
+                  return;
+                }
+
+                /// 확정하지 않았을 경우
                 const systemGuideMsg: ChatMessageType = {
                   adPlaceId: d.adPlaceId,
                   from: d.to, /// 사업자
                   to: d.from, /// 고객
                   createdAt: new Date().toISOString(),
-                  type: 'ANSCONFIRMBOOKING',
+                  type: 'ASKBOOKINGCANCELCHK',
                   order: `${Number(d.order) + 1}`,
-                  message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
+                  message: '예약이 취소 되었어요',
                 };
+
                 await putInMessage(systemGuideMsg);
                 pubSSEvent(systemGuideMsg);
+                await syncToMainDB({
+                  adPlaceId: d.adPlaceId!,
+                  from: d.from,
+                  to: d.to,
+                });
               })();
               break;
             case 'PRIVACYAGREE':
@@ -1236,52 +1293,69 @@ export const sendMessage = asyncWrapper(
 
                 await putInMessage(d);
 
-                // const bookingInfo = await redis.get(
-                //   `bookingInfo:${d.from}=>${d.to}`,
-                // );
+                /// 동의했을 경우
+                if (
+                  d.actionInputParams?.agreeAnswer &&
+                  d.actionInputParams.agreeAnswer === 'TRUE'
+                ) {
+                  const bookingInfo = await redis.hget(
+                    `bookingInfo:${d.from}=>${d.to}`,
+                    `${d.adPlaceId!}`,
+                  );
+                  if (isNil(bookingInfo)) {
+                    throw new IBError({
+                      type: 'INVALIDSTATUS',
+                      message: `bookingInfo 데이터가 유실되었습니다.`,
+                    });
+                  }
 
-                const bookingInfo = await redis.hget(
-                  `bookingInfo:${d.from}=>${d.to}`,
-                  `${d.adPlaceId!}`,
-                );
-                if (isNil(bookingInfo)) {
-                  throw new IBError({
-                    type: 'INVALIDSTATUS',
-                    message: `bookingInfo 데이터가 유실되었습니다.`,
+                  const [date, numOfPeople] = bookingInfo.split(',');
+
+                  const finalBookingCheckMsgData: ChatMessageType = {
+                    adPlaceId: d.adPlaceId,
+                    from: d.to, /// 사업자
+                    to: d.from, /// 고객
+                    createdAt: new Date().toISOString(),
+                    type: 'FINALBOOKINGCHECK',
+                    order: `${Number(d.order) + 1}`,
+                    message:
+                      '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
+                    actionInputParams: {
+                      reqUserNickname: locals.user!.nickName,
+                      reqUserContact: locals.user!.phone,
+                      date,
+                      numOfPeople,
+                    },
+                  };
+                  await putInMessage(finalBookingCheckMsgData);
+                  pubSSEvent(finalBookingCheckMsgData);
+
+                  await putInSysNotiMessage({
+                    userId: finalBookingCheckMsgData.to, // 고객
+                    createdAt: finalBookingCheckMsgData.createdAt,
+                    type: 'BOOKINGCOMPLETE',
+                    message: `${adPlace.title}에 예약이 확정되었어요.`,
                   });
+                  pubSSEvent({
+                    from: 'system',
+                    to: finalBookingCheckMsgData.to,
+                  });
+                  return;
                 }
 
-                const [date, numOfPeople] = bookingInfo.split(',');
-
-                const finalBookingCheckMsgData: ChatMessageType = {
+                /// 동의하지 않았을 경우
+                const systemGuideMsg: ChatMessageType = {
                   adPlaceId: d.adPlaceId,
                   from: d.to, /// 사업자
                   to: d.from, /// 고객
                   createdAt: new Date().toISOString(),
-                  type: 'FINALBOOKINGCHECK',
+                  type: 'ASKBOOKINGCANCELCHK',
                   order: `${Number(d.order) + 1}`,
-                  message:
-                    '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
-                  actionInputParams: {
-                    reqUserNickname: locals.user!.nickName,
-                    reqUserContact: locals.user!.phone,
-                    date,
-                    numOfPeople,
-                  },
+                  message: '예약이 취소 되었어요',
                 };
-                await putInMessage(finalBookingCheckMsgData);
-                pubSSEvent(finalBookingCheckMsgData);
 
-                await putInSysNotiMessage({
-                  userId: finalBookingCheckMsgData.to, // 고객
-                  createdAt: finalBookingCheckMsgData.createdAt,
-                  type: 'BOOKINGCOMPLETE',
-                  message: `${adPlace.title}에 예약이 확정되었어요.`,
-                });
-                pubSSEvent({
-                  from: 'system',
-                  to: finalBookingCheckMsgData.to,
-                });
+                await putInMessage(systemGuideMsg);
+                pubSSEvent(systemGuideMsg);
               })();
               await syncToMainDB({
                 adPlaceId: d.adPlaceId!,
