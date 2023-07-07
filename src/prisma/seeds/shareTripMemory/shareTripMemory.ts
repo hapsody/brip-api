@@ -24,6 +24,74 @@ const seedData = [
       lng: '126.512128',
       img: 'private/tripNetwork/shareTripMemory/용두암.jpeg',
       // groupId: 7
+      photos: [
+        {
+          key: 'private/tripNetwork/shareTripMemory/용두암.jpeg',
+          photoMetaInfo: {
+            type: 'MAIN',
+            title: '용두암 전경',
+            lat: '33.516134',
+            lng: '126.512128',
+            shotTime: '2023-04-20T03:11:23Z',
+            keyword: ['죽이는 전경', '장관'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
+            eval: '적극추천',
+            desc: '제주도 도착하면 바로 볼 1순위 용두암 전경 사진',
+          },
+        },
+        {
+          key: 'private/tripNetwork/shareTripMemory/용두암가는길.jpg',
+          photoMetaInfo: {
+            type: 'DETAIL',
+            title: '용두암 가는길 안내지도',
+            lat: '33.516134',
+            lng: '126.512128',
+            shotTime: '2023-04-20T03:13:23Z',
+            keyword: ['여행지 정보', '지도'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
+            publicInfo: 'info',
+          },
+        },
+        {
+          key: 'private/tripNetwork/shareTripMemory/용두암주변맛집.jpeg',
+          photoMetaInfo: {
+            type: 'SUB',
+            title: '용두암 주변맛집',
+            lat: '33.516139',
+            lng: '126.506763',
+            shotTime: '2023-04-20T04:28:40Z',
+            keyword: ['맛집 탐방'],
+            feature: [
+              {
+                super: '관광',
+                name: '숲',
+              },
+              {
+                super: '관광',
+                name: '둘레길',
+              },
+            ],
+          },
+        },
+      ],
     },
     recommendGrade: 'good',
     //   categoryIds: ['1', '2', '3'],

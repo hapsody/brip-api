@@ -1,0 +1,11 @@
+[Unit]
+Description=travelit-api Monthly Batch
+
+[Timer]
+#OnCalendar=*-*-* 15:00:00
+OnCalendar=*-*-* 03:10:00
+AccuracySec=1m
+Unit=monthly.service
+
+[Install]
+WantedBy=timers.target

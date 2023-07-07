@@ -1,10 +1,18 @@
 module.exports = {
   apps: [
     {
+      name: 'prismastudio2',
+      script: 'yarn prisma studio  --browser none',
+      watch: true,
+      max_restarts: 3,
+      min_uptime: 5000,
+      ignore_watch: ['node_modules', 'mongodb'],
+    },
+    {
       name: 'travelit-api-dev',
       script:
         'ts-node -r tsconfig-paths/register ./src/server.ts  --ignore-watch=category_result.txt',
-      ignore_watch: ['category_result.txt', 'node_modules'],
+      ignore_watch: ['category_result.txt', 'node_modules', 'mongodb'],
       time: true,
       watch: true,
       // TZ: 'Asia/Seoul',
@@ -32,7 +40,7 @@ module.exports = {
     {
       name: 'travelit-api-dev-multicore',
       script: './src/server.ts',
-      ignore_watch: ['category_result.txt', 'node_modules'],
+      ignore_watch: ['category_result.txt', 'node_modules', 'mongodb'],
       time: true,
       watch: true,
       // TZ: 'Asia/Seoul',

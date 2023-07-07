@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script>
+      const ws = new WebSocket('ws://localhost:3000');
+
+      ws.onmessage = event => {
+        console.log(event);
+        console.log(event.data);
+      };
+      ws.onclose = function (event) {
+        if (event.wasClean) {
+          alert(
+            `[close] 커넥션이 정상적으로 종료되었습니다(code=${event.code} reason=${event.reason})`,
+          );
+        } else {
+          // 예시: 프로세스가 죽거나 네트워크에 장애가 있는 경우
+          // event.code가 1006이 됩니다.
+          alert('[close] 커넥션이 죽었습니다.');
+        }
+      };
+      function sayHi() {
+        ws.send('Hello'); // 서버에 데이터 전송
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Hello Express</h1>
+    <button onClick="sayHi()">Say Hi</button>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 // reference https://javascript.plainenglish.io/typed-express-request-and-response-with-typescript-7277aea028c
+import express from 'express';
 import { IBResFormat, GuardRes } from '@src/utils';
 import { Send } from '@types/express-serve-static-core';
 
@@ -11,7 +12,7 @@ declare global {
   // }
 
   namespace Express {
-    export interface IBAuthGuardRequest extends Express.Request {
+    export interface IBAuthGuardRequest extends express.Request {
       locals?: GuardRes & {
         resMessages?: IBResFormat;
       };
@@ -25,7 +26,7 @@ declare global {
       query: T;
     }
 
-    export interface IBTypedResponse<ResBody> extends Express.Response {
+    export interface IBTypedResponse<ResBody> extends express.Response {
       status(code: StatusCode): this;
       json: Send<ResBody, this>;
     }

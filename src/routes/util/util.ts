@@ -8,6 +8,7 @@ import {
   accessTokenValidCheck,
   s3FileUpload,
   putS3SignedUrl,
+  delObjectsFromS3,
 } from '@src/utils';
 import { isNil, isEmpty } from 'lodash';
 import {
@@ -20,7 +21,7 @@ import axios from 'axios';
 
 const upload = multer();
 
-const tripNetworkRouter: express.Application = express();
+const utilRouter: express.Application = express();
 
 export interface UploadToS3RequestType {
   apiPath: string; /// 이 api 요청으로 업로드된 파일 패스(s3 key)를 줄 apiPath ex) /content/addTripMemory
@@ -208,6 +209,8 @@ export const getSignedUrlForFileUpload = asyncWrapper(
             return `public/content/cardNewsGroup/${fileName}`;
           case 'CONTENT/ADDCARDGRP/CARDNEWSCONTENT/BGPICURI':
             return `public/content/cardNewsContent/${fileName}`;
+          case 'MYPAGE/REGISTADPLACE':
+            return `public/myPage/adPlaceImg/${fileName}`;
           default:
             throw new IBError({
               type: 'INVALIDPARAMS',
@@ -557,23 +560,105 @@ export const requestToOpenai = asyncWrapper(
   },
 );
 
-tripNetworkRouter.post(
+export interface DelFromS3RequestType {
+  objKeys: string[]; /// 지우고자 하는 s3 object 키들
+}
+export interface DelFromS3SuccessResType {}
+
+export type DelFromS3ResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DelFromS3SuccessResType | {};
+};
+
+/**
+ * getSignedUrlForFileUpload를 이용해주세요. 본 api는 개발용 api로 남겨둡니다.
+ * (deprecated) brip 서비스에서 사용될 파일들을(이미지, 또는 첨부파일) S3에 업로드하기위한 공통 api
+ * 본 api를 통해 업로드된 파일의 S3 Path(key)가 사용될 api의 이름을 apiPath로 주어야한다.
+ * 멤버 레벨의 accessToken 권한이 필요하다.
+ */
+export const delFromS3 = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DelFromS3RequestType>,
+    res: Express.IBTypedResponse<DelFromS3ResType>,
+  ) => {
+    try {
+      const { objKeys } = req.body;
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      if (isNil(objKeys) && isEmpty(objKeys)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'objKeys은 필수 파라미터입니다.',
+        });
+      }
+
+      await delObjectsFromS3(objKeys);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+utilRouter.post(
   '/uploadToS3',
   accessTokenValidCheck,
   [upload.array('files', 10)],
   uploadToS3,
 );
 
-tripNetworkRouter.post(
+utilRouter.post(
   '/getSignedUrlForFileUpload',
   accessTokenValidCheck,
   getSignedUrlForFileUpload,
 );
 
-tripNetworkRouter.post(
-  '/requestToOpenai',
-  accessTokenValidCheck,
-  requestToOpenai,
-);
+utilRouter.post('/requestToOpenai', accessTokenValidCheck, requestToOpenai);
+utilRouter.post('/delFromS3', accessTokenValidCheck, delFromS3);
 
-export default tripNetworkRouter;
+export default utilRouter;

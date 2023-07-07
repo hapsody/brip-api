@@ -7,6 +7,8 @@ import iBTravelTag from './iBTravelTag/iBTravelTag';
 // import tourPlace from './tourPlace'; /// big size data
 import iBEventPromotion from './iBEventPromotion/iBEventPromotion';
 import mainBackgroundImg from './mainBackgroundImg/mainBackgroundImg';
+import adPlaceCategory from './adPlaceCategory/adPlaceCategory';
+import adPlace from './adPlace/adPlace';
 
 const abcd = async () => {
   await userSeed();
@@ -17,11 +19,17 @@ const abcd = async () => {
   await iBTravelTag();
   await iBEventPromotion();
   await mainBackgroundImg();
+  await adPlaceCategory();
+  await adPlace();
 };
 
-abcd().catch(e => {
-  console.error(e);
-  process.exit(1);
-});
+abcd()
+  .catch(e => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => {
+    process.exit(0);
+  });
 
 // tourPlace.prototype = () => {};

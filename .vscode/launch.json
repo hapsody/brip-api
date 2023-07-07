@@ -60,6 +60,18 @@
       "name": "test batch:areaCodeAsign",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn test reqSchedule-stress",
+      "name": "yarn test reqSchedule-stress.test.ts",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "yarn batch:registTPFromAdPlace",
+      "name": "yarn batch:registTPFromAdPlace",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

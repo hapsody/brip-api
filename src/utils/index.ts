@@ -13,7 +13,13 @@ import asyncWrapper from './asyncWrapper';
 import somethingHandler from './middlewares/somethingHandler';
 import accessTokenValidCheck from './middlewares/authGuard';
 import genBcryptHash from './genBcryptHash';
-import { s3FileUpload, getS3SignedUrl, putS3SignedUrl, s3 } from './aws/s3';
+import {
+  s3FileUpload,
+  getS3SignedUrl,
+  putS3SignedUrl,
+  getS3ClientViaAssumeRole,
+  delObjectsFromS3,
+} from './aws/s3';
 import { getToday, getTomorrow, getNDaysLater } from './time';
 import {
   IBTravelTagList,
@@ -26,7 +32,7 @@ import {
   getBoundingBox,
   getDistFromTwoGeoLoc,
 } from './geoLocation';
-import { searchKRJuso, geoCodeToAddr } from './externalApi';
+import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
 
 export {
@@ -48,7 +54,7 @@ export {
   s3FileUpload,
   getS3SignedUrl,
   putS3SignedUrl,
-  s3,
+  getS3ClientViaAssumeRole,
   IBContext,
   IBTravelTagList,
   ibTravelTagCategorize,
@@ -59,5 +65,7 @@ export {
   getDistFromTwoGeoLoc,
   searchKRJuso,
   geoCodeToAddr,
+  addrToGeoCode,
   sendEmail,
+  delObjectsFromS3,
 };

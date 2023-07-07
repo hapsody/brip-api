@@ -31,12 +31,17 @@
     "seed:iBTravelTag": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBTravelTag",
     "seed:iBEventPromotion": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/iBEventPromotion",
     "seed:mainBackgroundImg": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/mainBackgroundImg",
+    "seed:adPlaceCategory": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adPlaceCategory",
+    "seed:adPlace": "ts-node -r tsconfig-paths/register ./src/prisma/seeds/adPlace",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --coverage ",
-    "batch": "yarn batch:dataresource; yarn batch:dupCheck; yarn batch:areaCodeAsign",
-    "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/dailyBatchJob.ts",
-    "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceDupChecker.ts",
-    "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/tourPlaceAreaCodeAsigner.ts",
-    "prismastudio": "pm2 start --only prismastudio"
+    "batch": "yarn batch:monthly",
+    "batch:daily": "yarn ts-node -r tsconfig-paths/register ./src/timer/daily/dailyBatchJob.ts",
+    "batch:monthly": "yarn batch:dataresource; yarn batch:dupCheck; yarn batch:areaCodeAsign",
+    "batch:dataresource": "yarn ts-node -r tsconfig-paths/register ./src/timer/monthly/monthlyBatchJob.ts",
+    "batch:dupCheck": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/tourPlaceDupChecker.ts",
+    "batch:areaCodeAsign": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/tourPlaceAreaCodeAsigner.ts",
+    "batch:registTPFromAdPlace": "yarn ts-node -r tsconfig-paths/register ./src/timer/scripts/registTPFromAdPlace",
+    "prismastudio": "pm2 start --only prismastudio2 ecosystem.config.js"
   },
   "husky": {
     "hooks": {
@@ -70,7 +75,7 @@
     "lint-staged": "^12.3.7",
     "pm2": "^5.2.0",
     "prettier": "^2.6.2",
-    "prisma": "^3.11.1",
+    "prisma": "^4.13",
     "ts-node": "^10.7.0",
     "tsc-watch": "^4.6.2",
     "tsconfig-paths": "^3.14.1",
@@ -78,9 +83,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.258.0",
+    "@aws-sdk/client-sts": "^3.338.0",
     "@aws-sdk/s3-request-presigner": "^3.258.0",
     "@aws-sdk/types": "^3.257.0",
-    "@prisma/client": "3.11.1",
+    "@prisma/client": "^4.13",
     "@turf/turf": "^6.5.0",
     "@types/async": "^3.2.15",
     "@types/axios": "^0.14.0",
@@ -93,6 +99,7 @@
     "@types/ejs": "^3.1.1",
     "@types/events": "^3.0.0",
     "@types/express-serve-static-core": "^4.17.28",
+    "@types/ioredis": "^5.0.0",
     "@types/jest": "^27.4.1",
     "@types/jsonwebtoken": "^8.5.9",
     "@types/moment": "^2.13.0",
@@ -105,7 +112,8 @@
     "@types/randomstring": "^1.1.8",
     "@types/supertest": "^2.0.12",
     "@types/turf": "^3.5.32",
-    "@types/uuid": "^8.3.4",
+    "@types/uuid": "^9.0.2",
+    "@types/ws": "^8.5.5",
     "async": "^3.2.4",
     "aws-sdk": "^2.1302.0",
     "axios": "^0.26.1",
@@ -119,6 +127,7 @@
     "eslint-import-resolver-typescript": "^2.7.1",
     "events": "^3.3.0",
     "express": "^4.17.3",
+    "ioredis": "^5.3.2",
     "jest": "^27.5.1",
     "jsonwebtoken": "^8.5.1",
     "lodash": "^4.17.21",
@@ -131,7 +140,9 @@
     "passport-local": "^1.0.0",
     "randomstring": "^1.2.3",
     "supertest": "^6.2.2",
+    "tls": "^0.0.1",
     "ts-jest": "^27.1.4",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "ws": "^8.13.0"
   }
 }

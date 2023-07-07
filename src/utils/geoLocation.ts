@@ -1,4 +1,5 @@
 import * as turf from '@turf/turf';
+import { isNil, isEmpty } from 'lodash';
 
 export interface BoundingBox {
   minLat: number;
@@ -47,8 +48,13 @@ export function getDistFromTwoGeoLoc(param: {
   aLng: number;
   bLat: number;
   bLng: number;
+  cnt?: {
+    maxPhase: number;
+    count: number;
+    avoidCnt: number;
+  };
 }): number {
-  const { aLat, aLng, bLat, bLng } = param;
+  const { aLat, aLng, bLat, bLng, cnt } = param;
   // 위경도 값
   const from = [aLng, aLat]; // Washington D.C.
   const to = [bLng, bLat]; // Los Angeles
@@ -59,6 +65,10 @@ export function getDistFromTwoGeoLoc(param: {
 
   // distance 함수를 사용하여 두 포인트 객체 사이의 거리를 계산합니다.
   const kilometers = turf.distance(fromPoint, toPoint, 'kilometers');
+
+  /// 성능 test용 count
+  if (!isNil(cnt) && !isEmpty(cnt)) cnt.count += 1;
+
   return kilometers * 1000;
 }
 

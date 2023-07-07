@@ -64,22 +64,24 @@ export async function searchKRJuso(
   return isEmpty(juso) ? null : juso[0];
 }
 
+interface VWorldJusoStructureType {
+  level0: string; /// 국가
+  level1: string; /// 시,도
+  level2: string; /// 시, 군, 구
+  level3: string; /// (일반구) 구
+  level4L: string; /// (도로)도로명, (지번)법정읍·면·동 명
+  level4LC: string; ///
+  level4A: string; /// 	(도로)행정읍·면·동 명, (지번)지원안함
+  level4AC: string; /// (도로)행정읍·면·동 코드, (지번)지원안함
+  level5: string; /// (도로)길, (지번)번지
+  detail: string; /// 상세주소
+}
+
 interface VWorldGeoCoderToAddrType {
   zipcode: string;
   type: string;
   text: string;
-  structure: {
-    level0: string;
-    level1: string;
-    level2: string;
-    level3: string;
-    level4L: string;
-    level4LC: string;
-    level4A: string;
-    level4AC: string;
-    level5: string;
-    detail: string;
-  };
+  structure: VWorldJusoStructureType;
 }
 
 export interface VWorldGeoCoderToAddrAPIType {
@@ -161,4 +163,112 @@ export async function geoCodeToAddr(
   const [address] = result.data.response.result;
 
   return address;
+}
+
+interface VWorldAddrToGeoCodeType {
+  crs: string; /// 응답결과 좌표계
+  point: {
+    x: number;
+    y: number;
+  };
+}
+
+export interface VWorldAddrToGeoCodeTypeAPIType {
+  response: {
+    service: {
+      name: string;
+      version: string;
+      operation: string;
+      time: string;
+    };
+    status: string;
+    input: {
+      type: string; /// 'ROAD' 도로명 | 'PARCEL' 지번주소
+      address: string;
+    };
+    refined: {
+      text: string;
+      structure: VWorldJusoStructureType;
+    };
+    result: VWorldAddrToGeoCodeType;
+  };
+}
+
+export async function addrToGeoCode(param: {
+  address: string;
+  type: 'road' | 'parcel';
+}): Promise<{
+  regionCode1: string;
+  regionCode2: string;
+  lat: number;
+  lng: number;
+} | null> {
+  /// docs: https://www.vworld.kr/dev/v4dv_geocoderguide2_s001.do
+  /// ex) https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0&crs=epsg:4326&address=효령로72길 60&refine=true&simple=false&format=xml&type=road&key=324DC2B6-B641-3A80-8AC0-3E27B8047C0B
+
+  const { address, type } = param;
+
+  const retryLoop = async (
+    retry = 1,
+    waitTime = 200,
+  ): Promise<AxiosResponse<VWorldAddrToGeoCodeTypeAPIType, unknown>> => {
+    try {
+      const result = await axios.get<VWorldAddrToGeoCodeTypeAPIType>(
+        'https://api.vworld.kr/req/address',
+        {
+          params: {
+            service: 'address',
+            request: 'getcoord',
+            version: '2.0',
+            crs: 'epsg:4326',
+            address,
+            format: 'json',
+            type,
+            key: process.env.VWORLD_APIKEY as string,
+          },
+        },
+      );
+      return result;
+    } catch {
+      console.log(
+        `[${type}, ${address}] addrToGeoCode api call error. wait ${waitTime}ms and retry.. ${retry}`,
+      );
+
+      const waitPromise = new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, waitTime);
+      });
+
+      await waitPromise;
+      const result = await retryLoop(retry + 1);
+
+      return result;
+    }
+  };
+
+  const res = await retryLoop();
+
+  if (isNil(res.data.response.result)) {
+    console.log(res.data);
+    return null;
+  }
+
+  const geoCodeNRefined = res.data;
+
+  const {
+    refined: { structure },
+    result,
+  } = geoCodeNRefined.response;
+
+  const regionCode1 = structure.level1;
+  const regionCode2 = structure.level2.split(' ')[0];
+
+  const { x: lng, y: lat } = result.point;
+  return {
+    regionCode1,
+    regionCode2,
+    lng: Number(lng),
+    lat: Number(lat),
+  };
 }

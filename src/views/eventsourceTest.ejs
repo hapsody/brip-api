@@ -1,0 +1,832 @@
+<html>
+  <!-- sseKey는 deprecated됨. accessToken에 포함된 userId로 클라이언트를 구별함, EventSource 생성하는단계에서 Authorization 헤더도 포함해야 하므로 본 스크립트는 정상동작하지 않음 -->
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"
+      integrity="sha512-WFN04846sdKMIP5LKNphMaWzU7YpMyCU245etK3g/2ARYbPK9Ub18eG+ljU96qKRCWh+quCY7yefSmlkQw1ANQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </head>
+  <body>
+    <div>
+      <div style="display: block">
+        <h3 style="display: inline">[company] userId:</h3>
+        <input type="text" id="companyId" placeholder="i am.." value="3" />
+        <h3 style="display: inline">to:</h3>
+        <input id="sendToFromCompany" type="text" placeholder="to" value="1" />
+      </div>
+
+      <div id="companyConsoles">
+        <button id="companyConnectBtn">sse connect</button>
+        <button id="cpStoreChatLog">store chat</button>
+        <span id="cpCallStoreChatLogCallParams"></span> <br />
+        <span>Set Params => </span>
+        <button id="setParamsToAnsBookingAvailable">
+          [ansBookingAvailable]
+        </button>
+        <br />
+        <br />
+
+        <!-- <button id="cpSendMessageBtn">sendMessage</button> -->
+        <!-- <span id="cpSendMessageResult"></span> -->
+        <!-- <input
+          id="cpApiNameForGetMessage"
+          type="text"
+          placeholder="apiName for GetMessage "
+          value=""
+        /> -->
+        <button id="cpGetMessageBtn">getMessage</button>
+        <button id="cpChatBoxClear">Clear</button>
+        <span id="cpGetMessageResult"></span> <br />
+      </div>
+
+      <textarea
+        name="cpChatBox"
+        id="cpChatBox"
+        cols="50"
+        rows="20"
+        placeholder="사업자 채팅방"
+      ></textarea>
+      <textarea
+        name="cpChatLine"
+        id="cpChatLine"
+        cols="50"
+        rows="3"
+        placeholder="사업자 채팅입력창"
+      ></textarea>
+      <textarea
+        name="companySSEEvents"
+        id="companySSEEvents"
+        cols="70"
+        rows="20"
+        placeholder="서버에서 오는 사업자 sse event msg"
+      ></textarea>
+    </div>
+
+    <div id="seprator" style="display: block; width: 100%; height: 100px"></div>
+
+    <div>
+      <div style="display: block">
+        <h3 style="display: inline">[customer] userId:</h3>
+        <input type="text" id="customerId" placeholder="i am.." value="1" />
+        <h3 style="display: inline">to:</h3>
+        <input id="sendToFromCustomer" type="text" placeholder="to" value="3" />
+      </div>
+      <div id="customerConsoles">
+        <button id="customerConnectBtn">sse connect</button>
+        <button id="csStoreChatLog">store chat</button>
+        <span id="csCallStoreChatLogCallParams"></span> <br />
+        <span>Set Params => </span>
+        <button id="setParamsToReqBookingChatWelcome">
+          [reqBookingChatWelcome]
+        </button>
+        <button id="setParamsToReqNewBooking">[reqNewBooking]</button>
+        <button id="setParamsToAskBookingAvailable">
+          [askBookingAvailable]
+        </button>
+        <button id="setParamsToConfirmBooking">[confirmBooking]</button>
+        <button id="setParamsToPrivacyAgree">[privacyAgree]</button>
+
+        <br />
+        <br />
+        <!-- 
+        <input
+          id="csApiNameForGetMessage"
+          type="text"
+          placeholder="apiName for GetMessage "
+          value=""
+        /> -->
+        <button id="csGetMessageBtn">getMessage</button>
+        <button id="csChatBoxClear">Clear</button>
+        <span id="csGetMessageResult"></span> <br />
+      </div>
+
+      <textarea
+        name="csChatBox"
+        id="csChatBox"
+        cols="60"
+        rows="20"
+        placeholder="고객 채팅방"
+      ></textarea>
+      <textarea
+        name="csChatLine"
+        id="csChatLine"
+        cols="50"
+        rows="3"
+        placeholder="고객 채팅입력창"
+      ></textarea>
+      <textarea
+        name="customerSSEEvents"
+        id="customerSSEEvents"
+        cols="70"
+        rows="20"
+        placeholder="서버에서 오는 고객 sse event msg"
+      ></textarea>
+    </div>
+
+    <script>
+      var csChatBoxOrder = 0,
+        cpChatBoxOrder = 0,
+        csStartCursor = 0,
+        cpStartCursor = 0,
+        adPlaceId;
+
+      const context = params => {
+        let es;
+        const { userType, userId, accessToken } = params;
+
+        server_url = (() => {
+          let execute_env = '<%= process.env.EXECUTE_ENV %>';
+          if (execute_env === 'dev') return 'https://dev-api.idealbloom.co.kr';
+          else if (execute_env === 'prod')
+            return 'https://api.idealbloom.co.kr';
+          return 'http://localhost:3000';
+        })();
+
+        async function initAndConnect() {
+          //브라우저가 SSE지원하는지 체크
+          if (typeof EventSource == 'undefined') {
+            console.log('sse is unsupported');
+          }
+          console.log('sse is supported');
+
+          if (es) {
+            es.close();
+          }
+
+          es = new EventSource(`/noti/testSSESubscribe?userId=${userId}`, {
+            withCredentials: true,
+          });
+
+          es.onopen = async event => {
+            // when connection success
+            console.log(`${userType} ${userId} ready`);
+            console.log('\n');
+            // console.log(event);
+
+            if (userType === 'company') {
+              var myHeaders = new Headers();
+              myHeaders.append('Content-Type', 'application/json');
+              myHeaders.append('Authorization', accessToken);
+              const getMyAdPlaceResponse = await fetch(
+                `${server_url}/myPage/getMyAdPlace`,
+                {
+                  method: 'GET',
+                  headers: myHeaders,
+                  redirect: 'follow',
+                },
+              );
+              const data = await getMyAdPlaceResponse.json();
+
+              if (data.IBcode === '1000') {
+                const myAdPlaces = data.IBparams;
+                adPlaceId = myAdPlaces.find(v => {
+                  return v.status === 'IN_USE';
+                }).id;
+                console.log(`adPlaceId: ${adPlaceId}`);
+              }
+            }
+
+            es.onmessage = stream => {
+              // when message is received
+              const parsedData = JSON.parse(stream.data);
+              // console.log(parsedData);
+            };
+
+            // specific event name test
+            es.addEventListener(`userId${userId}`, event => {
+              const data = JSON.parse(event.data);
+              if (userType === 'company') {
+                const prevChat = cpSSETextarea.val();
+                cpSSETextarea.val(`${prevChat}\n${data.message}`);
+                return;
+              }
+              const prevChat = csSSETextarea.val();
+              csSSETextarea.val(`${prevChat}\n${data.message}`);
+              return;
+            });
+          };
+
+          es.onerror = error => {
+            // when an error occurs
+
+            console.error('error', error);
+          };
+        }
+
+        return initAndConnect;
+      };
+
+      function contextSwitch(type) {
+        customerUserId = $('#customerId').val(); /// 초기값 1
+        companyUserId = $('#companyId').val(); /// 초기값 3
+
+        if (type === 'customer') {
+          console.log(
+            `[contextSwitch] CS_cursor: ${csStartCursor}, order:${csChatBoxOrder}`,
+          );
+          if ($('#customerId').val() === '1')
+            accessToken = 'Bearer <%=process.env.testUserAccessToken1%>';
+          else if ($('#customerId').val() === '2')
+            accessToken = 'Bearer <%=process.env.testUserAccessToken2%>';
+          else if ($('#customerId').val() === '3')
+            accessToken = 'Bearer <%=process.env.testUserAccessToken3%>';
+          else accessToken = 'Bearer <%=process.env.testUserAccessToken4%>';
+          userType = 'customer';
+
+          return context({
+            userType,
+            userId: customerUserId,
+            accessToken,
+          });
+        }
+        console.log(
+          `[contextSwitch] CP_cursor: ${csStartCursor}, order:${csChatBoxOrder}`,
+        );
+        if ($('#companyId').val() === '1')
+          accessToken = 'Bearer <%=process.env.testUserAccessToken1%>';
+        else if ($('#companyId').val() === '2')
+          accessToken = 'Bearer <%=process.env.testUserAccessToken2%>';
+        else if ($('#companyId').val() === '3')
+          accessToken = 'Bearer <%=process.env.testUserAccessToken3%>';
+        else accessToken = 'Bearer <%=process.env.testUserAccessToken4%>';
+
+        userType = 'company';
+
+        return context({
+          userType,
+          userId: companyUserId,
+          accessToken,
+        });
+      }
+
+      async function callSendMessage(params) {
+        const [{ to }] = params;
+        console.log(`[callSendMessage] userId ${to}...`);
+
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        console.log(`[callSendMessage] params:`, params);
+        const sendMessageResponse = await fetch(
+          `${server_url}/noti/sendMessage`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        $('#csSendMessageCallParam').text(JSON.stringify(params));
+        const data = await sendMessageResponse.json();
+        console.log('\n');
+        return data;
+      }
+
+      async function callGetMessage(params) {
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const getMessageResponse = await fetch(
+          `${server_url}/noti/getMessage`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await getMessageResponse.json();
+        console.log(`[callGetMessage]:`, data);
+        return data;
+      }
+
+      async function callStoreChatLog(params) {
+        // console.log(`call storeChatLog...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const storeChatLogResponse = await fetch(
+          `${server_url}/noti/storeChatLog`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await storeChatLogResponse.json();
+        return data;
+      }
+
+      async function callReqNewBooking(params) {
+        // console.log(`call reqNewBooking...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const reqNewBookingResponse = await fetch(
+          `${server_url}/noti/reqNewBooking`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await reqNewBookingResponse.json();
+        return data;
+      }
+
+      async function callReqBookingChatWelcome(params) {
+        // console.log(`call reqNewBooking...`);
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', accessToken);
+
+        const reqBookingChatWelcome = await fetch(
+          `${server_url}/noti/reqBookingChatWelcome`,
+          {
+            method: 'POST',
+            headers: myHeaders,
+            redirect: 'follow',
+            body: JSON.stringify(params),
+          },
+        );
+        const data = await reqBookingChatWelcome.json();
+        return data;
+      }
+
+      $(document).ready(() => {
+        cpSSETextarea = $('#companySSEEvents');
+        csSSETextarea = $('#customerSSEEvents');
+        cpChatBoxTextarea = $('#cpChatBox');
+        csChatBoxTextarea = $('#csChatBox');
+        cpChatLine = $('#cpChatLine');
+        csChatLine = $('#csChatLine');
+
+        $('#csChatBoxClear').on('click', () => {
+          $('#csChatBox').val('');
+        });
+        $('#cpChatBoxClear').on('click', () => {
+          $('#cpChatBox').val('');
+        });
+        $('#companyId').on('keypress', async e => {
+          cpChatBoxOrder = 0;
+          cpStartCursor = 0;
+        });
+
+        $('#customerId').on('keypress', async e => {
+          csChatBoxOrder = 0;
+          csStartCursor = 0;
+        });
+        cpChatLine.on('keypress', async e => {
+          try {
+            if (e.key === 'Enter') {
+              contextSwitch('company');
+              // customerUserId = $('#sendToFromCompany').val();
+              // companyUserId = $('#sendToFromCustomer').val();
+              const message = cpChatLine.val();
+              const callParams = [
+                {
+                  adPlaceId: `${adPlaceId}`,
+                  to: customerUserId,
+                  from: companyUserId,
+                  createdAt: moment().toISOString(),
+                  order: cpChatBoxOrder.toString(),
+                  message,
+                  type: 'TEXT',
+                },
+              ];
+              const result = await callSendMessage(callParams);
+              console.log(result);
+              if (result.IBcode === '1000') {
+                cpChatLine.val('');
+
+                const prevChatBoxVal = cpChatBoxTextarea.val();
+                cpChatBoxTextarea.val(
+                  `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+                );
+                cpStartCursor += 1;
+                cpChatBoxOrder += 1;
+                console.log(
+                  `[after getMessage call] CP_cursor:${cpStartCursor}, order:${cpChatBoxOrder}`,
+                );
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        });
+
+        csChatLine.on('keypress', async e => {
+          try {
+            if (e.key === 'Enter') {
+              console.log('enter');
+              contextSwitch('customer');
+              // customerUserId = $('#sendToFromCompany').val();
+              // companyUserId = $('#sendToFromCustomer').val();
+              const message = csChatLine.val();
+              const callParams = [
+                {
+                  adPlaceId: `${adPlaceId}`,
+                  to: companyUserId,
+                  from: customerUserId,
+                  createdAt: moment().toISOString(),
+                  order: csChatBoxOrder.toString(),
+                  message,
+                  type: 'TEXT',
+                },
+              ];
+
+              const result = await callSendMessage(callParams);
+              console.log(result);
+              if (result.IBcode === '1000') {
+                csChatLine.val('');
+
+                const prevChatBoxVal = csChatBoxTextarea.val();
+                csChatBoxTextarea.val(
+                  `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+                );
+                csStartCursor += 1;
+                csChatBoxOrder += 1;
+                console.log(
+                  `[after getMessage call] CS_cursor:${csStartCursor}, order:${csChatBoxOrder}`,
+                );
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        });
+
+        $('#companyConnectBtn').on('click', async () => {
+          console.log('company');
+          const initAndConnect = contextSwitch('company');
+
+          await initAndConnect();
+        });
+        $('#customerConnectBtn').on('click', async () => {
+          console.log('customer');
+          contextSwitch('customer');
+          const initAndConnect = contextSwitch('customer');
+          await initAndConnect();
+        });
+
+        $('#csGetMessageBtn').on('click', async () => {
+          contextSwitch('customer');
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+          // console.log(`csStartCursor:${csStartCursor}`);
+          const callParams = {
+            from: companyUserId,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
+          };
+          console.log(`getMessage callParams:`, callParams);
+          const getMessageResult = await callGetMessage(callParams);
+          if (getMessageResult.IBcode === '1000') {
+            $('#csGetMessageCallParam').text(JSON.stringify(callParams));
+            const prevChat = csChatBoxTextarea.val();
+
+            const messages = getMessageResult.IBparams.messages.reduce(
+              (acc, v) => {
+                return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              },
+              '',
+            );
+
+            csChatBoxTextarea.val(`${prevChat}${messages}`);
+            csStartCursor = Number(getMessageResult.IBparams.nextCursor);
+            csChatBoxOrder = Number(getMessageResult.IBparams.nextOrder);
+          }
+          console.log(
+            `[after getMessage call] CS_cursor:${csStartCursor}, order:${csChatBoxOrder}`,
+          );
+          console.log('\n');
+        });
+
+        $('#cpGetMessageBtn').on('click', async () => {
+          contextSwitch('company');
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+          // console.log(`cpStartCursor:${cpStartCursor}`);
+          const callParams = {
+            from: customerUserId,
+            startCursor: `${cpStartCursor}`,
+            startOrder: `${cpChatBoxOrder}`,
+          };
+          console.log(`getMessage callParams: `, callParams);
+          const getMessageResult = await callGetMessage(callParams);
+          if (getMessageResult.IBcode === '1000') {
+            $('#cpGetMessageCallParam').text(JSON.stringify(callParams));
+            const prevChat = cpChatBoxTextarea.val();
+
+            const messages = getMessageResult.IBparams.messages.reduce(
+              (acc, v) => {
+                return `${acc}[${v.createdAt}]:${v.message}\n\n`;
+              },
+              '',
+            );
+
+            cpChatBoxTextarea.val(`${prevChat}${messages}`);
+            cpStartCursor = Number(getMessageResult.IBparams.nextCursor);
+            cpChatBoxOrder = Number(getMessageResult.IBparams.nextOrder);
+          }
+          console.log(
+            `[after getMessage call] CP_cursor:${cpStartCursor}, order:${cpChatBoxOrder}`,
+          );
+          console.log('\n');
+        });
+
+        $('#sendToFromCompany').on('keypress', () => {
+          cpChatBoxOrder = 0;
+          cpStartCursor = 0;
+          sendToFromCompany = $('#sendToFromCompany').val();
+          console.log(sendToFromCompany);
+        });
+
+        $('#sendToFromCustomer').on('keypress', () => {
+          csChatBoxOrder = 0;
+          csStartCursor = 0;
+          sendToFromCustomer = $('#sendToFromCustomer').val();
+          console.log(sendToFromCustomer);
+        });
+
+        $('#cpStoreChatLog').on('click', async () => {
+          contextSwitch('company');
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+          const chatBoxSnapShot = $('#cpChatBox').val();
+
+          const chatArr = chatBoxSnapShot
+            .split('\n\n')
+            .map((v, i) => {
+              if (_.isEmpty(v)) return null;
+              const matchedWord = v.match(/\[\d+-\d+-\d+T\d+:\d+:\d+\.\d+Z\]/);
+
+              if (!matchedWord) return null;
+
+              console.log(matchedWord);
+              const date = matchedWord[0].substring(
+                1,
+                matchedWord[0].length - 2,
+              );
+              return {
+                msg: v,
+                date: date,
+                order: i,
+              };
+            })
+            .filter(v => v);
+
+          const callParams = {
+            chatLog: chatArr,
+            toUserId: customerUserId,
+          };
+          const storeChatLogResult = await callStoreChatLog(callParams);
+
+          console.log(JSON.stringify(storeChatLogResult));
+          $('#cpCallStoreChatLogCallParams').text(JSON.stringify(callParams));
+          console.log('\n');
+        });
+
+        $('#csStoreChatLog').on('click', async () => {
+          contextSwitch('customer');
+          companyUserId = $('#sendToFromCompany').val();
+          const chatBoxSnapShot = $('#csChatBox').val();
+
+          const chatArr = chatBoxSnapShot
+            .split('\n\n')
+            .map((v, i) => {
+              if (_.isEmpty(v)) return null;
+              const matchedWord = v.match(/\[\d+-\d+-\d+T\d+:\d+:\d+\.\d+Z\]/);
+
+              if (!matchedWord) return null;
+
+              console.log(matchedWord);
+              const date = matchedWord[0].substring(
+                1,
+                matchedWord[0].length - 2,
+              );
+
+              return {
+                msg: v.substr(matchedWord[0].length + 2),
+                date: date,
+                order: i.toString(),
+              };
+            })
+            .filter(v => v);
+
+          const callParams = {
+            chatLog: chatArr,
+            toUserId: companyUserId,
+          };
+          console.log(callParams);
+          const storeChatLogResult = await callStoreChatLog(callParams);
+
+          console.log(JSON.stringify(storeChatLogResult));
+          $('#csCallStoreChatLogCallParams').text(JSON.stringify(callParams));
+        });
+
+        $('#setParamsToAskBookingAvailable').on('click', async () => {
+          contextSwitch('customer');
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `유쾌한인어님이\n7/3 월 14시 2명\n예약 가능여부를 문의했어요!`;
+          csChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'ASKBOOKINGAVAILABLE',
+              actionInputParams: {
+                date: '2023-07-03T05:00:00.000Z',
+                numOfPeople: '2',
+              },
+            },
+          ];
+          const result = await callSendMessage(callParams);
+          console.log(`askBookingAvailable sendMessage Call res`, result);
+          if (result.IBcode === '1000') {
+            csChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+        });
+
+        $('#setParamsToAnsBookingAvailable').on('click', async () => {
+          contextSwitch('company');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `예약이 불가능해요.\n같은 날짜에 예약이 꽉찼어요.`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: companyUserId,
+              to: customerUserId,
+              createdAt: moment().toISOString(),
+              order: cpChatBoxOrder.toString(),
+              message,
+              type: 'ANSBOOKINGAVAILABLE',
+              actionInputParams: {
+                answer: 'REJECT',
+                rejectReason: 'FULLBOOKINGATDATE',
+              },
+            },
+          ];
+          const result = await callSendMessage(callParams);
+          console.log(`ansBookingAvailable sendMessage call res: `, result);
+          if (result.IBcode === '1000') {
+            csChatLine.val('');
+
+            const prevChatBoxVal = cpChatBoxTextarea.val();
+            cpChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            cpStartCursor += 1;
+            cpChatBoxOrder += 1;
+          }
+        });
+
+        $('#setParamsToReqBookingChatWelcome').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          csChatLine.val('');
+
+          const callParams = {
+            adPlaceId: `${adPlaceId}`,
+            toUserId: companyUserId,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
+          };
+
+          const result = await callReqBookingChatWelcome(callParams);
+          console.log(`reqBookingChatWelcome call res: `, result);
+          console.log('\n');
+        });
+
+        $('#setParamsToReqNewBooking').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          csChatLine.val('');
+
+          const callParams = {
+            adPlaceId: `${adPlaceId}`,
+            toUserId: companyUserId,
+            startCursor: `${csStartCursor}`,
+            startOrder: `${csChatBoxOrder}`,
+          };
+
+          const result = await callReqNewBooking(callParams);
+          console.log(`reqNewBooking call res: `, result);
+          console.log('\n');
+        });
+
+        $('#setParamsToConfirmBooking').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `네, 확정할게요`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'CONFIRMBOOKING',
+              actionInputParams: {
+                confirmAnswer: 'CONFIRM', /// or CANCEL
+              },
+            },
+          ];
+
+          const result = await callSendMessage(callParams);
+          console.log(result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+        });
+
+        $('#setParamsToPrivacyAgree').on('click', async () => {
+          contextSwitch('customer');
+
+          // customerUserId = $('#sendToFromCompany').val();
+          // companyUserId = $('#sendToFromCustomer').val();
+
+          const message = `동의`;
+          cpChatLine.val('');
+
+          const callParams = [
+            {
+              adPlaceId: `${adPlaceId}`,
+              from: customerUserId,
+              to: companyUserId,
+              createdAt: moment().toISOString(),
+              order: csChatBoxOrder.toString(),
+              message,
+              type: 'PRIVACYAGREE',
+              actionInputParams: {
+                agreeAnswer: 'TRUE', /// or CANCEL
+              },
+            },
+          ];
+
+          const result = await callSendMessage(callParams);
+          console.log(`[privacyAgree] call sendMessage res:`, result);
+          if (result.IBcode === '1000') {
+            cpChatLine.val('');
+
+            const prevChatBoxVal = csChatBoxTextarea.val();
+            csChatBoxTextarea.val(
+              `${prevChatBoxVal}[${new Date().toISOString()}]:${message}\n\n`,
+            );
+            csStartCursor += 1;
+            csChatBoxOrder += 1;
+          }
+          console.log('\n');
+        });
+      });
+    </script>
+  </body>
+</html>

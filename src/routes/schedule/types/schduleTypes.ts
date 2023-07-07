@@ -1,14 +1,13 @@
-import { isUndefined } from 'lodash';
 import {
-  PlanType,
   TourPlace,
   QueryParams,
   VisitSchedule,
-  PlaceType,
   MetaScheduleInfo,
   ScheduleBank,
   IBTravelTag,
   IBPhotos,
+  Hotel,
+  ValidCluster,
 } from '@prisma/client';
 import { IBResFormat, getToday, getTomorrow, IBContext } from '@src/utils';
 
@@ -86,21 +85,36 @@ export const gParamByTravelLevel = [
 ];
 // const hotelPerDay = 1;
 
+// export class MealOrder {
+//   mealOrder = [-1, 1, 3];
+
+//   getNextMealOrder = (): number => {
+//     // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
+//     // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
+//     // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
+
+//     let nextMealOrder: number | undefined;
+//     do {
+//       nextMealOrder = this.mealOrder.shift();
+//       if (isUndefined(nextMealOrder)) return -2;
+//     } while (nextMealOrder === -1);
+
+//     return nextMealOrder;
+//   };
+// }
 export class MealOrder {
-  mealOrder = [-1, 1, 3];
+  orderList = [
+    [true, false, true], /// true이 위치한 인덱스가 그날 식당을 방문하는 순서이다.
+    [true, false, false, true],
+    [false, true, false, false, true],
+    [false, true, false, false, true, false],
+    [false, false, true, false, false, true, false],
+    [false, false, true, false, false, true, false, false],
+    [false, false, true, false, false, false, true, false, false],
+  ];
 
-  getNextMealOrder = (): number => {
-    // mealOrder로 받은 배열에서 다음 끼니의 일정 순서를 반환한다. 배열에 항목이 더이상 존재하지 않을 경우는 -2를 반환한다.
-    // mealOrder는 해당 끼니의 일정 순서 인덱스이다. -1일 경우에는 해당 끼니는 없는것이다. 0부터 시작이다. ex) { breakfast: -1, lunch: 0, dinner: 2 } 라면 아침은 먹지 않고 점심은 그날 일정순서중 0번째, 저녁은 앞에 1곳의 일정을 소화하고 2번째 일정으로 먹게 됨을 의미함.
-    // 만약 mealOrder로 [-1, 0, 2]가 들어오면 첫번재 끼니는 먹지 않으므로 -1이 나오지 않을때까지 while을 반복하여 0을 처음에 반환할것이다.
-
-    let nextMealOrder: number | undefined;
-    do {
-      nextMealOrder = this.mealOrder.shift();
-      if (isUndefined(nextMealOrder)) return -2;
-    } while (nextMealOrder === -1);
-
-    return nextMealOrder;
+  isFoodTurn = (curOrder: number, numOfTheDaySpot: number): boolean => {
+    return this.orderList[numOfTheDaySpot][curOrder];
   };
 }
 
@@ -464,6 +478,7 @@ export type GetRcmdListREQParam<H extends HotelOptType> = QueryReqParams<H>;
  */
 export type ReqScheduleREQParam<H extends HotelOptType> = QueryReqParams<H>;
 export interface DayScheduleType {
+  clusterId: string; /// 해당 visitSchedule이 속한 validCluster의 Id
   dayNo: string; // ex) x일차 일정인지 표기 '01', '02', ...
   transitionNo: number | null; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
   stayPeriod: number | null; // 호텔일경우 해당 호텔에 머무르는 일 수
@@ -482,7 +497,15 @@ export interface DayScheduleType {
           // }[];
           photos: Partial<IBPhotos>[];
         })
+      | (Hotel & {
+          // photos: {
+          //   id: string;
+          //   url: string;
+          // }[];
+          photos: Partial<IBPhotos>[];
+        })
       | null; // 해당 visitSchedule 과 관계되어있는 tourPlace 데이터
+    validCluster: ValidCluster | null;
   }[];
 }
 export interface ReqScheduleRETParamPayload extends QueryParams {
@@ -585,7 +608,7 @@ export interface ContextMakeSchedule extends IBContext {
   spots?: TourPlaceGeoLoc[]; /// 검색된 spot중 여행지로 선택된 spot들의 목록
   foods?: TourPlaceGeoLoc[]; /// 검색된 식당 목록
   // eslint-disable-next-line prettier/prettier
-  paramByAvgCalibLevel?: typeof gParamByTravelLevel[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
+  paramByAvgCalibLevel?: (typeof gParamByTravelLevel)[number]; /// 최소, 최대 여행강도의 평균값에(내림)에 해당하는 미리 정의된 여행 파라미터값들.
   spotClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
   foodClusterRes?: MakeClusterRETParam; /// 클러스터링 결과
 
@@ -615,7 +638,7 @@ export interface MakeScheduleRETParamPayload {
   visitSchedules: {
     dayNo: number; // ex) x일차 일정인지 표기 '01', '02', ...
     // planType: PlanType;
-
+    clusterId?: number; /// 해당일자에 여행지들로 할당된 여행지 클러스터 ID
     transitionNo?: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지
     stayPeriod?: number; // 호텔일경우 해당 호텔에 머무르는 일 수
     checkin?: string; // 호텔일경우 해당 호텔에 체크인하는 날짜
@@ -663,7 +686,7 @@ export interface GetScheduleListRETParamPayload {
   endDate: string; /// 여행일정 종료일   ex) '2023-02-06T15:00:00.000Z'
   thumbnail: string; /// 썸네일 주소 ex) "http://m-url.short.jdffasd-thjh"
   // scheduleHash: string; // 일정 고유 id값 ex) 16b7adbfda87687ad8b7daf98b
-  planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
+  // planType: string; /// 저장한 일정의 플랜 타입 min | mid | max
   queryParamsId: string; /// scheduleHash값을 대신하여 생성한 일정의 고유값으로 queryParamsId가 쓰임
 }
 
@@ -677,7 +700,7 @@ export type GetScheduleListRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface SaveScheduleREQParam {
   title: string; /// 영구 저장시 표현할 일정 제목 ex) "5월 강릉 일정계획"
   keyword: string[]; /// 영구 저장시 함께 저장될 태그 ex) ["가족여행", "1박2일 일정"]
-  planType: PlanType;
+  // planType: PlanType;
   queryParamsId: string; /// 저장할 schedule의 고유 Id
   startDate: string; /// 유저 입력 여행 시작일
   endDate: string; /// 유저 입력 여행 종료일
@@ -722,7 +745,7 @@ export type ChangeScheduleTitleRETParam = Omit<IBResFormat, 'IBparams'> & {
 export interface GetDayScheduleREQParam {
   queryParamsId: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 queryParamsId ex) "1"
   day: string; /// 여행중 몇일째 날짜를 조회하길 원하는가, 만약 3이라면 3일차 일정을 조회하길 원한다는 의미 ex) "1"
-  planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
+  // planType: PlanType; /// 비용에 따른 일정 분류중 어떤 계획을 요구하는지 ex) 'min' , 'mid', 'max'
 }
 
 export interface BriefScheduleType {
@@ -880,7 +903,7 @@ export interface GetCandidateScheduleREQParam {
   // scheduleHash: string; /// reqSchedule을 통한 생성요청후 응답값으로 전달된 고유 scheduleHash => queryParamsId로 대체됨
   // planType: PlanType; /// 변경 후보리스트의 planType ex) 'min' , 'mid', 'max'
   queryParamsId: string; /// 생성일정의 고유 값으로 간주되는 queryParamsId, 해당 값으로 일정을 특정하여 해당 일정의 후보군을 응답한다.
-  spotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
   skip: number;
   take: number;
 }
@@ -900,12 +923,12 @@ export type GetCandidateScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
  */
 export interface GetCandDetailSchdREQParam {
   candidateId: string; /// 변경하고자 하는 대체 후보 장소인 호텔(SearchHotelRes Id) 또는 장소, 식당(GglNearbySearchRes Id) Id ex) "19"
-  // candidateSpotType: PlaceType; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
+  spotType: string; /// 변경하고자 하는 항목의 spotType ex) 'hotel', 'spot', 'restaurant'
 }
 
 export type GetCandDetailSchdRETParamPayload = Omit<
   DetailScheduleType,
-  'dayCount' | 'orderCount' | 'planType'
+  'dayCount' | 'orderCount'
 >;
 
 export type GetCandDetailSchdRETParam = Omit<IBResFormat, 'IBparams'> & {
@@ -985,7 +1008,8 @@ export interface MakeClusterRETParam {
  */
 export interface GetHotelListREQParam {
   queryParamsId: string;
-  transitionNo: string;
+  transitionNo?: string; /// deprecate 해당 역할은 dayNo로 대체
+  dayNo?: string;
 }
 export type GetHotelListRETParamPayload = {
   transitionNo: number; // 호텔일 경우 해당 호텔이 몇번째 숙소이동인지

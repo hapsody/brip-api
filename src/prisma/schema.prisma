@@ -2,8 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["interactiveTransactions"]
+  provider = "prisma-client-js"
+  // previewFeatures = ["interactiveTransactions"]
 }
 
 datasource db {
@@ -46,6 +46,14 @@ model User {
   likeShareTripMemory             ShareTripMemory[]                 @relation("likeFrom")
   likeTourPlace                   TourPlace[]
   IBEventApplication              IBEventApplication[]
+  adPlace                         AdPlace[]
+  myChatLog                       UserChatLog[]                     @relation("FromUserChat")
+  ToUserChatLog                   UserChatLog[]                     @relation("ToUserChat")
+  // customerBookingInfo             BookingInfo[]                     @relation("customer")
+  // companyBookingInfo              BookingInfo[]                     @relation("company")
+  asCompanyBI                     BookingInfo[]                     @relation("asCustomer")
+  asCustomerBI                    BookingInfo[]                     @relation("asCompany")
+  notiMessages                    NotificationMessage[]
 }
 
 model FavoriteTravelType {
@@ -83,13 +91,13 @@ model FavoriteTravelType {
 //   // shareTripMemTPId  Int?
 // }
 
-model GglNearbySearchResType {
-  id        Int         @id @default(autoincrement())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now()) @updatedAt
-  value     String      @unique
-  tourPlace TourPlace[]
-}
+// model GglNearbySearchResType {
+//   id        Int         @id @default(autoincrement())
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now()) @updatedAt
+//   value     String      @unique
+//   tourPlace TourPlace[]
+// }
 
 /// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
 enum DataStageStatus {
@@ -103,13 +111,68 @@ enum DataStageStatus {
 
 /// idealbloom 이미지 
 model IBPhotos {
-  id          Int        @id @default(autoincrement())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @default(now()) @updatedAt
-  key         String? /// s3 key path
-  url         String?    @db.Text /// 직접접근이 가능한 url이 있을 경우
-  tourPlace   TourPlace? @relation(fields: [tourPlaceId], references: [id])
-  tourPlaceId Int?
+  id                Int              @id @default(autoincrement())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now()) @updatedAt
+  key               String? /// s3 key path
+  url               String?          @db.Text /// 직접접근이 가능한 url이 있을 경우
+  tourPlace         TourPlace?       @relation(fields: [tourPlaceId], references: [id])
+  tourPlaceId       Int?
+  Hotel             Hotel?           @relation(fields: [hotelId], references: [id])
+  hotelId           Int?
+  photoMetaInfo     IBPhotoMetaInfo?
+  ShareTripMemory   ShareTripMemory? @relation(fields: [shareTripMemoryId], references: [id])
+  shareTripMemoryId Int?
+  tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
+  tripMemoryId      Int?
+
+  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
+  adPlaceId Int?
+}
+
+enum IBPhotoMetaInfoType {
+  MAIN
+  DETAIL
+  SUB
+}
+
+/// 사진 메타 정보
+model IBPhotoMetaInfo {
+  id        Int                  @id @default(autoincrement())
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @default(now()) @updatedAt
+  type      IBPhotoMetaInfoType
+  order     Int                  @default(0)
+  /// common fields
+  title     String /// MAIN일 경우 장소명, 업체명, 위치명, DETAIL 타입일 경우 이미지를 설명할수 있는 서브타이틀(메뉴판, 안내도 등), SUB 타입일 경우 서브 타이틀
+  lat       Float?
+  lng       Float?
+  shotTime  DateTime? /// 
+  feature   TripMemoryCategory[] /// ex) MAIN: 가족친화적, 연인 친화적, SUB: view, direction, etc
+
+  /// for only DETAIL, SUB fields
+  keyword IBPhotoTag[] /// Hash Tag ex) 
+
+  /// for only MAIN fields
+  eval String? /// ex) 적극 추천, 추천, 비추천
+  desc String? @db.Text /// 장소설명 (2줄))
+
+  /// for DETAIL fields
+  publicInfo String? /// Price, Open/Close hour, contact info, etc
+
+  photo   IBPhotos @relation(fields: [photoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  photoId Int      @unique
+}
+
+/// PhotoMetaInfo Tag
+model IBPhotoTag {
+  id         Int               @id @default(autoincrement())
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @default(now()) @updatedAt
+  name       String            @unique
+  tripMemory IBPhotoMetaInfo[]
+
+  @@index([name])
 }
 
 /// 구글, 관광공사, booking.com 등 여러가지 다양한 유형의 관광지관련 포맷데이터를 관리하는 모델
@@ -120,52 +183,17 @@ model IBPhotos {
 // 3. 또한 하나의 TourPlace는 여러 데이터 테이블(GglNearbySearchRes, SearchHotelRes, VisitJejuData 등)중 하나의 데이터와 관계 형성이 된다.
 // 4. 반대로 GglNearbySearchRes, SearchHotelRes, VisitJejuData 등의 테이블들은 다수의 TourPlace 와의 관계가 형성된다
 model TourPlace {
-  id                                    Int             @id @default(autoincrement())
-  createdAt                             DateTime        @default(now())
-  updatedAt                             DateTime        @default(now()) @updatedAt
-  tourPlaceType                         PlaceType
-  visitSchedule                         VisitSchedule[]
-  queryParams                           QueryParams[]
-  status                                DataStageStatus @default(NEW)
+  id            Int             @id @default(autoincrement())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  tourPlaceType PlaceType
+  visitSchedule VisitSchedule[]
+  queryParams   QueryParams[]
+  status        DataStageStatus @default(NEW)
   // evalScore                             Int             @default(0) /// deprecated
   // minDifficulty                         Int? /// deprecated ibTravelTag의 minDifficulty가 대신하고 있음
   // maxDifficulty                         Int? /// deprecated ibTravelTag의 maxDifficulty가 대신하고 있음
-  ibTravelTag                           IBTravelTag[]
-  /// booking.com hotel result
-  bkc_unit_configuration_label          String? /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
-  bkc_min_total_price                   Float? /// ex) 572.61373972
-  bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
-  bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
-  bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
-  bkc_net_amount                        Float? /// 순액
-  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
-  bkc_hotelClass                        Int? /// 호텔 성급 ex) 3
-  bkc_countrycode                       String? /// ex) en
-  bkc_default_language                  String? /// ex) xu
-  bkc_address                           String? /// ex) 92-161 Waipahe Place
-  bkc_city                              String? /// ex) "Waianae",
-  bkc_city_name_en                      String? /// ex) "Waianae",
-  bkc_checkin                           String? /// ex) {"until":"11:00","from":"10:00"}
-  bkc_checkout                          String? /// ex) {"until":"11:00","from":"10:00"}
-  bkc_distance                          Float? /// search한 geo location으로부터 거리 ex) 5.62
-  bkc_review_score_word                 String? /// ex) Wonderful
-  bkc_review_score                      Float? /// ex) 8.2
-  // bkc_currency                String /// ex) USD
-  bkc_currency_code                     String? /// ex) USD
-  bkc_timezone                          String? /// ex) "Pacific/Honolulu",
-  bkc_urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
-  bkc_hotel_id                          Int? /// ex) 174704674
-  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
-  bkc_hotel_name                        String? ///  ex) Marriott's Ko Olina Beach Club
-  bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
-  bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
-  bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
-  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
-  bkc_zip                               String? /// ex) HI 96792
-  bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
-  bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
-  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
-  // bkc_has_swimming_pool       Int /// ex) 1
+  ibTravelTag   IBTravelTag[]
 
   /// gl, vj 필드 삭제
   // /// google place result format
@@ -218,21 +246,22 @@ model TourPlace {
   // vj_tag VisitJejuTag[] /// 태그 ex) 일출,오름,경관/포토,부모
 
   /// 공통 필수 필드
-  title        String /// 장소 이름
-  lat          Float /// 위도
-  lng          Float /// 경도
-  address      String?    @db.Text /// 지번주소
-  roadAddress  String?    @db.Text /// 도로명주소
+  title         String /// 장소 이름
+  lat           Float /// 위도
+  lng           Float /// 경도
+  address       String?    @db.Text /// 지번주소
+  roadAddress   String?    @db.Text /// 도로명주소
+  detailAddress String?    @db.Text /// 존재할경우 상세주소
   /// 공통 옵션 필드
-  openWeek     String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  contact      String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
-  postcode     String? /// 우편번호
-  photos       IBPhotos[] /// 사진
-  rating       Float      @default(0) /// 평점 0~5
-  desc         String?    @db.Text /// 장소 소개설명
-  regionCode1  String?    @db.Char(16) /// 상위 지역
-  regionCode2  String?    @db.Char(32) /// 하위 세부 지역
-  nationalCode String     @default("82") @db.Char(7)
+  openWeek      String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  contact       String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
+  postcode      String? /// 우편번호
+  photos        IBPhotos[] /// 사진
+  rating        Float      @default(0) /// 평점 0~5
+  desc          String?    @db.Text /// 장소 소개설명
+  regionCode1   String?    @db.Char(16) /// 상위 지역
+  regionCode2   String?    @db.Char(32) /// 하위 세부 지역
+  nationalCode  String     @default("82") @db.Char(7)
 
   batchQueryParams     BatchQueryParams?   @relation(fields: [batchQueryParamsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchQueryParamsId   Int? /// batchJob을 통해 수집된 데이터라면 batchJobId가 존재한다. 한번의 batchJob을 통해 생성된 데이터는 같은 번호를 공유한다.
@@ -243,17 +272,77 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good                     Int                     @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad                   Int                     @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad                      Int                     @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like                     Int                     @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good      Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad    Int      @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad       Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like      Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
-  GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
-  gglNearbySearchResTypeId Int?
+  // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
+  // gglNearbySearchResTypeId Int?
+  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
+  adPlaceId Int?
 
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
   @@index([nationalCode, regionCode1, regionCode2, id])
+}
+
+model Hotel {
+  id                                    Int             @id @default(autoincrement())
+  createdAt                             DateTime        @default(now())
+  updatedAt                             DateTime        @default(now()) @updatedAt
+  hotelType                             HotelType
+  status                                DataStageStatus @default(NEW)
+  queryParams                           QueryParams[]
+  visitSchedule                         VisitSchedule[]
+  bkc_unit_configuration_label          String?         @db.Text /// room name and description, ex) Standard Queen Room<br/><b>Private room</b>: 2 beds
+  bkc_min_total_price                   Float? /// ex) 572.61373972
+  bkc_gross_amount_per_night            Float? /// ex) 1박당 요금 = min_total_price / 여행박수
+  bkc_gross_amount                      Float? /// 총액, 부가세등의 세금과, 할인 금액을 계산한 최종 지불금액 ex) 572.61373972
+  bkc_included_taxes_and_charges_amount Float? /// 세금 포함한 금액
+  bkc_net_amount                        Float? /// 순액
+  // all_inclusive_amount              Float /// 모두 포함한 금액 (?) <= 결과값으로 미루어 총액과 대부분 동일했음
+  bkc_hotelClass                        Int? /// 호텔 성급 ex) 3
+  bkc_countrycode                       String? /// ex) en
+  bkc_default_language                  String? /// ex) xu
+  bkc_address                           String? /// ex) 92-161 Waipahe Place
+  bkc_city                              String? /// ex) "Waianae",
+  bkc_city_name_en                      String? /// ex) "Waianae",
+  bkc_checkin                           String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_checkout                          String? /// ex) {"until":"11:00","from":"10:00"}
+  bkc_distance                          Float? /// search한 geo location으로부터 거리 ex) 5.62
+  bkc_review_score_word                 String? /// ex) Wonderful
+  bkc_review_score                      Float? /// ex) 8.2
+  // bkc_currency                String /// ex) USD
+  bkc_currency_code                     String? /// ex) USD
+  bkc_timezone                          String? /// ex) "Pacific/Honolulu",
+  bkc_urgency_message                   String? ///ex) "Only 1 left at this price on Booking.com"
+  bkc_hotel_id                          Int? /// ex) 174704674
+  // hotel_name_trans     String /// 호텔이름으로 보임 ex) "Marriott's Ko Olina Beach Club"
+  bkc_hotel_name                        String? ///  ex) Marriott's Ko Olina Beach Club
+  bkc_latitude                          Float? /// 호텔 위도 ex) 21.3307348165897
+  bkc_longitude                         Float? /// 호텔 경도 ex) -158.121508732438
+  bkc_url                               String? /// booking.com 예약 페이지 ex) https://www.booking.com/hotel/us/marriott-s-ko-olina-beach-club.html
+  bkc_accommodation_type_name           String? /// ex) Resort, Hotel, Homestay, Vacation Home, etc ...
+  bkc_zip                               String? /// ex) HI 96792
+  bkc_main_photo_url                    String? /// 대문 썸네일 ex) https://cf.bstatic.com/xdata/images/hotel/square60/280522794.jpg
+  bkc_max_photo_url                     String? /// ex) https://cf.bstatic.com/xdata/images/hotel/max1280x900/280522794.jpg?k=bb16655bb4b95d3e5fdefaf39c1fbe4b1150e7eb3062b92eb635ad20b00404fb&o=
+  bkc_hotel_facilities                  String?         @db.Text /// ex) "160,467,502,96,220,75,446,498,485,490,484,2,486,444,65,445,450,20,195,458,494,124,3,72,495,488,301,457,4,456,224,434,435,145,225,503,419,185,11,420,497,184,454,436,455,109,468,437,440,496,51,460,448,433,23,441,179,505,504,7,461,104,493,459,421,48,442,439,47,506,107,25,499,422,81,108,451,492,28,253,449,222,305,182,489,16,22,8,491,159,418,161,80,49,443,117"
+  // bkc_has_swimming_pool       Int /// ex) 1  
+
+  /// 공통 필수 필드
+  title       String /// 장소 이름
+  lat         Float /// 위도
+  lng         Float /// 경도
+  address     String?    @db.Text /// 지번주소
+  roadAddress String?    @db.Text /// 도로명주소
+  /// 공통 옵션 필드
+  // openWeek     String?    @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  contact     String? /// 연락처 ex) +82-02-123-4567, +82-10-2055-1234
+  postcode    String? /// 우편번호
+  photos      IBPhotos[] /// 사진
+  rating      Float      @default(0) /// 평점 0~5
+  desc        String?    @db.Text /// 장소 소개설명
 }
 
 model BatchQueryParams {
@@ -323,7 +412,8 @@ model QueryParams {
   destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
   travelHard  Int? /// 여행강도 ex) "5"
 
-  tourPlace        TourPlace[] /// 일정에 대응하는 호텔, 주변 관광지와 식당 후보지 검색 결과 검색 결과
+  tourPlace        TourPlace[] /// 일쩡에 대응하는 주변 관광지와 식당 후보지 검색 결과 검색 결과
+  hotel            Hotel[] /// 일정에 대응되어 검색된 호텔 
   metaScheduleInfo MetaScheduleInfo? /// 스케쥴 생성 후 검색결과와 파생 계산된 스케쥴 결과에 대한 메타 정보
   visitSchedule    VisitSchedule[] /// 스케쥴 생성 후 방문할 곳들에 대한 정보
   userTokenId      String? /// 일정을 생성 요청한 유저의 고유 유저 토큰 아이디
@@ -477,6 +567,8 @@ model VisitSchedule {
   queryParamsId  Int?
   validCluster   ValidCluster? @relation(fields: [validClusterId], references: [id])
   validClusterId Int?
+  hotel          Hotel?        @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId        Int?
 }
 
 /// 여행 경비에 따른 계획 분류 (deprecated)
@@ -487,7 +579,7 @@ enum PlanType {
 }
 
 enum PlaceType {
-  BKC_HOTEL
+  // BKC_HOTEL
   GL_RESTAURANT
   GL_SPOT
   VISITJEJU_RESTAURANT
@@ -499,6 +591,12 @@ enum PlaceType {
   PUBLICDATAPORTAL_SPOT /// 공공데이터 포탈 관광지
   TOUR4_SPOT ///한국 관광공사 Tour4.0 api 데이터 
   TOUR4_RESTAURANT
+  ADPLACE_SPOT /// 비지니스 등록 업체 장소
+  ADPLACE_RESTAURANT /// 비지니스 등록 업체 식당
+}
+
+enum HotelType {
+  BOOKINGDOTCOM
 }
 
 /// 문의사항
@@ -591,6 +689,7 @@ model IBTravelTag {
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
+  AdPlace       AdPlace[]
 
   @@index([minDifficulty, maxDifficulty, id])
 }
@@ -616,6 +715,7 @@ model ValidCluster {
   lat                     Float
   lng                     Float
   transitionNo            Int /// 해당 클러스터에서 검색할 지역이 전체 여행중 몇번째 숙소 검색인지 나타내는 값(몇번째 군집인지와 일치함)
+  superClusterNo          Int /// 최초에 clustering 결과로 각 클러스터가 속한 숙소검색군을 표시한다.(superCluster 구분과 동일하며 유저가 호텔 정보를 변경하면 transitionNo는 변할수 있어도 superClusterNo는 불변함. 단지 구분번호이며 절대적인 id값은 아니다.)
   stayPeriod              Int /// 검색한 숙소에서 며칠을 머무를지
   checkin                 DateTime /// 검색한 숙소에 체크인할 날짜
   checkout                DateTime /// 검색한 숙소에 체크아웃할 날짜
@@ -684,6 +784,7 @@ model TripMemory {
   userId      Int
 
   ShareTripMemory ShareTripMemory?
+  photos          IBPhotos[]
 
   @@unique([title, img])
 }
@@ -693,12 +794,13 @@ model ShareTripMemory {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+  // isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
   title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
   lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   address   String?  @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   comment   String   @db.Text
-  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크
+  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
 
   like                            Int                               @default(0) /// 공유기억 자체 like 여부
   TourPlace                       TourPlace?                        @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
@@ -711,6 +813,8 @@ model ShareTripMemory {
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeFrom                        User[]                            @relation(name: "likeFrom")
+
+  photos IBPhotos[]
 
   @@unique([title, img])
 }
@@ -756,6 +860,7 @@ model TripMemoryCategory {
   super           String            @default("etc") /// 상위 카테고리 ex) food(음식), cafe(카페), lodge(숙소), tour(관광), activity(액티비티), rest(휴식)
   name            String /// 카테고리 ex) 브런치, 한식, 커피...
   shareTripMemory ShareTripMemory[]
+  ibPhotoMetaInfo IBPhotoMetaInfo[]
 
   @@unique([super, name])
   @@index([super, name])
@@ -855,4 +960,142 @@ model ContentGrpExposedHistory {
 
   @@unique([userTokenId, contentGrpId])
   @@index([userTokenId])
+}
+
+enum AdPlaceStatus {
+  NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
+  APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
+  IN_USE /// TourPlace에 복사되어 일정 서비스에 장소로 노출된 상태
+  STOP /// 사용하다가 여러가지 이유로 TourPlace에서 사용중지 되어 현재는 서비스에 노출되지 않는 상태
+  REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
+}
+
+/// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
+model AdPlace {
+  id                Int           @id @default(autoincrement())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @default(now()) @updatedAt
+  status            AdPlaceStatus @default(NEW)
+  subscribe         Boolean       @default(false) /// 구독상태인지 아닌지
+  title             String /// 상호명
+  mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  photos            IBPhotos[] ///  기타 매장 사진 
+  // category          AdPlaceCategory[]
+  category          IBTravelTag[]
+  desc              String? /// 소개글
+  address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
+  roadAddress       String? /// 도로명주소
+  detailAddress     String? /// 있는 경우 상세주소 nullable
+  openWeek          String?       @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay         String?       @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  contact           String? /// 대표번호
+  siteUrl           String?       @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber    String?       @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
+  nationalCode      String        @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
+  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
+  user              User          @relation(fields: [userId], references: [id])
+  userId            Int
+  UserChatLog       UserChatLog[] /// 문의 메시지들
+}
+
+model NotificationMessage {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  message   String
+  type      String /// 추후 확정되면 enum값으로 변경 필요
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+}
+
+// model AdPlaceCategory {
+//   id        Int                        @id @default(autoincrement())
+//   createdAt DateTime                   @default(now())
+//   updatedAt DateTime                   @default(now()) @updatedAt
+//   primary   String
+//   secondary String
+//   // AdPlace   AdPlace[] @relation()
+//   adPlace   AdPlaceToAdPlaceCategory[]
+
+//   @@unique([primary, secondary])
+// }
+
+// model AdPlaceToAdPlaceCategory {
+//   adPlace           AdPlace         @relation(fields: [adPlaceId], references: [id])
+//   adPlaceId         Int
+//   adPlaceCategory   AdPlaceCategory @relation(fields: [adPlaceCategoryId], references: [id])
+//   adPlaceCategoryId Int
+
+//   @@id([adPlaceId, adPlaceCategoryId])
+// }
+
+enum UserChatActionType {
+  ASKBOOKINGWELCOME /// 예약문의 첫 환영 인사: ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
+  NEWBOOKINGMSG /// ex) 예약하기
+  ANSNEWBOOKINGMSG /// ex) '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!)
+  ASKBOOKINGAVAILABLE /// 예약문의 고객 => 사업자 ex) 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
+  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객  ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
+  CONFIRMBOOKING /// 예약확정 고객 => 사업자, ex) 네 확정할게요
+  ANSCONFIRMBOOKING /// ex) 예약 확정을 위해 연락처가 가게에 전달돼요.
+  PRIVACYAGREE /// 정보동의 고객 => 사업자 ex) 동의
+  FINALBOOKINGCHECK /// 예약성사 사업자 => 고객 /// ex) 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
+  TEXT /// 일반 채팅 메시지
+}
+
+model UserChatLog {
+  id               Int                       @id @default(autoincrement())
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @default(now()) @updatedAt
+  date             DateTime /// 메시지가 전송된 시각
+  order            Int                       @default(0) /// userId와 toUserId 간 메시지 순서
+  message          String                    @db.VarChar(8000) /// 메시지 본문
+  actionType       UserChatActionType
+  actionInputParam UserChatActionInputParam?
+  subjectGroupId   Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+  redisKey         String                    @db.Char(27)
+  user             User                      @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId           Int
+  toUser           User                      @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  toUserId         Int
+  adPlace          AdPlace?                  @relation(fields: [adPlaceId], references: [id])
+  adPlaceId        Int?
+}
+
+model UserChatActionInputParam {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  /// askBookingAvailable 액션 관련 파라미터
+  bkDate        DateTime? /// 예약일
+  bkNumOfPeople Int? /// 예약인원
+
+  /// ansBookingAvailable 액션 관련 파라미터
+  bkAnswer       Boolean? /// 예약 APPROVE: true, REJECT: false
+  bkRejectReason String? /// 예약문의가 거절일경우 거절사유
+
+  /// confirmBooking 액션 관련 파라미터
+  bkConfirmAnswer Boolean? /// 예약 확정 여부 CONFIRM: true, CANCEL: false
+
+  /// privacyAgree
+  bkAgreeAnswer Boolean? /// 개인정보 이용동의 여부
+
+  userChatLog   UserChatLog @relation(fields: [userChatLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userChatLogId Int         @unique
+}
+
+// /// 예약문의 관련 정보
+model BookingInfo {
+  id             Int      @id @default(autoincrement())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  date           DateTime
+  numOfPeople    Int
+  subjectGroupId Int /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+  customer       User     @relation(name: "asCustomer", fields: [customerId], references: [id])
+  customerId     Int
+  company        User     @relation(name: "asCompany", fields: [companyId], references: [id])
+  companyId      Int
 }

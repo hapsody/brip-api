@@ -1,0 +1,1 @@
+ALTER TABLE Hotel MODIFY COLUMN bkc_unit_configuration_label TEXT NULL; 

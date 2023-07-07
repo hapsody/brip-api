@@ -5,6 +5,7 @@ import passport from 'passport';
 import path from 'path';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import redis from '@src/redis';
 // import fs from 'fs';
 // import cors from 'cors';
 import authRouter from './routes/auth';
@@ -15,6 +16,10 @@ import tripNetworkRouter from './routes/tripNetwork';
 import devRouter from './routes/dev';
 import utilRouter from './routes/util';
 import eventRouter from './routes/event';
+import myPageRouter from './routes/myPage';
+import notiRouter from './routes/noti';
+import adPlaceRouter from './routes/adPlace';
+import myBookRouter from './routes/myBook';
 
 import passportConfig from './passport';
 
@@ -74,6 +79,10 @@ app.use('/tripNetwork', tripNetworkRouter);
 app.use('/dev', devRouter);
 app.use('/util', utilRouter);
 app.use('/event', eventRouter);
+app.use('/myPage', myPageRouter);
+app.use('/noti', notiRouter);
+app.use('/adPlace', adPlaceRouter);
+app.use('/myBook', myBookRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -89,6 +98,9 @@ app.get('/mapTest', (req: Request, res: Response) => {
   const { type } = req.query;
   res.render(`mapSample`, { type });
 });
+app.get('/eventsource', (req: Request, res: Response) => {
+  res.render(`eventsourceTest`);
+});
 
 // app.get('/resJsonTest', (req: express.Request, res: express.Response) => {
 //     res.json([
@@ -101,5 +113,14 @@ app.get('/mapTest', (req: Request, res: Response) => {
 // app.listen(process.env.PORT, () => {
 //   console.log(`ts-express Server listening on port: ${process.env.PORT}`);
 // });
+
+(async (): Promise<void> => {
+  redis.on('error', err => console.log('Redis Client Error', err));
+  await redis.connect();
+  console.log(">>> It's done to create redis server connection <<<");
+  await redis.auth(process.env.REDIS_AUTH_TOKEN as string);
+})().catch((err: Error) => {
+  console.error(err.message);
+});
 
 export default app;
