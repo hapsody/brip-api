@@ -8,6 +8,7 @@ import {
   IBTravelTag,
   PrismaClient,
 } from '@prisma/client';
+import * as runtime from '@prisma/client/runtime/library';
 import {
   ibDefs,
   asyncWrapper,
@@ -33,14 +34,15 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
   }[];
   adPlaceId?: number; /// modify일 경우 수정할 대상 adPlaceId
   /// modify일 경우
-  tx?: Omit<
-    PrismaClient<
-      Prisma.PrismaClientOptions,
-      never,
-      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-    >,
-    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
-  >;
+  // tx?: Omit<
+  //   PrismaClient<
+  //     Prisma.PrismaClientOptions,
+  //     never,
+  //     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+  //   >,
+  //   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  // >;
+  tx?: Omit<PrismaClient, runtime.ITXClientDenyList>;
 }): Promise<{ connect: { id: number }[] }> => {
   const { category, adPlaceId, tx } = param;
 

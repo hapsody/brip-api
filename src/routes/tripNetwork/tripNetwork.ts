@@ -29,6 +29,7 @@ import {
   IBPhotoMetaInfo,
   IBPhotoTag,
 } from '@prisma/client';
+import * as runtime from '@prisma/client/runtime/library';
 import {
   putInSysNotiMessage,
   // takeOutSysNotiMessage,
@@ -320,14 +321,16 @@ export interface ContextAddTripMemory extends IBContext {}
 const addTripMemory = async (
   param: AddTripMemoryRequestType,
   ctx: ContextAddTripMemory,
-  transaction?: Omit<
-    PrismaClient<
-      Prisma.PrismaClientOptions,
-      never,
-      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-    >,
-    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
-  >,
+  // transaction?: Omit<
+  //   PrismaClient<
+  //     Prisma.PrismaClientOptions,
+  //     never,
+  //     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+  //   >,
+  //   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  // >,
+
+  transaction?: Omit<PrismaClient, runtime.ITXClientDenyList>,
 ): Promise<AddTripMemorySuccessResType> => {
   const {
     title,

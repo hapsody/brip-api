@@ -766,7 +766,6 @@ export const sseSubscribe = (
       //   delete clients[Number(sseKey)];
       delete sseClients[userId];
     });
-    return;
   } catch (err) {
     if (err instanceof IBError) {
       if (err.type === 'INVALIDPARAMS') {
@@ -816,7 +815,6 @@ export const testSSESubscribe = (
       //   delete clients[Number(sseKey)];
       delete sseClients[userId];
     });
-    return;
   } catch (err) {
     if (err instanceof IBError) {
       if (err.type === 'INVALIDPARAMS') {
@@ -1379,7 +1377,6 @@ export const sendMessage = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: {},
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
@@ -1502,7 +1499,6 @@ export const getMessage = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: result,
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
@@ -1648,7 +1644,6 @@ export const reqNewBooking = asyncWrapper(
           toUserId,
         },
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
@@ -1780,7 +1775,6 @@ export const reqBookingChatWelcome = asyncWrapper(
           toUserId,
         },
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
@@ -1852,7 +1846,6 @@ export const getAskListToMe = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: result,
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
@@ -1939,7 +1932,6 @@ export const getSysNotiMessage = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: result,
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {

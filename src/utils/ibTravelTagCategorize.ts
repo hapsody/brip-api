@@ -1,6 +1,7 @@
 import prisma from '@src/prisma';
-import { IBTravelTag, PrismaClient, Prisma } from '@prisma/client';
+import { IBTravelTag, PrismaClient } from '@prisma/client';
 import { isNull, isNil } from 'lodash';
+import * as runtime from '@prisma/client/runtime/library';
 
 export type IBTravelTagList = {
   ibType: {
@@ -30,14 +31,15 @@ export type IBTravelTagList = {
  * @param seed IBTravelTagList 타입으로 전달되는 파라미터
  * @return ibTravelTag들의 생성결과중 대표값으로 반환되는 가장 말단태그의 ibTravelTag id값
  */
-type PrismaTransaction = Omit<
-  PrismaClient<
-    Prisma.PrismaClientOptions,
-    never,
-    Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-  >,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
->;
+// type PrismaTransaction = Omit<
+//   PrismaClient<
+//     Prisma.PrismaClientOptions,
+//     never,
+//     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+//   >,
+//   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+// >;
+type PrismaTransaction = Omit<PrismaClient, runtime.ITXClientDenyList>;
 export const ibTravelTagCategorize = async (
   seed: IBTravelTagList,
   transaction?: PrismaTransaction,

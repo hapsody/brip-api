@@ -8,7 +8,7 @@ import app from '@src/app';
 //   });
 // }
 
-const server = app.listen(process.env.PORT, () => {
+const server = app.listen(process.env.PORT || 3000, () => {
   console.log(
     `ts-express Server listening on port: ${process.env.PORT || 3000}`,
   );

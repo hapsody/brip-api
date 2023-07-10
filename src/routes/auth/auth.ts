@@ -467,7 +467,6 @@ export const refreshAccessToken = asyncWrapper(
           nickName: user.nickName,
         },
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDENVPARAMS') {

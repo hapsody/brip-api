@@ -150,7 +150,6 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: jejuRes,
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
