@@ -8,6 +8,7 @@ import {
   TripCreator,
   FavoriteTravelType,
   Prisma,
+  AdPlaceStatus,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -861,6 +862,12 @@ export interface GetMyAccountInfoSuccessResType
         id: number;
         nickName: string;
       }[];
+      adPlace: {
+        id: number;
+        status: AdPlaceStatus;
+        title: string;
+        subscribe: boolean;
+      };
     },
     'password'
   > {}
@@ -905,6 +912,14 @@ export const getMyAccountInfo = asyncWrapper(
             select: {
               id: true,
               nickName: true,
+            },
+          },
+          adPlace: {
+            select: {
+              id: true,
+              status: true,
+              title: true,
+              subscribe: true,
             },
           },
         },

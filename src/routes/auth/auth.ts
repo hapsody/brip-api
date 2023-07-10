@@ -14,7 +14,7 @@ import {
 import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User, TripCreator } from '@prisma/client';
+import { User, TripCreator, AdPlace } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
@@ -33,6 +33,8 @@ export interface SaveScheduleResponsePayload {
   isCreator: boolean;
   isTempPasswd: boolean;
   pleaseUpdatePasswd: boolean;
+  // isAdvertiser: boolean;
+  adPlace: Partial<AdPlace>[];
 }
 
 export interface SignInRequest {
@@ -54,7 +56,7 @@ export const signIn = (
     'local',
     (
       err: Error,
-      user: User & { tripCreator: TripCreator[] },
+      user: User & { tripCreator: TripCreator[]; adPlace: { id: number }[] },
       info: { message: string },
     ) => {
       if (err) {
@@ -156,6 +158,9 @@ export const signIn = (
           /// 마지막 비밀번호 변경일로부터 180일 이상 경과한 경우 true
           pleaseUpdatePasswd:
             moment().diff(moment(user.pwLastUpdateDate), 'days') > 180,
+
+          /// adPlace
+          adPlace: user.adPlace,
         },
       });
     },
