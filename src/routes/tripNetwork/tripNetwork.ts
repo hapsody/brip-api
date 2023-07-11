@@ -1132,7 +1132,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
-          res.status(500).json({
+          res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
