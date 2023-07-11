@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     const result2 = await prisma.adPlace.create({
       data: {
         status: 'IN_USE',
-        subscribe: false,
+        subscribe: true,
         title,
         mainImgUrl: 'public/tourPlace/fastfive.png',
         category: await adPlaceCategoryToIBTravelTag({

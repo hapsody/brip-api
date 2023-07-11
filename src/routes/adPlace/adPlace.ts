@@ -7,8 +7,10 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  getIBPhotoUrl,
+  getS3SignedUrl,
 } from '@src/utils';
-import { isNil, isEmpty, omit, isNaN } from 'lodash';
+import { isNil, isEmpty, isNaN, omit } from 'lodash';
 
 const adPlaceRouter: express.Application = express();
 
@@ -16,19 +18,18 @@ export type GetAdPlaceRequestType = {
   adPlaceId?: string;
   userId?: string;
 };
-export type GetAdPlaceSuccessResType = Omit<
-  AdPlace & {
-    photos: IBPhotos[];
-    category: IBTravelTag[];
-  },
-  'userId'
->;
+export type GetAdPlaceSuccessResType = AdPlace & {
+  photos: IBPhotos[];
+  category: IBTravelTag[];
+};
 export type GetAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetAdPlaceSuccessResType[] | {};
 };
 
 /**
  * AdPlace 정보를 요청한다.
+ * 구독상태이고 status가 IN_USE 상태인것만 찾는다.
+ * 공유글은 adPlace와 연관된 모든 tourPlace에 달린 공유글을 노출한다.
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=VGgF11HCARwsYAQr-4
  */
 export const getAdPlace = asyncWrapper(
@@ -65,6 +66,7 @@ export const getAdPlace = asyncWrapper(
       const adPlaces = await prisma.adPlace.findMany({
         where: {
           status: 'IN_USE',
+          subscribe: true,
           ...(!isNil(adPlaceId) &&
             !isEmpty(adPlaceId) &&
             !isNaN(Number(adPlaceId)) && {
@@ -79,12 +81,36 @@ export const getAdPlace = asyncWrapper(
         include: {
           photos: true,
           category: true,
+          tourPlace: {
+            select: {
+              id: true,
+              shareTripMemory: true,
+            },
+          },
         },
       });
 
+      const result = await Promise.all(
+        adPlaces.map(async v => {
+          return {
+            ...omit(v, ['tourPlace']),
+            mainImgUrl:
+              !isNil(v.mainImgUrl) &&
+              !isEmpty(v.mainImgUrl) &&
+              v.mainImgUrl.includes('http')
+                ? v.mainImgUrl
+                : await getS3SignedUrl(v.mainImgUrl!),
+            photos: isNil(v.photos)
+              ? null
+              : await Promise.all(v.photos.map(getIBPhotoUrl)),
+            shareTripMemory: v.tourPlace.map(k => k.shareTripMemory).flat(1),
+          };
+        }),
+      );
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: adPlaces.map(v => omit(v, ['userId'])),
+        IBparams: result,
       });
     } catch (err) {
       if (err instanceof IBError) {

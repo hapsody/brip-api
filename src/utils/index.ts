@@ -34,6 +34,7 @@ import {
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
+import { getIBPhotoUrl } from './getIBPhotoUrl';
 
 export {
   ibDefs,
@@ -68,4 +69,5 @@ export {
   addrToGeoCode,
   sendEmail,
   delObjectsFromS3,
+  getIBPhotoUrl,
 };

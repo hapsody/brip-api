@@ -124,6 +124,7 @@ export type RegistAdPlaceRequestType = {
   businessNumber?: string; /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey?: string; /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   nationalCode: string; /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  relatedTPId: string[]; /// 먼저 존재하던 tourPlace들 중에 광고주가 등록하는 adPlace와 동일하다고 여겨지는 tourPlace들의 id 배열. 해당 tourPlace들에 매달린 기억/공유 기억 정보들은 등록 요청하는 AdPlace에서 추후에 조회하게 된다. 광고주가 등록 요청하는 adPlace와 동일한 tourPlace 별도로 생성되며 단순히 id 배열들에 해당하는 tourPlace들이 광고비즈니스 장소와 동일하여 관계를 형성해놓는것임.
 };
 // export interface RegistAdPlaceSuccessResType {
 //   groupNo: number;
@@ -189,6 +190,7 @@ export const registAdPlace = asyncWrapper(
         businessNumber,
         businessRegImgKey,
         nationalCode,
+        relatedTPId,
       } = req.body;
 
       if (
@@ -198,12 +200,13 @@ export const registAdPlace = asyncWrapper(
         isEmpty(category) ||
         (isNil(address) && isNil(roadAddress)) ||
         (isNil(businessNumber) && isNil(businessRegImgKey)) ||
-        isNil(nationalCode)
+        isNil(nationalCode) ||
+        isNil(relatedTPId)
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
           message:
-            'title, mainImgUrl, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey는 필수입니다.',
+            'title, mainImgUrl, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey, relatedTPId는 필수입니다.',
         });
       }
 
@@ -227,6 +230,23 @@ export const registAdPlace = asyncWrapper(
         throw new IBError({
           type: 'DUPLICATEDDATA',
           message: '이미 존재하는 AdPlace입니다.',
+        });
+      }
+
+      const relatedTourPlaces = await prisma.tourPlace.findMany({
+        where: {
+          id: { in: relatedTPId.map(v => Number(v)) },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (relatedTPId.length !== relatedTourPlaces.length) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message:
+            'relatedTPId에 존재하지 않는 tourPlaceId값이 포함되어 있습니다.',
         });
       }
 
@@ -260,6 +280,15 @@ export const registAdPlace = asyncWrapper(
               userTokenId,
             },
           },
+          ...(!isEmpty(relatedTourPlaces) && {
+            tourPlace: {
+              connect: relatedTourPlaces.map(v => {
+                return {
+                  id: v.id,
+                };
+              }),
+            },
+          }),
         },
       });
 
@@ -280,6 +309,14 @@ export const registAdPlace = asyncWrapper(
         if (err.type === 'DUPLICATEDDATA') {
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
