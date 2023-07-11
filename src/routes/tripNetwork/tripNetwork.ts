@@ -552,6 +552,30 @@ const addTripMemory = async (
       }
 
       /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+
+      /// 동일한 이름과 GPS 정보가 일치하는 장소가 있으면 신규로 등록하지 않고 오류 발생시킴
+      const minLat = Number(lat) - 0.0025;
+      const maxLat = Number(lat) + 0.0025;
+      const minLng = Number(lng) - 0.0025;
+      const maxLng = Number(lng) + 0.0025;
+      const sameNamedTP = await tx.tourPlace.findFirst({
+        where: {
+          title,
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+      });
+      if (!isNil(sameNamedTP)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '동일한 위치에(lat, lng) 동일한 이름의 장소가 존재합니다.',
+        });
+      }
+
       const createdTP = await tx.tourPlace.create({
         data: {
           title,
@@ -771,6 +795,29 @@ const addTripMemory = async (
       }
 
       /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+      /// 동일한 이름과 GPS 정보가 일치하는 장소가 있으면 신규로 등록하지 않고 오류 발생시킴
+      const minLat = Number(lat) - 0.0025;
+      const maxLat = Number(lat) + 0.0025;
+      const minLng = Number(lng) - 0.0025;
+      const maxLng = Number(lng) + 0.0025;
+      const sameNamedTP = await tx.tourPlace.findFirst({
+        where: {
+          title,
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+      });
+      if (!isNil(sameNamedTP)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '동일한 위치에(lat, lng) 동일한 이름의 장소가 존재합니다.',
+        });
+      }
+
       const createdTP = await tx.tourPlace.create({
         data: {
           title,
@@ -1078,6 +1125,15 @@ export const addTripMemoryWrapper = asyncWrapper(
         if (err.type === 'DBTRANSACTIONERROR') {
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          res.status(500).json({
+            ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
