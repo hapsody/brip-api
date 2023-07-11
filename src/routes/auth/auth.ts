@@ -14,7 +14,7 @@ import {
 import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User, TripCreator, AdPlace } from '@prisma/client';
+import { User, TripCreator, AdPlace, TourPlace } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
@@ -34,7 +34,7 @@ export interface SaveScheduleResponsePayload {
   isTempPasswd: boolean;
   pleaseUpdatePasswd: boolean;
   // isAdvertiser: boolean;
-  adPlace: Partial<AdPlace>[];
+  adPlace: (Partial<AdPlace> & { tourPlace: TourPlace[] })[];
 }
 
 export interface SignInRequest {
