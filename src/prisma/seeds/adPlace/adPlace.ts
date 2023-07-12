@@ -42,7 +42,12 @@ async function main(): Promise<void> {
         status: 'NEW',
         subscribe: false,
         title: '테스트 비즈니스 스토어',
-        mainImgUrl: 'public/tourPlace/fastfive.png',
+        mainPhoto: {
+          create: {
+            key: 'public/tourPlace/fastfive.png',
+          },
+        },
+        // mainPhotoKey: 'public/tourPlace/fastfive.png',
         category: await adPlaceCategoryToIBTravelTag({
           category: [
             {
@@ -67,7 +72,12 @@ async function main(): Promise<void> {
         siteUrl: 'https://www.google.com',
         businessNumber: '249-12-01776',
         nationalCode: '82',
-        userId: user.userId,
+        user: {
+          connect: {
+            id: user.userId,
+          },
+        },
+        // userId: user.userId,
       },
     });
     console.log(result);
@@ -97,7 +107,11 @@ async function main(): Promise<void> {
         status: 'IN_USE',
         subscribe: true,
         title,
-        mainImgUrl: 'public/tourPlace/fastfive.png',
+        mainPhoto: {
+          create: {
+            key: 'public/tourPlace/fastfive.png',
+          },
+        },
         category: await adPlaceCategoryToIBTravelTag({
           category: [
             {
@@ -122,7 +136,12 @@ async function main(): Promise<void> {
         siteUrl: 'https://www.google.com',
         businessNumber: '249-12-01477',
         nationalCode: '82',
-        userId: user.userId,
+        // userId: user.userId,
+        user: {
+          connect: {
+            id: user.userId,
+          },
+        },
         tourPlace: {
           ...(isNil(alreadyExist)
             ? {

@@ -8,7 +8,7 @@ import {
   IBError,
   accessTokenValidCheck,
   getIBPhotoUrl,
-  getS3SignedUrl,
+  // getS3SignedUrl,
 } from '@src/utils';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
 
@@ -66,7 +66,6 @@ export const getAdPlace = asyncWrapper(
       const adPlaces = await prisma.adPlace.findMany({
         where: {
           status: 'IN_USE',
-          subscribe: true,
           ...(!isNil(adPlaceId) &&
             !isEmpty(adPlaceId) &&
             !isNaN(Number(adPlaceId)) && {
@@ -79,6 +78,7 @@ export const getAdPlace = asyncWrapper(
             }),
         },
         include: {
+          mainPhoto: true,
           photos: true,
           category: true,
           tourPlace: {
@@ -94,12 +94,9 @@ export const getAdPlace = asyncWrapper(
         adPlaces.map(async v => {
           return {
             ...omit(v, ['tourPlace']),
-            mainImgUrl:
-              !isNil(v.mainImgUrl) &&
-              !isEmpty(v.mainImgUrl) &&
-              v.mainImgUrl.includes('http')
-                ? v.mainImgUrl
-                : await getS3SignedUrl(v.mainImgUrl!),
+            mainPhoto: isNil(v.photos)
+              ? null
+              : await getIBPhotoUrl(v.mainPhoto),
             photos: isNil(v.photos)
               ? null
               : await Promise.all(v.photos.map(getIBPhotoUrl)),

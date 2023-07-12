@@ -6,6 +6,7 @@ import {
   TourPlace,
   Prisma,
   IBTravelTag,
+  RModelBetweenTravelType,
   PrismaClient,
 } from '@prisma/client';
 import * as runtime from '@prisma/client/runtime/library';
@@ -17,6 +18,7 @@ import {
   accessTokenValidCheck,
   delObjectsFromS3,
   ibTravelTagCategorize,
+  getIBPhotoUrl,
 } from '@src/utils';
 import { isNil, isEmpty, omit } from 'lodash';
 
@@ -104,7 +106,7 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
 
 export type RegistAdPlaceRequestType = {
   title: string; /// 상호명
-  mainImgUrl: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhotoKey: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
   photos?: {
     ///  기타 매장 사진
     key: string;
@@ -176,7 +178,7 @@ export const registAdPlace = asyncWrapper(
       }
       const {
         title,
-        mainImgUrl,
+        mainPhotoKey,
         photos,
         category,
         desc,
@@ -195,7 +197,7 @@ export const registAdPlace = asyncWrapper(
 
       if (
         isNil(title) ||
-        isNil(mainImgUrl) ||
+        isNil(mainPhotoKey) ||
         isNil(category) ||
         isEmpty(category) ||
         (isNil(address) && isNil(roadAddress)) ||
@@ -206,7 +208,7 @@ export const registAdPlace = asyncWrapper(
         throw new IBError({
           type: 'INVALIDPARAMS',
           message:
-            'title, mainImgUrl, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey, relatedTPId는 필수입니다.',
+            'title, mainPhotoKey, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey, relatedTPId는 필수입니다.',
         });
       }
 
@@ -250,12 +252,16 @@ export const registAdPlace = asyncWrapper(
         });
       }
 
-      await prisma.adPlace.create({
+      const createdOne = await prisma.adPlace.create({
         data: {
           status: 'NEW',
           subscribe: false,
           title,
-          mainImgUrl,
+          mainPhoto: {
+            create: {
+              key: mainPhotoKey,
+            },
+          },
           category: await adPlaceCategoryToIBTravelTag({ category }),
           ...(!isNil(photos) && {
             photos: {
@@ -294,7 +300,7 @@ export const registAdPlace = asyncWrapper(
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {},
+        IBparams: createdOne,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -329,11 +335,53 @@ export const registAdPlace = asyncWrapper(
   },
 );
 
+/// IBTravelTag 세부 태그이름이나 id를 넣으면 상위 태그를 모두 찾아 반환하는 함수
+const findAllIBTTPath = async (id: number) => {
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let nextId: number = id;
+      return {
+        async next() {
+          if (nextId === -1) return { value: null, done: true };
+          const tag = await prisma.iBTravelTag.findUnique({
+            where: {
+              id: nextId,
+            },
+            include: {
+              noPtr: true,
+            },
+          });
+
+          nextId =
+            !isNil(tag) && !isNil(tag?.noPtr) && !isEmpty(tag?.noPtr)
+              ? tag.noPtr[0].fromId
+              : -1;
+          return { value: tag, done: false };
+        },
+      };
+    },
+  };
+
+  const result: (
+    | (IBTravelTag & { noPtr: RModelBetweenTravelType[] })
+    | null
+  )[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for await (const tag of asyncIterable) {
+    result.push(tag);
+  }
+  result.reverse();
+  return {
+    primary: result[0]?.value,
+    secondary: result[1]?.value,
+  };
+};
+
 export type GetMyAdPlaceRequestType = {};
 export type GetMyAdPlaceSuccessResType = Omit<
   AdPlace & {
     photos: IBPhotos[];
-    category: IBTravelTag[];
+    category: { primary: string; secondary: string }[];
   },
   'userId'
 >;
@@ -375,14 +423,44 @@ export const getMyAdPlace = asyncWrapper(
           },
         },
         include: {
+          mainPhoto: true,
           photos: true,
           category: true,
         },
       });
 
+      // res.json({
+      //   ...ibDefs.SUCCESS,
+      //   IBparams: await Promise.all(
+      //     myAdPlaces.map(async v => {
+      //       return {
+      //         ...omit(v, ['userId']),
+      //         category: await Promise.all(
+      //           v.category.map(async k => findAllIBTTPath(k.id)),
+      //         ),
+      //       };
+      //     }),
+      //   ),
+      // });
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: myAdPlaces.map(v => omit(v, ['userId'])),
+        IBparams: await Promise.all(
+          myAdPlaces.map(async v => {
+            return {
+              ...omit(v, ['userId']),
+              mainPhoto: isNil(v.photos)
+                ? null
+                : await getIBPhotoUrl(v.mainPhoto),
+              photos: isNil(v.photos)
+                ? null
+                : await Promise.all(v.photos.map(getIBPhotoUrl)),
+              category: await Promise.all(
+                v.category.map(async k => findAllIBTTPath(k.id)),
+              ),
+            };
+          }),
+        ),
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -412,7 +490,7 @@ export const getMyAdPlace = asyncWrapper(
 export type ModifyAdPlaceRequestType = {
   adPlaceId: string; /// 수정할 adPlace의 Id
   title?: string; /// 상호명
-  mainImgUrl?: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhotoKey?: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
   photos?: {
     ///  기타 매장 사진
     key: string;
@@ -444,10 +522,24 @@ export type ModifyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
- * 때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
- * category는 전달하는 파라미터로 기존 저장된 카테고리 정보를 덮어쓴다. 즉 A 카테고리를 가지고 있었더라도 B,C를
- * category 파라미터로 전달하면 A카테고리는 상실하고 B,C 카테고리만 등록된다.
+ 이미 신청 요청한 adPlace의 정보를 수정요청하는 api
+
+photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
+
+때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
+
+Photo 수정
+photos 프로퍼티로 대표되는 서브 사진을 변경하는 예시
+기존 사진을 변경하는것은 새로 사진을 등록하고 기존것을 삭제해야한다. subPhoto 2,3번 사진이 등록되어 있을때 이중 3번을 4번으로 교체하고 5번을 등록한다고 하면
+a. /myPage/modifyAdPlace의 photos 파라미터는 4,5번의 키를 배열로 실어 호출한다.
+b. /myPage/delAdPlacePhoto로 3번을 삭제.
+
+mainPhoto는 subPhoto와 다르게 추가의 개념이 없고 그냥 mainPhotoKey로 전달되는 사진으로 덮어써진다. (기존것은 삭제된다.)
+
+adPlace 생성후 승인이 나서 관련된 mainTourPlace가 생성된 상태라면 adPlace의 항목들중 tourPlace에도 영향이 갈만한 필드를 수정하면 함께 수정된다. 사진역시 마찬가지로 추가, 변경, 삭제가 tourPlace에도 함께 반영된다.
+
+Category 수정
+category는 전달하는 파라미터로 기존 저장된 카테고리 정보를 덮어쓴다. 즉 A 카테고리를 가지고 있었더라도 B,C를 category 파라미터로 전달하면 A카테고리는 상실하고 B,C 카테고리만 등록된다.
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3577-2555&t=aNXuVNwswvfxSqgP-4
  */
 
@@ -476,7 +568,7 @@ export const modifyAdPlace = asyncWrapper(
       const {
         adPlaceId,
         title,
-        mainImgUrl,
+        mainPhotoKey,
         photos,
         category,
         desc,
@@ -542,7 +634,14 @@ export const modifyAdPlace = asyncWrapper(
             },
             data: {
               title,
-              mainImgUrl,
+              ...(!isNil(mainPhotoKey) &&
+                !isEmpty(mainPhotoKey) && {
+                  mainPhoto: {
+                    create: {
+                      key: mainPhotoKey,
+                    },
+                  },
+                }),
               ...(!isNil(category) && {
                 category: await adPlaceCategoryToIBTravelTag({
                   category,
@@ -582,6 +681,12 @@ export const modifyAdPlace = asyncWrapper(
             include: {
               photos: true,
               category: true,
+            },
+          });
+
+          await tx.iBPhotos.delete({
+            where: {
+              id: existCheck.mainPhotoId,
             },
           });
 
@@ -629,7 +734,8 @@ export const modifyAdPlace = asyncWrapper(
                       },
                     };
                   })())),
-                ...(!isNil(photos) &&
+
+                ...((!isNil(photos) || !isNil(mainPhotoKey)) &&
                   (() => {
                     /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
                     // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
@@ -639,10 +745,17 @@ export const modifyAdPlace = asyncWrapper(
                     //     adPlaceId: Number(adPlaceId),
                     //   },
                     // });
+
+                    const subPhotos = !isNil(photos) ? photos : [];
+                    const mainPhoto = !isNil(mainPhotoKey)
+                      ? [{ key: mainPhotoKey }]
+                      : [];
+                    const combinedPhotos = [...mainPhoto, ...subPhotos];
+
                     return {
                       photos: {
                         createMany: {
-                          data: photos,
+                          data: combinedPhotos,
                         },
                       },
                     };
@@ -653,14 +766,6 @@ export const modifyAdPlace = asyncWrapper(
                 detailAddress,
                 openWeek,
                 contact,
-
-                photos: {
-                  connect: adPlaceUpdatedResult.photos.map(v => {
-                    return {
-                      id: v.id,
-                    };
-                  }),
-                },
               },
             });
           }
@@ -801,8 +906,9 @@ export const delAdPlacePhoto = asyncWrapper(
       }
 
       const notAuthorizedPhoto = targetPhotos.find(
-        v => v.adPlaceId !== Number(adPlaceId),
+        v => v.adPlaceAsSubId !== Number(adPlaceId),
       );
+
       if (!isNil(notAuthorizedPhoto)) {
         throw new IBError({
           type: 'NOTAUTHORIZED',

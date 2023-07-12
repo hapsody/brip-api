@@ -126,8 +126,9 @@ model IBPhotos {
   tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId      Int?
 
-  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
-  adPlaceId Int?
+  adPlaceAsMain  AdPlace? @relation(name: "mainPhoto")
+  adPlaceAsSub   AdPlace? @relation(name: "subPhoto", fields: [adPlaceAsSubId], references: [id])
+  adPlaceAsSubId Int?
 }
 
 enum IBPhotoMetaInfoType {
@@ -978,8 +979,10 @@ model AdPlace {
   status            AdPlaceStatus @default(NEW)
   subscribe         Boolean       @default(false) /// 구독상태인지 아닌지
   title             String /// 상호명
-  mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  photos            IBPhotos[] ///  기타 매장 사진 
+  // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhoto         IBPhotos      @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId       Int           @unique
+  photos            IBPhotos[]    @relation("subPhoto") ///  기타 매장 사진 
   // category          AdPlaceCategory[]
   category          IBTravelTag[]
   desc              String? /// 소개글
