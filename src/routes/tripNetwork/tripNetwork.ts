@@ -253,6 +253,8 @@ export interface AddTripMemoryRequestType {
     key: string;
     photoMetaInfo?: PhotoMetaInfoForAdd;
   }[];
+  categoryIds?: string[]; /// nullable. 바로 공유를 하는 경우에는 제공되어야 하지만 '기억'이후 '공유'할때 호출하는 것이면 추가로 입력받지 않으므로 전달해줄수 없다.
+  /// 원래 tripMemory에 필요한 필드가 아니나 먼저 '기억:tripMemory'를 생성했다가 나중에 '공유:shareTripMemory'를 생성할 경우 최초 입력했던 카테고리를 다시 묻지 않는 입력 시나리오때문에 tripMemoryCategory를 기록해두기 위해 추가함.
 }
 export type TourPlaceCommonType = Pick<
   TourPlace,
@@ -345,12 +347,20 @@ const addTripMemory = async (
     groupId,
     tourPlaceId,
     photos,
+    categoryIds,
   } = param;
 
   if (isNil(photos) || isEmpty(photos)) {
     throw new IBError({
       type: 'INVALIDPARAMS',
       message: 'photos는 필수 파라미터입니다.',
+    });
+  }
+
+  if (isNil(categoryIds) || isEmpty(categoryIds)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: `categoryIds는 1개 이상 반드시 제공되어야 합니다.`,
     });
   }
 
@@ -387,7 +397,7 @@ const addTripMemory = async (
       message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
     });
 
-  /// addShareTrip api 호출 이후 => addTripMemory 요청의 경우
+  /// addShareTrip api 호출로 인한 addTripMemory 요청의 경우
   if (!isNil(transaction)) {
     const tx = transaction;
     const alreadyExist = await tx.tripMemory.findUnique({
@@ -656,6 +666,7 @@ const addTripMemory = async (
             id: Number(createdOrFoundTP.id),
           },
         },
+        tripMemCategoryIds: categoryIds.toString(),
       },
       include: {
         tag: true,
@@ -715,6 +726,7 @@ const addTripMemory = async (
   }
 
   /// 직접 addTripMemory 요청의 경우
+
   const createdTripMem = await prisma.$transaction(async tx => {
     const alreadyExist = await tx.tripMemory.findUnique({
       where: {
@@ -969,6 +981,7 @@ const addTripMemory = async (
             id: Number(createdOrFoundTP.id),
           },
         },
+        tripMemCategoryIds: categoryIds.toString(),
       },
       include: {
         tag: true,
@@ -1352,9 +1365,9 @@ export interface AddShareTripMemoryRequestType {
   tripMemoryParam: AddTripMemoryRequestType;
   tripMemoryId?: string; /// 이미 존재하는 tripMemory일 경우 id를 제공해야 한다. tripMemoryId가 제공되지 않을 경우 addShareTripMemory api 수행 과정중 tripMemory가 생성된다.
   recommendGrade: 'good' | 'notbad' | 'bad';
-  categoryIds: string[];
+  // categoryIds: string[]; /// tripMemoryParam으로 이전되어 들어갔다.
   // isShare: string; /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
-  tourPlaceId?: string | null;
+  tourPlaceId?: string | null; /// 이미 존재하는 장소에 share하려는 경우네느 tourPlaceId를 제공해야한다.
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
   TourPlace: TourPlaceCommonType | null;
@@ -1381,7 +1394,7 @@ export const addShareTripMemory = asyncWrapper(
       const {
         tripMemoryParam,
         recommendGrade,
-        categoryIds,
+        // categoryIds,
         tourPlaceId,
         tripMemoryId,
         // isShare,
@@ -1434,193 +1447,6 @@ export const addShareTripMemory = asyncWrapper(
         });
       }
 
-      if (isNil(categoryIds) || isEmpty(categoryIds)) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message: `categoryIds는 1개 이상 반드시 제공되어야 합니다.`,
-        });
-      }
-      const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
-        where: {
-          id: {
-            in: categoryIds.map(v => Number(v)),
-          },
-        },
-      });
-
-      if (
-        isNil(tripMemoryCategory) ||
-        isEmpty(tripMemoryCategory) ||
-        tripMemoryCategory.length !== categoryIds.length
-      ) {
-        const notExistIds = categoryIds.filter(id => {
-          const notExist = tripMemoryCategory.find(v => v.id !== Number(id));
-          return !isNil(notExist);
-        });
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
-        });
-      }
-
-      const categoryToIBTravelTag = {
-        tourPlaceType: (() => {
-          switch (
-            tripMemoryCategory[0].super /// 모두 같은 상위 카테고리에서만 선택이 되었다고 가정하기 때문에 첫번째 값만 참조해도 무방하다. 예를들면 상위 카테고리인 음식 카테고리에서 하위 카테고리를 한식, 코스요리, 특별한 맛집 등으로 골랐다면 그것은 음식 카테고리에서만 뽑은 것이며, 여타 다음 상위 카테고리와 함께 선택되지 않았다고 가정한다(시나리오상 고를수 없다는 것)
-          ) {
-            case '음식':
-            case '카페':
-              return 'USER_RESTAURANT' as PlaceType;
-            case '관광':
-            case '액티비티':
-            case '휴식':
-            default:
-              return 'USER_SPOT' as PlaceType;
-            // case 'lodge':
-          }
-        })(),
-        ibTravelTagNames: tripMemoryCategory.map(v => {
-          switch (v.name) {
-            /// 음식
-            case '브런치':
-            case '한식':
-            case '중식':
-            case '일식':
-            case '양식':
-            case '패스트푸드':
-            case '코스요리':
-            case '고기맛집':
-            case '특별한맛집':
-            case '나만의맛집':
-            case '아이와함께먹을수있는':
-            case '오래된맛집':
-              return null;
-            /// 카페
-            case '분위기좋은':
-            case '인스타감성':
-            case '케익맛집':
-            case '예쁜':
-            case '로컬카페':
-            case '다목적공간':
-            case '힙한':
-            case '핫플':
-              return null;
-            case '조용한':
-              if (v.super === '숙소') return '';
-              return null;
-            /// 숙소
-            case '시티뷰':
-            case '바다뷰':
-            case '마운틴뷰':
-            case '깔끔한':
-            case '친절한':
-            case '시내와인접한':
-            case '풀빌라':
-            case '에어비앤비':
-            case '독채':
-            case '펫동반':
-            case '가족단위':
-              return null;
-            /// 관광
-            case '쇼핑':
-              return 'shopping';
-            case '아쿠아리움':
-              return 'aquarium';
-            case '테마파크':
-              return 'themePark';
-            case '놀이공원':
-              return 'amusementPark';
-            case '유적지':
-              return 'historicalSpot';
-            case '박물관':
-            case '미술관':
-              return 'museum';
-            case '국립공원':
-              return 'nationalPark';
-            case '해안경관':
-              return 'ocean';
-            case '공원/정원':
-              return 'park';
-            case '섬':
-              return 'island';
-            case '언덕':
-              return 'hill';
-            case '산':
-              return 'mountain';
-            case '강':
-              return 'river';
-            case '수목원':
-              return 'arboreteum';
-            case '숲':
-              return 'forest';
-            case '바위':
-              return 'rocks';
-            case '둘레길':
-              return 'circumferenceTrail';
-            case '오름':
-              return 'oreum';
-            case '해안도로':
-              return 'shoreline';
-            case '기타':
-              return 'etc';
-            /// 액티비티
-            case '스노보드':
-              return 'snowBoard';
-            case '스키':
-              return 'ski';
-            case '케이블카':
-              return 'cableCar';
-            case '패러글라이딩':
-              return 'paragliding';
-            case '짚라인':
-              return 'zipTrack';
-            case 'UTV':
-              return 'UTV';
-            case 'MTB':
-              return 'MTB';
-            case '암벽등반':
-              return 'rockClimbing';
-            case '그룹하이킹':
-              return 'groupHiking';
-            case '등산':
-              return 'climbing';
-            case '루지레이스':
-              return 'lugeRacing';
-            case '골프':
-              return 'golf';
-            case '티켓':
-              return 'ticket';
-            case '농장':
-              return 'farm';
-            case '승마':
-              return 'horseRiding';
-            case 'ATV':
-              return 'ATV';
-            case '카트레이스':
-              return 'cartRacing';
-            case '크루즈':
-              return 'cruise';
-            case '카약':
-              return 'kayak';
-            case '패들보드':
-              return 'paddleBoard';
-            case '서핑':
-              return 'surfing';
-            case '제트보트':
-              return 'jetBoat';
-            case '세일링':
-              return 'sailing';
-            case '낚시':
-              return 'fishing';
-            case '스노클링':
-              return 'snorkeling';
-            case '해수욕':
-              return 'beach';
-            default:
-              return null;
-          }
-        }),
-      };
       const createdShareTripMemory = await prisma.$transaction(async tx => {
         /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
         /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
@@ -1739,6 +1565,203 @@ export const addShareTripMemory = asyncWrapper(
             },
           });
         })();
+
+        const { tripMemCategoryIds } = createdOrFoundTripMem;
+        if (isNil(tripMemCategoryIds) || isEmpty(tripMemCategoryIds)) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: `tripMemory에 저장된 tripMemCategoryIds가 존재하지 않습니다.`,
+          });
+        }
+        const categoryIds = tripMemCategoryIds.split(',');
+
+        if (isNil(categoryIds) || isEmpty(categoryIds)) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: `tripMemory에 저장된 categoryId가 올바른 형식이 아닙니다.`,
+          });
+        }
+        const tripMemoryCategory = await tx.tripMemoryCategory.findMany({
+          where: {
+            id: {
+              in: categoryIds.map(v => Number(v)),
+            },
+          },
+        });
+
+        if (
+          isNil(tripMemoryCategory) ||
+          isEmpty(tripMemoryCategory) ||
+          tripMemoryCategory.length !== categoryIds.length
+        ) {
+          const notExistIds = categoryIds.filter(id => {
+            const notExist = tripMemoryCategory.find(v => v.id !== Number(id));
+            return !isNil(notExist);
+          });
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
+          });
+        }
+
+        const categoryToIBTravelTag = {
+          tourPlaceType: (() => {
+            switch (
+              tripMemoryCategory[0].super /// 모두 같은 상위 카테고리에서만 선택이 되었다고 가정하기 때문에 첫번째 값만 참조해도 무방하다. 예를들면 상위 카테고리인 음식 카테고리에서 하위 카테고리를 한식, 코스요리, 특별한 맛집 등으로 골랐다면 그것은 음식 카테고리에서만 뽑은 것이며, 여타 다음 상위 카테고리와 함께 선택되지 않았다고 가정한다(시나리오상 고를수 없다는 것)
+            ) {
+              case '음식':
+              case '카페':
+                return 'USER_RESTAURANT' as PlaceType;
+              case '관광':
+              case '액티비티':
+              case '휴식':
+              default:
+                return 'USER_SPOT' as PlaceType;
+              // case 'lodge':
+            }
+          })(),
+          ibTravelTagNames: tripMemoryCategory.map(v => {
+            switch (v.name) {
+              /// 음식
+              case '브런치':
+              case '한식':
+              case '중식':
+              case '일식':
+              case '양식':
+              case '패스트푸드':
+              case '코스요리':
+              case '고기맛집':
+              case '특별한맛집':
+              case '나만의맛집':
+              case '아이와함께먹을수있는':
+              case '오래된맛집':
+                return null;
+              /// 카페
+              case '분위기좋은':
+              case '인스타감성':
+              case '케익맛집':
+              case '예쁜':
+              case '로컬카페':
+              case '다목적공간':
+              case '힙한':
+              case '핫플':
+                return null;
+              case '조용한':
+                if (v.super === '숙소') return '';
+                return null;
+              /// 숙소
+              case '시티뷰':
+              case '바다뷰':
+              case '마운틴뷰':
+              case '깔끔한':
+              case '친절한':
+              case '시내와인접한':
+              case '풀빌라':
+              case '에어비앤비':
+              case '독채':
+              case '펫동반':
+              case '가족단위':
+                return null;
+              /// 관광
+              case '쇼핑':
+                return 'shopping';
+              case '아쿠아리움':
+                return 'aquarium';
+              case '테마파크':
+                return 'themePark';
+              case '놀이공원':
+                return 'amusementPark';
+              case '유적지':
+                return 'historicalSpot';
+              case '박물관':
+              case '미술관':
+                return 'museum';
+              case '국립공원':
+                return 'nationalPark';
+              case '해안경관':
+                return 'ocean';
+              case '공원/정원':
+                return 'park';
+              case '섬':
+                return 'island';
+              case '언덕':
+                return 'hill';
+              case '산':
+                return 'mountain';
+              case '강':
+                return 'river';
+              case '수목원':
+                return 'arboreteum';
+              case '숲':
+                return 'forest';
+              case '바위':
+                return 'rocks';
+              case '둘레길':
+                return 'circumferenceTrail';
+              case '오름':
+                return 'oreum';
+              case '해안도로':
+                return 'shoreline';
+              case '기타':
+                return 'etc';
+              /// 액티비티
+              case '스노보드':
+                return 'snowBoard';
+              case '스키':
+                return 'ski';
+              case '케이블카':
+                return 'cableCar';
+              case '패러글라이딩':
+                return 'paragliding';
+              case '짚라인':
+                return 'zipTrack';
+              case 'UTV':
+                return 'UTV';
+              case 'MTB':
+                return 'MTB';
+              case '암벽등반':
+                return 'rockClimbing';
+              case '그룹하이킹':
+                return 'groupHiking';
+              case '등산':
+                return 'climbing';
+              case '루지레이스':
+                return 'lugeRacing';
+              case '골프':
+                return 'golf';
+              case '티켓':
+                return 'ticket';
+              case '농장':
+                return 'farm';
+              case '승마':
+                return 'horseRiding';
+              case 'ATV':
+                return 'ATV';
+              case '카트레이스':
+                return 'cartRacing';
+              case '크루즈':
+                return 'cruise';
+              case '카약':
+                return 'kayak';
+              case '패들보드':
+                return 'paddleBoard';
+              case '서핑':
+                return 'surfing';
+              case '제트보트':
+                return 'jetBoat';
+              case '세일링':
+                return 'sailing';
+              case '낚시':
+                return 'fishing';
+              case '스노클링':
+                return 'snorkeling';
+              case '해수욕':
+                return 'beach';
+              default:
+                return null;
+            }
+          }),
+        };
 
         const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
           .map(v => {

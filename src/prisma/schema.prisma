@@ -787,6 +787,8 @@ model TripMemory {
   ShareTripMemory ShareTripMemory?
   photos          IBPhotos[]
 
+  tripMemCategoryIds String @default("") /// 원래 tripMemory에 필요한 필드가 아니나 먼저 '기억:tripMemory'를 생성했다가 나중에 '공유:shareTripMemory'를 생성할 경우 최초 입력했던 카테고리를 다시 묻지 않는 입력 시나리오때문에 tripMemoryCategory를 기록해두기 위해 추가함. ex) "1,5,21"
+
   @@unique([title, img])
 }
 
