@@ -1434,6 +1434,12 @@ export const addShareTripMemory = asyncWrapper(
         });
       }
 
+      if (isNil(categoryIds) || isEmpty(categoryIds)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: `categoryIds는 1개 이상 반드시 제공되어야 합니다.`,
+        });
+      }
       const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
         where: {
           id: {
@@ -1443,7 +1449,8 @@ export const addShareTripMemory = asyncWrapper(
       });
 
       if (
-        !tripMemoryCategory ||
+        isNil(tripMemoryCategory) ||
+        isEmpty(tripMemoryCategory) ||
         tripMemoryCategory.length !== categoryIds.length
       ) {
         const notExistIds = categoryIds.filter(id => {
