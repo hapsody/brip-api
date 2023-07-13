@@ -222,6 +222,23 @@ export const getTripMemGrpList = asyncWrapper(
   },
 );
 
+type PhotoMetaInfoForAdd = {
+  /// common fields
+  type: IBPhotoMetaInfoType;
+  title: string;
+  lat?: string;
+  lng?: string;
+  shotTime?: string;
+  keyword: string[];
+  feature: {
+    super: string;
+    name: string;
+  }[];
+  // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
+  desc?: string; /// for only MAIN fields
+  publicInfo?: string; /// for DETAIL fields
+};
+
 export interface AddTripMemoryRequestType {
   title: string;
   comment: string;
@@ -230,26 +247,11 @@ export interface AddTripMemoryRequestType {
   lat: string;
   lng: string;
   groupId: string;
-  tourPlaceId?: string;
+  tourPlaceId?: string; /// 기존에 존재하는 장소에 tripmemory 또는 shareTripMemory를 생성하는 경우 undefined 이면 안된다.
   // img: string;
   photos: {
     key: string;
-    photoMetaInfo?: {
-      /// common fields
-      type?: IBPhotoMetaInfoType;
-      title?: string;
-      lat?: string;
-      lng?: string;
-      shotTime?: string;
-      keyword?: string[];
-      feature?: {
-        super: string;
-        name: string;
-      }[];
-      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
-      desc?: string; /// for only MAIN fields
-      publicInfo?: string; /// for DETAIL fields
-    };
+    photoMetaInfo?: PhotoMetaInfoForAdd;
   }[];
 }
 export type TourPlaceCommonType = Pick<
@@ -463,9 +465,9 @@ const addTripMemory = async (
 
         return tx.iBPhotoMetaInfo.create({
           data: {
-            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            type: v.photoMetaInfo!.type,
             order: index,
-            title: v.photoMetaInfo!.title!,
+            title: v.photoMetaInfo!.title,
             lat: latitude,
             lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
@@ -483,7 +485,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            ...(v.photoMetaInfo!.feature! && {
+            ...(v.photoMetaInfo!.feature && {
               feature: {
                 connectOrCreate: v.photoMetaInfo!.feature.map(k => {
                   return {
@@ -858,9 +860,9 @@ const addTripMemory = async (
             : Number(v.photoMetaInfo!.lng);
         return tx.iBPhotoMetaInfo.create({
           data: {
-            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            type: v.photoMetaInfo!.type,
             order: index,
-            title: v.photoMetaInfo!.title!,
+            title: v.photoMetaInfo!.title,
             lat: latitude,
             lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
@@ -878,7 +880,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            ...(v.photoMetaInfo!.feature! && {
+            ...(v.photoMetaInfo!.feature && {
               feature: {
                 connectOrCreate: v.photoMetaInfo!.feature.map(k => {
                   return {
@@ -4531,22 +4533,7 @@ export interface ModifyTripMemoryRequestType {
   // img?: string; ///deprecated photos에서 첫번째 해당하는 사진을 메인 이미지로 설정함.
   photos?: {
     key: string;
-    photoMetaInfo?: {
-      /// common fields
-      type?: IBPhotoMetaInfoType;
-      title?: string;
-      lat?: string;
-      lng?: string;
-      shotTime?: string;
-      keyword?: string[];
-      feature?: {
-        super: string;
-        name: string;
-      }[];
-      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
-      desc?: string; /// for only MAIN fields
-      publicInfo?: string; /// for DETAIL fields
-    };
+    photoMetaInfo?: Partial<PhotoMetaInfoForAdd>;
   }[];
 }
 export interface ModifyTripMemorySuccessResType extends TripMemory {
