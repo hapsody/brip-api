@@ -1811,16 +1811,6 @@ export const addShareTripMemory = asyncWrapper(
                   address,
                   // tourPlaceType: 'USER_SPOT',
                   tourPlaceType: categoryToIBTravelTag.tourPlaceType,
-                  photos: {
-                    connect: createdOrFoundTripMem.photos.map(v => {
-                      return {
-                        id: v.photoMetaInfo!.photoId,
-                      };
-                    }),
-                    // create: {
-                    //   key: img,
-                    // },
-                  },
                   ...(!isNil(ibTravelTagNames) &&
                     !isEmpty(ibTravelTagNames) && {
                       ibTravelTag: {
@@ -1920,7 +1910,7 @@ export const addShareTripMemory = asyncWrapper(
           });
         }
 
-        const recommendUpdatePromise = (() => {
+        const recommendNPhotoUpdatePromise = (() => {
           if (recommendGrade === 'good') {
             const nextGood = shareTripMemory.TourPlace!.good + 1;
             return tx.tourPlace.update({
@@ -1929,6 +1919,13 @@ export const addShareTripMemory = asyncWrapper(
               },
               data: {
                 good: nextGood,
+                photos: {
+                  connect: createdOrFoundTripMem.photos.map(v => {
+                    return {
+                      id: v.photoMetaInfo!.photoId,
+                    };
+                  }),
+                },
               },
             });
           }
@@ -1940,6 +1937,13 @@ export const addShareTripMemory = asyncWrapper(
               },
               data: {
                 notBad: nextNotBad,
+                photos: {
+                  connect: createdOrFoundTripMem.photos.map(v => {
+                    return {
+                      id: v.photoMetaInfo!.photoId,
+                    };
+                  }),
+                },
               },
             });
           }
@@ -1950,11 +1954,18 @@ export const addShareTripMemory = asyncWrapper(
             },
             data: {
               bad: nextBad,
+              photos: {
+                connect: createdOrFoundTripMem.photos.map(v => {
+                  return {
+                    id: v.photoMetaInfo!.photoId,
+                  };
+                }),
+              },
             },
           });
         })();
 
-        await recommendUpdatePromise;
+        await recommendNPhotoUpdatePromise;
 
         return shareTripMemory;
       });
