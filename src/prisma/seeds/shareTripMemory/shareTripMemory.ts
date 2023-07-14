@@ -171,8 +171,9 @@ async function main(): Promise<void> {
         tripMemoryParam: {
           ...seed.tripMemoryParam,
           groupId: memoryGroup.id,
+          categoryIds: memoryCategory.map(v => v.id),
         },
-        categoryIds: memoryCategory.map(v => v.id),
+
         tourPlaceId: tourPlace ? tourPlace.id : undefined,
       });
 

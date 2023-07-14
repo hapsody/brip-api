@@ -36,7 +36,7 @@ import {
   pubSSEvent,
 } from '@src/routes/noti/noti';
 
-import { isEmpty, isNil, isNull, remove } from 'lodash';
+import { isEmpty, isNil, isNull, remove, isNaN } from 'lodash';
 import moment from 'moment';
 
 const tripNetworkRouter: express.Application = express();
@@ -3686,6 +3686,7 @@ export const getTripMemList = asyncWrapper(
         });
       }
 
+      /// tripMemoryId로 조회 요청온  경우
       if (!isNil(tripMemoryId)) {
         const foundTripMem = await prisma.tripMemory.findUnique({
           where: {
@@ -3818,26 +3819,61 @@ export const getTripMemList = asyncWrapper(
         return;
       }
 
+      /// tripMemoryId 가 없이 조회 요청온  경우
       const foundTripMemList = await prisma.tripMemory.findMany({
         where: {
           AND: [
             {
-              tag: {
-                some: {
-                  name: {
-                    contains: tagKeyword,
+              ...(!isNil(tagKeyword) &&
+                !isEmpty(tagKeyword) && {
+                  tag: {
+                    some: {
+                      name: {
+                        contains: tagKeyword,
+                      },
+                    },
                   },
-                },
-              },
+                }),
             },
             {
-              groupId: isNil(groupId) ? undefined : Number(groupId),
+              ...(!isNil(groupId) &&
+                !isEmpty(groupId) &&
+                !isNaN(Number(groupId)) && {
+                  groupId: Number(groupId),
+                }),
             },
-
-            { lat: isNil(minLat) ? undefined : { gte: Number(minLat) } },
-            { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
-            { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
-            { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
+            {
+              ...(!isNil(minLat) &&
+                !isEmpty(minLat) &&
+                !isNaN(Number(minLat)) && {
+                  lat: { gte: Number(minLat) },
+                }),
+            },
+            {
+              ...(!isNil(maxLat) &&
+                !isEmpty(maxLat) &&
+                !isNaN(Number(maxLat)) && {
+                  lat: { lt: Number(maxLat) },
+                }),
+            },
+            {
+              ...(!isNil(minLng) &&
+                !isEmpty(minLng) &&
+                !isNaN(Number(minLng)) && {
+                  lng: { gte: Number(minLng) },
+                }),
+            },
+            {
+              ...(!isNil(maxLng) &&
+                !isEmpty(maxLng) &&
+                !isNaN(Number(maxLng)) && {
+                  lng: { lt: Number(maxLng) },
+                }),
+            },
+            // { lat: isNil(minLat) ? undefined : { gte: Number(minLat) } },
+            // { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
+            // { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
+            // { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
             { userId: Number(memberId) },
           ],
         },
@@ -3852,6 +3888,7 @@ export const getTripMemList = asyncWrapper(
         }),
         select: {
           id: true,
+          createdAt: true,
           title: true,
           comment: true,
           lat: true,
