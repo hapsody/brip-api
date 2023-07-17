@@ -684,11 +684,14 @@ export const modifyAdPlace = asyncWrapper(
             },
           });
 
-          await tx.iBPhotos.delete({
-            where: {
-              id: existCheck.mainPhotoId,
-            },
-          });
+          /// 메인 사진을 변경하려 한다면 기존 메인 사진은 photos에서 삭제한다.
+          if (!isNil(mainPhotoKey) && !isEmpty(mainPhotoKey)) {
+            await tx.iBPhotos.delete({
+              where: {
+                id: existCheck.mainPhotoId,
+              },
+            });
+          }
 
           /// 포토 수정이 있는데 tourPlace가 생성되어 있는 adPlace라면 IBPhotos가 위에서 deleteMany로 모두 삭제되고 재연결되었으므로 tourPlace의 IBPhotos connect도 수정해줘야한다.
           let tpUpdateResult: TourPlace | undefined;
