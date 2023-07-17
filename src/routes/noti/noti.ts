@@ -1380,6 +1380,7 @@ export const sendMessage = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1388,6 +1389,7 @@ export const sendMessage = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
@@ -1396,6 +1398,7 @@ export const sendMessage = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1502,6 +1505,7 @@ export const getMessage = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1510,6 +1514,7 @@ export const getMessage = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1647,6 +1652,7 @@ export const reqNewBooking = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1655,6 +1661,7 @@ export const reqNewBooking = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1778,6 +1785,7 @@ export const reqBookingChatWelcome = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1786,6 +1794,7 @@ export const reqBookingChatWelcome = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1849,6 +1858,7 @@ export const getAskListToMe = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1857,6 +1867,7 @@ export const getAskListToMe = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1935,6 +1946,7 @@ export const getSysNotiMessage = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1943,6 +1955,7 @@ export const getSysNotiMessage = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,

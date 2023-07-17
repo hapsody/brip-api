@@ -72,6 +72,7 @@ export const getMyBookingInfo = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -80,6 +81,7 @@ export const getMyBookingInfo = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,

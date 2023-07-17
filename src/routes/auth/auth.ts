@@ -70,6 +70,7 @@ export const signIn = (
       if (!user) {
         console.log(info);
         if (info.message === 'Incorrect username.') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: info.message,
@@ -77,6 +78,7 @@ export const signIn = (
           return;
         }
         if (info.message === 'Incorrect password.') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
             IBdetail: info.message,
@@ -84,6 +86,7 @@ export const signIn = (
           return;
         }
         if (info.message === 'Expired Password.') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.EXPIREDDATA,
             IBdetail: info.message,
@@ -92,6 +95,7 @@ export const signIn = (
         }
 
         if (info.message === 'Missing credentials') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: info.message,
@@ -355,6 +359,7 @@ export const reqNonMembersUserToken = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -470,6 +475,7 @@ export const refreshAccessToken = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -478,6 +484,7 @@ export const refreshAccessToken = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -486,6 +493,7 @@ export const refreshAccessToken = asyncWrapper(
           return;
         }
         if (err.type === 'TOKENEXPIRED') {
+          console.error(err);
           res.status(401).json({
             ...ibDefs.TOKENEXPIRED,
             IBdetail: (err as Error).message,
@@ -495,6 +503,7 @@ export const refreshAccessToken = asyncWrapper(
         }
 
         if (err.type === 'NOTREFRESHTOKEN') {
+          console.error(err);
           res.status(401).json({
             ...ibDefs.NOTREFRESHTOKEN,
             IBdetail: (err as Error).message,
@@ -504,6 +513,7 @@ export const refreshAccessToken = asyncWrapper(
         }
 
         if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
             IBdetail: (err as Error).message,
@@ -675,6 +685,7 @@ export const sendSMSAuthCode = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -683,6 +694,7 @@ export const sendSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -769,6 +781,7 @@ export const submitSMSAuthCode = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -777,6 +790,7 @@ export const submitSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -956,6 +970,7 @@ export const changePassword = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -964,6 +979,7 @@ export const changePassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1119,6 +1135,7 @@ export const resetPassword = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1127,6 +1144,7 @@ export const resetPassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,

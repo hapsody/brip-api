@@ -305,6 +305,7 @@ export const registAdPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -313,6 +314,7 @@ export const registAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -321,6 +323,7 @@ export const registAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -465,6 +468,7 @@ export const getMyAdPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -473,6 +477,7 @@ export const getMyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -788,6 +793,7 @@ export const modifyAdPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -796,6 +802,7 @@ export const modifyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -804,6 +811,7 @@ export const modifyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -938,6 +946,7 @@ export const delAdPlacePhoto = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -946,6 +955,7 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -954,6 +964,7 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -962,6 +973,7 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
             IBdetail: (err as Error).message,

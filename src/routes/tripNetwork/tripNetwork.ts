@@ -107,6 +107,7 @@ export const addTripMemGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -116,6 +117,7 @@ export const addTripMemGrp = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -125,6 +127,7 @@ export const addTripMemGrp = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -191,6 +194,7 @@ export const getTripMemGrpList = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -200,6 +204,7 @@ export const getTripMemGrpList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -209,6 +214,7 @@ export const getTripMemGrpList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1111,6 +1117,7 @@ export const addTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1120,6 +1127,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1129,6 +1137,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1138,6 +1147,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1147,6 +1157,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -1245,6 +1256,7 @@ export const addTripMemCategory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1254,6 +1266,7 @@ export const addTripMemCategory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1263,6 +1276,7 @@ export const addTripMemCategory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1330,6 +1344,7 @@ export const getTripMemCategoryList = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1339,6 +1354,7 @@ export const getTripMemCategoryList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1348,6 +1364,7 @@ export const getTripMemCategoryList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1977,6 +1994,7 @@ export const addShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1986,6 +2004,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1995,6 +2014,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2004,6 +2024,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2013,6 +2034,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2127,6 +2149,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2136,6 +2159,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2145,6 +2169,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2340,6 +2365,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2349,6 +2375,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2358,6 +2385,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2366,6 +2394,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
@@ -2375,6 +2404,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -2531,6 +2561,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2540,6 +2571,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2549,6 +2581,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2641,6 +2674,7 @@ export const delShareTripMemReply = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2650,6 +2684,7 @@ export const delShareTripMemReply = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2659,6 +2694,7 @@ export const delShareTripMemReply = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2765,6 +2801,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2774,6 +2811,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2783,6 +2821,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2884,6 +2923,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2893,6 +2933,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2902,6 +2943,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2916,6 +2958,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -3259,6 +3302,7 @@ export const getShareTripMemList = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -3268,6 +3312,7 @@ export const getShareTripMemList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -3276,6 +3321,7 @@ export const getShareTripMemList = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
@@ -3285,6 +3331,7 @@ export const getShareTripMemList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -3299,6 +3346,7 @@ export const getShareTripMemList = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -3562,6 +3610,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -3571,6 +3620,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -3580,6 +3630,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -3594,6 +3645,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -4014,6 +4066,7 @@ export const getTripMemList = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4023,6 +4076,7 @@ export const getTripMemList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4032,6 +4086,7 @@ export const getTripMemList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4046,6 +4101,7 @@ export const getTripMemList = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -4352,6 +4408,7 @@ export const getTripMemListByGroup = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4361,6 +4418,7 @@ export const getTripMemListByGroup = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4370,6 +4428,7 @@ export const getTripMemListByGroup = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4384,6 +4443,7 @@ export const getTripMemListByGroup = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -4454,6 +4514,7 @@ export const getNotiNewComment = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4463,6 +4524,7 @@ export const getNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4472,6 +4534,7 @@ export const getNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4570,6 +4633,7 @@ export const checkNotiNewComment = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4579,6 +4643,7 @@ export const checkNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4588,6 +4653,7 @@ export const checkNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4999,6 +5065,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5008,6 +5075,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -5017,6 +5085,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5026,6 +5095,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5136,6 +5206,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5145,6 +5216,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -5154,6 +5226,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5163,6 +5236,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5595,6 +5669,7 @@ export const modifyShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5604,6 +5679,7 @@ export const modifyShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5613,6 +5689,7 @@ export const modifyShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5706,6 +5783,7 @@ export const deleteShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5715,6 +5793,7 @@ export const deleteShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5724,6 +5803,7 @@ export const deleteShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5881,6 +5961,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5890,6 +5971,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5899,6 +5981,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -5908,6 +5991,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -6067,6 +6151,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -6076,6 +6161,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -6085,6 +6171,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -6094,6 +6181,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -6198,6 +6286,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -6207,6 +6296,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -6216,6 +6306,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -6225,6 +6316,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -6341,6 +6433,7 @@ export const checkLikeTourPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -6350,6 +6443,7 @@ export const checkLikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -6359,6 +6453,7 @@ export const checkLikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -6368,6 +6463,7 @@ export const checkLikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,

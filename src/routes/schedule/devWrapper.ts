@@ -153,6 +153,7 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -161,6 +162,7 @@ export const getPlaceDataFromVJWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -564,6 +566,7 @@ export const makeScheduleWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -572,6 +575,7 @@ export const makeScheduleWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,

@@ -609,6 +609,7 @@ export const addCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -617,6 +618,7 @@ export const addCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -687,6 +689,7 @@ export const uploadCardGrpImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -695,6 +698,7 @@ export const uploadCardGrpImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -761,6 +765,7 @@ export const uploadCardImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -769,6 +774,7 @@ export const uploadCardImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -863,6 +869,7 @@ export const updateCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -871,6 +878,7 @@ export const updateCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1154,6 +1162,7 @@ export const updateCardNews = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1162,6 +1171,7 @@ export const updateCardNews = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1234,6 +1244,7 @@ export const deleteCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1242,6 +1253,7 @@ export const deleteCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1313,6 +1325,7 @@ export const deleteCardNews = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1321,6 +1334,7 @@ export const deleteCardNews = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,

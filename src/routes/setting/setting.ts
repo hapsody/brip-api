@@ -137,6 +137,7 @@ export const reqTicket = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -146,6 +147,7 @@ export const reqTicket = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -155,6 +157,7 @@ export const reqTicket = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -295,6 +298,7 @@ export const reqBusinessTicket = asyncWrapper(
         // }
 
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -303,6 +307,7 @@ export const reqBusinessTicket = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -311,6 +316,7 @@ export const reqBusinessTicket = asyncWrapper(
           return;
         }
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -377,6 +383,7 @@ export const getFaqList = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -385,6 +392,7 @@ export const getFaqList = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -562,6 +570,7 @@ export const reqTripCreator = asyncWrapper(
       console.error(err);
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -570,6 +579,7 @@ export const reqTripCreator = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -578,6 +588,7 @@ export const reqTripCreator = asyncWrapper(
           return;
         }
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -586,6 +597,7 @@ export const reqTripCreator = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -672,6 +684,7 @@ export const changeProfileImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -680,6 +693,7 @@ export const changeProfileImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -741,6 +755,7 @@ export const getProfileImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -749,6 +764,7 @@ export const getProfileImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -833,6 +849,7 @@ export const getMyProfileImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -841,6 +858,7 @@ export const getMyProfileImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -947,6 +965,7 @@ export const getMyAccountInfo = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -955,6 +974,7 @@ export const getMyAccountInfo = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1090,6 +1110,7 @@ export const setTravelTypeToUser = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1098,6 +1119,7 @@ export const setTravelTypeToUser = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1196,6 +1218,7 @@ export const getRandomMainImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1204,6 +1227,7 @@ export const getRandomMainImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
