@@ -58,7 +58,7 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
       },
     },
   });
-  if (!isNil(tx) && !isNil(adPlaceId)) {
+  if (!isNil(tx) && !isNil(adPlaceId) && !isEmpty(prevTags)) {
     const a = Prisma.sql`delete from _AdPlaceToIBTravelTag where A = ${adPlaceId} and B in (${Prisma.join(
       prevTags.map(v => v.id),
     )});`;
