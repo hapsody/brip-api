@@ -282,6 +282,7 @@ export type TourPlaceCommonType = Pick<
   | 'notBad'
   | 'bad'
   | 'like'
+  | 'adPlaceId'
 > & {
   // photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[]; /// deprecated 예정 => TourPlaceCommonType을 사용하고 있는 api의 리턴값에서 AddTripMemorySuccessResType.photo 또는 GetShareTripMemListByPlaceSuccessResType.photo 등과 같이 리턴값에서 TourPlace 상위의 photos 프로퍼티로 반환정보를 대체함
   photos?: Partial<IBPhotos>[];
@@ -724,6 +725,7 @@ const addTripMemory = async (
                 updatedAt: true,
               },
             },
+            adPlaceId: true,
           },
         },
       },
@@ -1039,6 +1041,7 @@ const addTripMemory = async (
                 updatedAt: true,
               },
             },
+            adPlaceId: true,
           },
         },
       },
@@ -1544,6 +1547,7 @@ export const addShareTripMemory = asyncWrapper(
                         updatedAt: true,
                       },
                     },
+                    adPlaceId: true,
                   },
                 },
               },
@@ -1900,6 +1904,7 @@ export const addShareTripMemory = asyncWrapper(
                     updatedAt: true,
                   },
                 },
+                adPlaceId: true,
               },
             },
           },
@@ -3100,6 +3105,7 @@ export const getShareTripMemList = asyncWrapper(
                     updatedAt: true,
                   },
                 },
+                adPlaceId: true,
               },
             },
             photos: {
@@ -3227,6 +3233,7 @@ export const getShareTripMemList = asyncWrapper(
                   updatedAt: true,
                 },
               },
+              adPlaceId: true,
             },
           },
           photos: {
@@ -3536,6 +3543,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 },
               }),
           },
+          adPlaceId: true,
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {
           orderBy: {
