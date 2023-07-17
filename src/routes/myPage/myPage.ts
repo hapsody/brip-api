@@ -19,8 +19,9 @@ import {
   delObjectsFromS3,
   ibTravelTagCategorize,
   getIBPhotoUrl,
+  addrToGeoCode,
 } from '@src/utils';
-import { isNil, isEmpty, omit } from 'lodash';
+import { isNil, isEmpty, omit, isNaN } from 'lodash';
 
 const myPageRouter: express.Application = express();
 
@@ -988,8 +989,192 @@ export const delAdPlacePhoto = asyncWrapper(
   },
 );
 
+export type GetTourPlaceListByAddrRequestType = {
+  address?: string; /// 위경도나 주소 둘중 하나는 제공되어야 함.
+  lat?: string;
+  lng?: string;
+  horizontalRange: string; /// 가로 오차범위 값 단위: 경도
+  verticalRange: string; /// 세로 오차 범위 값 단위: 위도
+};
+export type GetTourPlaceListByAddrSuccessResType = TourPlace;
+export type GetTourPlaceListByAddrResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetTourPlaceListByAddrSuccessResType | {};
+};
+
+/**
+ * setting에서 업체등록시에 주변 tourPlace들 중 업체가 등록하고자 하는 tourPlace가 있는 지 여부를 관계자에게 확인하기 위해
+ * 제공한 주소 또는 위경도를 중심으로 존재하는 tourPlace 배열을 반환하는 api
+ */
+export const getTourPlaceListByAddr = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetTourPlaceListByAddrRequestType>,
+    res: Express.IBTypedResponse<GetTourPlaceListByAddrResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const { address, lat, lng, horizontalRange, verticalRange } = req.query;
+
+      if (
+        isNil(horizontalRange) ||
+        isEmpty(horizontalRange) ||
+        isNaN(Number(horizontalRange)) ||
+        isNil(verticalRange) ||
+        isEmpty(verticalRange) ||
+        isNaN(Number(verticalRange))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'horizontalRange와 verticalRange는 반드시 제공되어야 할 파라미터입니다.',
+        });
+      }
+
+      const tourPlace = await (async () => {
+        /// 검색 파라미터로 주소가 제공될 경우
+        if (!isNil(address) && !isEmpty(address)) {
+          const geoCodeRes = await addrToGeoCode({
+            address,
+            type: 'road',
+          });
+
+          if (isNil(geoCodeRes)) {
+            throw new IBError({
+              type: 'EXTERNALAPI',
+              message: 'address to geocode translation error',
+            });
+          }
+
+          const {
+            regionCode1,
+            regionCode2,
+            lat: transLat,
+            lng: transLng,
+          } = geoCodeRes;
+
+          const tp = await prisma.tourPlace.findMany({
+            where: {
+              regionCode1,
+              regionCode2,
+              AND: [
+                { lat: { gte: transLat - Number(horizontalRange) / 2 } },
+                { lat: { lt: transLat + Number(horizontalRange) / 2 } },
+                { lng: { gte: transLng - Number(verticalRange) / 2 } },
+                { lng: { lt: transLng + Number(verticalRange) / 2 } },
+              ],
+            },
+          });
+          return tp;
+        }
+
+        /// 검색 파라미터로 위경도가 제공될 경우
+        if (
+          isNil(lat) ||
+          isEmpty(lat) ||
+          isNaN(Number(lat)) ||
+          isNil(lng) ||
+          isEmpty(lng) ||
+          isNaN(Number(lng))
+        ) {
+          const tp = await prisma.tourPlace.findMany({
+            where: {
+              AND: [
+                { lat: { gte: Number(lat) - Number(horizontalRange) / 2 } },
+                { lat: { lt: Number(lat) + Number(horizontalRange) / 2 } },
+                { lng: { gte: Number(lng) - Number(verticalRange) / 2 } },
+                { lng: { lt: Number(lng) + Number(verticalRange) / 2 } },
+              ],
+            },
+          });
+          return tp;
+        }
+
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'address나 (lat, lng) 둘중 하나는 반드시 제공되어야 할 파라미터입니다.',
+        });
+      })();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: tourPlace,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 myPageRouter.post('/registAdPlace', accessTokenValidCheck, registAdPlace);
 myPageRouter.get('/getMyAdPlace', accessTokenValidCheck, getMyAdPlace);
 myPageRouter.post('/modifyAdPlace', accessTokenValidCheck, modifyAdPlace);
+myPageRouter.get(
+  '/getTourPlaceListByAddr',
+  accessTokenValidCheck,
+  getTourPlaceListByAddr,
+);
 myPageRouter.post('/delAdPlacePhoto', accessTokenValidCheck, delAdPlacePhoto);
 export default myPageRouter;
