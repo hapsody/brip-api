@@ -35,6 +35,10 @@ import {
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
 import { getIBPhotoUrl } from './getIBPhotoUrl';
+import {
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
+} from './categoryToIBTravelTag';
 
 export {
   ibDefs,
@@ -70,4 +74,6 @@ export {
   sendEmail,
   delObjectsFromS3,
   getIBPhotoUrl,
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
 };
