@@ -233,12 +233,12 @@ export const approveAdPlace = asyncWrapper(
     try {
       const { locals } = req;
       const userTokenId = (() => {
-        if (locals && locals?.grade === 'member')
+        if (!isNil(locals) && locals.grade === 'member' && locals.user?.admin)
           return locals?.user?.userTokenId;
         // return locals?.tokenId;
         throw new IBError({
           type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
+          message: 'admin member 등급만 접근 가능합니다.',
         });
       })();
       if (!userTokenId) {
