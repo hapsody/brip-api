@@ -12,7 +12,7 @@ import {
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
-import { isNil, isNaN, isEmpty } from 'lodash';
+import { isNil, isNaN, isEmpty, isBoolean } from 'lodash';
 // import 'moment/locale/ko';
 
 const notiRouter: express.Application = express();
@@ -389,6 +389,165 @@ const getMyLastMsgs = async (me: string): Promise<LastMessageType[]> => {
       } as LastMessageType;
     })
     .filter((v): v is LastMessageType => v !== null);
+
+  return [...redisLastMsgs, ...dbLastMsgs];
+};
+
+const getMyLastBookingMsgs = async (params: {
+  me: string;
+  onlyAskFromMe?: boolean;
+}): Promise<LastBookingMessageType[]> => {
+  const { me, onlyAskFromMe } = params;
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let firstLoop = true;
+      let cursor = '0';
+      return {
+        async next() {
+          const scanResult = await redis.scan(cursor);
+          if (!firstLoop && cursor === '0') {
+            return { value: scanResult[1], done: true };
+          }
+          firstLoop = false;
+          // eslint-disable-next-line prefer-destructuring
+          cursor = scanResult[0];
+          return { value: scanResult[1], done: false };
+        },
+      };
+    },
+  };
+
+  const redisLastMsgBuffer = await redis.hgetall(`lastMsg:iam:${me}`);
+
+  if (!isNil(redisLastMsgBuffer) && !isEmpty(redisLastMsgBuffer)) {
+    const lastMsgs = Object.keys(redisLastMsgBuffer)
+      .map<LastBookingMessageType | null>(v => {
+        const other = v;
+        const lastMsg = redisLastMsgBuffer[other];
+        const lastMsgObj = JSON.parse(lastMsg) as BookingChatMessageType;
+
+        /// 내가 문의하지 않은것도 모두 리턴하는 경우
+        if (onlyAskFromMe === false) {
+          return {
+            me,
+            other,
+            lastMsg: lastMsgObj,
+          };
+        }
+
+        /// 내가 문의한 것만 필터링 하는 경우
+        if (lastMsgObj.customerId === me)
+          return {
+            me,
+            other,
+            lastMsg: lastMsgObj,
+          };
+        return null;
+      })
+      .filter((v): v is LastBookingMessageType => v !== null);
+    return lastMsgs;
+  }
+
+  /// redis에  lastMsg hash가 존재하지 않으면 아래와 같이 redis와 mysql을 전부 뒤져야 한다.
+  /// redis 전체 채널키 중 me가 수신 또는 송신측 하나라도 위치한 메시지큐 검색
+  const redisMyMsgQKeys = await (async () => {
+    let matchedKeys: {
+      key: string;
+      me: string;
+      other: string;
+    }[] = [];
+
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const scanRes of asyncIterable) {
+      matchedKeys = [
+        ...matchedKeys,
+        ...scanRes
+          .filter(v => {
+            const regex = new RegExp(`^${me}<=>[0-9]+$|^[0-9]+<=>${me}$`);
+            const matchResult = v.match(regex);
+            return !isNil(matchResult) && matchResult.length > 0;
+          })
+          .map(v => {
+            if (v.split('<=>')[0] === me)
+              return {
+                key: v,
+                me,
+                other: v.split('<=>')[1],
+              };
+            return {
+              key: v,
+              me,
+              other: v.split('<=>')[0],
+            };
+          }),
+      ];
+    }
+    return matchedKeys;
+  })();
+
+  const redisLastMsgs = await Promise.all(
+    redisMyMsgQKeys.map<Promise<LastBookingMessageType>>(async v => {
+      const serializedLastMsg = (await redis.lrange(v.key, -1, -1))[0];
+      return {
+        lastMsg: JSON.parse(serializedLastMsg) as BookingChatMessageType,
+        me: v.me,
+        other: v.other,
+      };
+    }),
+  );
+
+  const mysqlMsgs = await prisma.userChatLog.findMany({
+    where: {
+      OR: [{ userId: Number(me) }, { toUserId: Number(me) }],
+      redisKey: {
+        notIn: redisLastMsgs.map(v => {
+          return Number(v.me) > Number(v.other)
+            ? `${v.me}<=>${v.other}`
+            : `${v.other}<=>${v.me}`;
+        }),
+      },
+    },
+    orderBy: {
+      order: 'desc',
+    },
+    include: {
+      actionInputParam: true,
+      user: true,
+    },
+  });
+
+  /// db에서 찾은 데이터를 redisKey별 order가 가장 높은 메시지만 추림.
+  const lastMsgsGroupByRedisKey = mysqlMsgs.reduce<
+    (UserChatLog & {
+      actionInputParam: UserChatActionInputParam | null;
+      user: User;
+    })[]
+  >((acc, cur) => {
+    const alreadyExist = acc.find(v => v.redisKey === cur.redisKey);
+    if (isNil(alreadyExist)) {
+      return [...acc, cur];
+    }
+
+    return acc;
+  }, []);
+
+  const dbLastMsgs = lastMsgsGroupByRedisKey
+    .map(v => {
+      const lastMsg = userChatLogToChatMsg(v);
+      if (isNil(lastMsg)) {
+        return null;
+      }
+      return {
+        me,
+        other: v.userId === Number(me) ? `${v.toUserId}` : `${v.userId}`,
+        lastMsg: {
+          ...lastMsg,
+          customerId: 'null',
+          companyId: 'null',
+        },
+      } as LastBookingMessageType;
+    })
+    .filter((v): v is LastBookingMessageType => v !== null);
 
   return [...redisLastMsgs, ...dbLastMsgs];
 };
@@ -1839,6 +1998,7 @@ type LastMessageType = {
   me: string;
   other: string;
 };
+
 export type GetMsgListToMeRequestType = {};
 export type GetMsgListToMeSuccessResType = (LastMessageType & {
   other: {
@@ -1897,6 +2057,126 @@ export const getMsgListToMe = asyncWrapper(
 
       const ret = await Promise.all(
         myLastMsgs.map(async (v, idx) => {
+          return {
+            ...v,
+            other: {
+              id: userInfo[idx]?.id,
+              nickName: userInfo[idx]?.nickName,
+              profileImg:
+                !isNil(userInfo[idx]) &&
+                userInfo[idx]!.profileImg &&
+                userInfo[idx]!.profileImg!.toLowerCase().includes('http')
+                  ? userInfo[idx]!.profileImg
+                  : await getS3SignedUrl(userInfo[idx]!.profileImg!),
+            },
+          };
+        }),
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: ret,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+type LastBookingMessageType = {
+  lastMsg: BookingChatMessageType;
+  me: string;
+  other: string;
+};
+export type GetBookingMsgListToMeRequestType = {
+  onlyAskFromMe?: string; /// 내가 문의한것만 필터링
+};
+export type GetBookingMsgListToMeSuccessResType = (LastBookingMessageType & {
+  other: {
+    id: string;
+    nickName: string;
+    profileImg: string;
+  };
+})[];
+export type GetBookingMsgListToMeResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetBookingMsgListToMeSuccessResType | {};
+};
+
+/**
+ * 나(고객, 사업자 모두가능)에게 온 '예약문의' 메시지 리스트를 마지막 메시지 배열로 보여줄 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2981&mode=design&t=WWpW8rSQrIW8iCUV-4
+ */
+export const getBookingMsgListToMe = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetBookingMsgListToMeRequestType>,
+    res: Express.IBTypedResponse<GetBookingMsgListToMeResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.id.toString();
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { onlyAskFromMe } = req.query;
+
+      const myLastBookingMsgs = await getMyLastBookingMsgs({
+        me: userId,
+        onlyAskFromMe:
+          !isNil(onlyAskFromMe) && isBoolean(Boolean(onlyAskFromMe))
+            ? Boolean(onlyAskFromMe)
+            : false,
+      });
+
+      const userInfo = await Promise.all(
+        myLastBookingMsgs.map(v => {
+          return prisma.user.findUnique({
+            where: {
+              id: Number(v.other),
+            },
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+            },
+          });
+        }),
+      );
+
+      const ret = await Promise.all(
+        myLastBookingMsgs.map(async (v, idx) => {
           return {
             ...v,
             other: {
@@ -2045,5 +2325,10 @@ notiRouter.post(
   reqBookingChatWelcome,
 );
 notiRouter.get('/getMsgListToMe', accessTokenValidCheck, getMsgListToMe);
+notiRouter.get(
+  '/getBookingMsgListToMe',
+  accessTokenValidCheck,
+  getBookingMsgListToMe,
+);
 notiRouter.post('/getSysNotiMessage', accessTokenValidCheck, getSysNotiMessage);
 export default notiRouter;
