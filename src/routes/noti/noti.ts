@@ -8,6 +8,7 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  getS3SignedUrl,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
@@ -1815,7 +1816,13 @@ type LastMessageType = {
   other: string;
 };
 export type GetMsgListToMeRequestType = {};
-export type GetMsgListToMeSuccessResType = LastMessageType[];
+export type GetMsgListToMeSuccessResType = (LastMessageType & {
+  other: {
+    id: string;
+    nickName: string;
+    profileImg: string;
+  };
+})[];
 export type GetMsgListToMeResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetMsgListToMeSuccessResType | {};
 };
@@ -1847,11 +1854,44 @@ export const getMsgListToMe = asyncWrapper(
         });
       }
 
-      const result = await getMyLastMsgs(userId);
+      const myLastMsgs = await getMyLastMsgs(userId);
+
+      const userInfo = await Promise.all(
+        myLastMsgs.map(v => {
+          return prisma.user.findUnique({
+            where: {
+              id: Number(v.other),
+            },
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
+            },
+          });
+        }),
+      );
+
+      const ret = await Promise.all(
+        myLastMsgs.map(async (v, idx) => {
+          return {
+            ...v,
+            other: {
+              id: userInfo[idx]?.id,
+              nickName: userInfo[idx]?.nickName,
+              profileImg:
+                !isNil(userInfo[idx]) &&
+                userInfo[idx]!.profileImg &&
+                userInfo[idx]!.profileImg!.toLowerCase().includes('http')
+                  ? userInfo[idx]!.profileImg
+                  : await getS3SignedUrl(userInfo[idx]!.profileImg!),
+            },
+          };
+        }),
+      );
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: result,
+        IBparams: ret,
       });
     } catch (err) {
       if (err instanceof IBError) {
