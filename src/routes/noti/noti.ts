@@ -710,6 +710,7 @@ const syncToMainDB = async (params: {
           subjectGroupId: nextSubjectGroupId,
           customerId: Number(from),
           companyId: Number(to),
+          adPlaceId: Number(adPlaceId),
         },
       });
 
@@ -1828,8 +1829,8 @@ export type GetMsgListToMeResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * 나에게 온 메시지 리스트를 마지막 메시지 배열로 보여줄 api
- * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3542-3085&t=aHKfomGVnkGisOQN-4
+ * 나(고객, 사업자 모두가능)에게 온 메시지 리스트를 마지막 메시지 배열로 보여줄 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2981&mode=design&t=WWpW8rSQrIW8iCUV-4
  */
 export const getMsgListToMe = asyncWrapper(
   async (

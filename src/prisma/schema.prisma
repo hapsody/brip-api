@@ -1003,6 +1003,7 @@ model AdPlace {
   user              User          @relation(fields: [userId], references: [id])
   userId            Int
   UserChatLog       UserChatLog[] /// 문의 메시지들
+  BookingInfo       BookingInfo[]
 }
 
 model NotificationMessage {
@@ -1108,4 +1109,6 @@ model BookingInfo {
   customerId     Int
   company        User     @relation(name: "asCompany", fields: [companyId], references: [id])
   companyId      Int
+  adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id])
+  adPlaceId      Int
 }

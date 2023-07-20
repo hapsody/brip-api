@@ -1,21 +1,35 @@
 import express from 'express';
 import prisma from '@src/prisma';
-import { BookingInfo } from '@prisma/client';
+import { BookingInfo, AdPlace } from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
   IBResFormat,
   IBError,
   accessTokenValidCheck,
+  getS3SignedUrl,
 } from '@src/utils';
-import { isNil, isEmpty } from 'lodash';
+import { isNil, isEmpty, isNull } from 'lodash';
 
 const myBookRouter: express.Application = express();
 
 export type GetMyBookingInfoRequestType = {
   role: 'company' | 'customer';
 };
-export type GetMyBookingInfoSuccessResType = BookingInfo[];
+export type GetMyBookingInfoSuccessResType = BookingInfo &
+  {
+    customer?: {
+      id: number;
+      nickName: string;
+      profileImg: string;
+    };
+    company?: {
+      id: number;
+      nickName: string;
+      profileImg: string;
+    };
+    adPlace: AdPlace;
+  }[];
 export type GetMyBookingInfoResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetMyBookingInfoSuccessResType[] | {};
 };
@@ -54,6 +68,8 @@ export const getMyBookingInfo = asyncWrapper(
         });
       }
 
+      /// redis의 bookingInfo:${key} hash 데이터는 가장 최근에 문의가 진행중인 bookingInfo 값 만을 저장하고 있기 때문에
+      /// DB를 뒤져야 과거 성사된 문의 히스토리를 볼수 있다.
       const myBookingInfo = await prisma.bookingInfo.findMany({
         where: {
           ...(role === 'customer' && {
@@ -63,11 +79,65 @@ export const getMyBookingInfo = asyncWrapper(
             companyId: userId,
           }),
         },
+        include: {
+          ...(role === 'customer' && {
+            customer: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+              },
+            },
+          }),
+          ...(role === 'company' && {
+            company: {
+              select: {
+                id: true,
+                nickName: true,
+                profileImg: true,
+              },
+            },
+          }),
+          adPlace: true,
+        },
       });
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: myBookingInfo,
+        IBparams: await Promise.all(
+          myBookingInfo.map(async v => {
+            const profileImg =
+              role === 'customer'
+                ? v.customer!.profileImg
+                : v.company!.profileImg;
+
+            if (role === 'customer') {
+              return {
+                ...v,
+                customer: {
+                  ...v.customer,
+                  profileImg:
+                    !isNull(profileImg) &&
+                    profileImg.toLowerCase().includes('http')
+                      ? profileImg
+                      : await getS3SignedUrl(profileImg!),
+                },
+              };
+            }
+
+            return {
+              ...v,
+              company: {
+                ...v.company,
+                profileImg:
+                  !isNull(profileImg) &&
+                  profileImg.toLowerCase().includes('http')
+                    ? profileImg
+                    : await getS3SignedUrl(profileImg!),
+              },
+            };
+          }),
+        ),
       });
     } catch (err) {
       if (err instanceof IBError) {
