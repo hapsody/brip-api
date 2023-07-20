@@ -202,7 +202,7 @@
             };
 
             // specific event name test
-            es.addEventListener(`userId${userId}`, event => {
+            es.addEventListener(`chat:userId${userId}`, event => {
               const data = JSON.parse(event.data);
               if (userType === 'company') {
                 const prevChat = cpSSETextarea.val();

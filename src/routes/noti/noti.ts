@@ -978,7 +978,12 @@ export const pubSSEvent = (params: { from: string; to: string }): void => {
     return;
   }
   sseClients[to]!.write(`id: 00\n`);
-  sseClients[to]!.write(`event: userId${to}\n`);
+  if (from.toUpperCase().includes('SYSTEM')) {
+    sseClients[to]!.write(`event: noti:userId${to}\n`);
+  } else {
+    sseClients[to]!.write(`event: chat:userId${to}\n`);
+  }
+
   sseClients[to]!.write(
     `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
   );
