@@ -1814,22 +1814,20 @@ type LastMessageType = {
   me: string;
   other: string;
 };
-export type GetAskListToMeRequestType = {};
-export type GetAskListToMeSuccessResType = LastMessageType[];
-export type GetAskListToMeResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetAskListToMeSuccessResType | {};
+export type GetMsgListToMeRequestType = {};
+export type GetMsgListToMeSuccessResType = LastMessageType[];
+export type GetMsgListToMeResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMsgListToMeSuccessResType | {};
 };
 
 /**
- * 고객측(사용자)가 채팅방입장시에 호출할 api
- * 이 api를 호출하면, 관련된 사업자측과 사용자측으로 모두 sse가 전달되며 getMessage를 통한 메시지 수신시에 예약/문의 안내메시지가 수신된다. (안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.)
- * 해당 사용자들끼리 최초 대화일때 단한번만 호출이된다.
- *
+ * 나에게 온 메시지 리스트를 마지막 메시지 배열로 보여줄 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3542-3085&t=aHKfomGVnkGisOQN-4
  */
-export const getAskListToMe = asyncWrapper(
+export const getMsgListToMe = asyncWrapper(
   async (
-    req: Express.IBTypedReqQuery<GetAskListToMeRequestType>,
-    res: Express.IBTypedResponse<GetAskListToMeResType>,
+    req: Express.IBTypedReqQuery<GetMsgListToMeRequestType>,
+    res: Express.IBTypedResponse<GetMsgListToMeResType>,
   ) => {
     try {
       const { locals } = req;
@@ -1982,6 +1980,6 @@ notiRouter.post(
   accessTokenValidCheck,
   reqBookingChatWelcome,
 );
-notiRouter.get('/getAskListToMe', accessTokenValidCheck, getAskListToMe);
+notiRouter.get('/getMsgListToMe', accessTokenValidCheck, getMsgListToMe);
 notiRouter.post('/getSysNotiMessage', accessTokenValidCheck, getSysNotiMessage);
 export default notiRouter;
