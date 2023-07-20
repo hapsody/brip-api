@@ -73,6 +73,10 @@ type ChatMessageType = {
   type: ChatMessageActionType; /// 메시지 타입
   actionInputParams?: ActionInputParam;
 };
+type BookingChatMessageType = ChatMessageType & {
+  customerId: string;
+  companyId: string;
+};
 
 export type SysNotiActionType =
   | 'REPLYFORMYSHARETRIPMEM'
@@ -127,10 +131,12 @@ export const takeOutSysNotiMessage = async (params: {
  * 메시지 송신시에 보내고자 하는 상대(to)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from으로부터의 메시지 큐에
  * 보내고자 하는 메시지 data를 등록해두는 함수
  */
-const putInMessage = async (params: ChatMessageType) => {
+const putInMessage = async (
+  params: ChatMessageType | BookingChatMessageType,
+) => {
   const data = params;
-  const { from, to } = data;
 
+  const { from, to } = data;
   const { key } = await (async () => {
     const candKey1 = `${from}<=>${to}`;
     const candKey2 = `${to}<=>${from}`;
@@ -141,7 +147,13 @@ const putInMessage = async (params: ChatMessageType) => {
     // result = await redis.llen(candKey1);
     return { key: candKey2, len: result };
   })();
-  const msgData = JSON.stringify({ uuid: uuidv4(), ...data });
+
+  const msgData = JSON.stringify({
+    uuid: uuidv4(),
+    ...data,
+    customerId: 'customerId' in data ? data.customerId : null,
+    companyId: 'companyId' in data ? data.companyId : null,
+  });
   await redis.rpush(key, msgData);
 
   await redis.hset(`lastMsg:iam:${from}`, `${to}`, msgData); /// from's lastMsg with to
@@ -1618,8 +1630,10 @@ export const reqNewBooking = asyncWrapper(
         order: `${result.nextOrder}`,
         type: 'NEWBOOKINGMSG' as ChatMessageActionType,
       };
-      const forwardData: ChatMessageType = {
+      const forwardData: BookingChatMessageType = {
         ...bookingData,
+        customerId: toUserId,
+        companyId: userId,
         from: userId, /// 고객
         to: toUserId, /// 사업자
       };
@@ -1640,8 +1654,10 @@ export const reqNewBooking = asyncWrapper(
         type: 'ANSNEWBOOKINGMSG' as ChatMessageActionType,
       };
 
-      const reverseData: ChatMessageType = {
+      const reverseData: BookingChatMessageType = {
         ...ansBookingData,
+        customerId: toUserId,
+        companyId: userId,
         from: toUserId, /// 사업자
         to: userId, /// 고객
       };
@@ -1762,6 +1778,8 @@ export const reqBookingChatWelcome = asyncWrapper(
 
       const data = {
         adPlaceId,
+        companyId: toUserId,
+        customerId: userId,
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
         order: `${result.nextOrder}`,
