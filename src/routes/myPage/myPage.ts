@@ -995,8 +995,9 @@ export type GetTourPlaceListByAddrRequestType = {
   lng?: string;
   horizontalRange: string; /// 가로 오차범위 값 단위: 경도
   verticalRange: string; /// 세로 오차 범위 값 단위: 위도
+  onlyHasShareTripMemory?: string; /// 공유게시물이 있는 tourPlace만 뽑을지 여부. 주어지지 않으면 default로 전체를 다 리턴한다.
 };
-export type GetTourPlaceListByAddrSuccessResType = TourPlace;
+export type GetTourPlaceListByAddrSuccessResType = TourPlace[];
 export type GetTourPlaceListByAddrResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetTourPlaceListByAddrSuccessResType | {};
 };
@@ -1027,7 +1028,14 @@ export const getTourPlaceListByAddr = asyncWrapper(
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
-      const { address, lat, lng, horizontalRange, verticalRange } = req.query;
+      const {
+        address,
+        lat,
+        lng,
+        horizontalRange,
+        verticalRange,
+        onlyHasShareTripMemory,
+      } = req.query;
 
       if (
         isNil(horizontalRange) ||
@@ -1076,6 +1084,14 @@ export const getTourPlaceListByAddr = asyncWrapper(
                 { lng: { gte: transLng - Number(verticalRange) / 2 } },
                 { lng: { lt: transLng + Number(verticalRange) / 2 } },
               ],
+              ...(!isNil(onlyHasShareTripMemory) &&
+                onlyHasShareTripMemory.toLowerCase().includes('true') && {
+                  shareTripMemory: {
+                    some: {
+                      tourPlaceId: { not: null },
+                    },
+                  },
+                }),
             },
           });
           return tp;
@@ -1098,6 +1114,14 @@ export const getTourPlaceListByAddr = asyncWrapper(
                 { lng: { gte: Number(lng) - Number(verticalRange) / 2 } },
                 { lng: { lt: Number(lng) + Number(verticalRange) / 2 } },
               ],
+              ...(!isNil(onlyHasShareTripMemory) &&
+                onlyHasShareTripMemory.toLowerCase().includes('true') && {
+                  shareTripMemory: {
+                    some: {
+                      tourPlaceId: { not: null },
+                    },
+                  },
+                }),
             },
           });
           return tp;
