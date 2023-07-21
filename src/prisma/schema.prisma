@@ -47,8 +47,8 @@ model User {
   likeTourPlace                   TourPlace[]
   IBEventApplication              IBEventApplication[]
   adPlace                         AdPlace[]
-  myChatLog                       UserChatLog[]                     @relation("FromUserChat")
-  ToUserChatLog                   UserChatLog[]                     @relation("ToUserChat")
+  myBookingChatLog                BookingChatLog[]                  @relation("FromBookingChat")
+  ToBookingChatLog                BookingChatLog[]                  @relation("ToBookingChat")
   // customerBookingInfo             BookingInfo[]                     @relation("customer")
   // companyBookingInfo              BookingInfo[]                     @relation("company")
   asCompanyBI                     BookingInfo[]                     @relation("asCustomer")
@@ -975,34 +975,34 @@ enum AdPlaceStatus {
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
 model AdPlace {
-  id                Int           @id @default(autoincrement())
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @default(now()) @updatedAt
-  status            AdPlaceStatus @default(NEW)
-  subscribe         Boolean       @default(false) /// 구독상태인지 아닌지
+  id                Int              @id @default(autoincrement())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now()) @updatedAt
+  status            AdPlaceStatus    @default(NEW)
+  subscribe         Boolean          @default(false) /// 구독상태인지 아닌지
   title             String /// 상호명
   // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  mainPhoto         IBPhotos      @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
-  mainPhotoId       Int           @unique
-  photos            IBPhotos[]    @relation("subPhoto") ///  기타 매장 사진 
+  mainPhoto         IBPhotos         @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId       Int              @unique
+  photos            IBPhotos[]       @relation("subPhoto") ///  기타 매장 사진 
   // category          AdPlaceCategory[]
   category          IBTravelTag[]
   desc              String? /// 소개글
   address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
   roadAddress       String? /// 도로명주소
   detailAddress     String? /// 있는 경우 상세주소 nullable
-  openWeek          String?       @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  closedDay         String?       @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  openWeek          String?          @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay         String?          @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
   contact           String? /// 대표번호
-  siteUrl           String?       @db.Text /// 홈페이지 또는 소셜 계정
-  businessNumber    String?       @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  siteUrl           String?          @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber    String?          @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
-  nationalCode      String        @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  nationalCode      String           @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User          @relation(fields: [userId], references: [id])
+  user              User             @relation(fields: [userId], references: [id])
   userId            Int
-  UserChatLog       UserChatLog[] /// 문의 메시지들
+  BookingChatLog    BookingChatLog[] /// 문의 메시지들
   BookingInfo       BookingInfo[]
 }
 
@@ -1037,7 +1037,7 @@ model NotificationMessage {
 //   @@id([adPlaceId, adPlaceCategoryId])
 // }
 
-enum UserChatActionType {
+enum BookingChatActionType {
   ASKBOOKINGWELCOME /// 예약문의 첫 환영 인사: ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
   NEWBOOKINGMSG /// ex) 예약하기
   ANSNEWBOOKINGMSG /// ex) '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!)
@@ -1052,26 +1052,28 @@ enum UserChatActionType {
   TEXT /// 일반 채팅 메시지
 }
 
-model UserChatLog {
-  id               Int                       @id @default(autoincrement())
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @default(now()) @updatedAt
-  date             DateTime /// 메시지가 전송된 시각
-  order            Int                       @default(0) /// userId와 toUserId 간 메시지 순서
-  message          String                    @db.VarChar(8000) /// 메시지 본문
-  actionType       UserChatActionType
-  actionInputParam UserChatActionInputParam?
-  subjectGroupId   Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
-  redisKey         String                    @db.Char(27)
-  user             User                      @relation(name: "FromUserChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId           Int
-  toUser           User                      @relation(name: "ToUserChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  toUserId         Int
-  adPlace          AdPlace?                  @relation(fields: [adPlaceId], references: [id])
-  adPlaceId        Int?
+model BookingChatLog {
+  id                      Int                          @id @default(autoincrement())
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @default(now()) @updatedAt
+  date                    DateTime /// 메시지가 전송된 시각
+  order                   Int                          @default(0) /// userId와 toUserId 간 메시지 순서
+  message                 String                       @db.VarChar(8000) /// 메시지 본문
+  bookingActionType       BookingChatActionType
+  bookingActionInputParam BookingChatActionInputParam?
+  subjectGroupId          Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
+  // redisKey         String                    @db.Char(27)
+  customerId              Int /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
+  companyId               Int /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
+  user                    User                         @relation(name: "FromBookingChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 해당 메시지 보낸 유저
+  userId                  Int
+  toUser                  User                         @relation(name: "ToBookingChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 해당 메시지를 받은 유저
+  toUserId                Int
+  adPlace                 AdPlace?                     @relation(fields: [adPlaceId], references: [id])
+  adPlaceId               Int?
 }
 
-model UserChatActionInputParam {
+model BookingChatActionInputParam {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -1093,8 +1095,8 @@ model UserChatActionInputParam {
   /// privacyAgree
   bkAgreeAnswer Boolean? /// 개인정보 이용동의 여부
 
-  userChatLog   UserChatLog @relation(fields: [userChatLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userChatLogId Int         @unique
+  bookingChatLog   BookingChatLog @relation(fields: [bookingChatLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bookingChatLogId Int            @unique
 }
 
 // /// 예약문의 관련 정보
