@@ -70,35 +70,6 @@ model FavoriteTravelType {
   userId    Int    @unique
 }
 
-// enum OPENINGHOURS {
-//   OPEN_NOW
-// }
-
-// gl, vj 필드 삭제
-// model GglPhotos {
-//   id        Int      @id @default(autoincrement())
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @default(now()) @updatedAt
-
-//   height            Int?
-//   width             Int?
-//   html_attributions String? /// 구글 사진은 유저들이 촬영하거나 장소의 소유자 및 담당자가 올린 것으로 해당 사진의 출처를 나타내는 attribute ex) "<a href=\"https://maps.google.com/maps/contrib/110378461997733115112\">A Google User</a>"
-//   photo_reference   String /// https://maps.googleapis.com/maps/api/place/photo?maxheight=420&photo_reference=<photo_reference> 로 요청할때 필요한 photo_reference.   ex) AcYSjRjZms48ZpgsVFfCrPG27i...
-//   url               String? /// photo_reference를 이용해 google photo_detail api 요청 응답값 (url). 바로 직접 접근이 가능한 사진 url은 이것이다. ex) https://lh3.googleusercontent.com/places/AM5lPC9BIx8UPtnmfCJmpPboFYBg7Ah5Mwsj-K4CuyEZFoqAxSSwZYimCn1Bvl8cYRDLzxoudSBWkzFIUicmJhpvYcXVLezWhBcaF8M=s1600-w1200
-//   TourPlace         TourPlace? @relation(name: "GooglePhotos", fields: [tourPlaceId], references: [id])
-//   tourPlaceId       Int?
-//   // shareTripMemTP    TourPlace? @relation(name: "ShareTripMemoryTourPlacePhotos", fields: [shareTripMemTPId], references: [id])
-//   // shareTripMemTPId  Int?
-// }
-
-// model GglNearbySearchResType {
-//   id        Int         @id @default(autoincrement())
-//   createdAt DateTime    @default(now())
-//   updatedAt DateTime    @default(now()) @updatedAt
-//   value     String      @unique
-//   tourPlace TourPlace[]
-// }
-
 /// tourPlace는 Batch 스크립트등을 통해 수집되는데 수집된 데이터는 바로 TourPlace 를 덮어 씌우지 않고 DataStageStatus 단계로 나뉘어 관리된다.
 enum DataStageStatus {
   NEW /// 새로 수집된 데이터, 이후 사용승인이 나야 IN_USE 단계로 넘어갈수 있다.
@@ -975,35 +946,129 @@ enum AdPlaceStatus {
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
 model AdPlace {
-  id                Int              @id @default(autoincrement())
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @default(now()) @updatedAt
-  status            AdPlaceStatus    @default(NEW)
-  subscribe         Boolean          @default(false) /// 구독상태인지 아닌지
+  id                Int                @id @default(autoincrement())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  status            AdPlaceStatus      @default(NEW)
+  subscribe         Boolean            @default(false) /// 구독상태인지 아닌지
   title             String /// 상호명
   // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  mainPhoto         IBPhotos         @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
-  mainPhotoId       Int              @unique
-  photos            IBPhotos[]       @relation("subPhoto") ///  기타 매장 사진 
+  mainPhoto         IBPhotos           @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId       Int                @unique
+  photos            IBPhotos[]         @relation("subPhoto") ///  기타 매장 사진 
   // category          AdPlaceCategory[]
   category          IBTravelTag[]
   desc              String? /// 소개글
   address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
   roadAddress       String? /// 도로명주소
   detailAddress     String? /// 있는 경우 상세주소 nullable
-  openWeek          String?          @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  closedDay         String?          @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  openWeek          String?            @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay         String?            @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
   contact           String? /// 대표번호
-  siteUrl           String?          @db.Text /// 홈페이지 또는 소셜 계정
-  businessNumber    String?          @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  siteUrl           String?            @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber    String?            @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
-  nationalCode      String           @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User             @relation(fields: [userId], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
   userId            Int
   BookingChatLog    BookingChatLog[] /// 문의 메시지들
   BookingInfo       BookingInfo[]
+  adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
+}
+
+enum AdPlaceUserLogType {
+  EXPOSURE /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수 
+  VALID_CLICK /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  VALID_CONVERSION /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+}
+
+model AdPlaceUserLog {
+  /// raw data로써 고객이(customerId) AdPlaceUserLogType에 정의된 행위를 할때 하나씩 기록한다.
+  /// batch 스크립트등을 통해 각 대상통계 unit이 집계해야 하는 시점에(daily, weekly, monthly, yearly) 따라 이전까지 집계된 unit 이후로 쌓인 AdPlaceUserLog 수를 집계하여 기록하는 시스템을 갖는다.
+  id         Int                @id @default(autoincrement())
+  createdAt  DateTime           @default(now())
+  type       AdPlaceUserLogType
+  adPlaceId  Int /// 집계대상 adPlace
+  customerId Int /// 행위 고객
+}
+
+model AdPlaceStatistics {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  daily     AdPlaceDailyStat[]
+  weekly    AdPlaceWeeklyStat[]
+  monthly   AdPlaceMonthlyStat[]
+  yearly    AdPlaceYearlyStat[]
+  adPlace   AdPlace              @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceId Int                  @unique
+}
+
+model AdPlaceDailyStat {
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+  // date                DateTime          @default(now()) /// 대상 통계집계일. 그 날짜가 속한 대상통계 unit의 집계를 뜻한다. ex) 예를들어 2000/02/24라면 Daily에서 쓰일때는 2000/02/24일 통계이며, Weekly일때는 2000년대 8주차가 2000년 2월 23~ 2000년 3월 2일가지라면 8주차 통계이고, monthly에서는 2000/02월 통계, yearly에서는 2000년 통계임을 나타냄.
+  targetYear          Int /// YYYY 2023
+  targetMonth         Int /// MM 01
+  targetDay           Int /// DD 23
+  exposureCnt         Int               @default(0) /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수
+  validClickCnt       Int               @default(0) /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  validConversionCnt  Int               @default(0) /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  adPlaceStatistics   AdPlaceStatistics @relation(fields: [adPlaceStatisticsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceStatisticsId Int
+
+  @@index([targetYear, targetMonth, targetDay])
+}
+
+model AdPlaceWeeklyStat {
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+  // date                DateTime          @default(now()) /// 대상 통계집계일. 그 날짜가 속한 대상통계 unit의 집계를 뜻한다. ex) 예를들어 2000/02/24라면 Daily에서 쓰일때는 2000/02/24일 통계이며, Weekly일때는 2000년대 8주차가 2000년 2월 23~ 2000년 3월 2일가지라면 8주차 통계이고, monthly에서는 2000/02월 통계, yearly에서는 2000년 통계임을 나타냄.
+  targetYear          Int /// YYYY 2023
+  targetWeek          Int /// WW (당해년도 몇주차인지 ex: 38) 
+  exposureCnt         Int               @default(0) /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수
+  validClickCnt       Int               @default(0) /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  validConversionCnt  Int               @default(0) /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  adPlaceStatistics   AdPlaceStatistics @relation(fields: [adPlaceStatisticsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceStatisticsId Int
+
+  @@index([targetYear, targetWeek])
+}
+
+model AdPlaceMonthlyStat {
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+  // date                DateTime          @default(now()) /// 대상 통계집계일. 그 날짜가 속한 대상통계 unit의 집계를 뜻한다. ex) 예를들어 2000/02/24라면 Daily에서 쓰일때는 2000/02/24일 통계이며, Weekly일때는 2000년대 8주차가 2000년 2월 23~ 2000년 3월 2일가지라면 8주차 통계이고, monthly에서는 2000/02월 통계, yearly에서는 2000년 통계임을 나타냄.
+  targetYear          Int /// YYYY 2023
+  targetMonth         Int /// MM 01
+  exposureCnt         Int               @default(0) /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수
+  validClickCnt       Int               @default(0) /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  validConversionCnt  Int               @default(0) /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  adPlaceStatistics   AdPlaceStatistics @relation(fields: [adPlaceStatisticsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceStatisticsId Int
+
+  @@index([targetYear, targetMonth])
+}
+
+model AdPlaceYearlyStat {
+  id                  Int               @id @default(autoincrement())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now()) @updatedAt
+  // date                DateTime          @default(now()) /// 대상 통계집계일. 그 날짜가 속한 대상통계 unit의 집계를 뜻한다. ex) 예를들어 2000/02/24라면 Daily에서 쓰일때는 2000/02/24일 통계이며, Weekly일때는 2000년대 8주차가 2000년 2월 23~ 2000년 3월 2일가지라면 8주차 통계이고, monthly에서는 2000/02월 통계, yearly에서는 2000년 통계임을 나타냄.
+  targetYear          Int /// 2023
+  exposureCnt         Int               @default(0) /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수
+  validClickCnt       Int               @default(0) /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  validConversionCnt  Int               @default(0) /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
+  adPlaceStatistics   AdPlaceStatistics @relation(fields: [adPlaceStatisticsId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceStatisticsId Int
+
+  @@index([targetYear])
 }
 
 model NotificationMessage {

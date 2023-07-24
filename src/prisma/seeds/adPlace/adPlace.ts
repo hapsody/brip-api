@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import moment from 'moment';
 import { isNil } from 'lodash';
 import request from 'supertest';
 import { adPlaceCategoryToIBTravelTag } from '@src/routes/myPage/myPage';
@@ -179,9 +180,147 @@ async function main(): Promise<void> {
                 },
               }),
         },
+        adPlaceStatistics: {
+          create: (() => {
+            const dailyData = (() => {
+              const endDate = moment().startOf('d').subtract(1, 'd');
+              const startDate = moment(endDate).subtract(380, 'd');
+
+              const dummyDayStatData: {
+                targetYear: number;
+                targetMonth: number;
+                targetDay: number;
+                exposureCnt: number;
+                validClickCnt: number;
+                validConversionCnt: number;
+              }[] = [];
+              for (
+                let curDate = moment(startDate);
+                endDate.diff(curDate) >= 0;
+                curDate.add(1, 'd')
+              ) {
+                dummyDayStatData.push({
+                  targetYear: Number(curDate.format('YYYY')),
+                  targetMonth: Number(curDate.format('MM')),
+                  targetDay: Number(curDate.format('DD')),
+                  exposureCnt: Math.floor(100 * Math.random()),
+                  validClickCnt: Math.floor(20 * Math.random()),
+                  validConversionCnt: Math.floor(5 * Math.random()),
+                });
+              }
+              return dummyDayStatData;
+            })();
+
+            /// weekly 모의통계 생성
+            let prevWeekth = -1;
+            let accExposure = 0;
+            let accValidClick = 0;
+            let accValidConversion = 0;
+            const weeklyData = dailyData
+              .map(v => {
+                const curDate = moment({
+                  year: v.targetYear,
+                  month: v.targetMonth - 1,
+                  day: v.targetDay,
+                });
+                const weekth = Number(curDate.format('w'));
+                if (prevWeekth === -1) prevWeekth = weekth;
+                if (prevWeekth !== weekth) {
+                  const ret = {
+                    targetYear: v.targetYear,
+                    targetWeek: prevWeekth,
+                    exposureCnt: accExposure,
+                    validClickCnt: accValidClick,
+                    validConversionCnt: accValidConversion,
+                  };
+                  accExposure = v.exposureCnt;
+                  accValidClick = v.validClickCnt;
+                  accValidConversion = v.validConversionCnt;
+
+                  prevWeekth = weekth;
+                  return ret;
+                }
+                accExposure += v.exposureCnt;
+                accValidClick += v.validClickCnt;
+                accValidConversion += v.validConversionCnt;
+                return null;
+              })
+              .filter(
+                (
+                  v,
+                ): v is {
+                  targetYear: number;
+                  targetWeek: number;
+                  exposureCnt: number;
+                  validClickCnt: number;
+                  validConversionCnt: number;
+                } => v !== null,
+              );
+
+            /// monthly 모의통계 생성
+            let prevMonth = -1;
+            accExposure = 0;
+            accValidClick = 0;
+            accValidConversion = 0;
+            const monthlyData = dailyData
+              .map(v => {
+                const curDate = moment({
+                  year: v.targetYear,
+                  month: v.targetMonth - 1,
+                  day: v.targetDay,
+                });
+                const month = Number(curDate.format('MM'));
+                if (prevMonth === -1) prevMonth = month;
+                if (prevMonth !== month) {
+                  const ret = {
+                    targetMonth: prevMonth,
+                    targetYear:
+                      prevMonth === 12 ? v.targetYear - 1 : v.targetYear,
+                    exposureCnt: accExposure,
+                    validClickCnt: accValidClick,
+                    validConversionCnt: accValidConversion,
+                  };
+                  accExposure = v.exposureCnt;
+                  accValidClick = v.validClickCnt;
+                  accValidConversion = v.validConversionCnt;
+
+                  prevMonth = month;
+                  return ret;
+                }
+                accExposure += v.exposureCnt;
+                accValidClick += v.validClickCnt;
+                accValidConversion += v.validConversionCnt;
+                return null;
+              })
+              .filter(
+                (
+                  v,
+                ): v is {
+                  targetYear: number;
+                  targetMonth: number;
+                  exposureCnt: number;
+                  validClickCnt: number;
+                  validConversionCnt: number;
+                } => v !== null,
+              );
+
+            return {
+              daily: {
+                create: dailyData,
+              },
+              weekly: {
+                create: weeklyData,
+              },
+              monthly: {
+                create: monthlyData,
+              },
+            };
+          })(),
+        },
       },
       include: {
         tourPlace: true,
+        adPlaceStatistics: true,
       },
     });
 
