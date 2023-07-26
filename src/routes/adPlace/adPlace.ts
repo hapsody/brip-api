@@ -6,6 +6,7 @@ import {
   IBTravelTag,
   TourPlace,
   ShareTripMemory,
+  TripMemoryCategory,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -26,12 +27,13 @@ import moment from 'moment';
 const adPlaceRouter: express.Application = express();
 
 export type GetAdPlaceRequestType = {
-  adPlaceId?: string;
-  userId?: string;
+  adPlaceId?: string; /// 검색할 adPlaceId
+  userId?: string; /// 검색할 광고주의 userId
 };
 export type GetAdPlaceSuccessResType = AdPlace & {
   photos: IBPhotos[];
   category: IBTravelTag[];
+  relatedShareTripMemoryCategory: TripMemoryCategory[]; /// adPlace와 연관이 있는 tourPlace들을 기반으로 게시된 shareTripMemory 들이 갖는 태그들을 중복없이 반환.
 };
 export type GetAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: GetAdPlaceSuccessResType[] | {};
@@ -97,6 +99,7 @@ export const getAdPlace = asyncWrapper(
               id: true,
               shareTripMemory: {
                 include: {
+                  tripMemoryCategory: true,
                   user: {
                     select: {
                       id: true,
@@ -111,10 +114,31 @@ export const getAdPlace = asyncWrapper(
         },
       });
 
+      const categoryIds = adPlaces
+        .map(adP => {
+          return adP.tourPlace
+            .map(tp => {
+              return tp.shareTripMemory
+                .map(shtm => {
+                  return shtm.tripMemoryCategory.map(cate => cate.id);
+                })
+                .flat();
+            })
+            .flat();
+        })
+        .flat();
+
+      const tripMemoryCategories = await prisma.tripMemoryCategory.findMany({
+        where: {
+          id: { in: categoryIds },
+        },
+      });
+
       const result = await Promise.all(
         adPlaces.map(async v => {
           return {
             ...omit(v, ['tourPlace']),
+            relatedShareTripMemoryCategory: tripMemoryCategories,
             mainPhoto: isNil(v.photos)
               ? null
               : await getIBPhotoUrl(v.mainPhoto),
