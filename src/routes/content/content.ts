@@ -9,6 +9,7 @@ import {
   accessTokenValidCheck,
   s3FileUpload,
   getS3SignedUrl,
+  getUserProfileUrl,
 } from '@src/utils';
 import {
   CardTag,
@@ -181,15 +182,16 @@ export const getContentList = asyncWrapper(
             userId: group.creator.userId,
             creatorId: group.creator.id,
             creatorNickName: group.creator.nickName,
-            userProfileImg: await (async () => {
-              const { profileImg } = group.creator.user;
-              if (isNil(profileImg)) return null;
-              const result =
-                profileImg && profileImg.toLowerCase().includes('http')
-                  ? profileImg
-                  : await getS3SignedUrl(profileImg);
-              return result;
-            })(),
+            userProfileImg: await getUserProfileUrl(group.creator.user),
+            // userProfileImg: await (async () => {
+            //   const { profileImg } = group.creator.user;
+            //   if (isNil(profileImg)) return null;
+            //   const result =
+            //     profileImg && profileImg.toLowerCase().includes('http')
+            //       ? profileImg
+            //       : await getS3SignedUrl(profileImg);
+            //   return result;
+            // })(),
           };
         }),
       );

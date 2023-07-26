@@ -9,6 +9,8 @@ import {
   accessTokenValidCheck,
   IBContext,
   getS3SignedUrl,
+  getUserProfileUrl,
+  getAccessableUrl,
   categoryToIBTravelTag,
   // delObjectsFromS3,
 } from '@src/utils';
@@ -1053,11 +1055,11 @@ const addTripMemory = async (
   return createdTripMem;
 };
 
-export const getAccessableUrl = async (url: string): Promise<string> => {
-  if (url.includes('http')) return url;
-  const result = await getS3SignedUrl(url);
-  return result;
-};
+// export const getAccessableUrl = async (url: string): Promise<string> => {
+//   if (url.includes('http')) return url;
+//   const result = await getS3SignedUrl(url);
+//   return result;
+// };
 
 export const getIBPhotoUrl = async (
   photo: PhotoWithMetaType,
@@ -2383,9 +2385,10 @@ export const getReplyListByShareTripMem = asyncWrapper(
               user: {
                 ...v.user,
                 ...(!isNil(v.user!.profileImg) && {
-                  profileImg: v.user!.profileImg.includes('http')
-                    ? v.user!.profileImg
-                    : await getS3SignedUrl(v.user!.profileImg),
+                  profileImg: await getUserProfileUrl(v.user),
+                  // profileImg: v.user!.profileImg.includes('http')
+                  //   ? v.user!.profileImg
+                  //   : await getS3SignedUrl(v.user!.profileImg),
                 }),
               },
               childrenReplies: await Promise.all(
@@ -2395,9 +2398,10 @@ export const getReplyListByShareTripMem = asyncWrapper(
                     user: {
                       ...v2.user,
                       ...(!isNil(v2.user!.profileImg) && {
-                        profileImg: v2.user!.profileImg.includes('http')
-                          ? v2.user!.profileImg
-                          : await getS3SignedUrl(v2.user!.profileImg),
+                        profileImg: await getUserProfileUrl(v2.user),
+                        // profileImg: v2.user!.profileImg.includes('http')
+                        //   ? v2.user!.profileImg
+                        //   : await getS3SignedUrl(v2.user!.profileImg),
                       }),
                     },
                   };
@@ -2983,15 +2987,17 @@ export const getShareTripMemList = asyncWrapper(
           IBparams: [
             {
               ...foundShareTripMem,
-              img: foundShareTripMem.img.includes('http')
-                ? foundShareTripMem.img
-                : await getS3SignedUrl(foundShareTripMem.img),
+              img: await getAccessableUrl(foundShareTripMem.img),
+              // img: foundShareTripMem.img.includes('http')
+              //   ? foundShareTripMem.img
+              //   : await getS3SignedUrl(foundShareTripMem.img),
               user: {
                 ...foundShareTripMem.user,
                 ...(!isNil(profileImg) && {
-                  profileImg: profileImg.includes('http')
-                    ? profileImg
-                    : await getS3SignedUrl(profileImg),
+                  profileImg: await getUserProfileUrl(foundShareTripMem.user),
+                  // profileImg: profileImg.includes('http')
+                  //   ? profileImg
+                  //   : await getS3SignedUrl(profileImg),
                 }),
               },
               photos: isNil(foundShareTripMem.photos)
@@ -3116,22 +3122,22 @@ export const getShareTripMemList = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundShareTripMemList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                return getAccessableUrl(profileImg);
-                // if (profileImg.includes('http')) return profileImg;
-                // return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     return getAccessableUrl(profileImg);
+            //     // if (profileImg.includes('http')) return profileImg;
+            //     // return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
               img: await getAccessableUrl(v.img),
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
               },
               photos: isNil(v.photos)
                 ? null
@@ -3455,22 +3461,24 @@ export const getShareTripMemListByPlace = asyncWrapper(
               photos: await getImgUrlListFromIBPhotos(t.photos),
               shareTripMemory: await Promise.all(
                 t.shareTripMemory.map(async s => {
-                  const userImg = await (() => {
-                    const { profileImg } = s.user;
-                    if (!isNil(profileImg)) {
-                      if (profileImg.includes('http')) return profileImg;
-                      return getS3SignedUrl(profileImg);
-                    }
-                    return null;
-                  })();
+                  // const userImg = await (() => {
+                  //   const { profileImg } = s.user;
+                  //   if (!isNil(profileImg)) {
+                  //     if (profileImg.includes('http')) return profileImg;
+                  //     return getS3SignedUrl(profileImg);
+                  //   }
+                  //   return null;
+                  // })();
                   const ret = {
                     ...s,
-                    img: s.img.includes('http')
-                      ? s.img
-                      : await getS3SignedUrl(s.img),
+                    img: await getAccessableUrl(s.img),
+                    // img: s.img.includes('http')
+                    //   ? s.img
+                    //   : await getS3SignedUrl(s.img),
                     user: {
                       ...s.user,
-                      profileImg: userImg,
+                      // profileImg: userImg,
+                      profileImg: await getUserProfileUrl(s.user),
                     },
                     photos: await Promise.all(s.photos.map(getIBPhotoUrl)),
                   };
@@ -3737,22 +3745,24 @@ export const getTripMemList = asyncWrapper(
             message: '조회 권한이 없는 기억 id입니다.',
           });
         }
-        const { profileImg } = foundTripMem.user;
+        // const { profileImg } = foundTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
           IBparams: [
             {
               ...foundTripMem,
-              img: foundTripMem.img.includes('http')
-                ? foundTripMem.img
-                : await getS3SignedUrl(foundTripMem.img),
+              img: await getAccessableUrl(foundTripMem.img),
+              // img: foundTripMem.img.includes('http')
+              //   ? foundTripMem.img
+              //   : await getS3SignedUrl(foundTripMem.img),
               user: {
                 ...foundTripMem.user,
-                ...(!isNil(profileImg) && {
-                  profileImg: profileImg.includes('http')
-                    ? profileImg
-                    : await getS3SignedUrl(profileImg),
-                }),
+                profileImg: await getUserProfileUrl(foundTripMem.user),
+                // ...(!isNil(profileImg) && {
+                //   profileImg: profileImg.includes('http')
+                //     ? profileImg
+                //     : await getS3SignedUrl(profileImg),
+                // }),
               },
               photos: isNil(foundTripMem.photos)
                 ? null
@@ -3912,21 +3922,23 @@ export const getTripMemList = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundTripMemList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                if (profileImg.includes('http')) return profileImg;
-                return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     if (profileImg.includes('http')) return profileImg;
+            //     return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
-              img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              img: await getAccessableUrl(v.img),
+              // img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
+                // profileImg: userImg,
               },
               photos: isNil(v.photos)
                 ? null
@@ -4240,14 +4252,14 @@ export const getTripMemListByGroup = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundGroupList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                if (profileImg.includes('http')) return profileImg;
-                return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     if (profileImg.includes('http')) return profileImg;
+            //     return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
@@ -4258,9 +4270,10 @@ export const getTripMemListByGroup = asyncWrapper(
                     createdDay: moment(k.createdAt)
                       .startOf('d')
                       .format('YYYY-MM-DD'),
-                    img: k.img.includes('http')
-                      ? k.img
-                      : await getS3SignedUrl(k.img),
+                    img: await getAccessableUrl(k.img),
+                    // img: k.img.includes('http')
+                    //   ? k.img
+                    //   : await getS3SignedUrl(k.img),
                     TourPlace: k.TourPlace,
                     photos: isNil(k.photos)
                       ? null
@@ -4271,7 +4284,8 @@ export const getTripMemListByGroup = asyncWrapper(
 
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
+                // profileImg: userImg,
               },
             };
 

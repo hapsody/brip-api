@@ -7,9 +7,9 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  getS3SignedUrl,
+  getUserProfileUrl,
 } from '@src/utils';
-import { isNil, isEmpty, isNull } from 'lodash';
+import { isNil, isEmpty } from 'lodash';
 
 const myBookRouter: express.Application = express();
 
@@ -78,12 +78,13 @@ export const getUser = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: {
           ...userInfo,
-          ...(!isNull(userInfo) &&
-            !isNull(userInfo.profileImg) && {
-              profileImg: userInfo.profileImg!.includes('http')
-                ? userInfo.profileImg
-                : await getS3SignedUrl(userInfo.profileImg!),
-            }),
+          profileImg: await getUserProfileUrl(userInfo),
+          // ...(!isNull(userInfo) &&
+          //   !isNull(userInfo.profileImg) && {
+          //     profileImg: userInfo.profileImg!.includes('http')
+          //       ? userInfo.profileImg
+          //       : await getS3SignedUrl(userInfo.profileImg!),
+          //   }),
         },
       });
     } catch (err) {

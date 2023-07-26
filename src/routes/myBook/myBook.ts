@@ -7,9 +7,10 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  getS3SignedUrl,
+  // getS3SignedUrl,
+  getUserProfileUrl,
 } from '@src/utils';
-import { isNil, isEmpty, isNull } from 'lodash';
+import { isNil, isEmpty } from 'lodash';
 
 const myBookRouter: express.Application = express();
 
@@ -106,21 +107,19 @@ export const getMyBookingInfo = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           myBookingInfo.map(async v => {
-            const profileImg =
-              role === 'customer'
-                ? v.customer!.profileImg
-                : v.company!.profileImg;
+            const user = role === 'customer' ? v.customer! : v.company!;
 
             if (role === 'customer') {
               return {
                 ...v,
                 customer: {
                   ...v.customer,
-                  profileImg:
-                    !isNull(profileImg) &&
-                    profileImg.toLowerCase().includes('http')
-                      ? profileImg
-                      : await getS3SignedUrl(profileImg!),
+                  profileImg: await getUserProfileUrl(user),
+                  // profileImg:
+                  //   !isNull(profileImg) &&
+                  //   profileImg.toLowerCase().includes('http')
+                  //     ? profileImg
+                  //     : await getS3SignedUrl(profileImg!),
                 },
               };
             }
@@ -129,11 +128,12 @@ export const getMyBookingInfo = asyncWrapper(
               ...v,
               company: {
                 ...v.company,
-                profileImg:
-                  !isNull(profileImg) &&
-                  profileImg.toLowerCase().includes('http')
-                    ? profileImg
-                    : await getS3SignedUrl(profileImg!),
+                profileImg: await getUserProfileUrl(user),
+                // profileImg:
+                //   !isNull(profileImg) &&
+                //   profileImg.toLowerCase().includes('http')
+                //     ? profileImg
+                //     : await getS3SignedUrl(profileImg!),
               },
             };
           }),

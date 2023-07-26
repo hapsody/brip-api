@@ -17,6 +17,7 @@ import {
   IBError,
   accessTokenValidCheck,
   getS3SignedUrl,
+  getUserProfileUrl,
   sendEmail,
 } from '@src/utils';
 import { omit, isEmpty, isNil } from 'lodash';
@@ -836,14 +837,15 @@ export const getMyProfileImg = asyncWrapper(
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
-          profileImg: await (() => {
-            if (user.profileImg && !isEmpty(user.profileImg)) {
-              return user.profileImg.includes('http')
-                ? user.profileImg
-                : getS3SignedUrl(user.profileImg);
-            }
-            return null;
-          })(),
+          profileImg: await getUserProfileUrl(user),
+          // profileImg: await (() => {
+          //   if (user.profileImg && !isEmpty(user.profileImg)) {
+          //     return user.profileImg.includes('http')
+          //       ? user.profileImg
+          //       : getS3SignedUrl(user.profileImg);
+          //   }
+          //   return null;
+          // })(),
         },
       });
     } catch (err) {
@@ -956,9 +958,10 @@ export const getMyAccountInfo = asyncWrapper(
           ...omit(user, ['password']),
           ...(user.profileImg &&
             !isEmpty(user.profileImg) && {
-              profileImg: user.profileImg.includes('http')
-                ? user.profileImg
-                : await getS3SignedUrl(user.profileImg),
+              profileImg: await getUserProfileUrl(user),
+              // profileImg: user.profileImg.includes('http')
+              //   ? user.profileImg
+              //   : await getS3SignedUrl(user.profileImg),
             }),
         },
       });

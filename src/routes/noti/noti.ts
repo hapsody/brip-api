@@ -12,7 +12,8 @@ import {
   IBResFormat,
   IBError,
   accessTokenValidCheck,
-  getS3SignedUrl,
+  // getS3SignedUrl,
+  getUserProfileUrl,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
@@ -2044,16 +2045,7 @@ export const getLastBookingMsgList = asyncWrapper(
             other: {
               id: userInfo[idx]?.id,
               nickName: userInfo[idx]?.nickName,
-              profileImg: await (() => {
-                if (isNil(userInfo[idx])) return null;
-                if (isEmpty(userInfo[idx])) return null;
-                if (isNil(userInfo[idx]!.profileImg)) return null;
-                if (isEmpty(userInfo[idx]!.profileImg)) return null;
-
-                if (userInfo[idx]!.profileImg!.toLowerCase().includes('http'))
-                  return userInfo[idx]!.profileImg;
-                return getS3SignedUrl(userInfo[idx]!.profileImg!);
-              })(),
+              profileImg: await getUserProfileUrl(userInfo[idx]),
             },
           };
         }),

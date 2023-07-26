@@ -34,11 +34,11 @@ import {
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
-import { getIBPhotoUrl } from './getIBPhotoUrl';
 import {
   categoryToIBTravelTag,
   ibTravelTagToTourPlaceType,
 } from './categoryToIBTravelTag';
+import { getUserProfileUrl, getAccessableUrl, getIBPhotoUrl } from './iBPhotos';
 
 export {
   ibDefs,
@@ -76,4 +76,6 @@ export {
   getIBPhotoUrl,
   categoryToIBTravelTag,
   ibTravelTagToTourPlaceType,
+  getUserProfileUrl,
+  getAccessableUrl,
 };
