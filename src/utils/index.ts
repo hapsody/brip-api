@@ -38,7 +38,13 @@ import {
   categoryToIBTravelTag,
   ibTravelTagToTourPlaceType,
 } from './categoryToIBTravelTag';
-import { getUserProfileUrl, getAccessableUrl, getIBPhotoUrl } from './iBPhotos';
+import {
+  getUserProfileUrl,
+  getAccessableUrl,
+  getIBPhotoUrl,
+  getThumbnailUrlFromIBPhotos,
+  getImgUrlListFromIBPhotos,
+} from './iBPhotos';
 
 export {
   ibDefs,
@@ -78,4 +84,6 @@ export {
   ibTravelTagToTourPlaceType,
   getUserProfileUrl,
   getAccessableUrl,
+  getThumbnailUrlFromIBPhotos,
+  getImgUrlListFromIBPhotos,
 };

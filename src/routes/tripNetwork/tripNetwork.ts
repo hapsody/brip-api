@@ -1,6 +1,6 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
-import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
+// import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
 import {
   ibDefs,
   asyncWrapper,
@@ -13,6 +13,7 @@ import {
   getAccessableUrl,
   categoryToIBTravelTag,
   // delObjectsFromS3,
+  getImgUrlListFromIBPhotos,
 } from '@src/utils';
 import {
   Prisma,
