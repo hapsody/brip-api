@@ -81,24 +81,22 @@ export const getMyBookingInfo = asyncWrapper(
           }),
         },
         include: {
-          ...(role === 'customer' && {
-            customer: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-              },
+          customer: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
             },
-          }),
-          ...(role === 'company' && {
-            company: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-              },
+          },
+
+          company: {
+            select: {
+              id: true,
+              nickName: true,
+              profileImg: true,
             },
-          }),
+          },
+
           adPlace: true,
         },
       });
@@ -107,33 +105,15 @@ export const getMyBookingInfo = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           myBookingInfo.map(async v => {
-            const user = role === 'customer' ? v.customer! : v.company!;
-
-            if (role === 'customer') {
-              return {
-                ...v,
-                customer: {
-                  ...v.customer,
-                  profileImg: await getUserProfileUrl(user),
-                  // profileImg:
-                  //   !isNull(profileImg) &&
-                  //   profileImg.toLowerCase().includes('http')
-                  //     ? profileImg
-                  //     : await getS3SignedUrl(profileImg!),
-                },
-              };
-            }
-
             return {
               ...v,
+              customer: {
+                ...v.customer,
+                profileImg: await getUserProfileUrl(v.customer),
+              },
               company: {
                 ...v.company,
-                profileImg: await getUserProfileUrl(user),
-                // profileImg:
-                //   !isNull(profileImg) &&
-                //   profileImg.toLowerCase().includes('http')
-                //     ? profileImg
-                //     : await getS3SignedUrl(profileImg!),
+                profileImg: await getUserProfileUrl(v.company),
               },
             };
           }),
