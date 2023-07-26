@@ -2009,12 +2009,18 @@ export const getLastBookingMsgList = asyncWrapper(
         role,
       });
 
-      const adPlaceFilteredLastBookingMsgs = myLastBookingMsgs.filter(
-        v =>
-          !isNil(v.lastMsg.adPlaceId) &&
-          !isNil(adPlaceId) &&
-          Number(v.lastMsg.adPlaceId) === Number(adPlaceId),
-      );
+      const adPlaceFilteredLastBookingMsgs = (() => {
+        if (!isNil(adPlaceId) && !isEmpty(adPlaceId) && !isNaN(adPlaceId)) {
+          return myLastBookingMsgs.filter(
+            v =>
+              !isNil(v.lastMsg.adPlaceId) &&
+              !isNil(adPlaceId) &&
+              Number(v.lastMsg.adPlaceId) === Number(adPlaceId),
+          );
+        }
+
+        return myLastBookingMsgs;
+      })();
 
       const userInfo = await Promise.all(
         adPlaceFilteredLastBookingMsgs.map(v => {
@@ -2038,12 +2044,16 @@ export const getLastBookingMsgList = asyncWrapper(
             other: {
               id: userInfo[idx]?.id,
               nickName: userInfo[idx]?.nickName,
-              profileImg:
-                !isNil(userInfo[idx]) &&
-                userInfo[idx]!.profileImg &&
-                userInfo[idx]!.profileImg!.toLowerCase().includes('http')
-                  ? userInfo[idx]!.profileImg
-                  : await getS3SignedUrl(userInfo[idx]!.profileImg!),
+              profileImg: await (() => {
+                if (isNil(userInfo[idx])) return null;
+                if (isEmpty(userInfo[idx])) return null;
+                if (isNil(userInfo[idx]!.profileImg)) return null;
+                if (isEmpty(userInfo[idx]!.profileImg)) return null;
+
+                if (userInfo[idx]!.profileImg!.toLowerCase().includes('http'))
+                  return userInfo[idx]!.profileImg;
+                return getS3SignedUrl(userInfo[idx]!.profileImg!);
+              })(),
             },
           };
         }),
