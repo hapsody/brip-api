@@ -174,6 +174,7 @@ export const getAdPlace = asyncWrapper(
 
 export type GetAdPlaceStatisticsRequestType = {
   adPlaceId: string; /// 조회하려는 adPlaceId
+  day?: string; /// 조회하려는 날짜 기준일 ex) 2023-06-20이면 daily는 전날인 2023-06-19일이 조회되고 weekly는 6/20일 기준으로 전주인 2023년 24번째 주간통계가, 월간 통계는 2023-06-20일이 속한 해인 2023년 통계가 월간치로 뽑힌다.
 };
 export type GetAdPlaceStatisticsSuccessResType = {
   daily: {
@@ -228,7 +229,7 @@ export const getAdPlaceStatistics = asyncWrapper(
         });
       }
 
-      const { adPlaceId } = req.query;
+      const { adPlaceId, day } = req.query;
       if (isNil(adPlaceId) || isEmpty(adPlaceId) || isNaN(Number(adPlaceId))) {
         throw new IBError({
           type: 'INVALIDPARAMS',
@@ -237,7 +238,7 @@ export const getAdPlaceStatistics = asyncWrapper(
         });
       }
 
-      const today = moment();
+      const today = moment(day).startOf('d');
       // const where = {
       //   adPlaceId: Number(adPlaceId),
       //   ...(() => {
@@ -286,6 +287,8 @@ export const getAdPlaceStatistics = asyncWrapper(
       //     };
       //   })(),
       // };
+      const yesterday = moment(today).subtract(1, 'd');
+      const prevWeek = moment(today).subtract(1, 'w');
       const adPlaceStatistics = await prisma.adPlaceStatistics.findFirst({
         where: {
           adPlaceId: Number(adPlaceId),
@@ -296,7 +299,7 @@ export const getAdPlaceStatistics = asyncWrapper(
           // monthly: true,
           ...(() => {
             /// daily condition
-            const yesterday = moment(today).subtract(1, 'd');
+
             const targetYear = Number(yesterday.format('YYYY'));
             const targetMonth = Number(yesterday.format('MM')); /// 이번달.
             const targetDay = Number(yesterday.format('DD')); /// 전날
@@ -314,7 +317,7 @@ export const getAdPlaceStatistics = asyncWrapper(
           ...(() => {
             /// weekly condition
             /// 당해년도 1주차면 전해년도 52주차를 반환
-            const prevWeek = moment(today).subtract(1, 'w');
+
             const targetYear = Number(prevWeek.format('YYYY'));
             const targetWeek = Number(prevWeek.format('WW')); /// 전 주
 
@@ -355,9 +358,9 @@ export const getAdPlaceStatistics = asyncWrapper(
         daily:
           isNil(daily) || isEmpty(daily)
             ? {
-                targetYear: Number(today.format('YYYY')),
-                targetMonth: Number(today.format('MM')),
-                targetDay: Number(today.format('DD')),
+                targetYear: Number(yesterday.format('YYYY')),
+                targetMonth: Number(yesterday.format('MM')),
+                targetDay: Number(yesterday.format('DD')),
                 exposure: 0,
                 validClicks: 0,
                 validConversions: 0,
@@ -373,8 +376,8 @@ export const getAdPlaceStatistics = asyncWrapper(
         weekly:
           isNil(weekly) || isEmpty(weekly)
             ? {
-                targetYear: Number(today.format('YYYY')),
-                targetWeek: Number(today.format('w')),
+                targetYear: Number(prevWeek.format('YYYY')),
+                targetWeek: Number(prevWeek.format('w')),
                 exposure: 0,
                 validClicks: 0,
                 validConversions: 0,
