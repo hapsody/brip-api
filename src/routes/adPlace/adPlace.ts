@@ -16,6 +16,8 @@ import {
   getIBPhotoUrl,
   addrToGeoCode,
   ibTravelTagToTourPlaceType,
+  getAccessableUrl,
+  getUserProfileUrl,
   // getS3SignedUrl,
 } from '@src/utils';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
@@ -39,6 +41,7 @@ export type GetAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
  * AdPlace 정보를 요청한다.
  * 구독상태이고 status가 IN_USE 상태인것만 찾는다.
  * 공유글은 adPlace와 연관된 모든 tourPlace에 달린 공유글을 노출한다.
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2478&mode=design&t=2AIO8OM26WPo3dXs-4
  */
 export const getAdPlace = asyncWrapper(
   async (
@@ -92,7 +95,17 @@ export const getAdPlace = asyncWrapper(
           tourPlace: {
             select: {
               id: true,
-              shareTripMemory: true,
+              shareTripMemory: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      nickName: true,
+                      profileImg: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -108,7 +121,22 @@ export const getAdPlace = asyncWrapper(
             photos: isNil(v.photos)
               ? null
               : await Promise.all(v.photos.map(getIBPhotoUrl)),
-            shareTripMemory: v.tourPlace.map(k => k.shareTripMemory).flat(1),
+            shareTripMemory: await Promise.all(
+              v.tourPlace
+                .map(k =>
+                  k.shareTripMemory.map(async stm => {
+                    return {
+                      ...stm,
+                      img: await getAccessableUrl(stm.img),
+                      user: {
+                        ...stm.user,
+                        profileImg: await getUserProfileUrl(stm.user),
+                      },
+                    };
+                  }),
+                )
+                .flat(1),
+            ),
           };
         }),
       );
