@@ -69,7 +69,7 @@ type BookingActionInputParam = {
   /// numOfPeople?: string;
 };
 type ChatMessageType = {
-  adPlaceId: string | null; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
+  adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각
@@ -155,11 +155,19 @@ const putInBookingMsg = async (params: BookingChatMessageType) => {
 const bookingChatLogToBookingChatMsg = (
   params: BookingChatLog & {
     bookingActionInputParam: BookingChatActionInputParam | null;
-    user: User;
+    user: User | null;
   },
 ): BookingChatMessageType | null => {
+  if (
+    isNil(params.adPlaceId) ||
+    isNil(params.userId) ||
+    isNil(params.toUserId) ||
+    isNil(params.user)
+  )
+    return null;
+
   return {
-    adPlaceId: isNil(params.adPlaceId) ? null : `${params.adPlaceId}`,
+    adPlaceId: `${params.adPlaceId}`,
     createdAt: new Date(params.date).toISOString(),
     customerId: `${params.customerId}`,
     companyId: `${params.companyId}`,
@@ -349,7 +357,7 @@ const getMyLastBookingMsgs = async (params: {
   const lastMsgsGroupByOthers = mysqlMsgs.reduce<
     (BookingChatLog & {
       bookingActionInputParam: BookingChatActionInputParam | null;
-      user: User;
+      user: User | null;
     })[]
   >((acc, cur) => {
     const alreadyExist = acc.find(v => {
@@ -373,7 +381,11 @@ const getMyLastBookingMsgs = async (params: {
       }
       return {
         me,
-        other: v.userId === Number(me) ? `${v.toUserId}` : `${v.userId}`,
+        other: (() => {
+          if (v.userId === Number(me))
+            return isNil(v.toUserId) ? null : `${v.toUserId}`;
+          return isNil(v.userId) ? null : `${v.userId}`;
+        })(),
         lastMsg: {
           ...lastMsg,
           customerId: 'null',
@@ -1119,13 +1131,9 @@ export const sendBookingMsg = asyncWrapper(
                 }
 
                 // 문의 booking Info 임시저장
-                // await redis.set(
-                //   `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
-                //   `${date},${numOfPeople}`,
-                // );
                 await redis.hset(
                   `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
-                  `${d.adPlaceId!}`,
+                  `${d.adPlaceId}`,
                   `${date},${numOfPeople}`,
                 );
 
@@ -1186,7 +1194,7 @@ export const sendBookingMsg = asyncWrapper(
                 pubSSEvent(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
-                adPlaceId: d.adPlaceId!,
+                adPlaceId: d.adPlaceId,
                 customerId: d.from,
                 companyId: d.to,
               });
@@ -1250,7 +1258,7 @@ export const sendBookingMsg = asyncWrapper(
                 await putInBookingMsg(systemGuideMsg);
                 pubSSEvent(systemGuideMsg);
                 await bookingChatSyncToDB({
-                  adPlaceId: d.adPlaceId!,
+                  adPlaceId: d.adPlaceId,
                   customerId: d.from,
                   companyId: d.to,
                 });
@@ -1279,7 +1287,7 @@ export const sendBookingMsg = asyncWrapper(
 
                 const adPlace = await prisma.adPlace.findUnique({
                   where: {
-                    id: Number(d.adPlaceId!),
+                    id: Number(d.adPlaceId),
                   },
                 });
 
@@ -1300,7 +1308,7 @@ export const sendBookingMsg = asyncWrapper(
                 ) {
                   const bookingInfo = await redis.hget(
                     `bookingInfo:${d.customerId}=>${d.companyId}`,
-                    `${d.adPlaceId!}`,
+                    `${d.adPlaceId}`,
                   );
                   if (isNil(bookingInfo)) {
                     throw new IBError({
@@ -1362,7 +1370,7 @@ export const sendBookingMsg = asyncWrapper(
                 pubSSEvent(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
-                adPlaceId: d.adPlaceId!,
+                adPlaceId: d.adPlaceId,
                 customerId: d.customerId, /// 고객
                 companyId: d.companyId, /// 사업자
               });
@@ -1950,8 +1958,8 @@ export const reqBookingChatWelcome = asyncWrapper(
 
 type LastBookingMessageType = {
   lastMsg: BookingChatMessageType;
-  me: string;
-  other: string;
+  me: string | null;
+  other: string | null;
 };
 export type GetLastBookingMsgListRequestType = {
   role: 'company' | 'customer'; /// api를 요청한 유저의 역할. company이면 해당 사업자 유저한테 온 문의메시지 리스트들을 모두 보여주고, customer이면 해당 고객 유저가 문의했었던 메시지 리스트들을 모두 보여준다.

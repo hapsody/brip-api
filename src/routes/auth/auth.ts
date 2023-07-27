@@ -1158,6 +1158,110 @@ export const resetPassword = asyncWrapper(
   },
 );
 
+export type UnRegisterRequestType = {
+  password: string;
+};
+export type UnRegisterSuccessResType = {};
+export type UnRegisterResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UnRegisterSuccessResType | {};
+};
+
+/**
+ * 회원탈퇴 요청 api
+ */
+export const unRegister = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UnRegisterRequestType>,
+    res: Express.IBTypedResponse<UnRegisterResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const user = (() => {
+        if (locals && locals?.grade === 'member') return locals?.user;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(user)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { password } = req.body;
+      if (isNil(password) || isEmpty(password)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'password 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      const compareResult: Boolean = await compare(password, user.password);
+      if (!compareResult) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: 'password가 일치하지 않습니다.',
+        });
+      }
+
+      await prisma.user.delete({
+        where: {
+          id: user.id,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -1187,5 +1291,6 @@ authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
+authRouter.post('/unRegister', accessTokenValidCheck, unRegister);
 
 export default authRouter;

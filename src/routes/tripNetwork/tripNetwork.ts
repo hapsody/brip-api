@@ -27,7 +27,7 @@ import {
   ReplyForShareTripMemory,
   PlaceType,
   IBPhotos,
-  User,
+  // User,
   IBTravelTag,
   IBPhotoMetaInfoType,
   IBPhotoMetaInfo,
@@ -290,10 +290,10 @@ export type TourPlaceCommonType = Pick<
 > & {
   // photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[]; /// deprecated 예정 => TourPlaceCommonType을 사용하고 있는 api의 리턴값에서 AddTripMemorySuccessResType.photo 또는 GetShareTripMemListByPlaceSuccessResType.photo 등과 같이 리턴값에서 TourPlace 상위의 photos 프로퍼티로 반환정보를 대체함
   photos?: Partial<IBPhotos>[];
-  likeFrom: Pick<
-    User,
-    'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
-  >[];
+  // likeFrom: Pick<
+  //   User,
+  //   'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
+  // >[];
 };
 
 type PhotoWithMetaType = Partial<IBPhotos> & {
@@ -720,15 +720,15 @@ const addTripMemory = async (
             notBad: true,
             bad: true,
             like: true,
-            likeFrom: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-            },
+            // likeFrom: {
+            //   select: {
+            //     id: true,
+            //     nickName: true,
+            //     profileImg: true,
+            //     createdAt: true,
+            //     updatedAt: true,
+            //   },
+            // },
             adPlaceId: true,
           },
         },
@@ -1036,15 +1036,15 @@ const addTripMemory = async (
             notBad: true,
             bad: true,
             like: true,
-            likeFrom: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-            },
+            // likeFrom: {
+            //   select: {
+            //     id: true,
+            //     nickName: true,
+            //     profileImg: true,
+            //     createdAt: true,
+            //     updatedAt: true,
+            //   },
+            // },
             adPlaceId: true,
           },
         },
@@ -1542,15 +1542,15 @@ export const addShareTripMemory = asyncWrapper(
                     notBad: true,
                     bad: true,
                     like: true,
-                    likeFrom: {
-                      select: {
-                        id: true,
-                        nickName: true,
-                        profileImg: true,
-                        createdAt: true,
-                        updatedAt: true,
-                      },
-                    },
+                    // likeFrom: {
+                    //   select: {
+                    //     id: true,
+                    //     nickName: true,
+                    //     profileImg: true,
+                    //     createdAt: true,
+                    //     updatedAt: true,
+                    //   },
+                    // },
                     adPlaceId: true,
                   },
                 },
@@ -1742,15 +1742,15 @@ export const addShareTripMemory = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
                 adPlaceId: true,
               },
             },
@@ -2181,33 +2181,35 @@ export const addReplyToShareTripMemory = asyncWrapper(
         return result;
       });
 
-      /// 1. 댓글이 달린 shareTripMemory 소유자
-      await putInSysNotiMessage({
-        userId: `${createdOne.shareTripMemory.userId}`,
-        // userRole: createdOne.shareTripMemory.user
-        createdAt: new Date(createdOne.createdAt).toISOString(),
-        message: '내 게시물에 댓글이 달렸어요',
-        type: 'REPLYFORMYSHARETRIPMEM',
-      });
-      pubSSEvent({
-        from: 'system',
-        to: `${createdOne.shareTripMemory.userId}`,
-      });
-
-      /// 2. 대댓글인경우 부모 댓글 쓴사람
-      if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
-        /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
+      if (!isNil(createdOne.shareTripMemory.userId)) {
+        /// 1. 댓글이 달린 shareTripMemory 소유자
         await putInSysNotiMessage({
-          userId: `${parentRpl.userId}`,
+          userId: `${createdOne.shareTripMemory.userId}`,
           // userRole: createdOne.shareTripMemory.user
           createdAt: new Date(createdOne.createdAt).toISOString(),
           message: '내 게시물에 댓글이 달렸어요',
-          type: 'REPLYFORMYREPLY',
+          type: 'REPLYFORMYSHARETRIPMEM',
         });
         pubSSEvent({
           from: 'system',
-          to: `${parentRpl.userId}`,
+          to: `${createdOne.shareTripMemory.userId}`,
         });
+
+        /// 2. 대댓글인경우 부모 댓글 쓴사람
+        if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
+          /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
+          await putInSysNotiMessage({
+            userId: `${parentRpl.userId}`,
+            // userRole: createdOne.shareTripMemory.user
+            createdAt: new Date(createdOne.createdAt).toISOString(),
+            message: '내 게시물에 댓글이 달렸어요',
+            type: 'REPLYFORMYREPLY',
+          });
+          pubSSEvent({
+            from: 'system',
+            to: `${parentRpl.userId}`,
+          });
+        }
       }
 
       res.json({
@@ -2385,12 +2387,13 @@ export const getReplyListByShareTripMem = asyncWrapper(
               ...v,
               user: {
                 ...v.user,
-                ...(!isNil(v.user!.profileImg) && {
-                  profileImg: await getUserProfileUrl(v.user),
-                  // profileImg: v.user!.profileImg.includes('http')
-                  //   ? v.user!.profileImg
-                  //   : await getS3SignedUrl(v.user!.profileImg),
-                }),
+                ...(!isNil(v.user) &&
+                  !isNil(v.user.profileImg) && {
+                    profileImg: await getUserProfileUrl(v.user),
+                    // profileImg: v.user!.profileImg.includes('http')
+                    //   ? v.user!.profileImg
+                    //   : await getS3SignedUrl(v.user!.profileImg),
+                  }),
               },
               childrenReplies: await Promise.all(
                 v.childrenReplies.map(async v2 => {
@@ -2398,12 +2401,13 @@ export const getReplyListByShareTripMem = asyncWrapper(
                     ...v2,
                     user: {
                       ...v2.user,
-                      ...(!isNil(v2.user!.profileImg) && {
-                        profileImg: await getUserProfileUrl(v2.user),
-                        // profileImg: v2.user!.profileImg.includes('http')
-                        //   ? v2.user!.profileImg
-                        //   : await getS3SignedUrl(v2.user!.profileImg),
-                      }),
+                      ...(!isNil(v2.user) &&
+                        !isNil(v2.user.profileImg) && {
+                          profileImg: await getUserProfileUrl(v2.user),
+                          // profileImg: v2.user!.profileImg.includes('http')
+                          //   ? v2.user!.profileImg
+                          //   : await getS3SignedUrl(v2.user!.profileImg),
+                        }),
                     },
                   };
                 }),
@@ -2945,15 +2949,15 @@ export const getShareTripMemList = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
                 adPlaceId: true,
               },
             },
@@ -2982,7 +2986,6 @@ export const getShareTripMemList = asyncWrapper(
         //     message: '공유상태의 shareTripMemoryId가 아닙니다.',
         //   });
         // }
-        const { profileImg } = foundShareTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
           IBparams: [
@@ -2992,15 +2995,18 @@ export const getShareTripMemList = asyncWrapper(
               // img: foundShareTripMem.img.includes('http')
               //   ? foundShareTripMem.img
               //   : await getS3SignedUrl(foundShareTripMem.img),
-              user: {
-                ...foundShareTripMem.user,
-                ...(!isNil(profileImg) && {
-                  profileImg: await getUserProfileUrl(foundShareTripMem.user),
-                  // profileImg: profileImg.includes('http')
-                  //   ? profileImg
-                  //   : await getS3SignedUrl(profileImg),
-                }),
-              },
+              ...(!isNil(foundShareTripMem.user) && {
+                user: {
+                  ...foundShareTripMem.user,
+                  ...(!isNil(foundShareTripMem.user.profileImg) && {
+                    profileImg: await getUserProfileUrl(foundShareTripMem.user),
+                    // profileImg: profileImg.includes('http')
+                    //   ? profileImg
+                    //   : await getS3SignedUrl(profileImg),
+                  }),
+                },
+              }),
+
               photos: isNil(foundShareTripMem.photos)
                 ? null
                 : await Promise.all(
@@ -3075,15 +3081,15 @@ export const getShareTripMemList = asyncWrapper(
               notBad: true,
               bad: true,
               like: true,
-              likeFrom: {
-                select: {
-                  id: true,
-                  nickName: true,
-                  profileImg: true,
-                  createdAt: true,
-                  updatedAt: true,
-                },
-              },
+              // likeFrom: {
+              //   select: {
+              //     id: true,
+              //     nickName: true,
+              //     profileImg: true,
+              //     createdAt: true,
+              //     updatedAt: true,
+              //   },
+              // },
               adPlaceId: true,
             },
           },
@@ -3371,15 +3377,15 @@ export const getShareTripMemListByPlace = asyncWrapper(
           notBad: true,
           bad: true,
           like: true,
-          likeFrom: {
-            select: {
-              id: true,
-              nickName: true,
-              profileImg: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          },
+          // likeFrom: {
+          //   select: {
+          //     id: true,
+          //     nickName: true,
+          //     profileImg: true,
+          //     createdAt: true,
+          //     updatedAt: true,
+          //   },
+          // },
 
           ibTravelTag: true,
           shareTripMemory: {
@@ -3719,15 +3725,15 @@ export const getTripMemList = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
               },
             },
           },
@@ -4217,15 +4223,15 @@ export const getTripMemListByGroup = asyncWrapper(
                   notBad: true,
                   bad: true,
                   like: true,
-                  likeFrom: {
-                    select: {
-                      id: true,
-                      nickName: true,
-                      profileImg: true,
-                      createdAt: true,
-                      updatedAt: true,
-                    },
-                  },
+                  // likeFrom: {
+                  //   select: {
+                  //     id: true,
+                  //     nickName: true,
+                  //     profileImg: true,
+                  //     createdAt: true,
+                  //     updatedAt: true,
+                  //   },
+                  // },
                 },
               },
               photos: {
@@ -5799,8 +5805,8 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
       //   });
       // }
 
-      if (isEmpty(existCheck.likeFrom)) {
-        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음 => 때문에 like 처리함
         const likeResult = await prisma.shareTripMemory.update({
           where: {
             id: Number(shareTripMemoryId),
@@ -5829,6 +5835,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         return;
       }
 
+      /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 있음 => 때문에 unlike 처리함
       const unlikeResult = await prisma.shareTripMemory.update({
         where: {
           id: Number(shareTripMemoryId),
@@ -6162,7 +6169,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.likeFrom)) {
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
         res.json({
           ...ibDefs.SUCCESS,
@@ -6237,6 +6244,9 @@ export type CheckLikeTourPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: CheckLikeTourPlaceSuccessResType | {};
 };
 
+/**
+ * accessToken을 제공한 유저가 해당 '장소' 항목에 좋아요 했는지 여부를 확인 요청하는 api
+ */
 export const checkLikeTourPlace = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<CheckLikeTourPlaceRequestType>,
@@ -6267,7 +6277,7 @@ export const checkLikeTourPlace = asyncWrapper(
 
       if (isNil(tourPlaceId) || isEmpty(tourPlaceId)) {
         throw new IBError({
-          type: 'NOTEXISTDATA',
+          type: 'INVALIDPARAMS',
           message: 'tourPlaceId는 필수 값입니다.',
         });
       }
@@ -6309,7 +6319,7 @@ export const checkLikeTourPlace = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.likeFrom)) {
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
         res.json({
           ...ibDefs.SUCCESS,
@@ -6332,6 +6342,16 @@ export const checkLikeTourPlace = asyncWrapper(
           console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });

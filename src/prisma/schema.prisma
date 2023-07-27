@@ -66,7 +66,7 @@ model FavoriteTravelType {
   trip      String @default("dontcare") /// 선호하는 여행타입 복수선택 가능 ex) "free(자유여행), package(패키지), food(먹거리), luxury(럭셔리), privateActivity(개인 액티비티), groupActivity(그룹 액티비티), shopping(쇼핑), resort(호캉스/리조트), visit(명소방문), landscape(자연경관), waterpark(워터파크), ocean(해수욕), dontcare"
   activity  String @default("dontcare") /// 선호하는 액티비티 타입 복수선택 가능 ex) "surfing(서핑), skyDiving(스카이 다이빙), scubaDiving(스쿠버다이빙), tracking(트랙킹), bicycle(자전거), bike(바이크), climbing(등산), swimming(수영), ski(스키/보드), golf(골프), snorkling(스노클링), etc(기타), dontcare(상관없음)"
   companion String @default("dontcare") /// 선호하는 동반자 타입 복수선택 가능 ex) "family(가족), lover(연인), friend(친구), alone(혼자), circle(소모임), traveler(여행중 만난사람), dontcare(상관없음)"
-  user      User   @relation(fields: [userId], references: [id])
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    Int    @unique
 }
 
@@ -715,7 +715,7 @@ model UserPasswordHistory {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
   password  String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    Int
 }
 
@@ -752,7 +752,7 @@ model TripMemory {
   TourPlace   TourPlace?      @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId Int?
   // tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
-  user        User            @relation(fields: [userId], references: [id])
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId      Int
 
   ShareTripMemory ShareTripMemory?
@@ -782,8 +782,8 @@ model ShareTripMemory {
   tripMemory                      TripMemory?                       @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId                    Int?                              @unique
   tripMemoryCategory              TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
-  user                            User                              @relation(name: "author", fields: [userId], references: [id])
-  userId                          Int
+  user                            User?                             @relation(name: "author", fields: [userId], references: [id])
+  userId                          Int?
   ReplyForShareTripMemory         ReplyForShareTripMemory[]
   NotiNewCommentOnShareTripMemory NotiNewCommentOnShareTripMemory[]
   likeFrom                        User[]                            @relation(name: "likeFrom")
@@ -913,6 +913,7 @@ enum MainBackgroundImgType {
   NIGHT
 }
 
+/// brip 메인 화면의 백그라운드 img
 model MainBackgroundImg {
   id        Int                   @id @default(autoincrement())
   createdAt DateTime              @default(now())
@@ -923,6 +924,7 @@ model MainBackgroundImg {
   type      MainBackgroundImgType
 }
 
+/// 메인화면의 컨텐츠 노출 빈도에 따라 어떤 컨텐츠 그룹을 띄울지 결정하기 위해 기록될 정보들 (redis 대체 요망)
 model ContentGrpExposedHistory {
   id           Int      @id @default(autoincrement())
   createdAt    DateTime @default(now())
@@ -971,19 +973,21 @@ model AdPlace {
   nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User               @relation(fields: [userId], references: [id])
-  userId            Int
+  user              User?              @relation(fields: [userId], references: [id])
+  userId            Int?
   BookingChatLog    BookingChatLog[] /// 문의 메시지들
   BookingInfo       BookingInfo[]
   adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
 }
 
+/// 통계 집계와 관련한 유저 액션이 타입
 enum AdPlaceUserLogType {
   EXPOSURE /// 노출수: 스케쥴에  뽑힌것, 실시간 추천, 네트워크 일반 노출 수 
   VALID_CLICK /// 유효클릭수: 광고 비즈니스 문의 페이지까지 들어온것 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
   VALID_CONVERSION /// 유효전환수: 광고 비즈니스 문의 페이지까지 들어와서 문의 버튼까지 누른 수 https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3537-2711&mode=design&t=9lNcRGkkddcykgox-4
 }
 
+/// 통계 집계와 관련한 유저 액션이 일어날때마다 시각과 함께 기록될 userLog들
 model AdPlaceUserLog {
   /// raw data로써 고객이(customerId) AdPlaceUserLogType에 정의된 행위를 할때 하나씩 기록한다.
   /// batch 스크립트등을 통해 각 대상통계 unit이 집계해야 하는 시점에(daily, weekly, monthly, yearly) 따라 이전까지 집계된 unit 이후로 쌓인 AdPlaceUserLog 수를 집계하여 기록하는 시스템을 갖는다.
@@ -994,6 +998,7 @@ model AdPlaceUserLog {
   customerId Int /// 행위 고객
 }
 
+/// batch 스크립트등을 통해 집계된 통계들을 소유한 adPlace와 1:1 대응관계인 모델 
 model AdPlaceStatistics {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -1007,6 +1012,7 @@ model AdPlaceStatistics {
   adPlaceId Int                  @unique
 }
 
+/// batch 스크립트등을 통해 집계된 일간 통계
 model AdPlaceDailyStat {
   id                  Int               @id @default(autoincrement())
   createdAt           DateTime          @default(now())
@@ -1024,6 +1030,7 @@ model AdPlaceDailyStat {
   @@index([targetYear, targetMonth, targetDay])
 }
 
+/// batch 스크립트등을 통해 집계된 주간 통계
 model AdPlaceWeeklyStat {
   id                  Int               @id @default(autoincrement())
   createdAt           DateTime          @default(now())
@@ -1040,6 +1047,7 @@ model AdPlaceWeeklyStat {
   @@index([targetYear, targetWeek])
 }
 
+/// batch 스크립트등을 통해 집계된 월간 통계
 model AdPlaceMonthlyStat {
   id                  Int               @id @default(autoincrement())
   createdAt           DateTime          @default(now())
@@ -1056,6 +1064,7 @@ model AdPlaceMonthlyStat {
   @@index([targetYear, targetMonth])
 }
 
+/// batch 스크립트등을 통해 집계된 연간 통계(아직 사용안함)
 model AdPlaceYearlyStat {
   id                  Int               @id @default(autoincrement())
   createdAt           DateTime          @default(now())
@@ -1071,13 +1080,14 @@ model AdPlaceYearlyStat {
   @@index([targetYear])
 }
 
+/// 알림 메시지 
 model NotificationMessage {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
   message   String
   type      String /// 추후 확정되면 enum값으로 변경 필요
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    Int
 }
 
@@ -1102,6 +1112,7 @@ model NotificationMessage {
 //   @@id([adPlaceId, adPlaceCategoryId])
 // }
 
+/// 예약문의 채팅 관련 메시지 액션 타입을 규정하는 enum
 enum BookingChatActionType {
   ASKBOOKINGWELCOME /// 예약문의 첫 환영 인사: ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
   NEWBOOKINGMSG /// ex) 예약하기
@@ -1117,6 +1128,7 @@ enum BookingChatActionType {
   TEXT /// 일반 채팅 메시지
 }
 
+/// 예약 문의 관련 채팅 기록
 model BookingChatLog {
   id                      Int                          @id @default(autoincrement())
   createdAt               DateTime                     @default(now())
@@ -1130,14 +1142,15 @@ model BookingChatLog {
   // redisKey         String                    @db.Char(27)
   customerId              Int /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
   companyId               Int /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
-  user                    User                         @relation(name: "FromBookingChat", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 해당 메시지 보낸 유저
-  userId                  Int
-  toUser                  User                         @relation(name: "ToBookingChat", fields: [toUserId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// 해당 메시지를 받은 유저
-  toUserId                Int
+  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id]) /// 해당 메시지 보낸 유저
+  userId                  Int?
+  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id]) /// 해당 메시지를 받은 유저
+  toUserId                Int?
   adPlace                 AdPlace?                     @relation(fields: [adPlaceId], references: [id])
   adPlaceId               Int?
 }
 
+/// 예약문의 채팅과 관련하여 일반 TEXT가 아닐경우 본 모델과 대응하는 BookingChatLog 메시지와 함께 기록되어야할 예약 관련 정보들
 model BookingChatActionInputParam {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -1172,10 +1185,10 @@ model BookingInfo {
   date           DateTime
   numOfPeople    Int
   subjectGroupId Int /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
-  customer       User     @relation(name: "asCustomer", fields: [customerId], references: [id])
-  customerId     Int
-  company        User     @relation(name: "asCompany", fields: [companyId], references: [id])
-  companyId      Int
+  customer       User?    @relation(name: "asCustomer", fields: [customerId], references: [id])
+  customerId     Int?
+  company        User?    @relation(name: "asCompany", fields: [companyId], references: [id])
+  companyId      Int?
   adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id])
   adPlaceId      Int
 }

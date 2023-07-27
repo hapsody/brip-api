@@ -617,7 +617,10 @@ export const modifyAdPlace = asyncWrapper(
           message: '존재하지 않는 AdPlace입니다.',
         });
       }
-      if (existCheck.user.userTokenId !== userTokenId) {
+      if (
+        !isNil(existCheck.user) &&
+        existCheck.user.userTokenId !== userTokenId
+      ) {
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: '변경 권한이 없는 항목의 adPlace입니다.',
@@ -897,7 +900,10 @@ export const delAdPlacePhoto = asyncWrapper(
           message: '존재하지 않는 AdPlace입니다.',
         });
       }
-      if (existCheck.user.userTokenId !== userTokenId) {
+      if (
+        !isNil(existCheck.user) &&
+        existCheck.user.userTokenId !== userTokenId
+      ) {
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: '변경 권한이 없는 항목의 adPlace입니다.',
