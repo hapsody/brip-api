@@ -974,7 +974,7 @@ model AdPlace {
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
   user              User?              @relation(fields: [userId], references: [id])
-  userId            Int?
+  userId            Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
   BookingChatLog    BookingChatLog[] /// 문의 메시지들
   BookingInfo       BookingInfo[]
   adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
@@ -1142,9 +1142,9 @@ model BookingChatLog {
   // redisKey         String                    @db.Char(27)
   customerId              Int /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
   companyId               Int /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
-  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id]) /// 해당 메시지 보낸 유저
+  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id]) /// 해당 메시지 보낸 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   userId                  Int?
-  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id]) /// 해당 메시지를 받은 유저
+  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id]) /// 해당 메시지를 받은 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   toUserId                Int?
   adPlace                 AdPlace?                     @relation(fields: [adPlaceId], references: [id])
   adPlaceId               Int?
@@ -1186,9 +1186,9 @@ model BookingInfo {
   numOfPeople    Int
   subjectGroupId Int /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
   customer       User?    @relation(name: "asCustomer", fields: [customerId], references: [id])
-  customerId     Int?
+  customerId     Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
   company        User?    @relation(name: "asCompany", fields: [companyId], references: [id])
-  companyId      Int?
+  companyId      Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
   adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id])
   adPlaceId      Int
 }

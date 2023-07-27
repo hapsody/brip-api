@@ -157,22 +157,14 @@ const bookingChatLogToBookingChatMsg = (
     bookingActionInputParam: BookingChatActionInputParam | null;
     user: User | null;
   },
-): BookingChatMessageType | null => {
-  if (
-    isNil(params.adPlaceId) ||
-    isNil(params.userId) ||
-    isNil(params.toUserId) ||
-    isNil(params.user)
-  )
-    return null;
-
+): BookingChatMessageType => {
   return {
-    adPlaceId: `${params.adPlaceId}`,
+    adPlaceId: `${params.adPlaceId ?? 'unknown'}`,
     createdAt: new Date(params.date).toISOString(),
     customerId: `${params.customerId}`,
     companyId: `${params.companyId}`,
-    from: `${params.userId}`,
-    to: `${params.toUserId}`,
+    from: `${params.userId ?? 'unknown'}`,
+    to: `${params.toUserId ?? 'unknown'}`,
     order: `${params.order}`,
     message: params.message,
     type: params.bookingActionType as BookingChatMessageActionType,
@@ -212,8 +204,8 @@ const bookingChatLogToBookingChatMsg = (
         }),
 
         /// finalBookingCheck
-        reqUserNickname: params.user.nickName,
-        reqUserContact: params.user.phone,
+        reqUserNickname: params.user?.nickName ?? 'unknown',
+        reqUserContact: params.user?.phone ?? 'unknown',
       },
     }),
   };
@@ -383,14 +375,15 @@ const getMyLastBookingMsgs = async (params: {
         me,
         other: (() => {
           if (v.userId === Number(me))
-            return isNil(v.toUserId) ? null : `${v.toUserId}`;
-          return isNil(v.userId) ? null : `${v.userId}`;
+            return isNil(v.toUserId) ? 'unknown' : `${v.toUserId}`;
+          return isNil(v.userId) ? 'unknown' : `${v.userId}`;
         })(),
-        lastMsg: {
-          ...lastMsg,
-          customerId: 'null',
-          companyId: 'null',
-        },
+        lastMsg,
+        // lastMsg: {
+        //   ...lastMsg,
+        //   customerId: 'null',
+        //   companyId: 'null',
+        // },
       } as LastBookingMessageType;
     })
     .filter((v): v is LastBookingMessageType => v !== null);
@@ -1967,9 +1960,9 @@ export type GetLastBookingMsgListRequestType = {
 };
 export type GetLastBookingMsgListSuccessResType = (LastBookingMessageType & {
   other: {
-    id: string;
-    nickName: string;
-    profileImg: string;
+    id: string | null; /// null인 경우는 유저가 탈퇴한 경우
+    nickName: string | null;
+    profileImg: string | null;
   };
 })[];
 export type GetLastBookingMsgListResType = Omit<IBResFormat, 'IBparams'> & {
@@ -2051,8 +2044,8 @@ export const getLastBookingMsgList = asyncWrapper(
           return {
             ...v,
             other: {
-              id: userInfo[idx]?.id,
-              nickName: userInfo[idx]?.nickName,
+              id: userInfo[idx]?.id ?? null, /// null인 경우는 user가 탈퇴한 경우
+              nickName: userInfo[idx]?.nickName ?? null,
               profileImg: await getUserProfileUrl(userInfo[idx]),
             },
           };
