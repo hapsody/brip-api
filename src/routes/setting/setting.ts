@@ -1257,6 +1257,7 @@ export type ChangePhoneNumResType = Omit<IBResFormat, 'IBparams'> & {
 
 /**
  * 회원정보중 전화번호 변경
+ *  * 현재로썬 전화번호가 존재하는 경우 그냥은 변경할수 없다. 추후 인증 프로세스를 적용해 변경할수 있도록 할 예정
  */
 export const changePhoneNum = asyncWrapper(
   async (
@@ -1333,6 +1334,23 @@ export const changePhoneNum = asyncWrapper(
         });
       }
 
+      const user = await prisma.user.findUnique({
+        where: {
+          userTokenId,
+        },
+        select: {
+          phone: true,
+        },
+      });
+
+      if (!isNil(user!.phone) && !isEmpty(user!.phone)) {
+        /// 전화번호가 존재하는 경우 그냥은 변경할수 없다. 추후 인증 프로세스를 적용해 변경할수 있도록 할 예정
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '전화번호가 존재하는 경우에는 변경할수 없습니다.',
+        });
+      }
+
       const updatedRes = await prisma.$transaction(async tx => {
         await tx.sMSAuthCode.deleteMany({
           where: {
@@ -1384,6 +1402,16 @@ export const changePhoneNum = asyncWrapper(
           console.error(err);
           res.status(400).json({
             ...ibDefs.EXPIREDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
