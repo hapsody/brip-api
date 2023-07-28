@@ -64,7 +64,7 @@ type BookingActionInputParam = {
 
   /// finalBookingCheck
   reqUserNickname?: string;
-  reqUserContact: string;
+  reqUserContact: string | null;
   /// date?: string;
   /// numOfPeople?: string;
 };

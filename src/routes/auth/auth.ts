@@ -176,8 +176,8 @@ export const signIn = (
 export type SignUpRequestType = {
   id: string;
   password: string;
-  phone: string;
-  phoneAuthCode: string;
+  phone?: string;
+  phoneAuthCode?: string;
   nickName: string;
   cc: string;
   // userToken: string;
@@ -228,8 +228,8 @@ export const signUp = asyncWrapper(
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
     if (isEmpty(password)) emptyCheckArr.push('password');
-    if (isEmpty(phone)) emptyCheckArr.push('phone');
-    if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
+    // if (isEmpty(phone)) emptyCheckArr.push('phone');
+    // if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
     if (isEmpty(nickName)) emptyCheckArr.push('nickName');
     if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
     // if (isEmpty(userToken)) emptyCheckArr.push('userToken');
@@ -258,16 +258,22 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    const interCode = phone.split('-')[0].slice(1);
-    const formattedPhone = phone.split('-').reduce((acc, cur) => {
-      if (cur.includes('+')) return acc;
-      return `${acc}${cur}`;
-    }, '');
-    const userWithoutPw = await prisma.$transaction(async tx => {
-      const smsAuthCode = await tx.sMSAuthCode.findMany({
+    if (
+      !isNil(phone) &&
+      !isEmpty(phone) &&
+      !isNil(phoneAuthCode) &&
+      !isEmpty(phoneAuthCode)
+    ) {
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
         where: {
           phone: `+${interCode}-${formattedPhone}`,
-          code: phoneAuthCode,
+          // code: phoneAuthCode,
           userTokenId,
         },
         orderBy: {
@@ -283,11 +289,27 @@ export const signUp = asyncWrapper(
         });
       }
 
-      await tx.sMSAuthCode.deleteMany({
-        where: {
-          OR: [{ phone }, { userTokenId }],
-        },
-      });
+      if (smsAuthCode[0].code !== phoneAuthCode) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '가장 마지막으로 발송된 인증번호가 아닙니다.',
+        });
+      }
+    }
+
+    const userWithoutPw = await prisma.$transaction(async tx => {
+      if (
+        !isNil(phone) &&
+        !isEmpty(phone) &&
+        !isNil(phoneAuthCode) &&
+        !isEmpty(phoneAuthCode)
+      ) {
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone }, { userTokenId }],
+          },
+        });
+      }
 
       const createdUser = await tx.user.create({
         data: {
@@ -295,7 +317,12 @@ export const signUp = asyncWrapper(
           password: hash,
           pwLastUpdateDate: moment().toISOString(),
           pwExpireDate: null,
-          phone,
+          ...(!isNil(phone) &&
+            !isEmpty(phone) &&
+            !isNil(phoneAuthCode) &&
+            !isEmpty(phoneAuthCode) && {
+              phone,
+            }),
           nickName,
           countryCode,
           userTokenId: locals?.tokenId?.toString() ?? 'error',
@@ -903,8 +930,17 @@ export const changePassword = asyncWrapper(
         });
       }
 
-      const interCode = user.phone.split('-')[0].slice(1);
-      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+      const { phone } = user;
+
+      if (isNil(phone) || isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '회원정보중 phone이 누락되어 있습니다.',
+        });
+      }
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
         if (cur.includes('+')) return acc;
         return `${acc}${cur}`;
       }, '');
@@ -951,7 +987,7 @@ export const changePassword = asyncWrapper(
 
         await tx.sMSAuthCode.deleteMany({
           where: {
-            OR: [{ phone: user.phone }, { userTokenId }],
+            OR: [{ phone }, { userTokenId }],
           },
         });
 
@@ -982,6 +1018,15 @@ export const changePassword = asyncWrapper(
           console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -1060,6 +1105,14 @@ export const resetPassword = asyncWrapper(
         });
       }
 
+      const { phone } = user;
+      if (isNil(phone) || isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '회원정보중 phone이 누락되어 있습니다.',
+        });
+      }
+
       // const interCode = user.phone.split('-')[0].slice(1);
       // const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
       //   if (cur.includes('+')) return acc;
@@ -1111,7 +1164,7 @@ export const resetPassword = asyncWrapper(
 
         await tx.sMSAuthCode.deleteMany({
           where: {
-            OR: [{ phone: user.phone }, { userTokenId }],
+            OR: [{ phone }, { userTokenId }],
           },
         });
       });
@@ -1147,6 +1200,16 @@ export const resetPassword = asyncWrapper(
           console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });

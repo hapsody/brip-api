@@ -536,7 +536,7 @@ export const reqTripCreator = asyncWrapper(
           }</b> 에 의해 요청된 Trip Creator 신청 항목입니다. 
           <br><br>
           닉네임: ${name}, <br>
-          연락처: ${user.phone}, <br>
+          연락처:  ${user.phone ?? 'null'}, <br>
           전문지역: ${area}, <br>
           전문영역: ${domain.toString()},  <br>
           <br><br>
