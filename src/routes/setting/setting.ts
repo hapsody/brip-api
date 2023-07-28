@@ -20,7 +20,7 @@ import {
   getUserProfileUrl,
   sendEmail,
 } from '@src/utils';
-import { omit, isEmpty, isNil } from 'lodash';
+import { omit, isEmpty, isNil, isNaN } from 'lodash';
 
 const upload = multer();
 
@@ -1244,6 +1244,158 @@ export const getRandomMainImg = asyncWrapper(
   },
 );
 
+export type ChangePhoneNumRequestType = {
+  phone: string;
+  phoneAuthCode: string;
+};
+export type ChangePhoneNumSuccessResType = {
+  phone: string;
+};
+export type ChangePhoneNumResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangePhoneNumSuccessResType | {};
+};
+
+/**
+ * 회원정보중 전화번호 변경
+ */
+export const changePhoneNum = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangePhoneNumRequestType>,
+    res: Express.IBTypedResponse<ChangePhoneNumResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { phone, phoneAuthCode } = req.body;
+      if (isNil(phone) || isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'phone 파라미터는 필수 파라미터입니다.',
+        });
+      }
+
+      if (
+        isNil(phoneAuthCode) ||
+        isEmpty(phoneAuthCode) ||
+        isNaN(phoneAuthCode)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'phoneAuthCode 파라미터가 제공되지 않았거나 숫자 형태의 string이 아닙니다.',
+        });
+      }
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
+        where: {
+          phone: `+${interCode}-${formattedPhone}`,
+          // code: phoneAuthCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (smsAuthCode.length === 0) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (smsAuthCode[0].code !== phoneAuthCode) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '가장 마지막으로 발송된 인증번호가 아닙니다.',
+        });
+      }
+
+      const updatedRes = await prisma.$transaction(async tx => {
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone }, { userTokenId }],
+          },
+        });
+
+        const updatedOne = await tx.user.update({
+          where: {
+            userTokenId,
+          },
+          data: {
+            phone,
+          },
+          select: {
+            phone: true,
+          },
+        });
+        return updatedOne;
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedRes,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'EXPIREDDATA') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.EXPIREDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -1271,5 +1423,6 @@ settingRouter.post(
   setTravelTypeToUser,
 );
 settingRouter.get('/getRandomMainImg', accessTokenValidCheck, getRandomMainImg);
+settingRouter.post('/changePhoneNum', accessTokenValidCheck, changePhoneNum);
 
 export default settingRouter;
