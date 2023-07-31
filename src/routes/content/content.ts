@@ -296,8 +296,8 @@ export const getMainCardNewsGrp = asyncWrapper(
       const userTokenId = (() => {
         if (
           locals &&
-          locals?.grade === 'member' &&
-          !isEmpty(locals?.user?.tripCreator)
+          locals?.grade === 'member'
+          // !isEmpty(locals?.user?.tripCreator)
         ) {
           return locals?.user?.userTokenId;
         }
