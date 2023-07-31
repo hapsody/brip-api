@@ -20,6 +20,7 @@ import myPageRouter from './routes/myPage';
 import notiRouter from './routes/noti';
 import adPlaceRouter from './routes/adPlace';
 import myBookRouter from './routes/myBook';
+import userRouter from './routes/user';
 
 import passportConfig from './passport';
 
@@ -83,6 +84,7 @@ app.use('/myPage', myPageRouter);
 app.use('/noti', notiRouter);
 app.use('/adPlace', adPlaceRouter);
 app.use('/myBook', myBookRouter);
+app.use('/user', userRouter);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

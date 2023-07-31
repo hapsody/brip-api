@@ -72,6 +72,7 @@ export const s3FileUploadWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -80,6 +81,7 @@ export const s3FileUploadWrapper = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -143,6 +145,7 @@ export const getPresignedUrlFromS3File = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -151,6 +154,7 @@ export const getPresignedUrlFromS3File = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -214,6 +218,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -222,6 +227,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -273,6 +279,7 @@ export const prismaTest = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -281,6 +288,7 @@ export const prismaTest = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,

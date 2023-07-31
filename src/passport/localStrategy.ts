@@ -3,14 +3,17 @@ import * as passportLocal from 'passport-local';
 import { isEmpty, isNull, isNil } from 'lodash';
 import moment from 'moment';
 import { compare } from 'bcrypt';
-import { User } from '@prisma/client';
+import { User, TripCreator, AdPlace, TourPlace } from '@prisma/client';
 import prisma from '@src/prisma';
 
 const LocalStrategy = passportLocal.Strategy;
 
 declare type LocalStrategyCBFunc = (
   error: unknown,
-  user?: User,
+  user?: User & {
+    adPlace: (AdPlace & { tourPlace: TourPlace[] })[];
+    tripCreator: TripCreator[];
+  },
   options?: passportLocal.IVerifyOptions,
 ) => void;
 export default (passport: PassportStatic): void => {
@@ -28,6 +31,11 @@ export default (passport: PassportStatic): void => {
           },
           include: {
             tripCreator: true,
+            adPlace: {
+              include: {
+                tourPlace: true,
+              },
+            },
           },
         });
 

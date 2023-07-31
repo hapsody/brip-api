@@ -34,6 +34,17 @@ import {
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
+import {
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
+} from './categoryToIBTravelTag';
+import {
+  getUserProfileUrl,
+  getAccessableUrl,
+  getIBPhotoUrl,
+  getThumbnailUrlFromIBPhotos,
+  getImgUrlListFromIBPhotos,
+} from './iBPhotos';
 
 export {
   ibDefs,
@@ -68,4 +79,11 @@ export {
   addrToGeoCode,
   sendEmail,
   delObjectsFromS3,
+  getIBPhotoUrl,
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
+  getUserProfileUrl,
+  getAccessableUrl,
+  getThumbnailUrlFromIBPhotos,
+  getImgUrlListFromIBPhotos,
 };

@@ -9,6 +9,7 @@ import {
   accessTokenValidCheck,
   s3FileUpload,
   getS3SignedUrl,
+  getUserProfileUrl,
 } from '@src/utils';
 import {
   CardTag,
@@ -181,15 +182,16 @@ export const getContentList = asyncWrapper(
             userId: group.creator.userId,
             creatorId: group.creator.id,
             creatorNickName: group.creator.nickName,
-            userProfileImg: await (async () => {
-              const { profileImg } = group.creator.user;
-              if (isNil(profileImg)) return null;
-              const result =
-                profileImg && profileImg.toLowerCase().includes('http')
-                  ? profileImg
-                  : await getS3SignedUrl(profileImg);
-              return result;
-            })(),
+            userProfileImg: await getUserProfileUrl(group.creator.user),
+            // userProfileImg: await (async () => {
+            //   const { profileImg } = group.creator.user;
+            //   if (isNil(profileImg)) return null;
+            //   const result =
+            //     profileImg && profileImg.toLowerCase().includes('http')
+            //       ? profileImg
+            //       : await getS3SignedUrl(profileImg);
+            //   return result;
+            // })(),
           };
         }),
       );
@@ -609,6 +611,7 @@ export const addCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -617,6 +620,7 @@ export const addCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -687,6 +691,7 @@ export const uploadCardGrpImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -695,6 +700,7 @@ export const uploadCardGrpImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -761,6 +767,7 @@ export const uploadCardImg = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -769,6 +776,7 @@ export const uploadCardImg = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -863,6 +871,7 @@ export const updateCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -871,6 +880,7 @@ export const updateCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1154,6 +1164,7 @@ export const updateCardNews = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1162,6 +1173,7 @@ export const updateCardNews = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1234,6 +1246,7 @@ export const deleteCardGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1242,6 +1255,7 @@ export const deleteCardGrp = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1313,6 +1327,7 @@ export const deleteCardNews = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1321,6 +1336,7 @@ export const deleteCardNews = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,

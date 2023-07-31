@@ -144,6 +144,7 @@ export const hawaiiEnglishCamp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -153,6 +154,7 @@ export const hawaiiEnglishCamp = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -162,6 +164,7 @@ export const hawaiiEnglishCamp = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -313,6 +316,7 @@ export const hawaiiHoneymoonPack = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -322,6 +326,7 @@ export const hawaiiHoneymoonPack = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -331,6 +336,7 @@ export const hawaiiHoneymoonPack = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,

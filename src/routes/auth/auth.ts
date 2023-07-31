@@ -14,7 +14,7 @@ import {
 import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User, TripCreator } from '@prisma/client';
+import { User, TripCreator, AdPlace, TourPlace } from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
@@ -33,6 +33,8 @@ export interface SaveScheduleResponsePayload {
   isCreator: boolean;
   isTempPasswd: boolean;
   pleaseUpdatePasswd: boolean;
+  // isAdvertiser: boolean;
+  adPlace: (Partial<AdPlace> & { tourPlace: TourPlace[] })[];
 }
 
 export interface SignInRequest {
@@ -54,7 +56,7 @@ export const signIn = (
     'local',
     (
       err: Error,
-      user: User & { tripCreator: TripCreator[] },
+      user: User & { tripCreator: TripCreator[]; adPlace: { id: number }[] },
       info: { message: string },
     ) => {
       if (err) {
@@ -68,6 +70,7 @@ export const signIn = (
       if (!user) {
         console.log(info);
         if (info.message === 'Incorrect username.') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: info.message,
@@ -75,6 +78,7 @@ export const signIn = (
           return;
         }
         if (info.message === 'Incorrect password.') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
             IBdetail: info.message,
@@ -82,6 +86,7 @@ export const signIn = (
           return;
         }
         if (info.message === 'Expired Password.') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.EXPIREDDATA,
             IBdetail: info.message,
@@ -90,6 +95,7 @@ export const signIn = (
         }
 
         if (info.message === 'Missing credentials') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: info.message,
@@ -156,6 +162,9 @@ export const signIn = (
           /// 마지막 비밀번호 변경일로부터 180일 이상 경과한 경우 true
           pleaseUpdatePasswd:
             moment().diff(moment(user.pwLastUpdateDate), 'days') > 180,
+
+          /// adPlace
+          adPlace: user.adPlace,
         },
       });
     },
@@ -167,8 +176,8 @@ export const signIn = (
 export type SignUpRequestType = {
   id: string;
   password: string;
-  phone: string;
-  phoneAuthCode: string;
+  phone?: string;
+  phoneAuthCode?: string;
   nickName: string;
   cc: string;
   // userToken: string;
@@ -219,8 +228,8 @@ export const signUp = asyncWrapper(
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
     if (isEmpty(password)) emptyCheckArr.push('password');
-    if (isEmpty(phone)) emptyCheckArr.push('phone');
-    if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
+    // if (isEmpty(phone)) emptyCheckArr.push('phone');
+    // if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
     if (isEmpty(nickName)) emptyCheckArr.push('nickName');
     if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
     // if (isEmpty(userToken)) emptyCheckArr.push('userToken');
@@ -249,16 +258,22 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    const interCode = phone.split('-')[0].slice(1);
-    const formattedPhone = phone.split('-').reduce((acc, cur) => {
-      if (cur.includes('+')) return acc;
-      return `${acc}${cur}`;
-    }, '');
-    const userWithoutPw = await prisma.$transaction(async tx => {
-      const smsAuthCode = await tx.sMSAuthCode.findMany({
+    if (
+      !isNil(phone) &&
+      !isEmpty(phone) &&
+      !isNil(phoneAuthCode) &&
+      !isEmpty(phoneAuthCode)
+    ) {
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
+        if (cur.includes('+')) return acc;
+        return `${acc}${cur}`;
+      }, '');
+
+      const smsAuthCode = await prisma.sMSAuthCode.findMany({
         where: {
           phone: `+${interCode}-${formattedPhone}`,
-          code: phoneAuthCode,
+          // code: phoneAuthCode,
           userTokenId,
         },
         orderBy: {
@@ -274,11 +289,27 @@ export const signUp = asyncWrapper(
         });
       }
 
-      await tx.sMSAuthCode.deleteMany({
-        where: {
-          OR: [{ phone }, { userTokenId }],
-        },
-      });
+      if (smsAuthCode[0].code !== phoneAuthCode) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '가장 마지막으로 발송된 인증번호가 아닙니다.',
+        });
+      }
+    }
+
+    const userWithoutPw = await prisma.$transaction(async tx => {
+      if (
+        !isNil(phone) &&
+        !isEmpty(phone) &&
+        !isNil(phoneAuthCode) &&
+        !isEmpty(phoneAuthCode)
+      ) {
+        await tx.sMSAuthCode.deleteMany({
+          where: {
+            OR: [{ phone }, { userTokenId }],
+          },
+        });
+      }
 
       const createdUser = await tx.user.create({
         data: {
@@ -286,7 +317,12 @@ export const signUp = asyncWrapper(
           password: hash,
           pwLastUpdateDate: moment().toISOString(),
           pwExpireDate: null,
-          phone,
+          ...(!isNil(phone) &&
+            !isEmpty(phone) &&
+            !isNil(phoneAuthCode) &&
+            !isEmpty(phoneAuthCode) && {
+              phone,
+            }),
           nickName,
           countryCode,
           userTokenId: locals?.tokenId?.toString() ?? 'error',
@@ -350,6 +386,7 @@ export const reqNonMembersUserToken = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -462,10 +499,10 @@ export const refreshAccessToken = asyncWrapper(
           nickName: user.nickName,
         },
       });
-      return;
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -474,6 +511,7 @@ export const refreshAccessToken = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -482,6 +520,7 @@ export const refreshAccessToken = asyncWrapper(
           return;
         }
         if (err.type === 'TOKENEXPIRED') {
+          console.error(err);
           res.status(401).json({
             ...ibDefs.TOKENEXPIRED,
             IBdetail: (err as Error).message,
@@ -491,6 +530,7 @@ export const refreshAccessToken = asyncWrapper(
         }
 
         if (err.type === 'NOTREFRESHTOKEN') {
+          console.error(err);
           res.status(401).json({
             ...ibDefs.NOTREFRESHTOKEN,
             IBdetail: (err as Error).message,
@@ -500,6 +540,7 @@ export const refreshAccessToken = asyncWrapper(
         }
 
         if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
             IBdetail: (err as Error).message,
@@ -671,6 +712,7 @@ export const sendSMSAuthCode = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -679,6 +721,7 @@ export const sendSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -765,6 +808,7 @@ export const submitSMSAuthCode = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -773,6 +817,7 @@ export const submitSMSAuthCode = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -885,8 +930,17 @@ export const changePassword = asyncWrapper(
         });
       }
 
-      const interCode = user.phone.split('-')[0].slice(1);
-      const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
+      const { phone } = user;
+
+      if (isNil(phone) || isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '회원정보중 phone이 누락되어 있습니다.',
+        });
+      }
+
+      const interCode = phone.split('-')[0].slice(1);
+      const formattedPhone = phone.split('-').reduce((acc, cur) => {
         if (cur.includes('+')) return acc;
         return `${acc}${cur}`;
       }, '');
@@ -933,7 +987,7 @@ export const changePassword = asyncWrapper(
 
         await tx.sMSAuthCode.deleteMany({
           where: {
-            OR: [{ phone: user.phone }, { userTokenId }],
+            OR: [{ phone }, { userTokenId }],
           },
         });
 
@@ -952,6 +1006,7 @@ export const changePassword = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -960,8 +1015,18 @@ export const changePassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -1040,6 +1105,14 @@ export const resetPassword = asyncWrapper(
         });
       }
 
+      const { phone } = user;
+      if (isNil(phone) || isEmpty(phone)) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: '회원정보중 phone이 누락되어 있습니다.',
+        });
+      }
+
       // const interCode = user.phone.split('-')[0].slice(1);
       // const formattedPhone = user.phone.split('-').reduce((acc, cur) => {
       //   if (cur.includes('+')) return acc;
@@ -1091,7 +1164,7 @@ export const resetPassword = asyncWrapper(
 
         await tx.sMSAuthCode.deleteMany({
           where: {
-            OR: [{ phone: user.phone }, { userTokenId }],
+            OR: [{ phone }, { userTokenId }],
           },
         });
       });
@@ -1115,6 +1188,7 @@ export const resetPassword = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1123,6 +1197,7 @@ export const resetPassword = asyncWrapper(
           return;
         }
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1130,7 +1205,121 @@ export const resetPassword = asyncWrapper(
           });
           return;
         }
+
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
       }
+      throw err;
+    }
+  },
+);
+
+export type UnRegisterRequestType = {
+  password: string;
+};
+export type UnRegisterSuccessResType = {};
+export type UnRegisterResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UnRegisterSuccessResType | {};
+};
+
+/**
+ * 회원탈퇴 요청 api
+ */
+export const unRegister = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UnRegisterRequestType>,
+    res: Express.IBTypedResponse<UnRegisterResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const user = (() => {
+        if (locals && locals?.grade === 'member') return locals?.user;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(user)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { password } = req.body;
+      if (isNil(password) || isEmpty(password)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'password 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      const compareResult: Boolean = await compare(password, user.password);
+      if (!compareResult) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message: 'password가 일치하지 않습니다.',
+        });
+      }
+
+      await prisma.user.delete({
+        where: {
+          id: user.id,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
       throw err;
     }
   },
@@ -1165,5 +1354,6 @@ authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
+authRouter.post('/unRegister', accessTokenValidCheck, unRegister);
 
 export default authRouter;

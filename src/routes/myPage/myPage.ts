@@ -6,8 +6,10 @@ import {
   TourPlace,
   Prisma,
   IBTravelTag,
+  RModelBetweenTravelType,
   PrismaClient,
 } from '@prisma/client';
+import * as runtime from '@prisma/client/runtime/library';
 import {
   ibDefs,
   asyncWrapper,
@@ -16,8 +18,10 @@ import {
   accessTokenValidCheck,
   delObjectsFromS3,
   ibTravelTagCategorize,
+  getIBPhotoUrl,
+  addrToGeoCode,
 } from '@src/utils';
-import { isNil, isEmpty, omit } from 'lodash';
+import { isNil, isEmpty, omit, isNaN } from 'lodash';
 
 const myPageRouter: express.Application = express();
 
@@ -33,14 +37,15 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
   }[];
   adPlaceId?: number; /// modify일 경우 수정할 대상 adPlaceId
   /// modify일 경우
-  tx?: Omit<
-    PrismaClient<
-      Prisma.PrismaClientOptions,
-      never,
-      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-    >,
-    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
-  >;
+  // tx?: Omit<
+  //   PrismaClient<
+  //     Prisma.PrismaClientOptions,
+  //     never,
+  //     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+  //   >,
+  //   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  // >;
+  tx?: Omit<PrismaClient, runtime.ITXClientDenyList>;
 }): Promise<{ connect: { id: number }[] }> => {
   const { category, adPlaceId, tx } = param;
 
@@ -54,7 +59,7 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
       },
     },
   });
-  if (!isNil(tx) && !isNil(adPlaceId)) {
+  if (!isNil(tx) && !isNil(adPlaceId) && !isEmpty(prevTags)) {
     const a = Prisma.sql`delete from _AdPlaceToIBTravelTag where A = ${adPlaceId} and B in (${Prisma.join(
       prevTags.map(v => v.id),
     )});`;
@@ -102,7 +107,7 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
 
 export type RegistAdPlaceRequestType = {
   title: string; /// 상호명
-  mainImgUrl: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhotoKey: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
   photos?: {
     ///  기타 매장 사진
     key: string;
@@ -122,6 +127,7 @@ export type RegistAdPlaceRequestType = {
   businessNumber?: string; /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   businessRegImgKey?: string; /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
   nationalCode: string; /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  relatedTPId: string[]; /// 먼저 존재하던 tourPlace들 중에 광고주가 등록하는 adPlace와 동일하다고 여겨지는 tourPlace들의 id 배열. 해당 tourPlace들에 매달린 기억/공유 기억 정보들은 등록 요청하는 AdPlace에서 추후에 조회하게 된다. 광고주가 등록 요청하는 adPlace와 동일한 tourPlace 별도로 생성되며 단순히 id 배열들에 해당하는 tourPlace들이 광고비즈니스 장소와 동일하여 관계를 형성해놓는것임.
 };
 // export interface RegistAdPlaceSuccessResType {
 //   groupNo: number;
@@ -173,7 +179,7 @@ export const registAdPlace = asyncWrapper(
       }
       const {
         title,
-        mainImgUrl,
+        mainPhotoKey,
         photos,
         category,
         desc,
@@ -187,21 +193,23 @@ export const registAdPlace = asyncWrapper(
         businessNumber,
         businessRegImgKey,
         nationalCode,
+        relatedTPId,
       } = req.body;
 
       if (
         isNil(title) ||
-        isNil(mainImgUrl) ||
+        isNil(mainPhotoKey) ||
         isNil(category) ||
         isEmpty(category) ||
         (isNil(address) && isNil(roadAddress)) ||
         (isNil(businessNumber) && isNil(businessRegImgKey)) ||
-        isNil(nationalCode)
+        isNil(nationalCode) ||
+        isNil(relatedTPId)
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
           message:
-            'title, mainImgUrl, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey는 필수입니다.',
+            'title, mainPhotoKey, category 배열, nationalCode 는 필수 파라미터입니다. address와 roadAddress 둘중 하나는 필수입니다. businessNumber와 businessRegImgKey, relatedTPId는 필수입니다.',
         });
       }
 
@@ -228,12 +236,33 @@ export const registAdPlace = asyncWrapper(
         });
       }
 
-      await prisma.adPlace.create({
+      const relatedTourPlaces = await prisma.tourPlace.findMany({
+        where: {
+          id: { in: relatedTPId.map(v => Number(v)) },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (relatedTPId.length !== relatedTourPlaces.length) {
+        throw new IBError({
+          type: 'NOTMATCHEDDATA',
+          message:
+            'relatedTPId에 존재하지 않는 tourPlaceId값이 포함되어 있습니다.',
+        });
+      }
+
+      const createdOne = await prisma.adPlace.create({
         data: {
           status: 'NEW',
           subscribe: false,
           title,
-          mainImgUrl,
+          mainPhoto: {
+            create: {
+              key: mainPhotoKey,
+            },
+          },
           category: await adPlaceCategoryToIBTravelTag({ category }),
           ...(!isNil(photos) && {
             photos: {
@@ -258,16 +287,26 @@ export const registAdPlace = asyncWrapper(
               userTokenId,
             },
           },
+          ...(!isEmpty(relatedTourPlaces) && {
+            tourPlace: {
+              connect: relatedTourPlaces.map(v => {
+                return {
+                  id: v.id,
+                };
+              }),
+            },
+          }),
         },
       });
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {},
+        IBparams: createdOne,
       });
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -276,8 +315,18 @@ export const registAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -290,11 +339,53 @@ export const registAdPlace = asyncWrapper(
   },
 );
 
+/// IBTravelTag 세부 태그이름이나 id를 넣으면 상위 태그를 모두 찾아 반환하는 함수
+const findAllIBTTPath = async (id: number) => {
+  const asyncIterable = {
+    [Symbol.asyncIterator]() {
+      let nextId: number = id;
+      return {
+        async next() {
+          if (nextId === -1) return { value: null, done: true };
+          const tag = await prisma.iBTravelTag.findUnique({
+            where: {
+              id: nextId,
+            },
+            include: {
+              noPtr: true,
+            },
+          });
+
+          nextId =
+            !isNil(tag) && !isNil(tag?.noPtr) && !isEmpty(tag?.noPtr)
+              ? tag.noPtr[0].fromId
+              : -1;
+          return { value: tag, done: false };
+        },
+      };
+    },
+  };
+
+  const result: (
+    | (IBTravelTag & { noPtr: RModelBetweenTravelType[] })
+    | null
+  )[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for await (const tag of asyncIterable) {
+    result.push(tag);
+  }
+  result.reverse();
+  return {
+    primary: result[0]?.value,
+    secondary: result[1]?.value,
+  };
+};
+
 export type GetMyAdPlaceRequestType = {};
 export type GetMyAdPlaceSuccessResType = Omit<
   AdPlace & {
     photos: IBPhotos[];
-    category: IBTravelTag[];
+    category: { primary: string; secondary: string }[];
   },
   'userId'
 >;
@@ -336,18 +427,49 @@ export const getMyAdPlace = asyncWrapper(
           },
         },
         include: {
+          mainPhoto: true,
           photos: true,
           category: true,
         },
       });
 
+      // res.json({
+      //   ...ibDefs.SUCCESS,
+      //   IBparams: await Promise.all(
+      //     myAdPlaces.map(async v => {
+      //       return {
+      //         ...omit(v, ['userId']),
+      //         category: await Promise.all(
+      //           v.category.map(async k => findAllIBTTPath(k.id)),
+      //         ),
+      //       };
+      //     }),
+      //   ),
+      // });
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: myAdPlaces.map(v => omit(v, ['userId'])),
+        IBparams: await Promise.all(
+          myAdPlaces.map(async v => {
+            return {
+              ...omit(v, ['userId']),
+              mainPhoto: isNil(v.photos)
+                ? null
+                : await getIBPhotoUrl(v.mainPhoto),
+              photos: isNil(v.photos)
+                ? null
+                : await Promise.all(v.photos.map(getIBPhotoUrl)),
+              category: await Promise.all(
+                v.category.map(async k => findAllIBTTPath(k.id)),
+              ),
+            };
+          }),
+        ),
       });
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -356,6 +478,7 @@ export const getMyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -373,7 +496,7 @@ export const getMyAdPlace = asyncWrapper(
 export type ModifyAdPlaceRequestType = {
   adPlaceId: string; /// 수정할 adPlace의 Id
   title?: string; /// 상호명
-  mainImgUrl?: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhotoKey?: string; /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
   photos?: {
     ///  기타 매장 사진
     key: string;
@@ -405,10 +528,24 @@ export type ModifyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
- * 때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
- * category는 전달하는 파라미터로 기존 저장된 카테고리 정보를 덮어쓴다. 즉 A 카테고리를 가지고 있었더라도 B,C를
- * category 파라미터로 전달하면 A카테고리는 상실하고 B,C 카테고리만 등록된다.
+ 이미 신청 요청한 adPlace의 정보를 수정요청하는 api
+
+photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
+
+때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
+
+Photo 수정
+photos 프로퍼티로 대표되는 서브 사진을 변경하는 예시
+기존 사진을 변경하는것은 새로 사진을 등록하고 기존것을 삭제해야한다. subPhoto 2,3번 사진이 등록되어 있을때 이중 3번을 4번으로 교체하고 5번을 등록한다고 하면
+a. /myPage/modifyAdPlace의 photos 파라미터는 4,5번의 키를 배열로 실어 호출한다.
+b. /myPage/delAdPlacePhoto로 3번을 삭제.
+
+mainPhoto는 subPhoto와 다르게 추가의 개념이 없고 그냥 mainPhotoKey로 전달되는 사진으로 덮어써진다. (기존것은 삭제된다.)
+
+adPlace 생성후 승인이 나서 관련된 mainTourPlace가 생성된 상태라면 adPlace의 항목들중 tourPlace에도 영향이 갈만한 필드를 수정하면 함께 수정된다. 사진역시 마찬가지로 추가, 변경, 삭제가 tourPlace에도 함께 반영된다.
+
+Category 수정
+category는 전달하는 파라미터로 기존 저장된 카테고리 정보를 덮어쓴다. 즉 A 카테고리를 가지고 있었더라도 B,C를 category 파라미터로 전달하면 A카테고리는 상실하고 B,C 카테고리만 등록된다.
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3577-2555&t=aNXuVNwswvfxSqgP-4
  */
 
@@ -437,7 +574,7 @@ export const modifyAdPlace = asyncWrapper(
       const {
         adPlaceId,
         title,
-        mainImgUrl,
+        mainPhotoKey,
         photos,
         category,
         desc,
@@ -480,7 +617,10 @@ export const modifyAdPlace = asyncWrapper(
           message: '존재하지 않는 AdPlace입니다.',
         });
       }
-      if (existCheck.user.userTokenId !== userTokenId) {
+      if (
+        !isNil(existCheck.user) &&
+        existCheck.user.userTokenId !== userTokenId
+      ) {
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: '변경 권한이 없는 항목의 adPlace입니다.',
@@ -503,7 +643,14 @@ export const modifyAdPlace = asyncWrapper(
             },
             data: {
               title,
-              mainImgUrl,
+              ...(!isNil(mainPhotoKey) &&
+                !isEmpty(mainPhotoKey) && {
+                  mainPhoto: {
+                    create: {
+                      key: mainPhotoKey,
+                    },
+                  },
+                }),
               ...(!isNil(category) && {
                 category: await adPlaceCategoryToIBTravelTag({
                   category,
@@ -545,6 +692,15 @@ export const modifyAdPlace = asyncWrapper(
               category: true,
             },
           });
+
+          /// 메인 사진을 변경하려 한다면 기존 메인 사진은 photos에서 삭제한다.
+          if (!isNil(mainPhotoKey) && !isEmpty(mainPhotoKey)) {
+            await tx.iBPhotos.delete({
+              where: {
+                id: existCheck.mainPhotoId,
+              },
+            });
+          }
 
           /// 포토 수정이 있는데 tourPlace가 생성되어 있는 adPlace라면 IBPhotos가 위에서 deleteMany로 모두 삭제되고 재연결되었으므로 tourPlace의 IBPhotos connect도 수정해줘야한다.
           let tpUpdateResult: TourPlace | undefined;
@@ -590,7 +746,8 @@ export const modifyAdPlace = asyncWrapper(
                       },
                     };
                   })())),
-                ...(!isNil(photos) &&
+
+                ...((!isNil(photos) || !isNil(mainPhotoKey)) &&
                   (() => {
                     /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
                     // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
@@ -600,10 +757,17 @@ export const modifyAdPlace = asyncWrapper(
                     //     adPlaceId: Number(adPlaceId),
                     //   },
                     // });
+
+                    const subPhotos = !isNil(photos) ? photos : [];
+                    const mainPhoto = !isNil(mainPhotoKey)
+                      ? [{ key: mainPhotoKey }]
+                      : [];
+                    const combinedPhotos = [...mainPhoto, ...subPhotos];
+
                     return {
                       photos: {
                         createMany: {
-                          data: photos,
+                          data: combinedPhotos,
                         },
                       },
                     };
@@ -614,14 +778,6 @@ export const modifyAdPlace = asyncWrapper(
                 detailAddress,
                 openWeek,
                 contact,
-
-                photos: {
-                  connect: adPlaceUpdatedResult.photos.map(v => {
-                    return {
-                      id: v.id,
-                    };
-                  }),
-                },
               },
             });
           }
@@ -641,6 +797,7 @@ export const modifyAdPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -649,6 +806,7 @@ export const modifyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -657,6 +815,7 @@ export const modifyAdPlace = asyncWrapper(
           return;
         }
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -741,7 +900,10 @@ export const delAdPlacePhoto = asyncWrapper(
           message: '존재하지 않는 AdPlace입니다.',
         });
       }
-      if (existCheck.user.userTokenId !== userTokenId) {
+      if (
+        !isNil(existCheck.user) &&
+        existCheck.user.userTokenId !== userTokenId
+      ) {
         throw new IBError({
           type: 'NOTAUTHORIZED',
           message: '변경 권한이 없는 항목의 adPlace입니다.',
@@ -762,8 +924,9 @@ export const delAdPlacePhoto = asyncWrapper(
       }
 
       const notAuthorizedPhoto = targetPhotos.find(
-        v => v.adPlaceId !== Number(adPlaceId),
+        v => v.adPlaceAsSubId !== Number(adPlaceId),
       );
+
       if (!isNil(notAuthorizedPhoto)) {
         throw new IBError({
           type: 'NOTAUTHORIZED',
@@ -790,6 +953,7 @@ export const delAdPlacePhoto = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -798,6 +962,7 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -806,6 +971,7 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -814,8 +980,212 @@ export const delAdPlacePhoto = asyncWrapper(
           return;
         }
         if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export type GetTourPlaceListByAddrRequestType = {
+  address?: string; /// 위경도나 주소 둘중 하나는 제공되어야 함.
+  lat?: string;
+  lng?: string;
+  horizontalRange: string; /// 가로 오차범위 값 단위: 경도
+  verticalRange: string; /// 세로 오차 범위 값 단위: 위도
+  onlyHasShareTripMemory?: string; /// 공유게시물이 있는 tourPlace만 뽑을지 여부. 주어지지 않으면 default로 전체를 다 리턴한다.
+};
+export type GetTourPlaceListByAddrSuccessResType = TourPlace[];
+export type GetTourPlaceListByAddrResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetTourPlaceListByAddrSuccessResType | {};
+};
+
+/**
+ * setting에서 업체등록시에 주변 tourPlace들 중 업체가 등록하고자 하는 tourPlace가 있는 지 여부를 관계자에게 확인하기 위해
+ * 제공한 주소 또는 위경도를 중심으로 존재하는 tourPlace 배열을 반환하는 api
+ */
+export const getTourPlaceListByAddr = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetTourPlaceListByAddrRequestType>,
+    res: Express.IBTypedResponse<GetTourPlaceListByAddrResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const {
+        address,
+        lat,
+        lng,
+        horizontalRange,
+        verticalRange,
+        onlyHasShareTripMemory,
+      } = req.query;
+
+      if (
+        isNil(horizontalRange) ||
+        isEmpty(horizontalRange) ||
+        isNaN(Number(horizontalRange)) ||
+        isNil(verticalRange) ||
+        isEmpty(verticalRange) ||
+        isNaN(Number(verticalRange))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'horizontalRange와 verticalRange는 반드시 제공되어야 할 파라미터입니다.',
+        });
+      }
+
+      const tourPlace = await (async () => {
+        /// 검색 파라미터로 주소가 제공될 경우
+        if (!isNil(address) && !isEmpty(address)) {
+          const geoCodeRes = await addrToGeoCode({
+            address,
+            type: 'road',
+          });
+
+          if (isNil(geoCodeRes)) {
+            throw new IBError({
+              type: 'EXTERNALAPI',
+              message: 'address to geocode translation error',
+            });
+          }
+
+          const {
+            regionCode1,
+            regionCode2,
+            lat: transLat,
+            lng: transLng,
+          } = geoCodeRes;
+
+          const tp = await prisma.tourPlace.findMany({
+            where: {
+              regionCode1,
+              regionCode2,
+              AND: [
+                { lat: { gte: transLat - Number(horizontalRange) / 2 } },
+                { lat: { lt: transLat + Number(horizontalRange) / 2 } },
+                { lng: { gte: transLng - Number(verticalRange) / 2 } },
+                { lng: { lt: transLng + Number(verticalRange) / 2 } },
+              ],
+              ...(!isNil(onlyHasShareTripMemory) &&
+                onlyHasShareTripMemory.toLowerCase().includes('true') && {
+                  shareTripMemory: {
+                    some: {
+                      tourPlaceId: { not: null },
+                    },
+                  },
+                }),
+            },
+          });
+          return tp;
+        }
+
+        /// 검색 파라미터로 위경도가 제공될 경우
+        if (
+          isNil(lat) ||
+          isEmpty(lat) ||
+          isNaN(Number(lat)) ||
+          isNil(lng) ||
+          isEmpty(lng) ||
+          isNaN(Number(lng))
+        ) {
+          const tp = await prisma.tourPlace.findMany({
+            where: {
+              AND: [
+                { lat: { gte: Number(lat) - Number(horizontalRange) / 2 } },
+                { lat: { lt: Number(lat) + Number(horizontalRange) / 2 } },
+                { lng: { gte: Number(lng) - Number(verticalRange) / 2 } },
+                { lng: { lt: Number(lng) + Number(verticalRange) / 2 } },
+              ],
+              ...(!isNil(onlyHasShareTripMemory) &&
+                onlyHasShareTripMemory.toLowerCase().includes('true') && {
+                  shareTripMemory: {
+                    some: {
+                      tourPlaceId: { not: null },
+                    },
+                  },
+                }),
+            },
+          });
+          return tp;
+        }
+
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'address나 (lat, lng) 둘중 하나는 반드시 제공되어야 할 파라미터입니다.',
+        });
+      })();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: tourPlace,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -831,5 +1201,10 @@ export const delAdPlacePhoto = asyncWrapper(
 myPageRouter.post('/registAdPlace', accessTokenValidCheck, registAdPlace);
 myPageRouter.get('/getMyAdPlace', accessTokenValidCheck, getMyAdPlace);
 myPageRouter.post('/modifyAdPlace', accessTokenValidCheck, modifyAdPlace);
+myPageRouter.get(
+  '/getTourPlaceListByAddr',
+  accessTokenValidCheck,
+  getTourPlaceListByAddr,
+);
 myPageRouter.post('/delAdPlacePhoto', accessTokenValidCheck, delAdPlacePhoto);
 export default myPageRouter;

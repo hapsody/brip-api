@@ -43,10 +43,10 @@ function run_process () {
   #yarn prisma db push # --accept-data-loss # 실서버의 DB 스키마는 자동으로 업데이트하지 않도록 한다.
   downloadAmazonRootCA1
 
-  sudo yarn
+  yarn
   yarn build
 
-  sudo yarn stop
+  yarn stop
   yarn start:prod
   # yarn prismastudio
 }

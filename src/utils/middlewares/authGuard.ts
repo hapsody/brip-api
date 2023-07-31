@@ -21,23 +21,27 @@ const accessTokenValidCheck = (
       // console.log(authError, user, info);
       if (authError && authError instanceof Error) {
         if (authError.message === 'NOTEXISTDATA') {
+          console.error(authError);
           res.status(404).json({
             ...ibDefs[authError.message],
           });
           return;
         }
+        console.error(authError);
         res.status(500).json({
           ...ibDefs.UNEXPECTED,
         });
         return;
       }
       if (info && info.name === 'TokenExpiredError') {
+        console.error(authError);
         res.status(401).json({
           ...ibDefs.TOKENEXPIRED,
         });
         return;
       }
       if (info && info.name === 'JsonWebTokenError') {
+        console.error(authError);
         res.json({
           ...ibDefs.JWTERROR,
           IBdetail: info.message,
@@ -45,6 +49,7 @@ const accessTokenValidCheck = (
         return;
       }
       if (info && info.name === 'Error') {
+        console.error(authError);
         res.status(401).json({
           ...ibDefs.NOAUTHTOKEN,
         });

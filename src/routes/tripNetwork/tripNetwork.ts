@@ -1,6 +1,6 @@
 import express, { Express } from 'express';
 import prisma from '@src/prisma';
-import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
+// import { getImgUrlListFromIBPhotos } from '@src/routes/schedule/inner';
 import {
   ibDefs,
   asyncWrapper,
@@ -9,7 +9,11 @@ import {
   accessTokenValidCheck,
   IBContext,
   getS3SignedUrl,
+  getUserProfileUrl,
+  getAccessableUrl,
+  categoryToIBTravelTag,
   // delObjectsFromS3,
+  getImgUrlListFromIBPhotos,
 } from '@src/utils';
 import {
   Prisma,
@@ -23,19 +27,20 @@ import {
   ReplyForShareTripMemory,
   PlaceType,
   IBPhotos,
-  User,
+  // User,
   IBTravelTag,
   IBPhotoMetaInfoType,
   IBPhotoMetaInfo,
   IBPhotoTag,
 } from '@prisma/client';
+import * as runtime from '@prisma/client/runtime/library';
 import {
   putInSysNotiMessage,
   // takeOutSysNotiMessage,
   pubSSEvent,
 } from '@src/routes/noti/noti';
 
-import { isEmpty, isNil, isNull, remove } from 'lodash';
+import { isEmpty, isNil, isNull, remove, isNaN } from 'lodash';
 import moment from 'moment';
 
 const tripNetworkRouter: express.Application = express();
@@ -106,6 +111,7 @@ export const addTripMemGrp = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -115,6 +121,7 @@ export const addTripMemGrp = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -124,6 +131,7 @@ export const addTripMemGrp = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -190,6 +198,7 @@ export const getTripMemGrpList = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -199,6 +208,7 @@ export const getTripMemGrpList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -208,6 +218,7 @@ export const getTripMemGrpList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -221,6 +232,23 @@ export const getTripMemGrpList = asyncWrapper(
   },
 );
 
+type PhotoMetaInfoForAdd = {
+  /// common fields
+  type: IBPhotoMetaInfoType;
+  title: string;
+  lat?: string;
+  lng?: string;
+  shotTime?: string;
+  keyword: string[];
+  feature: {
+    super: string;
+    name: string;
+  }[];
+  // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
+  desc?: string; /// for only MAIN fields
+  publicInfo?: string; /// for DETAIL fields
+};
+
 export interface AddTripMemoryRequestType {
   title: string;
   comment: string;
@@ -229,27 +257,14 @@ export interface AddTripMemoryRequestType {
   lat: string;
   lng: string;
   groupId: string;
-  tourPlaceId?: string;
+  tourPlaceId?: string; /// 기존에 존재하는 장소에 tripmemory 또는 shareTripMemory를 생성하는 경우 undefined 이면 안된다.
   // img: string;
   photos: {
     key: string;
-    photoMetaInfo?: {
-      /// common fields
-      type?: IBPhotoMetaInfoType;
-      title?: string;
-      lat?: string;
-      lng?: string;
-      shotTime?: string;
-      keyword?: string[];
-      feature?: {
-        super: string;
-        name: string;
-      }[];
-      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
-      desc?: string; /// for only MAIN fields
-      publicInfo?: string; /// for DETAIL fields
-    };
+    photoMetaInfo?: PhotoMetaInfoForAdd;
   }[];
+  categoryIds?: string[]; /// nullable. 바로 공유를 하는 경우에는 제공되어야 하지만 '기억'이후 '공유'할때 호출하는 것이면 추가로 입력받지 않으므로 전달해줄수 없다.
+  /// 원래 tripMemory에 필요한 필드가 아니나 먼저 '기억:tripMemory'를 생성했다가 나중에 '공유:shareTripMemory'를 생성할 경우 최초 입력했던 카테고리를 다시 묻지 않는 입력 시나리오때문에 tripMemoryCategory를 기록해두기 위해 추가함.
 }
 export type TourPlaceCommonType = Pick<
   TourPlace,
@@ -271,13 +286,14 @@ export type TourPlaceCommonType = Pick<
   | 'notBad'
   | 'bad'
   | 'like'
+  | 'adPlaceId'
 > & {
   // photos: Pick<IBPhotos, 'id' | 'key' | 'url'>[]; /// deprecated 예정 => TourPlaceCommonType을 사용하고 있는 api의 리턴값에서 AddTripMemorySuccessResType.photo 또는 GetShareTripMemListByPlaceSuccessResType.photo 등과 같이 리턴값에서 TourPlace 상위의 photos 프로퍼티로 반환정보를 대체함
   photos?: Partial<IBPhotos>[];
-  likeFrom: Pick<
-    User,
-    'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
-  >[];
+  // likeFrom: Pick<
+  //   User,
+  //   'id' | 'nickName' | 'createdAt' | 'updatedAt' | 'profileImg'
+  // >[];
 };
 
 type PhotoWithMetaType = Partial<IBPhotos> & {
@@ -320,14 +336,16 @@ export interface ContextAddTripMemory extends IBContext {}
 const addTripMemory = async (
   param: AddTripMemoryRequestType,
   ctx: ContextAddTripMemory,
-  transaction?: Omit<
-    PrismaClient<
-      Prisma.PrismaClientOptions,
-      never,
-      Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-    >,
-    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
-  >,
+  // transaction?: Omit<
+  //   PrismaClient<
+  //     Prisma.PrismaClientOptions,
+  //     never,
+  //     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+  //   >,
+  //   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
+  // >,
+
+  transaction?: Omit<PrismaClient, runtime.ITXClientDenyList>,
 ): Promise<AddTripMemorySuccessResType> => {
   const {
     title,
@@ -340,12 +358,20 @@ const addTripMemory = async (
     groupId,
     tourPlaceId,
     photos,
+    categoryIds,
   } = param;
 
   if (isNil(photos) || isEmpty(photos)) {
     throw new IBError({
       type: 'INVALIDPARAMS',
       message: 'photos는 필수 파라미터입니다.',
+    });
+  }
+
+  if (isNil(categoryIds) || isEmpty(categoryIds)) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: `categoryIds는 1개 이상 반드시 제공되어야 합니다.`,
     });
   }
 
@@ -382,7 +408,7 @@ const addTripMemory = async (
       message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
     });
 
-  /// addShareTrip api 호출 이후 => addTripMemory 요청의 경우
+  /// addShareTrip api 호출로 인한 addTripMemory 요청의 경우
   if (!isNil(transaction)) {
     const tx = transaction;
     const alreadyExist = await tx.tripMemory.findUnique({
@@ -460,9 +486,9 @@ const addTripMemory = async (
 
         return tx.iBPhotoMetaInfo.create({
           data: {
-            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            type: v.photoMetaInfo!.type,
             order: index,
-            title: v.photoMetaInfo!.title!,
+            title: v.photoMetaInfo!.title,
             lat: latitude,
             lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
@@ -480,7 +506,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            ...(v.photoMetaInfo!.feature! && {
+            ...(v.photoMetaInfo!.feature && {
               feature: {
                 connectOrCreate: v.photoMetaInfo!.feature.map(k => {
                   return {
@@ -549,6 +575,30 @@ const addTripMemory = async (
       }
 
       /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+
+      /// 동일한 이름과 GPS 정보가 일치하는 장소가 있으면 신규로 등록하지 않고 오류 발생시킴
+      const minLat = Number(lat) - 0.0025;
+      const maxLat = Number(lat) + 0.0025;
+      const minLng = Number(lng) - 0.0025;
+      const maxLng = Number(lng) + 0.0025;
+      const sameNamedTP = await tx.tourPlace.findFirst({
+        where: {
+          title,
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+      });
+      if (!isNil(sameNamedTP)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '동일한 위치에(lat, lng) 동일한 이름의 장소가 존재합니다.',
+        });
+      }
+
       const createdTP = await tx.tourPlace.create({
         data: {
           title,
@@ -627,6 +677,7 @@ const addTripMemory = async (
             id: Number(createdOrFoundTP.id),
           },
         },
+        tripMemCategoryIds: categoryIds.toString(),
       },
       include: {
         tag: true,
@@ -669,15 +720,16 @@ const addTripMemory = async (
             notBad: true,
             bad: true,
             like: true,
-            likeFrom: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-            },
+            // likeFrom: {
+            //   select: {
+            //     id: true,
+            //     nickName: true,
+            //     profileImg: true,
+            //     createdAt: true,
+            //     updatedAt: true,
+            //   },
+            // },
+            adPlaceId: true,
           },
         },
       },
@@ -686,6 +738,7 @@ const addTripMemory = async (
   }
 
   /// 직접 addTripMemory 요청의 경우
+
   const createdTripMem = await prisma.$transaction(async tx => {
     const alreadyExist = await tx.tripMemory.findUnique({
       where: {
@@ -768,6 +821,29 @@ const addTripMemory = async (
       }
 
       /// 2. tourPlaceId 제공되지 않은 경우 새로 tourPlace를 생성해서 반환한다.
+      /// 동일한 이름과 GPS 정보가 일치하는 장소가 있으면 신규로 등록하지 않고 오류 발생시킴
+      const minLat = Number(lat) - 0.0025;
+      const maxLat = Number(lat) + 0.0025;
+      const minLng = Number(lng) - 0.0025;
+      const maxLng = Number(lng) + 0.0025;
+      const sameNamedTP = await tx.tourPlace.findFirst({
+        where: {
+          title,
+          AND: [
+            { lat: { gte: Number(minLat) } },
+            { lat: { lt: Number(maxLat) } },
+            { lng: { gte: Number(minLng) } },
+            { lng: { lt: Number(maxLng) } },
+          ],
+        },
+      });
+      if (!isNil(sameNamedTP)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '동일한 위치에(lat, lng) 동일한 이름의 장소가 존재합니다.',
+        });
+      }
+
       const createdTP = await tx.tourPlace.create({
         data: {
           title,
@@ -808,9 +884,9 @@ const addTripMemory = async (
             : Number(v.photoMetaInfo!.lng);
         return tx.iBPhotoMetaInfo.create({
           data: {
-            type: v.photoMetaInfo!.type as IBPhotoMetaInfoType,
+            type: v.photoMetaInfo!.type,
             order: index,
-            title: v.photoMetaInfo!.title!,
+            title: v.photoMetaInfo!.title,
             lat: latitude,
             lng: longitude,
             shotTime: v.photoMetaInfo!.shotTime,
@@ -828,7 +904,7 @@ const addTripMemory = async (
                 }),
               },
             }),
-            ...(v.photoMetaInfo!.feature! && {
+            ...(v.photoMetaInfo!.feature && {
               feature: {
                 connectOrCreate: v.photoMetaInfo!.feature.map(k => {
                   return {
@@ -917,6 +993,7 @@ const addTripMemory = async (
             id: Number(createdOrFoundTP.id),
           },
         },
+        tripMemCategoryIds: categoryIds.toString(),
       },
       include: {
         tag: true,
@@ -959,15 +1036,16 @@ const addTripMemory = async (
             notBad: true,
             bad: true,
             like: true,
-            likeFrom: {
-              select: {
-                id: true,
-                nickName: true,
-                profileImg: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-            },
+            // likeFrom: {
+            //   select: {
+            //     id: true,
+            //     nickName: true,
+            //     profileImg: true,
+            //     createdAt: true,
+            //     updatedAt: true,
+            //   },
+            // },
+            adPlaceId: true,
           },
         },
       },
@@ -978,11 +1056,11 @@ const addTripMemory = async (
   return createdTripMem;
 };
 
-export const getAccessableUrl = async (url: string): Promise<string> => {
-  if (url.includes('http')) return url;
-  const result = await getS3SignedUrl(url);
-  return result;
-};
+// export const getAccessableUrl = async (url: string): Promise<string> => {
+//   if (url.includes('http')) return url;
+//   const result = await getS3SignedUrl(url);
+//   return result;
+// };
 
 export const getIBPhotoUrl = async (
   photo: PhotoWithMetaType,
@@ -1046,6 +1124,7 @@ export const addTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1055,6 +1134,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1064,6 +1144,7 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1073,8 +1154,19 @@ export const addTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -1171,6 +1263,7 @@ export const addTripMemCategory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1180,6 +1273,7 @@ export const addTripMemCategory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1189,6 +1283,7 @@ export const addTripMemCategory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1256,6 +1351,7 @@ export const getTripMemCategoryList = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1265,6 +1361,7 @@ export const getTripMemCategoryList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1274,6 +1371,7 @@ export const getTripMemCategoryList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -1291,9 +1389,9 @@ export interface AddShareTripMemoryRequestType {
   tripMemoryParam: AddTripMemoryRequestType;
   tripMemoryId?: string; /// 이미 존재하는 tripMemory일 경우 id를 제공해야 한다. tripMemoryId가 제공되지 않을 경우 addShareTripMemory api 수행 과정중 tripMemory가 생성된다.
   recommendGrade: 'good' | 'notbad' | 'bad';
-  categoryIds: string[];
+  // categoryIds: string[]; /// tripMemoryParam으로 이전되어 들어갔다.
   // isShare: string; /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
-  tourPlaceId?: string | null;
+  tourPlaceId?: string | null; /// 이미 존재하는 장소에 share하려는 경우네느 tourPlaceId를 제공해야한다.
 }
 export interface AddShareTripMemorySuccessResType extends ShareTripMemory {
   TourPlace: TourPlaceCommonType | null;
@@ -1320,7 +1418,7 @@ export const addShareTripMemory = asyncWrapper(
       const {
         tripMemoryParam,
         recommendGrade,
-        categoryIds,
+        // categoryIds,
         tourPlaceId,
         tripMemoryId,
         // isShare,
@@ -1373,186 +1471,6 @@ export const addShareTripMemory = asyncWrapper(
         });
       }
 
-      const tripMemoryCategory = await prisma.tripMemoryCategory.findMany({
-        where: {
-          id: {
-            in: categoryIds.map(v => Number(v)),
-          },
-        },
-      });
-
-      if (
-        !tripMemoryCategory ||
-        tripMemoryCategory.length !== categoryIds.length
-      ) {
-        const notExistIds = categoryIds.filter(id => {
-          const notExist = tripMemoryCategory.find(v => v.id !== Number(id));
-          return !isNil(notExist);
-        });
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
-        });
-      }
-
-      const categoryToIBTravelTag = {
-        tourPlaceType: (() => {
-          switch (
-            tripMemoryCategory[0].super /// 모두 같은 상위 카테고리에서만 선택이 되었다고 가정하기 때문에 첫번째 값만 참조해도 무방하다. 예를들면 상위 카테고리인 음식 카테고리에서 하위 카테고리를 한식, 코스요리, 특별한 맛집 등으로 골랐다면 그것은 음식 카테고리에서만 뽑은 것이며, 여타 다음 상위 카테고리와 함께 선택되지 않았다고 가정한다(시나리오상 고를수 없다는 것)
-          ) {
-            case '음식':
-            case '카페':
-              return 'USER_RESTAURANT' as PlaceType;
-            case '관광':
-            case '액티비티':
-            case '휴식':
-            default:
-              return 'USER_SPOT' as PlaceType;
-            // case 'lodge':
-          }
-        })(),
-        ibTravelTagNames: tripMemoryCategory.map(v => {
-          switch (v.name) {
-            /// 음식
-            case '브런치':
-            case '한식':
-            case '중식':
-            case '일식':
-            case '양식':
-            case '패스트푸드':
-            case '코스요리':
-            case '고기맛집':
-            case '특별한맛집':
-            case '나만의맛집':
-            case '아이와함께먹을수있는':
-            case '오래된맛집':
-              return null;
-            /// 카페
-            case '분위기좋은':
-            case '인스타감성':
-            case '케익맛집':
-            case '예쁜':
-            case '로컬카페':
-            case '다목적공간':
-            case '힙한':
-            case '핫플':
-              return null;
-            case '조용한':
-              if (v.super === '숙소') return '';
-              return null;
-            /// 숙소
-            case '시티뷰':
-            case '바다뷰':
-            case '마운틴뷰':
-            case '깔끔한':
-            case '친절한':
-            case '시내와인접한':
-            case '풀빌라':
-            case '에어비앤비':
-            case '독채':
-            case '펫동반':
-            case '가족단위':
-              return null;
-            /// 관광
-            case '쇼핑':
-              return 'shopping';
-            case '아쿠아리움':
-              return 'aquarium';
-            case '테마파크':
-              return 'themePark';
-            case '놀이공원':
-              return 'amusementPark';
-            case '유적지':
-              return 'historicalSpot';
-            case '박물관':
-            case '미술관':
-              return 'museum';
-            case '국립공원':
-              return 'nationalPark';
-            case '해안경관':
-              return 'ocean';
-            case '공원/정원':
-              return 'park';
-            case '섬':
-              return 'island';
-            case '언덕':
-              return 'hill';
-            case '산':
-              return 'mountain';
-            case '강':
-              return 'river';
-            case '수목원':
-              return 'arboreteum';
-            case '숲':
-              return 'forest';
-            case '바위':
-              return 'rocks';
-            case '둘레길':
-              return 'circumferenceTrail';
-            case '오름':
-              return 'oreum';
-            case '해안도로':
-              return 'shoreline';
-            case '기타':
-              return 'etc';
-            /// 액티비티
-            case '스노보드':
-              return 'snowBoard';
-            case '스키':
-              return 'ski';
-            case '케이블카':
-              return 'cableCar';
-            case '패러글라이딩':
-              return 'paragliding';
-            case '짚라인':
-              return 'zipTrack';
-            case 'UTV':
-              return 'UTV';
-            case 'MTB':
-              return 'MTB';
-            case '암벽등반':
-              return 'rockClimbing';
-            case '그룹하이킹':
-              return 'groupHiking';
-            case '등산':
-              return 'climbing';
-            case '루지레이스':
-              return 'lugeRacing';
-            case '골프':
-              return 'golf';
-            case '티켓':
-              return 'ticket';
-            case '농장':
-              return 'farm';
-            case '승마':
-              return 'horseRiding';
-            case 'ATV':
-              return 'ATV';
-            case '카트레이스':
-              return 'cartRacing';
-            case '크루즈':
-              return 'cruise';
-            case '카약':
-              return 'kayak';
-            case '패들보드':
-              return 'paddleBoard';
-            case '서핑':
-              return 'surfing';
-            case '제트보트':
-              return 'jetBoat';
-            case '세일링':
-              return 'sailing';
-            case '낚시':
-              return 'fishing';
-            case '스노클링':
-              return 'snorkeling';
-            case '해수욕':
-              return 'beach';
-            default:
-              return null;
-          }
-        }),
-      };
       const createdShareTripMemory = await prisma.$transaction(async tx => {
         /// tripMemoryId 가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
         /// 반환된 tripMemory는 shareTripMemory 생성할때 connect해준다.
@@ -1624,15 +1542,16 @@ export const addShareTripMemory = asyncWrapper(
                     notBad: true,
                     bad: true,
                     like: true,
-                    likeFrom: {
-                      select: {
-                        id: true,
-                        nickName: true,
-                        profileImg: true,
-                        createdAt: true,
-                        updatedAt: true,
-                      },
-                    },
+                    // likeFrom: {
+                    //   select: {
+                    //     id: true,
+                    //     nickName: true,
+                    //     profileImg: true,
+                    //     createdAt: true,
+                    //     updatedAt: true,
+                    //   },
+                    // },
+                    adPlaceId: true,
                   },
                 },
               },
@@ -1672,7 +1591,47 @@ export const addShareTripMemory = asyncWrapper(
           });
         })();
 
-        const ibTravelTagNames = categoryToIBTravelTag.ibTravelTagNames
+        const { tripMemCategoryIds } = createdOrFoundTripMem;
+        if (isNil(tripMemCategoryIds) || isEmpty(tripMemCategoryIds)) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: `tripMemory에 저장된 tripMemCategoryIds가 존재하지 않습니다.`,
+          });
+        }
+        const categoryIds = tripMemCategoryIds.split(',');
+
+        if (isNil(categoryIds) || isEmpty(categoryIds)) {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message: `tripMemory에 저장된 categoryId가 올바른 형식이 아닙니다.`,
+          });
+        }
+        const tripMemoryCategory = await tx.tripMemoryCategory.findMany({
+          where: {
+            id: {
+              in: categoryIds.map(v => Number(v)),
+            },
+          },
+        });
+
+        if (
+          isNil(tripMemoryCategory) ||
+          isEmpty(tripMemoryCategory) ||
+          tripMemoryCategory.length !== categoryIds.length
+        ) {
+          const notExistIds = categoryIds.filter(id => {
+            const notExist = tripMemoryCategory.find(v => v.id !== Number(id));
+            return !isNil(notExist);
+          });
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: `${notExistIds.toString()}는 존재하지 않는 categoryIds입니다. `,
+          });
+        }
+
+        const typeNTags = categoryToIBTravelTag(tripMemoryCategory);
+
+        const ibTravelTagNames = typeNTags.ibTravelTagNames
           .map(v => {
             if (v === null) return null;
             return {
@@ -1719,17 +1678,7 @@ export const addShareTripMemory = asyncWrapper(
                   lng: Number(lng),
                   address,
                   // tourPlaceType: 'USER_SPOT',
-                  tourPlaceType: categoryToIBTravelTag.tourPlaceType,
-                  photos: {
-                    connect: createdOrFoundTripMem.photos.map(v => {
-                      return {
-                        id: v.photoMetaInfo!.photoId,
-                      };
-                    }),
-                    // create: {
-                    //   key: img,
-                    // },
-                  },
+                  tourPlaceType: typeNTags.tourPlaceType,
                   ...(!isNil(ibTravelTagNames) &&
                     !isEmpty(ibTravelTagNames) && {
                       ibTravelTag: {
@@ -1793,15 +1742,16 @@ export const addShareTripMemory = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
+                adPlaceId: true,
               },
             },
           },
@@ -1824,12 +1774,12 @@ export const addShareTripMemory = asyncWrapper(
               id: createdOrFoundTripMem.TourPlace.id,
             },
             data: {
-              tourPlaceType: categoryToIBTravelTag.tourPlaceType,
+              tourPlaceType: typeNTags.tourPlaceType,
             },
           });
         }
 
-        const recommendUpdatePromise = (() => {
+        const recommendNPhotoUpdatePromise = (() => {
           if (recommendGrade === 'good') {
             const nextGood = shareTripMemory.TourPlace!.good + 1;
             return tx.tourPlace.update({
@@ -1838,6 +1788,13 @@ export const addShareTripMemory = asyncWrapper(
               },
               data: {
                 good: nextGood,
+                photos: {
+                  connect: createdOrFoundTripMem.photos.map(v => {
+                    return {
+                      id: v.photoMetaInfo!.photoId,
+                    };
+                  }),
+                },
               },
             });
           }
@@ -1849,6 +1806,13 @@ export const addShareTripMemory = asyncWrapper(
               },
               data: {
                 notBad: nextNotBad,
+                photos: {
+                  connect: createdOrFoundTripMem.photos.map(v => {
+                    return {
+                      id: v.photoMetaInfo!.photoId,
+                    };
+                  }),
+                },
               },
             });
           }
@@ -1859,11 +1823,18 @@ export const addShareTripMemory = asyncWrapper(
             },
             data: {
               bad: nextBad,
+              photos: {
+                connect: createdOrFoundTripMem.photos.map(v => {
+                  return {
+                    id: v.photoMetaInfo!.photoId,
+                  };
+                }),
+              },
             },
           });
         })();
 
-        await recommendUpdatePromise;
+        await recommendNPhotoUpdatePromise;
 
         return shareTripMemory;
       });
@@ -1875,6 +1846,7 @@ export const addShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -1884,6 +1856,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -1893,6 +1866,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1902,6 +1876,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -1911,6 +1886,7 @@ export const addShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2025,6 +2001,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2034,6 +2011,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2043,6 +2021,7 @@ export const getNrbyPlaceListWithGeoLocWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2202,33 +2181,35 @@ export const addReplyToShareTripMemory = asyncWrapper(
         return result;
       });
 
-      /// 1. 댓글이 달린 shareTripMemory 소유자
-      await putInSysNotiMessage({
-        userId: `${createdOne.shareTripMemory.userId}`,
-        // userRole: createdOne.shareTripMemory.user
-        createdAt: new Date(createdOne.createdAt).toISOString(),
-        message: '내 게시물에 댓글이 달렸어요',
-        type: 'REPLYFORMYSHARETRIPMEM',
-      });
-      pubSSEvent({
-        from: 'system',
-        to: `${createdOne.shareTripMemory.userId}`,
-      });
-
-      /// 2. 대댓글인경우 부모 댓글 쓴사람
-      if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
-        /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
+      if (!isNil(createdOne.shareTripMemory.userId)) {
+        /// 1. 댓글이 달린 shareTripMemory 소유자
         await putInSysNotiMessage({
-          userId: `${parentRpl.userId}`,
+          userId: `${createdOne.shareTripMemory.userId}`,
           // userRole: createdOne.shareTripMemory.user
           createdAt: new Date(createdOne.createdAt).toISOString(),
           message: '내 게시물에 댓글이 달렸어요',
-          type: 'REPLYFORMYREPLY',
+          type: 'REPLYFORMYSHARETRIPMEM',
         });
         pubSSEvent({
           from: 'system',
-          to: `${parentRpl.userId}`,
+          to: `${createdOne.shareTripMemory.userId}`,
         });
+
+        /// 2. 대댓글인경우 부모 댓글 쓴사람
+        if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
+          /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
+          await putInSysNotiMessage({
+            userId: `${parentRpl.userId}`,
+            // userRole: createdOne.shareTripMemory.user
+            createdAt: new Date(createdOne.createdAt).toISOString(),
+            message: '내 게시물에 댓글이 달렸어요',
+            type: 'REPLYFORMYREPLY',
+          });
+          pubSSEvent({
+            from: 'system',
+            to: `${parentRpl.userId}`,
+          });
+        }
       }
 
       res.json({
@@ -2238,6 +2219,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2247,6 +2229,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2256,6 +2239,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2264,6 +2248,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
@@ -2273,6 +2258,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'INVALIDENVPARAMS') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.INVALIDENVPARAMS,
             IBdetail: (err as Error).message,
@@ -2401,11 +2387,13 @@ export const getReplyListByShareTripMem = asyncWrapper(
               ...v,
               user: {
                 ...v.user,
-                ...(!isNil(v.user!.profileImg) && {
-                  profileImg: v.user!.profileImg.includes('http')
-                    ? v.user!.profileImg
-                    : await getS3SignedUrl(v.user!.profileImg),
-                }),
+                ...(!isNil(v.user) &&
+                  !isNil(v.user.profileImg) && {
+                    profileImg: await getUserProfileUrl(v.user),
+                    // profileImg: v.user!.profileImg.includes('http')
+                    //   ? v.user!.profileImg
+                    //   : await getS3SignedUrl(v.user!.profileImg),
+                  }),
               },
               childrenReplies: await Promise.all(
                 v.childrenReplies.map(async v2 => {
@@ -2413,11 +2401,13 @@ export const getReplyListByShareTripMem = asyncWrapper(
                     ...v2,
                     user: {
                       ...v2.user,
-                      ...(!isNil(v2.user!.profileImg) && {
-                        profileImg: v2.user!.profileImg.includes('http')
-                          ? v2.user!.profileImg
-                          : await getS3SignedUrl(v2.user!.profileImg),
-                      }),
+                      ...(!isNil(v2.user) &&
+                        !isNil(v2.user.profileImg) && {
+                          profileImg: await getUserProfileUrl(v2.user),
+                          // profileImg: v2.user!.profileImg.includes('http')
+                          //   ? v2.user!.profileImg
+                          //   : await getS3SignedUrl(v2.user!.profileImg),
+                        }),
                     },
                   };
                 }),
@@ -2429,6 +2419,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2438,6 +2429,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2447,6 +2439,7 @@ export const getReplyListByShareTripMem = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2539,6 +2532,7 @@ export const delShareTripMemReply = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2548,6 +2542,7 @@ export const delShareTripMemReply = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2557,6 +2552,7 @@ export const delShareTripMemReply = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2663,6 +2659,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2672,6 +2669,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2681,6 +2679,7 @@ export const modifyReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2782,6 +2781,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -2791,6 +2791,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -2800,6 +2801,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -2814,6 +2816,7 @@ export const deleteReplyToShareTripMemory = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -2946,15 +2949,16 @@ export const getShareTripMemList = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
+                adPlaceId: true,
               },
             },
             photos: {
@@ -2982,23 +2986,27 @@ export const getShareTripMemList = asyncWrapper(
         //     message: '공유상태의 shareTripMemoryId가 아닙니다.',
         //   });
         // }
-        const { profileImg } = foundShareTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
           IBparams: [
             {
               ...foundShareTripMem,
-              img: foundShareTripMem.img.includes('http')
-                ? foundShareTripMem.img
-                : await getS3SignedUrl(foundShareTripMem.img),
-              user: {
-                ...foundShareTripMem.user,
-                ...(!isNil(profileImg) && {
-                  profileImg: profileImg.includes('http')
-                    ? profileImg
-                    : await getS3SignedUrl(profileImg),
-                }),
-              },
+              img: await getAccessableUrl(foundShareTripMem.img),
+              // img: foundShareTripMem.img.includes('http')
+              //   ? foundShareTripMem.img
+              //   : await getS3SignedUrl(foundShareTripMem.img),
+              ...(!isNil(foundShareTripMem.user) && {
+                user: {
+                  ...foundShareTripMem.user,
+                  ...(!isNil(foundShareTripMem.user.profileImg) && {
+                    profileImg: await getUserProfileUrl(foundShareTripMem.user),
+                    // profileImg: profileImg.includes('http')
+                    //   ? profileImg
+                    //   : await getS3SignedUrl(profileImg),
+                  }),
+                },
+              }),
+
               photos: isNil(foundShareTripMem.photos)
                 ? null
                 : await Promise.all(
@@ -3073,15 +3081,16 @@ export const getShareTripMemList = asyncWrapper(
               notBad: true,
               bad: true,
               like: true,
-              likeFrom: {
-                select: {
-                  id: true,
-                  nickName: true,
-                  profileImg: true,
-                  createdAt: true,
-                  updatedAt: true,
-                },
-              },
+              // likeFrom: {
+              //   select: {
+              //     id: true,
+              //     nickName: true,
+              //     profileImg: true,
+              //     createdAt: true,
+              //     updatedAt: true,
+              //   },
+              // },
+              adPlaceId: true,
             },
           },
           photos: {
@@ -3120,22 +3129,22 @@ export const getShareTripMemList = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundShareTripMemList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                return getAccessableUrl(profileImg);
-                // if (profileImg.includes('http')) return profileImg;
-                // return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     return getAccessableUrl(profileImg);
+            //     // if (profileImg.includes('http')) return profileImg;
+            //     // return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
               img: await getAccessableUrl(v.img),
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
               },
               photos: isNil(v.photos)
                 ? null
@@ -3157,6 +3166,7 @@ export const getShareTripMemList = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -3166,6 +3176,7 @@ export const getShareTripMemList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -3174,6 +3185,7 @@ export const getShareTripMemList = asyncWrapper(
           return;
         }
         if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
@@ -3183,6 +3195,7 @@ export const getShareTripMemList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -3197,6 +3210,7 @@ export const getShareTripMemList = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -3296,22 +3310,51 @@ export const getShareTripMemListByPlace = asyncWrapper(
       const tourPlaceList = await prisma.tourPlace.findMany({
         where: {
           id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId),
-          shareTripMemory: {
-            some: {
-              AND: [
-                {
-                  tripMemoryCategory: {
+          OR: [
+            /// adPlace와 연관된 tp는 공유가 하나도 없더라도 검색되어야 함.
+            /// adPlace와 연관되지 않은 tp는 공유가 없다면 검색되면 안됨.
+            {
+              adPlaceId: { not: null }, /// adPlace 연관 tp
+              ...(!isNil(categoryKeyword) &&
+                !isEmpty(categoryKeyword) && {
+                  shareTripMemory: {
                     some: {
-                      name: {
-                        contains: categoryKeyword,
-                      },
+                      AND: [
+                        {
+                          tripMemoryCategory: {
+                            some: {
+                              name: {
+                                contains: categoryKeyword,
+                              },
+                            },
+                          },
+                        },
+                        // { isShare: true },
+                      ],
                     },
                   },
-                },
-                // { isShare: true },
-              ],
+                }),
             },
-          },
+            {
+              adPlaceId: null, /// adPlace와 연관없는 일반 tp
+              shareTripMemory: {
+                some: {
+                  AND: [
+                    {
+                      tripMemoryCategory: {
+                        some: {
+                          name: {
+                            contains: categoryKeyword,
+                          },
+                        },
+                      },
+                    },
+                    // { isShare: true },
+                  ],
+                },
+              },
+            },
+          ],
         },
         select: {
           id: true,
@@ -3334,15 +3377,15 @@ export const getShareTripMemListByPlace = asyncWrapper(
           notBad: true,
           bad: true,
           like: true,
-          likeFrom: {
-            select: {
-              id: true,
-              nickName: true,
-              profileImg: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          },
+          // likeFrom: {
+          //   select: {
+          //     id: true,
+          //     nickName: true,
+          //     profileImg: true,
+          //     createdAt: true,
+          //     updatedAt: true,
+          //   },
+          // },
 
           ibTravelTag: true,
           shareTripMemory: {
@@ -3386,6 +3429,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 },
               }),
           },
+          adPlaceId: true,
         },
         ...(orderBy.toUpperCase().includes('LATEST') && {
           orderBy: {
@@ -3424,22 +3468,24 @@ export const getShareTripMemListByPlace = asyncWrapper(
               photos: await getImgUrlListFromIBPhotos(t.photos),
               shareTripMemory: await Promise.all(
                 t.shareTripMemory.map(async s => {
-                  const userImg = await (() => {
-                    const { profileImg } = s.user;
-                    if (!isNil(profileImg)) {
-                      if (profileImg.includes('http')) return profileImg;
-                      return getS3SignedUrl(profileImg);
-                    }
-                    return null;
-                  })();
+                  // const userImg = await (() => {
+                  //   const { profileImg } = s.user;
+                  //   if (!isNil(profileImg)) {
+                  //     if (profileImg.includes('http')) return profileImg;
+                  //     return getS3SignedUrl(profileImg);
+                  //   }
+                  //   return null;
+                  // })();
                   const ret = {
                     ...s,
-                    img: s.img.includes('http')
-                      ? s.img
-                      : await getS3SignedUrl(s.img),
+                    img: await getAccessableUrl(s.img),
+                    // img: s.img.includes('http')
+                    //   ? s.img
+                    //   : await getS3SignedUrl(s.img),
                     user: {
                       ...s.user,
-                      profileImg: userImg,
+                      // profileImg: userImg,
+                      profileImg: await getUserProfileUrl(s.user),
                     },
                     photos: await Promise.all(s.photos.map(getIBPhotoUrl)),
                   };
@@ -3460,6 +3506,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -3469,6 +3516,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -3478,6 +3526,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -3492,6 +3541,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -3595,6 +3645,7 @@ export const getTripMemList = asyncWrapper(
         });
       }
 
+      /// tripMemoryId로 조회 요청온  경우
       if (!isNil(tripMemoryId)) {
         const foundTripMem = await prisma.tripMemory.findUnique({
           where: {
@@ -3674,15 +3725,15 @@ export const getTripMemList = asyncWrapper(
                 notBad: true,
                 bad: true,
                 like: true,
-                likeFrom: {
-                  select: {
-                    id: true,
-                    nickName: true,
-                    profileImg: true,
-                    createdAt: true,
-                    updatedAt: true,
-                  },
-                },
+                // likeFrom: {
+                //   select: {
+                //     id: true,
+                //     nickName: true,
+                //     profileImg: true,
+                //     createdAt: true,
+                //     updatedAt: true,
+                //   },
+                // },
               },
             },
           },
@@ -3701,22 +3752,24 @@ export const getTripMemList = asyncWrapper(
             message: '조회 권한이 없는 기억 id입니다.',
           });
         }
-        const { profileImg } = foundTripMem.user;
+        // const { profileImg } = foundTripMem.user;
         res.json({
           ...ibDefs.SUCCESS,
           IBparams: [
             {
               ...foundTripMem,
-              img: foundTripMem.img.includes('http')
-                ? foundTripMem.img
-                : await getS3SignedUrl(foundTripMem.img),
+              img: await getAccessableUrl(foundTripMem.img),
+              // img: foundTripMem.img.includes('http')
+              //   ? foundTripMem.img
+              //   : await getS3SignedUrl(foundTripMem.img),
               user: {
                 ...foundTripMem.user,
-                ...(!isNil(profileImg) && {
-                  profileImg: profileImg.includes('http')
-                    ? profileImg
-                    : await getS3SignedUrl(profileImg),
-                }),
+                profileImg: await getUserProfileUrl(foundTripMem.user),
+                // ...(!isNil(profileImg) && {
+                //   profileImg: profileImg.includes('http')
+                //     ? profileImg
+                //     : await getS3SignedUrl(profileImg),
+                // }),
               },
               photos: isNil(foundTripMem.photos)
                 ? null
@@ -3727,26 +3780,61 @@ export const getTripMemList = asyncWrapper(
         return;
       }
 
+      /// tripMemoryId 가 없이 조회 요청온  경우
       const foundTripMemList = await prisma.tripMemory.findMany({
         where: {
           AND: [
             {
-              tag: {
-                some: {
-                  name: {
-                    contains: tagKeyword,
+              ...(!isNil(tagKeyword) &&
+                !isEmpty(tagKeyword) && {
+                  tag: {
+                    some: {
+                      name: {
+                        contains: tagKeyword,
+                      },
+                    },
                   },
-                },
-              },
+                }),
             },
             {
-              groupId: isNil(groupId) ? undefined : Number(groupId),
+              ...(!isNil(groupId) &&
+                !isEmpty(groupId) &&
+                !isNaN(Number(groupId)) && {
+                  groupId: Number(groupId),
+                }),
             },
-
-            { lat: isNil(minLat) ? undefined : { gte: Number(minLat) } },
-            { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
-            { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
-            { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
+            {
+              ...(!isNil(minLat) &&
+                !isEmpty(minLat) &&
+                !isNaN(Number(minLat)) && {
+                  lat: { gte: Number(minLat) },
+                }),
+            },
+            {
+              ...(!isNil(maxLat) &&
+                !isEmpty(maxLat) &&
+                !isNaN(Number(maxLat)) && {
+                  lat: { lt: Number(maxLat) },
+                }),
+            },
+            {
+              ...(!isNil(minLng) &&
+                !isEmpty(minLng) &&
+                !isNaN(Number(minLng)) && {
+                  lng: { gte: Number(minLng) },
+                }),
+            },
+            {
+              ...(!isNil(maxLng) &&
+                !isEmpty(maxLng) &&
+                !isNaN(Number(maxLng)) && {
+                  lng: { lt: Number(maxLng) },
+                }),
+            },
+            // { lat: isNil(minLat) ? undefined : { gte: Number(minLat) } },
+            // { lat: isNil(maxLat) ? undefined : { lt: Number(maxLat) } },
+            // { lng: isNil(minLng) ? undefined : { gte: Number(minLng) } },
+            // { lng: isNil(maxLng) ? undefined : { lt: Number(maxLng) } },
             { userId: Number(memberId) },
           ],
         },
@@ -3761,6 +3849,7 @@ export const getTripMemList = asyncWrapper(
         }),
         select: {
           id: true,
+          createdAt: true,
           title: true,
           comment: true,
           lat: true,
@@ -3840,21 +3929,23 @@ export const getTripMemList = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundTripMemList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                if (profileImg.includes('http')) return profileImg;
-                return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     if (profileImg.includes('http')) return profileImg;
+            //     return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
-              img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
+              img: await getAccessableUrl(v.img),
+              // img: v.img.includes('http') ? v.img : await getS3SignedUrl(v.img),
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
+                // profileImg: userImg,
               },
               photos: isNil(v.photos)
                 ? null
@@ -3875,6 +3966,7 @@ export const getTripMemList = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -3884,6 +3976,7 @@ export const getTripMemList = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -3893,6 +3986,7 @@ export const getTripMemList = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -3907,6 +4001,7 @@ export const getTripMemList = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -4128,15 +4223,15 @@ export const getTripMemListByGroup = asyncWrapper(
                   notBad: true,
                   bad: true,
                   like: true,
-                  likeFrom: {
-                    select: {
-                      id: true,
-                      nickName: true,
-                      profileImg: true,
-                      createdAt: true,
-                      updatedAt: true,
-                    },
-                  },
+                  // likeFrom: {
+                  //   select: {
+                  //     id: true,
+                  //     nickName: true,
+                  //     profileImg: true,
+                  //     createdAt: true,
+                  //     updatedAt: true,
+                  //   },
+                  // },
                 },
               },
               photos: {
@@ -4164,14 +4259,14 @@ export const getTripMemListByGroup = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: await Promise.all(
           foundGroupList.map(async v => {
-            const userImg = await (() => {
-              const { profileImg } = v.user;
-              if (!isNil(profileImg)) {
-                if (profileImg.includes('http')) return profileImg;
-                return getS3SignedUrl(profileImg);
-              }
-              return null;
-            })();
+            // const userImg = await (() => {
+            //   const { profileImg } = v.user;
+            //   if (!isNil(profileImg)) {
+            //     if (profileImg.includes('http')) return profileImg;
+            //     return getS3SignedUrl(profileImg);
+            //   }
+            //   return null;
+            // })();
 
             const ret = {
               ...v,
@@ -4182,9 +4277,10 @@ export const getTripMemListByGroup = asyncWrapper(
                     createdDay: moment(k.createdAt)
                       .startOf('d')
                       .format('YYYY-MM-DD'),
-                    img: k.img.includes('http')
-                      ? k.img
-                      : await getS3SignedUrl(k.img),
+                    img: await getAccessableUrl(k.img),
+                    // img: k.img.includes('http')
+                    //   ? k.img
+                    //   : await getS3SignedUrl(k.img),
                     TourPlace: k.TourPlace,
                     photos: isNil(k.photos)
                       ? null
@@ -4195,7 +4291,8 @@ export const getTripMemListByGroup = asyncWrapper(
 
               user: {
                 ...v.user,
-                profileImg: userImg,
+                profileImg: await getUserProfileUrl(v.user),
+                // profileImg: userImg,
               },
             };
 
@@ -4213,6 +4310,7 @@ export const getTripMemListByGroup = asyncWrapper(
 
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4222,6 +4320,7 @@ export const getTripMemListByGroup = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4231,6 +4330,7 @@ export const getTripMemListByGroup = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4245,6 +4345,7 @@ export const getTripMemListByGroup = asyncWrapper(
             'Foreign key constraint failed on the field: `parentReplyId`',
           )
         ) {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: '대댓글이 존재하는 댓글입니다. 삭제할수 없습니다.',
@@ -4315,6 +4416,7 @@ export const getNotiNewComment = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4324,6 +4426,7 @@ export const getNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4333,6 +4436,7 @@ export const getNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4431,6 +4535,7 @@ export const checkNotiNewComment = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4440,6 +4545,7 @@ export const checkNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4449,6 +4555,7 @@ export const checkNotiNewComment = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -4472,22 +4579,7 @@ export interface ModifyTripMemoryRequestType {
   // img?: string; ///deprecated photos에서 첫번째 해당하는 사진을 메인 이미지로 설정함.
   photos?: {
     key: string;
-    photoMetaInfo?: {
-      /// common fields
-      type?: IBPhotoMetaInfoType;
-      title?: string;
-      lat?: string;
-      lng?: string;
-      shotTime?: string;
-      keyword?: string[];
-      feature?: {
-        super: string;
-        name: string;
-      }[];
-      // eval?: string; /// for only MAIN fields /// 데이터 수집시에 MAIN 타입의 사진의 photoMetaInfo 에서 필수적으로 저장되어야 하는 데이터이지만(스키마에서는 nullable) photoMetaInfo에서 따로 입력받지 않고 addShareTripMemory할때 입력받는 recommendGrade로 자동 저장함
-      desc?: string; /// for only MAIN fields
-      publicInfo?: string; /// for DETAIL fields
-    };
+    photoMetaInfo?: Partial<PhotoMetaInfoForAdd>;
   }[];
 }
 export interface ModifyTripMemorySuccessResType extends TripMemory {
@@ -4875,6 +4967,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -4884,6 +4977,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -4893,6 +4987,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -4902,6 +4997,7 @@ export const modifyTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5012,6 +5108,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5021,6 +5118,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
           res.status(400).json({
             ...ibDefs.INVALIDPARAMS,
             IBdetail: (err as Error).message,
@@ -5030,6 +5128,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5039,6 +5138,7 @@ export const deleteTripMemoryWrapper = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5471,6 +5571,7 @@ export const modifyShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5480,6 +5581,7 @@ export const modifyShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5489,6 +5591,7 @@ export const modifyShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5582,6 +5685,7 @@ export const deleteShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5591,6 +5695,7 @@ export const deleteShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5600,6 +5705,7 @@ export const deleteShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5699,8 +5805,8 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
       //   });
       // }
 
-      if (isEmpty(existCheck.likeFrom)) {
-        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
+        /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음 => 때문에 like 처리함
         const likeResult = await prisma.shareTripMemory.update({
           where: {
             id: Number(shareTripMemoryId),
@@ -5729,6 +5835,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         return;
       }
 
+      /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 있음 => 때문에 unlike 처리함
       const unlikeResult = await prisma.shareTripMemory.update({
         where: {
           id: Number(shareTripMemoryId),
@@ -5757,6 +5864,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5766,6 +5874,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5775,6 +5884,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -5784,6 +5894,7 @@ export const likeOrUnlikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -5943,6 +6054,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -5952,6 +6064,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -5961,6 +6074,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -5970,6 +6084,7 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -6054,7 +6169,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.likeFrom)) {
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 shareTripMemory에 대해 like한 이력이 없음
         res.json({
           ...ibDefs.SUCCESS,
@@ -6074,6 +6189,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -6083,6 +6199,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -6092,6 +6209,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -6101,6 +6219,7 @@ export const checkLikeShareTripMemory = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
@@ -6125,6 +6244,9 @@ export type CheckLikeTourPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: CheckLikeTourPlaceSuccessResType | {};
 };
 
+/**
+ * accessToken을 제공한 유저가 해당 '장소' 항목에 좋아요 했는지 여부를 확인 요청하는 api
+ */
 export const checkLikeTourPlace = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<CheckLikeTourPlaceRequestType>,
@@ -6155,7 +6277,7 @@ export const checkLikeTourPlace = asyncWrapper(
 
       if (isNil(tourPlaceId) || isEmpty(tourPlaceId)) {
         throw new IBError({
-          type: 'NOTEXISTDATA',
+          type: 'INVALIDPARAMS',
           message: 'tourPlaceId는 필수 값입니다.',
         });
       }
@@ -6197,7 +6319,7 @@ export const checkLikeTourPlace = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.likeFrom)) {
+      if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
         res.json({
           ...ibDefs.SUCCESS,
@@ -6217,6 +6339,7 @@ export const checkLikeTourPlace = asyncWrapper(
     } catch (err) {
       if (err instanceof IBError) {
         if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
           res.status(403).json({
             ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
@@ -6225,7 +6348,18 @@ export const checkLikeTourPlace = asyncWrapper(
           return;
         }
 
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
         if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
             IBdetail: (err as Error).message,
@@ -6235,6 +6369,7 @@ export const checkLikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
             IBdetail: (err as Error).message,
@@ -6244,6 +6379,7 @@ export const checkLikeTourPlace = asyncWrapper(
         }
 
         if (err.type === 'DBTRANSACTIONERROR') {
+          console.error(err);
           res.status(500).json({
             ...ibDefs.DBTRANSACTIONERROR,
             IBdetail: (err as Error).message,
