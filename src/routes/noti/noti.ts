@@ -1656,8 +1656,8 @@ export const reqNewBooking = asyncWrapper(
 
       const reverseData: BookingChatMessageType = {
         ...ansBookingData,
-        customerId: toUserId,
-        companyId: userId,
+        customerId: userId,
+        companyId: toUserId,
         from: toUserId, /// 사업자
         to: userId, /// 고객
       };
