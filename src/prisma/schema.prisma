@@ -699,13 +699,23 @@ model ValidCluster {
   visitSchedule           VisitSchedule[]
 }
 
-/// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델
+/// 문자인증 코드를 인증하기전까지 임시저장하는 모델
 model SMSAuthCode {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
   code        String
   phone       String
+  userTokenId String
+}
+
+/// 이메일 인증 코드를 인증하기전까지 임시저장하는 모델
+model EmailAuthCode {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  code        String
+  email       String
   userTokenId String
 }
 

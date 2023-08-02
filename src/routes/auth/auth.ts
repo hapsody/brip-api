@@ -735,6 +735,115 @@ export const sendSMSAuthCode = asyncWrapper(
   },
 );
 
+export type SendEmailAuthCodeREQParam = {
+  email?: string; /// 회원이 아닌경우 email 필요
+};
+export interface SendEmailAuthCodeRETParamPayload {}
+
+export type SendEmailAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SendEmailAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 이메일 인증번호 발송
+ *
+ */
+export const sendEmailAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SendEmailAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SendEmailAuthCodeRETParam>,
+  ) => {
+    try {
+      const { email: nonMemberEmail } = req.body;
+      const { locals } = req;
+      const { userTokenId, memberEmail } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberEmail: locals?.user?.email ?? null,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        return { memberEmail: null, userTokenId: locals?.tokenId };
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const email = (() => {
+        if (
+          (isNil(nonMemberEmail) || isEmpty(nonMemberEmail)) &&
+          (isNil(memberEmail) || isEmpty(memberEmail))
+        ) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'email 파라미터가 제공되지 않았습니다',
+          });
+        }
+
+        if (!isNil(nonMemberEmail) && !isEmpty(nonMemberEmail))
+          return nonMemberEmail;
+        return memberEmail as string;
+      })();
+
+      const randNum = Math.random().toString().substring(2, 8);
+      const authCode =
+        randNum.length < 6
+          ? `${randNum}${Array<number>(6 - randNum.length)
+              .fill(0)
+              .reduce(
+                (acc: string, cur: number) => `${acc}${cur.toString()}`,
+                '' as string,
+              )}`
+          : randNum;
+
+      await sendEmail({
+        from: `${process.env.SYSTEM_EMAIL_SENDER as string}`,
+        to: `${email}`,
+        subject: 'BRiP System - Email Authenticate code',
+        html: `brip Email 문자인증 코드: ${authCode}`,
+      });
+
+      await prisma.emailAuthCode.create({
+        data: {
+          email,
+          code: authCode,
+          userTokenId,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export type SubmitSMSAuthCodeREQParam = {
   phone: string;
   authCode: string;
@@ -1351,6 +1460,7 @@ authRouter.post('/authGuardTest', accessTokenValidCheck, authGuardTest);
 authRouter.post('/reqNonMembersUserToken', reqNonMembersUserToken);
 authRouter.post('/refreshAccessToken', refreshAccessToken);
 authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
+authRouter.post('/sendEmailAuthCode', accessTokenValidCheck, sendEmailAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
