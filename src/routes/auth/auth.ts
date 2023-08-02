@@ -783,9 +783,8 @@ export const sendEmailAuthCode = asyncWrapper(
           });
         }
 
-        if (!isNil(nonMemberEmail) && !isEmpty(nonMemberEmail))
-          return nonMemberEmail;
-        return memberEmail as string;
+        if (!isNil(memberEmail) && !isEmpty(memberEmail)) return memberEmail;
+        return nonMemberEmail as string;
       })();
 
       const randNum = Math.random().toString().substring(2, 8);

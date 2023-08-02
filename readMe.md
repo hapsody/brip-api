@@ -215,3 +215,9 @@ ts-prisma-boilerplate_db
 
 $ docker-compose up -d # 이미지 & 컨테이너 & 볼륨 재생성
 ```
+
+### nodemailer를 이용한 네이버웍스 email 발송 실패
+
+nodemailer의 tls 전송 방식을 사용해 네이버웍스의 공식 계정인 idealbloom@idealbloom.io를 발신 메일로 메일을 전송하는 서비스를 갖추었습니다. 그러나 naverworks의 idealbloom@idealbloom.io 계정 설정에서 IMAP/SMTP 사용 설정후 외부 메일 키 생성을 통해 발급받은 키를 사용하여 nodemailer transporter 객체를 구성하였음에도 어떠한 옵션으로도 아래와 같은 에러로 인해 발신에 성공하지 못하였습니다.
+
+이 때문에 idealbloom@idealbloom.io와 개인 gmail을 연동하였고 (idealbloom@idealbloom.io 계정의 외부 앱 비밀번호를 생성하고 gmail의 설정에서 연결해줘야한다. 가이드: https://www.notion.so/Gmail-469af021676e4ca6a8b2763c00e126e4?pvs=4) gmail의 smtp 서버를 통해 네이버웍스 메일인 idealbloom@idealbloom.io을 발신인으로 보내는 우회방법을 적용하였다.

@@ -9,7 +9,12 @@ const sendEmail = async (params: {
   html: string;
 }): Promise<void> => {
   try {
-    const { from, to, subject, html } = params;
+    const {
+      // from,
+      to,
+      subject,
+      html,
+    } = params;
 
     const transporter = nodemailer.createTransport({
       service: (process.env.SYSTEM_EMAIL_SERVICE as string) || 'gmail', // 메일 보내는 곳
@@ -17,8 +22,8 @@ const sendEmail = async (params: {
         ? Number(process.env.SYSTEM_EMAIL_PORT)
         : 587,
       host: (process.env.SYSTEM_EMAIL_HOST as string) || 'smtp.gmail.com',
-      secure: true,
-      // requireTLS: true,
+      secure: false,
+      requireTLS: true,
       auth: {
         user: process.env.SYSTEM_EMAIL_SENDER as string, // 보내는 메일의 주소
         pass: process.env.SYSTEM_EMAIL_APPPASS as string, // 보내는 메일의 비밀번호
@@ -28,14 +33,14 @@ const sendEmail = async (params: {
         // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
         // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
       },
-      debug: true,
-      logger: true,
+      // debug: true,
+      // logger: true,
     });
 
     // send mail with defined transport object
     // const info = await transporter.sendMail({
     await transporter.sendMail({
-      from, // sender address
+      from: 'Brip Admin <idealbloom@idealbloom.io>', // sender address
       to, // list of receivers
       subject, // Subject line
       // text: '', // plain text body
