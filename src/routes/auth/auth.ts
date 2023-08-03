@@ -939,6 +939,116 @@ export const submitSMSAuthCode = asyncWrapper(
   },
 );
 
+export type SubmitEmailAuthCodeREQParam = {
+  email?: string; /// 회원이 아닌경우 email 필요
+  authCode: string;
+};
+export interface SubmitEmailAuthCodeRETParamPayload {}
+
+export type SubmitEmailAuthCodeRETParam = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SubmitEmailAuthCodeRETParamPayload | {};
+};
+
+/**
+ * 이메일 인증번호 제출
+ * /auth/sendEmailAuthCode 호출후 이메일로로 발급받은 코드를 제출하는 api
+ *
+ */
+export const submitEmailAuthCode = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubmitEmailAuthCodeREQParam>,
+    res: Express.IBTypedResponse<SubmitEmailAuthCodeRETParam>,
+  ) => {
+    try {
+      const { email: nonMemberEmail, authCode } = req.body;
+      const { locals } = req;
+      const { userTokenId, memberEmail } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            memberEmail: locals?.user?.email ?? null,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        return { memberEmail: null, userTokenId: locals?.tokenId };
+      })();
+
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const email = (() => {
+        if (
+          (isNil(nonMemberEmail) || isEmpty(nonMemberEmail)) &&
+          (isNil(memberEmail) || isEmpty(memberEmail))
+        ) {
+          throw new IBError({
+            type: 'INVALIDPARAMS',
+            message: 'email 파라미터가 제공되지 않았습니다',
+          });
+        }
+
+        if (!isNil(memberEmail) && !isEmpty(memberEmail)) return memberEmail;
+        return nonMemberEmail as string;
+      })();
+
+      const emailAuthCode = await prisma.emailAuthCode.findFirst({
+        where: {
+          email,
+          code: authCode,
+          userTokenId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      });
+
+      if (isNil(emailAuthCode)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            '해당 번호와 코드가 일치하는 이메일 인증 요청 내역이 존재하지 않습니다.',
+        });
+      }
+
+      if (moment().diff(moment(emailAuthCode.updatedAt), 's') > 180) {
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '인증 시간이 만료되었습니다. 다시 인증 코드를 요청해주세요',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export const authGuardTest = (
   req: Express.IBTypedReqBody<{
     testParam: string;
@@ -1461,6 +1571,11 @@ authRouter.post('/refreshAccessToken', refreshAccessToken);
 authRouter.post('/sendSMSAuthCode', accessTokenValidCheck, sendSMSAuthCode);
 authRouter.post('/sendEmailAuthCode', accessTokenValidCheck, sendEmailAuthCode);
 authRouter.post('/submitSMSAuthCode', accessTokenValidCheck, submitSMSAuthCode);
+authRouter.post(
+  '/submitEmailAuthCode',
+  accessTokenValidCheck,
+  submitEmailAuthCode,
+);
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
 authRouter.post('/unRegister', accessTokenValidCheck, unRegister);
