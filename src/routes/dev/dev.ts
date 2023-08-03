@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import multer from 'multer';
 import { isNil } from 'lodash';
+import fbAdmin from '@src/firebase';
 import {
   ibDefs,
   asyncWrapper,
@@ -302,6 +303,91 @@ export const prismaTest = asyncWrapper(
   },
 );
 
+export interface AppPushTestRequestType {
+  fcmDeviceToken: string;
+}
+export interface AppPushTestSuccessResType {}
+
+export type AppPushTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AppPushTestSuccessResType | {};
+};
+
+export const appPushTest = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AppPushTestRequestType>,
+    res: Express.IBTypedResponse<AppPushTestResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member') return locals?.user?.id;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { fcmDeviceToken } = req.body;
+
+      const fcmToken = fcmDeviceToken;
+      const message = {
+        notification: {
+          title: '시범 데이터 발송',
+          body: '클라우드 메시지 전송이 잘 되는지 확인하기 위한, 메시지 입니다.',
+        },
+        token: fcmToken,
+      };
+
+      // admin
+      //   .messaging()
+      //   .sendToDevice(registrationTokens, payload, options)
+      //   .then(response => {
+      //     // Response is a message ID string.
+      //     console.log('Successfully sent message:', response);
+      //   })
+      //   .catch(error => {
+      //     console.log('Error sending message:', error);
+      //   });
+
+      await fbAdmin.messaging().send(message);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 const clients: express.Response[] = [];
 settingRouter.get(
   '/sseSubscribe',
@@ -387,5 +473,6 @@ settingRouter.post(
   accessTokenValidCheck,
   reqUriForPutObjectToS3,
 );
+settingRouter.post('/appPushTest', accessTokenValidCheck, appPushTest);
 
 export default settingRouter;

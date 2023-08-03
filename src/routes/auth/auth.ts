@@ -1543,6 +1543,114 @@ export const unRegister = asyncWrapper(
   },
 );
 
+export type RegistAppPushTokenRequestType = {
+  myDeviceToken: string;
+};
+export type RegistAppPushTokenSuccessResType = {};
+export type RegistAppPushTokenResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: RegistAppPushTokenSuccessResType | {};
+};
+
+/**
+ * Firebase Cloud Messaging 서비스의 앱 push 기능을 위해 FCM으로부터 발급받은 각 단말의 토큰값을 서버에 저장요청하는 api
+ */
+export const registAppPushToken = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RegistAppPushTokenRequestType>,
+    res: Express.IBTypedResponse<RegistAppPushTokenResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { userId, userTokenId } = (() => {
+        if (locals && locals?.grade === 'member')
+          return {
+            userId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        return { userId: null, userTokenId: locals?.tokenId };
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { myDeviceToken } = req.body;
+      if (isNil(myDeviceToken) || isEmpty(myDeviceToken)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'myDeviceToken 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      await prisma.userFCMToken.create({
+        data: {
+          token: myDeviceToken,
+          ...(!isNil(userId) && {
+            user: {
+              connect: {
+                id: userId,
+              },
+            },
+          }),
+          userTokenId,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -1579,5 +1687,10 @@ authRouter.post(
 authRouter.post('/changePassword', accessTokenValidCheck, changePassword);
 authRouter.post('/resetPassword', accessTokenValidCheck, resetPassword);
 authRouter.post('/unRegister', accessTokenValidCheck, unRegister);
+authRouter.post(
+  '/registAppPushToken',
+  accessTokenValidCheck,
+  registAppPushToken,
+);
 
 export default authRouter;

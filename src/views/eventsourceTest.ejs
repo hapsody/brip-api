@@ -171,6 +171,25 @@
             console.log(`${userType} ${userId} ready`);
             console.log('\n');
             // console.log(event);
+            es.onmessage = stream => {
+              // when message is received
+              const parsedData = JSON.parse(stream.data);
+              // console.log(parsedData);
+            };
+
+            // specific event name test
+            es.addEventListener(`chat:userId${userId}`, event => {
+              const data = JSON.parse(event.data);
+              console.log(`chat:${userType}Id:${userId}`);
+              if (userType === 'company') {
+                const prevChat = cpSSETextarea.val();
+                cpSSETextarea.val(`${prevChat}\n${data.message}`);
+                return;
+              }
+              const prevChat = csSSETextarea.val();
+              csSSETextarea.val(`${prevChat}\n${data.message}`);
+              return;
+            });
 
             if (userType === 'company') {
               var myHeaders = new Headers();
@@ -194,25 +213,6 @@
                 console.log(`adPlaceId: ${adPlaceId}`);
               }
             }
-
-            es.onmessage = stream => {
-              // when message is received
-              const parsedData = JSON.parse(stream.data);
-              // console.log(parsedData);
-            };
-
-            // specific event name test
-            es.addEventListener(`chat:userId${userId}`, event => {
-              const data = JSON.parse(event.data);
-              if (userType === 'company') {
-                const prevChat = cpSSETextarea.val();
-                cpSSETextarea.val(`${prevChat}\n${data.message}`);
-                return;
-              }
-              const prevChat = csSSETextarea.val();
-              csSSETextarea.val(`${prevChat}\n${data.message}`);
-              return;
-            });
           };
 
           es.onerror = error => {
