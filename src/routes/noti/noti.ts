@@ -956,7 +956,7 @@ export const pubSSEvent = (params: { from: string; to: string }): void => {
     //   type: 'INVALIDSTATUS',
     //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
     // });
-    console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
+    // console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
     return;
   }
   sseClients[to]!.write(`id: 00\n`);
@@ -1499,12 +1499,12 @@ export const getBookingMsg = asyncWrapper(
         });
       }
 
-      if (isNil(sseClients[from])) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'from 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-        });
-      }
+      // if (isNil(sseClients[from])) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'from 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+      //   });
+      // }
 
       const result = await takeOutBookingMsg({
         // from,
