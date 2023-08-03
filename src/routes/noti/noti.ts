@@ -79,6 +79,7 @@ type ChatMessageType = {
   type: BookingChatMessageActionType; /// 메시지 타입
 };
 type BookingChatMessageType = ChatMessageType & {
+  isUnread: boolean; /// 해당 메시지가 읽지 않은 새 메시지 상태인지 아닌지를 알기위한 프로퍼티. true이면 읽지 않은 새 메시지.
   customerId: string; /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
   companyId: string; /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
 };
@@ -160,6 +161,7 @@ const bookingChatLogToBookingChatMsg = (
 ): BookingChatMessageType => {
   return {
     adPlaceId: `${params.adPlaceId ?? 'unknown'}`,
+    isUnread: false, /// 추가 테스트 필요. 읽지 않았는데 DB에 저장되는 경우도 있을것임
     createdAt: new Date(params.date).toISOString(),
     customerId: `${params.customerId}`,
     companyId: `${params.companyId}`,
@@ -394,6 +396,7 @@ const getMyLastBookingMsgs = async (params: {
 type RetrieveBookingMessageParamType = {
   // from: string; /// userId 기준
   // userId: string; /// userId 기준
+  myRole?: 'customer' | 'company'; /// undefined인 경우는 lastMsg의 isUnread 상태를 업데이트하지 않는다.
   startOrder: string; /// redis에서 내가 받고자 하는 메시지가 삭제됐을 경우(DB sync하면 redis에서는 삭제됨.) DB에서 메시지를 찾기 위한 메시지 순번
   startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
   customerId: string;
@@ -456,8 +459,39 @@ const takeOutBookingMsg = async (
   nextOrder: number;
   nextCursor: number;
 }> => {
-  const { customerId, companyId, startCursor, startOrder } = params;
+  const { myRole, customerId, companyId, startCursor, startOrder } = params;
 
+  /// takeOutBookingMsg를 호출하는 주체의 lastMsg 중 상대방과의 마지막 메시지를 '읽음' 표시하는 함수
+  const updateUnreadStatusOfLastMsg = async () => {
+    const redisLastMsgBuffer = await (myRole === 'company'
+      ? redis.hgetall(`lastMsg:company:${companyId}`)
+      : redis.hgetall(`lastMsg:customer:${customerId}`));
+
+    const other = myRole === 'company' ? 'customer' : 'company';
+    const serializedLastMsg =
+      redisLastMsgBuffer[`${other === 'company' ? companyId : customerId}`];
+
+    if (isNil(serializedLastMsg) || isEmpty(serializedLastMsg)) return;
+
+    const lastMsg = JSON.parse(serializedLastMsg) as BookingChatMessageType;
+    lastMsg.isUnread = false;
+    const updatedSerializedLastMsg = JSON.stringify(lastMsg);
+
+    if (myRole === 'customer') {
+      await redis.hset(
+        `lastMsg:customer:${customerId}`,
+        `${companyId}`,
+        updatedSerializedLastMsg,
+      );
+      return;
+    }
+
+    await redis.hset(
+      `lastMsg:company:${companyId}`,
+      `${customerId}`,
+      updatedSerializedLastMsg,
+    );
+  };
   // /// redis 에서 나와 그와의(n=>m) 대화 메시지큐 key값 찾기
   // const { key, len } = await (async () => {
   //   /// candKey1 아니면 candKey2 둘중 하나만 존재한다.
@@ -474,12 +508,14 @@ const takeOutBookingMsg = async (
 
   //   return {};
   // })();
+
   const key = `${customerId}=>${companyId}`;
   const len = await redis.llen(key);
 
   if (isNil(len) || len === 0) {
     const msgsFromDB = await retrieveFromDb(params);
 
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return {
       ...msgsFromDB,
       nextCursor: 0,
@@ -495,6 +531,7 @@ const takeOutBookingMsg = async (
 
     if (len > 0) {
       /// 테스트 필요 부분
+      if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
       return {
         messages: [],
         nextCursor: Number(startCursor),
@@ -504,6 +541,7 @@ const takeOutBookingMsg = async (
 
     /// 후자의 경우는 DB도 뒤져봐야한다. 만약 DB에서도 찾을수 없다면 정말로 메시지 전송이 된적이 없는것이다.
     const msgsFromDB = await retrieveFromDb(params);
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return msgsFromDB;
   }
 
@@ -516,6 +554,7 @@ const takeOutBookingMsg = async (
     const messages = rawMsgsFromRedis.map(
       v => JSON.parse(v) as BookingChatMessageType,
     );
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return {
       messages,
       nextOrder: Number(messages[messages.length - 1].order) + 1,
@@ -532,6 +571,7 @@ const takeOutBookingMsg = async (
     v => JSON.parse(v) as BookingChatMessageType,
   );
 
+  if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
   return {
     messages: [
       ...msgsFromDB.messages,
@@ -971,7 +1011,10 @@ export const pubSSEvent = (params: { from: string; to: string }): void => {
   );
 };
 
-export type SendMessageRequestType = (BookingChatMessageType & {
+export type SendMessageRequestType = (Omit<
+  BookingChatMessageType,
+  'isUnread'
+> & {
   bookingActionInputParams?: Omit<
     BookingActionInputParam,
     'reqUserNickname' | 'reqUserContact'
@@ -1082,7 +1125,8 @@ export const sendBookingMsg = asyncWrapper(
       });
 
       await Promise.all(
-        data.map(async d => {
+        data.map(async inputMsg => {
+          const d: BookingChatMessageType = { ...inputMsg, isUnread: true };
           const { type, bookingActionInputParams } = d;
 
           switch (type) {
@@ -1173,6 +1217,7 @@ export const sendBookingMsg = asyncWrapper(
                 await putInBookingMsg(d);
                 const systemGuideMsg: BookingChatMessageType = {
                   adPlaceId: d.adPlaceId,
+                  isUnread: true,
                   customerId: d.from,
                   companyId: d.to,
                   from: d.to, /// 사업자
@@ -1221,6 +1266,7 @@ export const sendBookingMsg = asyncWrapper(
                 ) {
                   const systemGuideMsg: BookingChatMessageType = {
                     adPlaceId: d.adPlaceId,
+                    isUnread: true,
                     customerId: d.from,
                     companyId: d.to,
                     from: d.to, /// 사업자
@@ -1238,6 +1284,7 @@ export const sendBookingMsg = asyncWrapper(
                 /// 확정하지 않았을 경우
                 const systemGuideMsg: BookingChatMessageType = {
                   adPlaceId: d.adPlaceId,
+                  isUnread: true,
                   customerId: d.from,
                   companyId: d.to,
                   from: d.to, /// 사업자
@@ -1314,6 +1361,7 @@ export const sendBookingMsg = asyncWrapper(
 
                   const finalBookingCheckMsgData: BookingChatMessageType = {
                     adPlaceId: d.adPlaceId,
+                    isUnread: true,
                     from: d.to, /// 사업자
                     to: d.from, /// 고객
                     customerId: d.from,
@@ -1349,6 +1397,7 @@ export const sendBookingMsg = asyncWrapper(
                 /// 동의하지 않았을 경우
                 const systemGuideMsg: BookingChatMessageType = {
                   adPlaceId: d.adPlaceId,
+                  isUnread: true,
                   customerId: d.to,
                   companyId: d.from,
                   from: d.to, /// 사업자
@@ -1509,6 +1558,7 @@ export const getBookingMsg = asyncWrapper(
       const result = await takeOutBookingMsg({
         // from,
         // userId,
+        myRole,
         customerId: myRole === 'customer' ? userId : from,
         companyId: myRole === 'customer' ? from : userId,
         startCursor,
@@ -1632,6 +1682,7 @@ export const reqNewBooking = asyncWrapper(
       };
       const forwardData: BookingChatMessageType = {
         ...bookingData,
+        isUnread: true,
         customerId: userId,
         companyId: toUserId,
         from: userId, /// 고객
@@ -1656,6 +1707,7 @@ export const reqNewBooking = asyncWrapper(
 
       const reverseData: BookingChatMessageType = {
         ...ansBookingData,
+        isUnread: true,
         customerId: userId,
         companyId: toUserId,
         from: toUserId, /// 사업자
@@ -1787,6 +1839,7 @@ export const reqBookingChatWelcome = asyncWrapper(
       };
       const forwardData: BookingChatMessageType = {
         ...data,
+        isUnread: true,
         companyId: toUserId,
         customerId: userId,
         from: userId, /// 고객
@@ -1794,6 +1847,7 @@ export const reqBookingChatWelcome = asyncWrapper(
       };
       const reverseData: BookingChatMessageType = {
         ...data,
+        isUnread: true,
         companyId: toUserId,
         customerId: userId,
         from: toUserId, /// 사업자
