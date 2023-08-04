@@ -21,6 +21,7 @@
 
       <div id="companyConsoles">
         <button id="companyConnectBtn">sse connect</button>
+        <button id="companyDisconnectBtn">sse disconnect</button>
         <button id="cpStoreChatLog">store chat</button>
         <span id="cpCallStoreChatLogCallParams"></span> <br />
         <span>Set Params => </span>
@@ -77,6 +78,7 @@
       </div>
       <div id="customerConsoles">
         <button id="customerConnectBtn">sse connect</button>
+        <button id="customerDisconnectBtn">sse disconnect</button>
         <button id="csStoreChatLog">store chat</button>
         <span id="csCallStoreChatLogCallParams"></span> <br />
         <span>Set Params => </span>
@@ -138,6 +140,11 @@
         csStartCursor = 0,
         cpStartCursor = 0,
         adPlaceId;
+      companyES = null;
+      customerES = null;
+
+      // 사용자 정의 이벤트 생성
+      const closeSSEEvent = new CustomEvent('esClose');
 
       const context = params => {
         let es;
@@ -220,6 +227,16 @@
 
             console.error('error', error);
           };
+
+          // 이벤트 리스너 추가
+          es.addEventListener('esClose', () => {
+            console.log(`userId[${userId}] is disconnected`);
+            // es = new EventSource(`/noti/testSSESubscribe?userId=${userId}`, {
+            //   withCredentials: true,
+            // });
+          });
+
+          return es;
         }
 
         return initAndConnect;
@@ -479,13 +496,25 @@
           console.log('company');
           const initAndConnect = contextSwitch('company');
 
-          await initAndConnect();
+          companyES = await initAndConnect();
+        });
+        $('#companyDisconnectBtn').on('click', async () => {
+          if (companyES) {
+            companyES.close();
+            companyES.dispatchEvent(closeSSEEvent);
+          }
         });
         $('#customerConnectBtn').on('click', async () => {
           console.log('customer');
           contextSwitch('customer');
           const initAndConnect = contextSwitch('customer');
-          await initAndConnect();
+          customerES = await initAndConnect();
+        });
+        $('#customerDisconnectBtn').on('click', async () => {
+          if (customerES) {
+            customerES.close();
+            customerES.dispatchEvent(closeSSEEvent);
+          }
         });
 
         $('#csGetBookingMsgBtn').on('click', async () => {
