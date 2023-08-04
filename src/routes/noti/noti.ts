@@ -14,6 +14,9 @@ import {
   accessTokenValidCheck,
   // getS3SignedUrl,
   getUserProfileUrl,
+  // sendAppPush,
+  sendAppPushToBookingCustomer,
+  sendAppPushToBookingCompany,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
@@ -78,7 +81,7 @@ type ChatMessageType = {
   bookingActionInputParams?: BookingActionInputParam;
   type: BookingChatMessageActionType; /// 메시지 타입
 };
-type BookingChatMessageType = ChatMessageType & {
+export type BookingChatMessageType = ChatMessageType & {
   isUnread: boolean; /// 해당 메시지가 읽지 않은 새 메시지 상태인지 아닌지를 알기위한 프로퍼티. true이면 읽지 않은 새 메시지.
   customerId: string; /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
   companyId: string; /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
@@ -766,6 +769,33 @@ export const pubSSEvent = (params: { from: string; to: string }): void => {
   );
 };
 
+export const pubSSEventNPush = async (
+  params: BookingChatMessageType,
+): Promise<void> => {
+  const { from, to, message, customerId, companyId } = params;
+
+  /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
+  if (isNil(sseClients[to])) {
+    if (!isNil(message)) {
+      if (customerId === to) await sendAppPushToBookingCustomer(params);
+      else if (companyId === to) await sendAppPushToBookingCompany(params);
+    }
+
+    return; /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보내고 sseEvent를 보내지 않는다.
+  }
+
+  sseClients[to]!.write(`id: 00\n`);
+  if (from.toUpperCase().includes('SYSTEM')) {
+    sseClients[to]!.write(`event: noti:userId${to}\n`);
+  } else {
+    sseClients[to]!.write(`event: chat:userId${to}\n`);
+  }
+
+  sseClients[to]!.write(
+    `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
+  );
+};
+
 export type SSESubscribeRequestType = {};
 // export type SSESubscribeSuccessResType = {};
 export type SSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
@@ -1358,7 +1388,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
+                await pubSSEventNPush(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
                 adPlaceId: d.adPlaceId,
@@ -1406,7 +1436,7 @@ export const sendBookingMsg = asyncWrapper(
                     message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
                   };
                   await putInBookingMsg(systemGuideMsg);
-                  pubSSEvent(systemGuideMsg);
+                  await pubSSEventNPush(systemGuideMsg);
                   return;
                 }
 
@@ -1425,7 +1455,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
+                await pubSSEventNPush(systemGuideMsg);
                 await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
                   customerId: d.from,
@@ -1508,7 +1538,7 @@ export const sendBookingMsg = asyncWrapper(
                     },
                   };
                   await putInBookingMsg(finalBookingCheckMsgData);
-                  pubSSEvent(finalBookingCheckMsgData);
+                  await pubSSEventNPush(finalBookingCheckMsgData);
 
                   await putInSysNotiMessage({
                     userId: finalBookingCheckMsgData.to, // 고객
@@ -1538,7 +1568,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
+                await pubSSEventNPush(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
                 adPlaceId: d.adPlaceId,
@@ -1554,7 +1584,7 @@ export const sendBookingMsg = asyncWrapper(
               });
           }
 
-          pubSSEvent(d);
+          await pubSSEventNPush(d);
         }),
       );
 
@@ -1844,8 +1874,8 @@ export const reqNewBooking = asyncWrapper(
       };
       await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
 
-      pubSSEvent(forwardData);
-      pubSSEvent(reverseData);
+      await pubSSEventNPush(forwardData);
+      await pubSSEventNPush(reverseData);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -1985,8 +2015,8 @@ export const reqBookingChatWelcome = asyncWrapper(
 
       await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
       /// 양측에 같이 날린다.
-      pubSSEvent(forwardData);
-      pubSSEvent(reverseData);
+      await pubSSEventNPush(forwardData);
+      await pubSSEventNPush(reverseData);
 
       res.json({
         ...ibDefs.SUCCESS,
