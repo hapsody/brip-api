@@ -222,6 +222,7 @@ export interface GuardRes {
   user?: User & {
     tripCreator: TripCreator[];
   };
+  accessToken?: string;
 }
 
 export const krRegionToCode = {
