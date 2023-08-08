@@ -1,5 +1,6 @@
 import fbAdmin from '@src/firebase';
 import prisma from '@src/prisma';
+import redis from '@src/redis';
 import { isNil, isEmpty } from 'lodash';
 import { IBError } from './IBDefinitions';
 
@@ -39,6 +40,72 @@ export const sendAppPush = async (params: {
   }
 };
 
+type CustomerUserInfoType = {
+  id: number;
+  userFCMToken: {
+    token: string;
+  }[];
+  nickName?: string;
+  email?: string;
+} | null;
+
+type CompanyUserInfoType = {
+  id: number;
+  userFCMToken: {
+    token: string;
+  }[];
+} | null;
+const getUserInfoFromCacheNDB = async <T>(userId: string): Promise<T> => {
+  const cachedCustomerInfo = await redis.get(`userInfo:${userId}`);
+  if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
+    return JSON.parse(cachedCustomerInfo) as T;
+  }
+
+  const dbUserInfo = await prisma.user.findUnique({
+    where: {
+      id: Number(userId),
+    },
+    select: {
+      id: true,
+      userFCMToken: {
+        select: {
+          token: true,
+        },
+      },
+    },
+  });
+
+  await redis.set(`userInfo:${userId}`, JSON.stringify(dbUserInfo));
+  return dbUserInfo as T;
+};
+
+type AdPlaceInfoType = {
+  id: number;
+  title: string;
+} | null;
+
+const getAdPlaceInfoFromCacheNDB = async (
+  adPlaceId: string,
+): Promise<AdPlaceInfoType> => {
+  const cachedCustomerInfo = await redis.get(`adPlaceInfo:${adPlaceId}`);
+  if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
+    return JSON.parse(cachedCustomerInfo) as AdPlaceInfoType;
+  }
+
+  const dbAdPlaceInfo = await prisma.adPlace.findUnique({
+    where: {
+      id: Number(adPlaceId),
+    },
+    select: {
+      id: true,
+      title: true,
+    },
+  });
+
+  await redis.set(`adPlaceInfo:${adPlaceId}`, JSON.stringify(dbAdPlaceInfo));
+  return dbAdPlaceInfo;
+};
+
 /// 예약문의 관련 메시지 앱 push 중 고객측으로 보내는 함수. 고객이 여러 디바이스를 연결했다면 연결한 디바이스 모두에 메시지를 보낸다.
 export const sendAppPushToBookingCustomer = async (params: {
   /// BookingChatMessageType fields..
@@ -48,29 +115,24 @@ export const sendAppPushToBookingCustomer = async (params: {
 }): Promise<void> => {
   try {
     const { customerId, message, adPlaceId } = params;
-    const customerUser = await prisma.user.findUnique({
-      where: {
-        id: Number(customerId),
-      },
-      select: {
-        id: true,
-        userFCMToken: {
-          select: {
-            token: true,
-          },
-        },
-      },
-    });
 
-    const adPlace = await prisma.adPlace.findUnique({
-      where: {
-        id: Number(adPlaceId),
-      },
-      select: {
-        id: true,
-        title: true,
-      },
-    });
+    const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
+      customerId,
+    );
+
+    const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+
+    const allPropTypeToString = (
+      data: Parameters<typeof sendAppPushToBookingCustomer>,
+    ) => {
+      return Object.fromEntries(
+        new Map(
+          Object.entries(data).map(([key, value]) => {
+            return [key, value.toString()];
+          }),
+        ),
+      );
+    };
 
     if (
       !isNil(customerUser) &&
@@ -82,13 +144,7 @@ export const sendAppPushToBookingCustomer = async (params: {
         customerUser.userFCMToken.map(v => {
           const { token } = v;
           return {
-            data: Object.fromEntries(
-              new Map(
-                Object.entries(params).map(([key, value]) => {
-                  return [key, value.toString()];
-                }),
-              ),
-            ),
+            data: allPropTypeToString([params]),
             notification: {
               title: adPlace.title,
               body: message,
@@ -116,39 +172,58 @@ export const sendAppPushToBookingCompany = async (params: {
 }): Promise<void> => {
   try {
     const { customerId, companyId, message, adPlaceId } = params;
-    const customerUser = await prisma.user.findUnique({
-      where: {
-        id: Number(customerId),
-      },
-      select: {
-        id: true,
-        nickName: true,
-        email: true,
-      },
-    });
-    const companyUser = await prisma.user.findUnique({
-      where: {
-        id: Number(companyId),
-      },
-      select: {
-        id: true,
-        userFCMToken: {
-          select: {
-            token: true,
-          },
-        },
-      },
-    });
+    // const customerUser = await prisma.user.findUnique({
+    //   where: {
+    //     id: Number(customerId),
+    //   },
+    //   select: {
+    //     id: true,
+    //     nickName: true,
+    //     email: true,
+    //   },
+    // });
+    // const companyUser = await prisma.user.findUnique({
+    //   where: {
+    //     id: Number(companyId),
+    //   },
+    //   select: {
+    //     id: true,
+    //     userFCMToken: {
+    //       select: {
+    //         token: true,
+    //       },
+    //     },
+    //   },
+    // });
+    // const adPlace = await prisma.adPlace.findUnique({
+    //   where: {
+    //     id: Number(adPlaceId),
+    //   },
+    //   select: {
+    //     id: true,
+    //     title: true,
+    //   },
+    // });
 
-    const adPlace = await prisma.adPlace.findUnique({
-      where: {
-        id: Number(adPlaceId),
-      },
-      select: {
-        id: true,
-        title: true,
-      },
-    });
+    const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
+      customerId,
+    );
+    const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
+      companyId,
+    );
+    const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+
+    const allPropTypeToString = (
+      data: Parameters<typeof sendAppPushToBookingCompany>,
+    ) => {
+      return Object.fromEntries(
+        new Map(
+          Object.entries(data).map(([key, value]) => {
+            return [key, value.toString()];
+          }),
+        ),
+      );
+    };
 
     if (
       !isNil(customerUser) &&
@@ -161,13 +236,7 @@ export const sendAppPushToBookingCompany = async (params: {
         companyUser.userFCMToken.map(v => {
           const { token } = v;
           return {
-            data: Object.fromEntries(
-              new Map(
-                Object.entries(params).map(([key, value]) => {
-                  return [key, value.toString()];
-                }),
-              ),
-            ),
+            data: allPropTypeToString([params]),
             notification: {
               title: customerUser.nickName,
               body: message,

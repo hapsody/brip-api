@@ -21,6 +21,7 @@ import moment from 'moment';
 import 'moment/locale/ko';
 import { compare } from 'bcrypt';
 import randomstring from 'randomstring';
+import redis from '@src/redis';
 
 const authRouter: express.Application = express();
 
@@ -1543,6 +1544,39 @@ export const unRegister = asyncWrapper(
   },
 );
 
+/// userFCMTokens를 redis에 cache 한다.
+const cacheUserInfoToRedis = async (userId: number) => {
+  if (!isNil(userId)) {
+    const userFCMTokens = await prisma.userFCMToken.findMany({
+      where: {
+        userId,
+      },
+      select: {
+        token: true,
+      },
+    });
+
+    /// 기존에 userInfo가 redis에 있었다면 userFCMToken 부분만 교체해서 cache하고
+    const userInfo = await redis.get(`userInfo:${userId}`);
+    if (!isNil(userInfo) && !isEmpty(userInfo)) {
+      const userInfoObj = JSON.parse(userInfo) as {
+        userFCMToken: { token: string }[];
+      };
+      userInfoObj.userFCMToken = userFCMTokens;
+      await redis.set(`userInfo:${userId}`, JSON.stringify(userInfoObj));
+    }
+
+    /// 기존에 userInfo가 redis에 없었다면 새로 만들어서 cache.
+    await redis.set(
+      `userInfo:${userId}`,
+      JSON.stringify({
+        id: userId,
+        userFCMToken: userFCMTokens,
+      }),
+    );
+  }
+};
+
 export type RegistAppPushTokenRequestType = {
   myDeviceToken: string;
 };
@@ -1601,6 +1635,8 @@ export const registAppPushToken = asyncWrapper(
           userTokenId,
         },
       });
+
+      if (!isNil(userId)) await cacheUserInfoToRedis(userId);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -1669,11 +1705,13 @@ export const deleteAppPushToken = asyncWrapper(
   ) => {
     try {
       const { locals } = req;
-      const userTokenId = (() => {
+      const { userId, userTokenId } = (() => {
         if (locals && locals?.grade === 'member')
-          return locals?.user?.userTokenId;
-
-        return locals?.tokenId;
+          return {
+            userId: locals?.user?.id,
+            userTokenId: locals?.user?.userTokenId,
+          };
+        return { userId: null, userTokenId: locals?.tokenId };
         // throw new IBError({
         //   type: 'NOTAUTHORIZED',
         //   message: 'member 등급만 접근 가능합니다.',
@@ -1718,6 +1756,8 @@ export const deleteAppPushToken = asyncWrapper(
           token: targetDeviceToken,
         },
       });
+
+      if (!isNil(userId)) await cacheUserInfoToRedis(userId);
 
       res.json({
         ...ibDefs.SUCCESS,
