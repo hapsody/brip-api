@@ -1651,6 +1651,123 @@ export const registAppPushToken = asyncWrapper(
   },
 );
 
+export type DeleteAppPushTokenRequestType = {
+  targetDeviceToken: string;
+};
+export type DeleteAppPushTokenSuccessResType = {};
+export type DeleteAppPushTokenResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: DeleteAppPushTokenSuccessResType | {};
+};
+
+/**
+ * Firebase Cloud Messaging 서비스의 앱 push 기능을 위해 FCM으로부터 발급받은 각 단말의 토큰값을 서버에서 삭제요청하는 api
+ */
+export const deleteAppPushToken = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<DeleteAppPushTokenRequestType>,
+    res: Express.IBTypedResponse<DeleteAppPushTokenResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { targetDeviceToken } = req.body;
+      if (isNil(targetDeviceToken) || isEmpty(targetDeviceToken)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'targetDeviceToken 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      const userFCMToken = await prisma.userFCMToken.findUnique({
+        where: {
+          token: targetDeviceToken,
+        },
+        select: {
+          userTokenId: true,
+        },
+      });
+
+      if (
+        isNil(userFCMToken?.userTokenId) &&
+        userFCMToken?.userTokenId !== userTokenId
+      ) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '삭제 권한이 없는 토큰입니다.',
+        });
+      }
+
+      await prisma.userFCMToken.delete({
+        where: {
+          token: targetDeviceToken,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTMATCHEDDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTMATCHEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -1691,6 +1808,16 @@ authRouter.post(
   '/registAppPushToken',
   accessTokenValidCheck,
   registAppPushToken,
+);
+authRouter.post(
+  '/registAppPushToken',
+  accessTokenValidCheck,
+  registAppPushToken,
+);
+authRouter.post(
+  '/deleteAppPushToken',
+  accessTokenValidCheck,
+  deleteAppPushToken,
 );
 
 export default authRouter;
