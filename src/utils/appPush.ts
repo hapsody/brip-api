@@ -1,6 +1,6 @@
 import fbAdmin from '@src/firebase';
 import prisma from '@src/prisma';
-import { isNil } from 'lodash';
+import { isNil, isEmpty } from 'lodash';
 import { IBError } from './IBDefinitions';
 
 export const sendAppPush = async (params: {
@@ -72,7 +72,12 @@ export const sendAppPushToBookingCustomer = async (params: {
       },
     });
 
-    if (!isNil(customerUser) && !isNil(adPlace)) {
+    if (
+      !isNil(customerUser) &&
+      !isNil(adPlace) &&
+      !isNil(customerUser.userFCMToken) &&
+      !isEmpty(customerUser.userFCMToken)
+    ) {
       await fbAdmin.messaging().sendEach(
         customerUser.userFCMToken.map(v => {
           const { token } = v;
@@ -138,7 +143,13 @@ export const sendAppPushToBookingCompany = async (params: {
       },
     });
 
-    if (!isNil(customerUser) && !isNil(companyUser) && !isNil(adPlace)) {
+    if (
+      !isNil(customerUser) &&
+      !isNil(companyUser) &&
+      !isNil(companyUser.userFCMToken) &&
+      !isEmpty(companyUser.userFCMToken) &&
+      !isNil(adPlace)
+    ) {
       await fbAdmin.messaging().sendEach(
         companyUser.userFCMToken.map(v => {
           const { token } = v;
