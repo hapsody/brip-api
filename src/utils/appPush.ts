@@ -82,6 +82,13 @@ export const sendAppPushToBookingCustomer = async (params: {
         customerUser.userFCMToken.map(v => {
           const { token } = v;
           return {
+            data: Object.fromEntries(
+              new Map(
+                Object.entries(params).map(([key, value]) => {
+                  return [key, value.toString()];
+                }),
+              ),
+            ),
             notification: {
               title: adPlace.title,
               body: message,
@@ -154,6 +161,13 @@ export const sendAppPushToBookingCompany = async (params: {
         companyUser.userFCMToken.map(v => {
           const { token } = v;
           return {
+            data: Object.fromEntries(
+              new Map(
+                Object.entries(params).map(([key, value]) => {
+                  return [key, value.toString()];
+                }),
+              ),
+            ),
             notification: {
               title: customerUser.nickName,
               body: message,
