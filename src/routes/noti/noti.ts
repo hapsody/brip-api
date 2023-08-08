@@ -15,6 +15,7 @@ import {
   // getS3SignedUrl,
   getUserProfileUrl,
   // sendAppPush,
+  sendNotiMsgAppPush,
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
 } from '@src/utils';
@@ -25,13 +26,13 @@ import { isNil, isNaN, isEmpty } from 'lodash';
 
 const notiRouter: express.Application = express();
 
-type SSEClientType = {
-  [userId: string]: express.Response | null;
-};
+// type SSEClientType = {
+//   [userId: string]: express.Response | null;
+// };
 
-const sseClients: SSEClientType = {
-  '0': null,
-};
+// const sseClients: SSEClientType = {
+//   '0': null,
+// };
 
 type BookingChatMessageActionType =
   | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
@@ -746,183 +747,80 @@ const bookingChatSyncToDB = async (params: {
   return true;
 };
 
-export const pubSSEvent = (params: { from: string; to: string }): void => {
-  const { from, to } = params;
+// export const pubSSEvent = (params: { from: string; to: string }): void => {
+//   const { from, to } = params;
 
-  if (isNil(sseClients[to])) {
-    // throw new IBError({
-    //   type: 'INVALIDSTATUS',
-    //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-    // });
-    // console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
-    return;
-  }
-  sseClients[to]!.write(`id: 00\n`);
-  if (from.toUpperCase().includes('SYSTEM')) {
-    sseClients[to]!.write(`event: noti:userId${to}\n`);
-  } else {
-    sseClients[to]!.write(`event: chat:userId${to}\n`);
-  }
+//   if (isNil(sseClients[to])) {
+//     // throw new IBError({
+//     //   type: 'INVALIDSTATUS',
+//     //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+//     // });
+//     // console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
+//     return;
+//   }
+//   sseClients[to]!.write(`id: 00\n`);
+//   if (from.toUpperCase().includes('SYSTEM')) {
+//     sseClients[to]!.write(`event: noti:userId${to}\n`);
+//   } else {
+//     sseClients[to]!.write(`event: chat:userId${to}\n`);
+//   }
 
-  sseClients[to]!.write(
-    `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
-  );
-};
+//   sseClients[to]!.write(
+//     `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
+//   );
+// };
 
-export const pubSSEventNPush = async (
+// export const pubChatPush = async (
+//   params: BookingChatMessageType,
+// ): Promise<void> => {
+//   const { from, to, message, customerId, companyId } = params;
+
+//   /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
+//   if (isNil(sseClients[to])) {
+//     if (!isNil(message)) {
+//       if (customerId === to) await sendAppPushToBookingCustomer(params);
+//       else if (companyId === to) await sendAppPushToBookingCompany(params);
+//     }
+
+//     return; /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보내고 sseEvent를 보내지 않는다.
+//   }
+
+//   sseClients[to]!.write(`id: 00\n`);
+//   if (from.toUpperCase().includes('SYSTEM')) {
+//     sseClients[to]!.write(`event: noti:userId${to}\n`);
+//   } else {
+//     sseClients[to]!.write(`event: chat:userId${to}\n`);
+//   }
+
+//   sseClients[to]!.write(
+//     `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
+//   );
+// };
+
+export const pubChatPush = async (
   params: BookingChatMessageType,
 ): Promise<void> => {
-  const { from, to, message, customerId, companyId } = params;
+  const { to, message, customerId, companyId } = params;
 
   /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
-  if (isNil(sseClients[to])) {
-    if (!isNil(message)) {
-      if (customerId === to) await sendAppPushToBookingCustomer(params);
-      else if (companyId === to) await sendAppPushToBookingCompany(params);
-    }
 
-    return; /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보내고 sseEvent를 보내지 않는다.
+  if (!isNil(message)) {
+    if (customerId === to) await sendAppPushToBookingCustomer(params);
+    else if (companyId === to) await sendAppPushToBookingCompany(params);
   }
-
-  sseClients[to]!.write(`id: 00\n`);
-  if (from.toUpperCase().includes('SYSTEM')) {
-    sseClients[to]!.write(`event: noti:userId${to}\n`);
-  } else {
-    sseClients[to]!.write(`event: chat:userId${to}\n`);
-  }
-
-  sseClients[to]!.write(
-    `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
-  );
 };
 
-export type SSESubscribeRequestType = {};
-// export type SSESubscribeSuccessResType = {};
-export type SSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {};
+export const pubNotiPush = async (
+  params: SysNotiMessageType,
+): Promise<void> => {
+  const { message } = params;
+
+  /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
+
+  if (!isNil(message)) {
+    await sendNotiMsgAppPush(params);
+  }
 };
-
-export const sseSubscribe = asyncWrapper(
-  async (
-    req: Express.IBTypedReqQuery<SSESubscribeRequestType>,
-    res: Express.IBTypedResponse<SSESubscribeResType>,
-  ) => {
-    try {
-      const { locals } = req;
-      const userId = (() => {
-        if (locals && locals?.grade === 'member')
-          return locals?.user?.id.toString();
-        // return locals?.tokenId;
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: 'member 등급만 접근 가능합니다.',
-        });
-      })();
-      if (isNil(userId)) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '정상적으로 부여된 userId 가지고 있지 않습니다.',
-        });
-      }
-
-      const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/event-stream',
-        Connection: 'keep-alive',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-      };
-      res.set(headers);
-      res.write(`userId:${userId} connected`);
-      console.log(`userId: ${userId} is connected to sse`);
-
-      sseClients[userId] = res;
-      // console.log(sseClients);
-
-      const me = userId;
-      const redisCompanyLastMsgBuffer = await redis.hgetall(
-        `lastMsg:company:${me}`,
-      );
-      const redisCustomerLastMsgBuffer = await redis.hgetall(
-        `lastMsg:customer:${me}`,
-      );
-
-      /// 나의 사업자로써, 고객으로써 마지막 메시지들에서 안읽은 메시지가 하나라도 있는지 확인
-      const { unreadMsgExistAsCompany, unreadMsgExistAsCustomer } = (() => {
-        let ret = {
-          unreadMsgExistAsCompany: false,
-          unreadMsgExistAsCustomer: false,
-        };
-        if (
-          !isNil(redisCompanyLastMsgBuffer) &&
-          !isEmpty(redisCompanyLastMsgBuffer)
-        ) {
-          const unreadMsgExist = Object.keys(redisCompanyLastMsgBuffer).find(
-            v => {
-              const other = v;
-              const lastMsg = redisCompanyLastMsgBuffer[other];
-              const lastMsgObj = JSON.parse(lastMsg) as BookingChatMessageType;
-
-              return lastMsgObj.isUnread;
-            },
-          );
-
-          ret = {
-            ...ret,
-            unreadMsgExistAsCompany: !isNil(unreadMsgExist),
-          };
-        }
-
-        if (
-          !isNil(redisCustomerLastMsgBuffer) &&
-          !isEmpty(redisCustomerLastMsgBuffer)
-        ) {
-          const unreadMsgExist = Object.keys(redisCustomerLastMsgBuffer).find(
-            v => {
-              const other = v;
-              const lastMsg = redisCustomerLastMsgBuffer[other];
-              const lastMsgObj = JSON.parse(lastMsg) as BookingChatMessageType;
-
-              return lastMsgObj.isUnread;
-            },
-          );
-
-          ret = {
-            ...ret,
-            unreadMsgExistAsCustomer: !isNil(unreadMsgExist),
-          };
-        }
-        return ret;
-      })();
-
-      if (unreadMsgExistAsCompany || unreadMsgExistAsCustomer) {
-        pubSSEvent({
-          from: 'unknown',
-          to: userId,
-        });
-      }
-
-      req.on('close', () => {
-        console.log(`userId: ${userId} closed `);
-        //   delete clients[Number(sseKey)];
-        delete sseClients[userId];
-      });
-    } catch (err) {
-      if (err instanceof IBError) {
-        if (err.type === 'INVALIDPARAMS') {
-          res.status(400).json({
-            ...ibDefs.INVALIDPARAMS,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-      }
-
-      throw err;
-    }
-  },
-);
 
 export type TestSSESubscribeRequestType = {
   userId: string;
@@ -931,111 +829,6 @@ export type TestSSESubscribeRequestType = {
 export type TestSSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
-
-export const testSSESubscribe = asyncWrapper(
-  async (
-    req: Express.IBTypedReqQuery<TestSSESubscribeRequestType>,
-    res: Express.IBTypedResponse<TestSSESubscribeResType>,
-  ) => {
-    try {
-      const { userId } = req.query;
-      const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/event-stream',
-        Connection: 'keep-alive',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-      };
-      res.set(headers);
-      res.write(`userId:${userId} connected`);
-
-      console.log(`userId: ${userId} is connected to sse`);
-      sseClients[userId] = res;
-      // console.log(sseClients);
-
-      const me = userId;
-      const redisCompanyLastMsgBuffer = await redis.hgetall(
-        `lastMsg:company:${me}`,
-      );
-      const redisCustomerLastMsgBuffer = await redis.hgetall(
-        `lastMsg:customer:${me}`,
-      );
-
-      /// 나의 사업자로써, 고객으로써 마지막 메시지들에서 안읽은 메시지가 하나라도 있는지 확인
-      const { unreadMsgExistAsCompany, unreadMsgExistAsCustomer } = (() => {
-        let ret = {
-          unreadMsgExistAsCompany: false,
-          unreadMsgExistAsCustomer: false,
-        };
-        if (
-          !isNil(redisCompanyLastMsgBuffer) &&
-          !isEmpty(redisCompanyLastMsgBuffer)
-        ) {
-          const unreadMsgExist = Object.keys(redisCompanyLastMsgBuffer).find(
-            v => {
-              const other = v;
-              const lastMsg = redisCompanyLastMsgBuffer[other];
-              const lastMsgObj = JSON.parse(lastMsg) as BookingChatMessageType;
-
-              return lastMsgObj.isUnread;
-            },
-          );
-
-          ret = {
-            ...ret,
-            unreadMsgExistAsCompany: !isNil(unreadMsgExist),
-          };
-        }
-
-        if (
-          !isNil(redisCustomerLastMsgBuffer) &&
-          !isEmpty(redisCustomerLastMsgBuffer)
-        ) {
-          const unreadMsgExist = Object.keys(redisCustomerLastMsgBuffer).find(
-            v => {
-              const other = v;
-              const lastMsg = redisCustomerLastMsgBuffer[other];
-              const lastMsgObj = JSON.parse(lastMsg) as BookingChatMessageType;
-
-              return lastMsgObj.isUnread;
-            },
-          );
-
-          ret = {
-            ...ret,
-            unreadMsgExistAsCustomer: !isNil(unreadMsgExist),
-          };
-        }
-        return ret;
-      })();
-
-      if (unreadMsgExistAsCompany || unreadMsgExistAsCustomer) {
-        pubSSEvent({
-          from: 'unknown',
-          to: userId,
-        });
-      }
-      req.on('close', () => {
-        console.log(`userId: ${userId} closed `);
-        //   delete clients[Number(sseKey)];
-        delete sseClients[userId];
-      });
-    } catch (err) {
-      if (err instanceof IBError) {
-        if (err.type === 'INVALIDPARAMS') {
-          res.status(400).json({
-            ...ibDefs.INVALIDPARAMS,
-            IBdetail: (err as Error).message,
-            IBparams: {} as object,
-          });
-          return;
-        }
-      }
-
-      throw err;
-    }
-  },
-);
 
 // export type StoreChatLogRequestType = {
 //   chatLog: {
@@ -1388,7 +1181,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                await pubSSEventNPush(systemGuideMsg);
+                await pubChatPush(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
                 adPlaceId: d.adPlaceId,
@@ -1436,7 +1229,7 @@ export const sendBookingMsg = asyncWrapper(
                     message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
                   };
                   await putInBookingMsg(systemGuideMsg);
-                  await pubSSEventNPush(systemGuideMsg);
+                  await pubChatPush(systemGuideMsg);
                   return;
                 }
 
@@ -1455,7 +1248,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                await pubSSEventNPush(systemGuideMsg);
+                await pubChatPush(systemGuideMsg);
                 await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
                   customerId: d.from,
@@ -1538,17 +1331,18 @@ export const sendBookingMsg = asyncWrapper(
                     },
                   };
                   await putInBookingMsg(finalBookingCheckMsgData);
-                  await pubSSEventNPush(finalBookingCheckMsgData);
+                  await pubChatPush(finalBookingCheckMsgData);
 
-                  await putInSysNotiMessage({
+                  const notiMsg: SysNotiMessageType = {
                     userId: finalBookingCheckMsgData.to, // 고객
                     createdAt: finalBookingCheckMsgData.createdAt,
                     type: 'BOOKINGCOMPLETE',
                     message: `${adPlace.title}에 예약이 확정되었어요.`,
-                  });
-                  pubSSEvent({
-                    from: 'system',
-                    to: finalBookingCheckMsgData.to,
+                  };
+                  await putInSysNotiMessage(notiMsg);
+                  await pubNotiPush({
+                    ...notiMsg,
+                    userId: finalBookingCheckMsgData.to,
                   });
                   return;
                 }
@@ -1568,7 +1362,7 @@ export const sendBookingMsg = asyncWrapper(
                 };
 
                 await putInBookingMsg(systemGuideMsg);
-                await pubSSEventNPush(systemGuideMsg);
+                await pubChatPush(systemGuideMsg);
               })();
               await bookingChatSyncToDB({
                 adPlaceId: d.adPlaceId,
@@ -1584,7 +1378,7 @@ export const sendBookingMsg = asyncWrapper(
               });
           }
 
-          await pubSSEventNPush(d);
+          await pubChatPush(d);
         }),
       );
 
@@ -1874,8 +1668,8 @@ export const reqNewBooking = asyncWrapper(
       };
       await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
 
-      await pubSSEventNPush(forwardData);
-      await pubSSEventNPush(reverseData);
+      await pubChatPush(forwardData);
+      await pubChatPush(reverseData);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -2015,8 +1809,8 @@ export const reqBookingChatWelcome = asyncWrapper(
 
       await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
       /// 양측에 같이 날린다.
-      await pubSSEventNPush(forwardData);
-      await pubSSEventNPush(reverseData);
+      await pubChatPush(forwardData);
+      await pubChatPush(reverseData);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -2384,8 +2178,8 @@ export const getSysNotiMessage = asyncWrapper(
   },
 );
 
-notiRouter.get('/testSSESubscribe', testSSESubscribe);
-notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
+// notiRouter.get('/testSSESubscribe', testSSESubscribe);
+// notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getBookingMsg', accessTokenValidCheck, getBookingMsg);
 

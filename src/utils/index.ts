@@ -49,6 +49,7 @@ import {
   sendAppPush,
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
+  sendNotiMsgAppPush,
 } from './appPush';
 
 export {
@@ -94,4 +95,5 @@ export {
   sendAppPush,
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
+  sendNotiMsgAppPush,
 };

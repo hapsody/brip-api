@@ -253,3 +253,62 @@ export const sendAppPushToBookingCompany = async (params: {
     });
   }
 };
+
+type ToUserInfoType = {
+  id: number;
+  userFCMToken: {
+    token: string;
+  }[];
+  nickName?: string;
+  email?: string;
+} | null;
+
+/// 알림(noti) 메시지 App Push
+export const sendNotiMsgAppPush = async (params: {
+  /// BookingChatMessageType fields..
+  message: string;
+  userId: string;
+}): Promise<void> => {
+  try {
+    const { message, userId } = params;
+
+    const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
+
+    const allPropTypeToString = (
+      data: Parameters<typeof sendNotiMsgAppPush>,
+    ) => {
+      return Object.fromEntries(
+        new Map(
+          Object.entries(data).map(([key, value]) => {
+            return [key, value.toString()];
+          }),
+        ),
+      );
+    };
+
+    if (
+      !isNil(toUser) &&
+      !isNil(toUser.userFCMToken) &&
+      !isEmpty(toUser.userFCMToken)
+    ) {
+      await fbAdmin.messaging().sendEach(
+        toUser.userFCMToken.map(v => {
+          const { token } = v;
+          return {
+            data: allPropTypeToString([params]),
+            notification: {
+              title: 'brip 시스템 알림',
+              body: message,
+            },
+            token,
+          };
+        }),
+      );
+    }
+  } catch (err) {
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
+    });
+  }
+};

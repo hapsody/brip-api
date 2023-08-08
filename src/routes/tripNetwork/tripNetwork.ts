@@ -37,7 +37,9 @@ import * as runtime from '@prisma/client/runtime/library';
 import {
   putInSysNotiMessage,
   // takeOutSysNotiMessage,
-  pubSSEvent,
+  // pubSSEvent,
+  pubNotiPush,
+  SysNotiMessageType,
 } from '@src/routes/noti/noti';
 
 import { isEmpty, isNil, isNull, remove, isNaN } from 'lodash';
@@ -2183,31 +2185,35 @@ export const addReplyToShareTripMemory = asyncWrapper(
 
       if (!isNil(createdOne.shareTripMemory.userId)) {
         /// 1. 댓글이 달린 shareTripMemory 소유자
-        await putInSysNotiMessage({
+        let notiMsg: SysNotiMessageType = {
           userId: `${createdOne.shareTripMemory.userId}`,
           // userRole: createdOne.shareTripMemory.user
           createdAt: new Date(createdOne.createdAt).toISOString(),
           message: '내 게시물에 댓글이 달렸어요',
           type: 'REPLYFORMYSHARETRIPMEM',
-        });
-        pubSSEvent({
-          from: 'system',
-          to: `${createdOne.shareTripMemory.userId}`,
+        };
+        await putInSysNotiMessage(notiMsg);
+        await pubNotiPush({
+          // from: 'system',
+          ...notiMsg,
+          userId: `${createdOne.shareTripMemory.userId}`,
         });
 
         /// 2. 대댓글인경우 부모 댓글 쓴사람
         if (!isNil(parentRpl) && !isNil(parentRpl.userId)) {
           /// 댓글을 썼던 사용자가 삭제될 경우 userId가 null일수도..?
-          await putInSysNotiMessage({
+          notiMsg = {
             userId: `${parentRpl.userId}`,
             // userRole: createdOne.shareTripMemory.user
             createdAt: new Date(createdOne.createdAt).toISOString(),
             message: '내 게시물에 댓글이 달렸어요',
             type: 'REPLYFORMYREPLY',
-          });
-          pubSSEvent({
-            from: 'system',
-            to: `${parentRpl.userId}`,
+          };
+          await putInSysNotiMessage(notiMsg);
+          await pubNotiPush({
+            // from: 'system',
+            ...notiMsg,
+            userId: `${parentRpl.userId}`,
           });
         }
       }
