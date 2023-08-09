@@ -45,8 +45,10 @@ type CustomerUserInfoType = {
   userFCMToken: {
     token: string;
   }[];
-  nickName?: string;
-  email?: string;
+  nickName: string;
+  // email: string;
+  // profileImg: string;
+  // phone: string;
 } | null;
 
 type CompanyUserInfoType = {
@@ -54,6 +56,10 @@ type CompanyUserInfoType = {
   userFCMToken: {
     token: string;
   }[];
+  nickName: string;
+  // email: string;
+  // profileImg: string;
+  // phone: string;
 } | null;
 const getUserInfoFromCacheNDB = async <T>(userId: string): Promise<T> => {
   const cachedCustomerInfo = await redis.get(`userInfo:${userId}`);
@@ -67,6 +73,10 @@ const getUserInfoFromCacheNDB = async <T>(userId: string): Promise<T> => {
     },
     select: {
       id: true,
+      nickName: true,
+      // email: true,
+      // profileImg: true,
+      // phone: true,
       userFCMToken: {
         select: {
           token: true,
@@ -128,17 +138,20 @@ export const sendAppPushToBookingCustomer = async (params: {
   /// BookingChatMessageType fields..
   message: string;
   customerId: string;
+  companyId: string;
   adPlaceId: string;
 }): Promise<void> => {
   try {
-    const { customerId, message, adPlaceId } = params;
+    const { customerId, message, companyId, adPlaceId } = params;
 
+    console.log('[sendAppPushToBookingCustomer]: ');
     const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
       customerId,
     );
-
+    const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
+      companyId,
+    );
     const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
-
     // const allPropTypeToString = (data: {
     //   /// BookingChatMessageType fields..
     //   message: string;
@@ -155,19 +168,26 @@ export const sendAppPushToBookingCustomer = async (params: {
     // };
 
     if (
-      !isNil(customerUser) &&
       !isNil(adPlace) &&
+      !isNil(companyUser) &&
+      !isNil(customerUser) &&
       !isNil(customerUser.userFCMToken) &&
       !isEmpty(customerUser.userFCMToken)
     ) {
-      await fbAdmin.messaging().sendEach(
+      const messageInfo = {
+        ...params,
+        companyNickName: companyUser.nickName,
+        adPlaceTitle: adPlace.title,
+      };
+
+      const result = await fbAdmin.messaging().sendEach(
         customerUser.userFCMToken.map(v => {
           const { token } = v;
           const r = {
             data: {
               serializedData: JSON.stringify(
                 allPropTypeToString<typeof sendAppPushToBookingCustomer>(
-                  params,
+                  messageInfo,
                 ),
               ),
             },
@@ -177,9 +197,11 @@ export const sendAppPushToBookingCustomer = async (params: {
             },
             token,
           };
+          console.log(JSON.stringify(r, null, 2));
           return r;
         }),
       );
+      console.log(JSON.stringify(result, null, 2), '\n\n');
     }
   } catch (err) {
     throw new IBError({
@@ -200,6 +222,7 @@ export const sendAppPushToBookingCompany = async (params: {
   try {
     const { customerId, companyId, message, adPlaceId } = params;
 
+    console.log('[sendAppPushToBookingCompany]: ');
     const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
       customerId,
     );
@@ -223,6 +246,7 @@ export const sendAppPushToBookingCompany = async (params: {
     //     ),
     //   );
     // };
+
     if (
       !isNil(customerUser) &&
       !isNil(companyUser) &&
@@ -230,13 +254,21 @@ export const sendAppPushToBookingCompany = async (params: {
       !isEmpty(companyUser.userFCMToken) &&
       !isNil(adPlace)
     ) {
-      await fbAdmin.messaging().sendEach(
+      const messageInfo = {
+        ...params,
+        customerNickName: customerUser.nickName,
+        adPlaceTitle: adPlace.title,
+      };
+
+      const result = await fbAdmin.messaging().sendEach(
         companyUser.userFCMToken.map(v => {
           const { token } = v;
           const r = {
             data: {
               serializedData: JSON.stringify(
-                allPropTypeToString<typeof sendAppPushToBookingCompany>(params),
+                allPropTypeToString<typeof sendAppPushToBookingCompany>(
+                  messageInfo,
+                ),
               ),
             },
             notification: {
@@ -245,9 +277,11 @@ export const sendAppPushToBookingCompany = async (params: {
             },
             token,
           };
+          console.log(JSON.stringify(r, null, 2));
           return r;
         }),
       );
+      console.log(JSON.stringify(result, null, 2), '\n\n');
     }
   } catch (err) {
     throw new IBError({
@@ -275,6 +309,7 @@ export const sendNotiMsgAppPush = async (params: {
   try {
     const { message, userId } = params;
 
+    console.log('[sendNotiMsgAppPush]: ');
     const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
 
     // const allPropTypeToString = (data: {
@@ -296,7 +331,7 @@ export const sendNotiMsgAppPush = async (params: {
       !isNil(toUser.userFCMToken) &&
       !isEmpty(toUser.userFCMToken)
     ) {
-      await fbAdmin.messaging().sendEach(
+      const result = await fbAdmin.messaging().sendEach(
         toUser.userFCMToken.map(v => {
           const { token } = v;
           const r = {
@@ -311,9 +346,11 @@ export const sendNotiMsgAppPush = async (params: {
             },
             token,
           };
+          console.log(JSON.stringify(r, null, 2));
           return r;
         }),
       );
+      console.log(JSON.stringify(result, null, 2), '\n\n');
     }
   } catch (err) {
     throw new IBError({

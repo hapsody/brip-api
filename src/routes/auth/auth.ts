@@ -1552,7 +1552,17 @@ const cacheUserInfoToRedis = async (userId: number) => {
         userId,
       },
       select: {
+        userTokenId: true,
         token: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            nickName: true,
+            profileImg: true,
+            phone: true,
+          },
+        },
       },
     });
 
