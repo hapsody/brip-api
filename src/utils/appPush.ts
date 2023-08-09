@@ -152,20 +152,6 @@ export const sendAppPushToBookingCustomer = async (params: {
       companyId,
     );
     const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
-    // const allPropTypeToString = (data: {
-    //   /// BookingChatMessageType fields..
-    //   message: string;
-    //   customerId: string;
-    //   adPlaceId: string;
-    // }) => {
-    //   return Object.fromEntries(
-    //     new Map(
-    //       Object.entries(data).map(([key, value]) => {
-    //         return [key, value.toString()];
-    //       }),
-    //     ),
-    //   );
-    // };
 
     if (
       !isNil(adPlace) &&
@@ -178,6 +164,7 @@ export const sendAppPushToBookingCustomer = async (params: {
         ...params,
         companyNickName: companyUser.nickName,
         adPlaceTitle: adPlace.title,
+        pushType: 'BOOKINGCHAT',
       };
 
       const result = await fbAdmin.messaging().sendEach(
@@ -231,22 +218,6 @@ export const sendAppPushToBookingCompany = async (params: {
     );
     const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
 
-    // const allPropTypeToString = (data: {
-    //   /// BookingChatMessageType fields..
-    //   message: string;
-    //   customerId: string;
-    //   companyId: string;
-    //   adPlaceId: string;
-    // }) => {
-    //   return Object.fromEntries(
-    //     new Map(
-    //       Object.entries(data).map(([key, value]) => {
-    //         return [key, value.toString()];
-    //       }),
-    //     ),
-    //   );
-    // };
-
     if (
       !isNil(customerUser) &&
       !isNil(companyUser) &&
@@ -258,6 +229,7 @@ export const sendAppPushToBookingCompany = async (params: {
         ...params,
         customerNickName: customerUser.nickName,
         adPlaceTitle: adPlace.title,
+        pushType: 'BOOKINGCHAT',
       };
 
       const result = await fbAdmin.messaging().sendEach(
@@ -312,32 +284,22 @@ export const sendNotiMsgAppPush = async (params: {
     console.log('[sendNotiMsgAppPush]: ');
     const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
 
-    // const allPropTypeToString = (data: {
-    //   /// BookingChatMessageType fields..
-    //   message: string;
-    //   userId: string;
-    // }) => {
-    //   return Object.fromEntries(
-    //     new Map(
-    //       Object.entries(data).map(([key, value]) => {
-    //         return [key, value.toString()];
-    //       }),
-    //     ),
-    //   );
-    // };
-
     if (
       !isNil(toUser) &&
       !isNil(toUser.userFCMToken) &&
       !isEmpty(toUser.userFCMToken)
     ) {
+      const messageInfo = {
+        ...params,
+        pushType: 'SYSTEMNOTI',
+      };
       const result = await fbAdmin.messaging().sendEach(
         toUser.userFCMToken.map(v => {
           const { token } = v;
           const r = {
             data: {
               serializedData: JSON.stringify(
-                allPropTypeToString<typeof sendNotiMsgAppPush>(params),
+                allPropTypeToString<typeof sendNotiMsgAppPush>(messageInfo),
               ),
             },
             notification: {
