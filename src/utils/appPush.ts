@@ -144,7 +144,9 @@ export const sendAppPushToBookingCustomer = async (params: {
         customerUser.userFCMToken.map(v => {
           const { token } = v;
           return {
-            data: allPropTypeToString([params]),
+            data: {
+              serializedData: JSON.stringify(allPropTypeToString([params])),
+            },
             notification: {
               title: adPlace.title,
               body: message,
@@ -236,7 +238,9 @@ export const sendAppPushToBookingCompany = async (params: {
         companyUser.userFCMToken.map(v => {
           const { token } = v;
           return {
-            data: allPropTypeToString([params]),
+            data: {
+              serializedData: JSON.stringify(allPropTypeToString([params])),
+            },
             notification: {
               title: customerUser.nickName,
               body: message,
@@ -295,7 +299,9 @@ export const sendNotiMsgAppPush = async (params: {
         toUser.userFCMToken.map(v => {
           const { token } = v;
           return {
-            data: allPropTypeToString([params]),
+            data: {
+              serializedData: JSON.stringify(allPropTypeToString([params])),
+            },
             notification: {
               title: 'brip 시스템 알림',
               body: message,
