@@ -141,61 +141,76 @@ export const sendAppPushToBookingCustomer = async (params: {
   companyId: string;
   adPlaceId: string;
 }): Promise<void> => {
-  try {
-    const { customerId, message, companyId, adPlaceId } = params;
+  // try {
+  const { customerId, message, companyId, adPlaceId } = params;
 
-    console.log('[sendAppPushToBookingCustomer]: ');
-    const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
-      customerId,
-    );
-    const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
-      companyId,
-    );
-    const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  console.log('[sendAppPushToBookingCustomer]: ');
+  const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
+    customerId,
+  );
+  const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
+    companyId,
+  );
+  const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
 
-    if (
-      !isNil(adPlace) &&
-      !isNil(companyUser) &&
-      !isNil(customerUser) &&
-      !isNil(customerUser.userFCMToken) &&
-      !isEmpty(customerUser.userFCMToken)
-    ) {
-      const messageInfo = {
-        ...params,
-        companyNickName: companyUser.nickName,
-        adPlaceTitle: adPlace.title,
-        pushType: 'BOOKINGCHAT',
-      };
-
-      const result = await fbAdmin.messaging().sendEach(
-        customerUser.userFCMToken.map(v => {
-          const { token } = v;
-          const r = {
-            data: {
-              serializedData: JSON.stringify(
-                allPropTypeToString<typeof sendAppPushToBookingCustomer>(
-                  messageInfo,
-                ),
+  if (
+    !isNil(adPlace) &&
+    !isNil(companyUser) &&
+    !isNil(customerUser) &&
+    !isNil(customerUser.userFCMToken) &&
+    !isEmpty(customerUser.userFCMToken)
+  ) {
+    const messageInfo = {
+      ...params,
+      companyNickName: companyUser.nickName,
+      adPlaceTitle: adPlace.title,
+      pushType: 'BOOKINGCHAT',
+    };
+    const result = await fbAdmin.messaging().sendEach(
+      customerUser.userFCMToken.map(v => {
+        const { token } = v;
+        const r = {
+          data: {
+            serializedData: JSON.stringify(
+              allPropTypeToString<typeof sendAppPushToBookingCustomer>(
+                messageInfo,
               ),
+            ),
+          },
+          notification: {
+            title: adPlace.title,
+            body: message,
+          },
+          android: {
+            priority: 'high' as 'high',
+          },
+          apns: {
+            payload: {
+              aps: {
+                contentAvailable: true,
+              },
             },
-            notification: {
-              title: adPlace.title,
-              body: message,
+            headers: {
+              // 'apns-push-type': 'background',
+              'apns-push-type': 'alert',
+              'apns-priority': '10',
+              'apns-topic': '', // your app bundle identifier
             },
-            token,
-          };
-          console.log(JSON.stringify(r, null, 2));
-          return r;
-        }),
-      );
-      console.log(JSON.stringify(result, null, 2), '\n\n');
-    }
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
-    });
+          },
+          token,
+        };
+        console.log(JSON.stringify(r, null, 2));
+        return r;
+      }),
+    );
+    console.log(JSON.stringify(result, null, 2), '\n\n');
   }
+  // } catch (err) {
+  //   throw new IBError({
+  //     type: 'EXTERNALAPI',
+  //     message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
+  //   });
+  // }
 };
 
 /// 예약문의 관련 메시지 앱 push 중 사업자측으로 보내는 함수. 사업자가 여러 디바이스를 연결했다면 연결한 디바이스 모두에 메시지를 보낸다.
@@ -206,61 +221,77 @@ export const sendAppPushToBookingCompany = async (params: {
   companyId: string;
   adPlaceId: string;
 }): Promise<void> => {
-  try {
-    const { customerId, companyId, message, adPlaceId } = params;
+  // try {
+  const { customerId, companyId, message, adPlaceId } = params;
 
-    console.log('[sendAppPushToBookingCompany]: ');
-    const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
-      customerId,
-    );
-    const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
-      companyId,
-    );
-    const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  console.log('[sendAppPushToBookingCompany]: ');
+  const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
+    customerId,
+  );
+  const companyUser = await getUserInfoFromCacheNDB<CompanyUserInfoType>(
+    companyId,
+  );
+  const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
 
-    if (
-      !isNil(customerUser) &&
-      !isNil(companyUser) &&
-      !isNil(companyUser.userFCMToken) &&
-      !isEmpty(companyUser.userFCMToken) &&
-      !isNil(adPlace)
-    ) {
-      const messageInfo = {
-        ...params,
-        customerNickName: customerUser.nickName,
-        adPlaceTitle: adPlace.title,
-        pushType: 'BOOKINGCHAT',
-      };
+  if (
+    !isNil(customerUser) &&
+    !isNil(companyUser) &&
+    !isNil(companyUser.userFCMToken) &&
+    !isEmpty(companyUser.userFCMToken) &&
+    !isNil(adPlace)
+  ) {
+    const messageInfo = {
+      ...params,
+      customerNickName: customerUser.nickName,
+      adPlaceTitle: adPlace.title,
+      pushType: 'BOOKINGCHAT',
+    };
 
-      const result = await fbAdmin.messaging().sendEach(
-        companyUser.userFCMToken.map(v => {
-          const { token } = v;
-          const r = {
-            data: {
-              serializedData: JSON.stringify(
-                allPropTypeToString<typeof sendAppPushToBookingCompany>(
-                  messageInfo,
-                ),
+    const result = await fbAdmin.messaging().sendEach(
+      companyUser.userFCMToken.map(v => {
+        const { token } = v;
+        const r = {
+          data: {
+            serializedData: JSON.stringify(
+              allPropTypeToString<typeof sendAppPushToBookingCompany>(
+                messageInfo,
               ),
+            ),
+          },
+          notification: {
+            title: customerUser.nickName,
+            body: message,
+          },
+          android: {
+            priority: 'high' as 'high',
+          },
+          apns: {
+            payload: {
+              aps: {
+                contentAvailable: true,
+              },
             },
-            notification: {
-              title: customerUser.nickName,
-              body: message,
+            headers: {
+              // 'apns-push-type': 'background',
+              'apns-push-type': 'alert',
+              'apns-priority': '5',
+              'apns-topic': '', // your app bundle identifier
             },
-            token,
-          };
-          console.log(JSON.stringify(r, null, 2));
-          return r;
-        }),
-      );
-      console.log(JSON.stringify(result, null, 2), '\n\n');
-    }
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
-    });
+          },
+          token,
+        };
+        console.log(JSON.stringify(r, null, 2));
+        return r;
+      }),
+    );
+    console.log(JSON.stringify(result, null, 2), '\n\n');
   }
+  // } catch (err) {
+  //   throw new IBError({
+  //     type: 'EXTERNALAPI',
+  //     message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
+  //   });
+  // }
 };
 
 type ToUserInfoType = {
@@ -278,46 +309,64 @@ export const sendNotiMsgAppPush = async (params: {
   message: string;
   userId: string;
 }): Promise<void> => {
-  try {
-    const { message, userId } = params;
+  // try {
+  const { message, userId } = params;
 
-    console.log('[sendNotiMsgAppPush]: ');
-    const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
+  console.log('[sendNotiMsgAppPush]: ');
+  const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
 
-    if (
-      !isNil(toUser) &&
-      !isNil(toUser.userFCMToken) &&
-      !isEmpty(toUser.userFCMToken)
-    ) {
-      const messageInfo = {
-        ...params,
-        pushType: 'SYSTEMNOTI',
-      };
-      const result = await fbAdmin.messaging().sendEach(
-        toUser.userFCMToken.map(v => {
-          const { token } = v;
-          const r = {
-            data: {
-              serializedData: JSON.stringify(
-                allPropTypeToString<typeof sendNotiMsgAppPush>(messageInfo),
-              ),
+  if (
+    !isNil(toUser) &&
+    !isNil(toUser.userFCMToken) &&
+    !isEmpty(toUser.userFCMToken)
+  ) {
+    const messageInfo = {
+      ...params,
+      pushType: 'SYSTEMNOTI',
+    };
+
+    const result = await fbAdmin.messaging().sendEach(
+      toUser.userFCMToken.map(v => {
+        const { token } = v;
+        const r = {
+          data: {
+            serializedData: JSON.stringify(
+              allPropTypeToString<typeof sendNotiMsgAppPush>(messageInfo),
+            ),
+          },
+          notification: {
+            title: 'brip 시스템 알림',
+            body: message,
+          },
+          android: {
+            priority: 'high' as 'high',
+          },
+
+          apns: {
+            payload: {
+              aps: {
+                contentAvailable: true,
+              },
             },
-            notification: {
-              title: 'brip 시스템 알림',
-              body: message,
+            headers: {
+              // 'apns-push-type': 'background',
+              'apns-push-type': 'alert',
+              'apns-priority': '5',
+              'apns-topic': '', // your app bundle identifier
             },
-            token,
-          };
-          console.log(JSON.stringify(r, null, 2));
-          return r;
-        }),
-      );
-      console.log(JSON.stringify(result, null, 2), '\n\n');
-    }
-  } catch (err) {
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
-    });
+          },
+          token,
+        };
+        console.log(JSON.stringify(r, null, 2));
+        return r;
+      }),
+    );
+    console.log(JSON.stringify(result, null, 2), '\n\n');
   }
+  // } catch (err) {
+  //   throw new IBError({
+  //     type: 'EXTERNALAPI',
+  //     message: `앱 Push 중 문제가 발생했습니다. \n\n ${(err as Error).message}`,
+  //   });
+  // }
 };
