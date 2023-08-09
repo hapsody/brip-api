@@ -106,6 +106,23 @@ const getAdPlaceInfoFromCacheNDB = async (
   return dbAdPlaceInfo;
 };
 
+const allPropTypeToString = <
+  T extends
+    | typeof sendAppPushToBookingCustomer
+    | typeof sendAppPushToBookingCompany
+    | typeof sendNotiMsgAppPush,
+>(
+  data: Parameters<T>[0],
+) => {
+  return Object.fromEntries(
+    new Map(
+      Object.entries(data).map(([key, value]) => {
+        return [key, value.toString()];
+      }),
+    ),
+  );
+};
+
 /// 예약문의 관련 메시지 앱 push 중 고객측으로 보내는 함수. 고객이 여러 디바이스를 연결했다면 연결한 디바이스 모두에 메시지를 보낸다.
 export const sendAppPushToBookingCustomer = async (params: {
   /// BookingChatMessageType fields..
@@ -122,17 +139,20 @@ export const sendAppPushToBookingCustomer = async (params: {
 
     const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
 
-    const allPropTypeToString = (
-      data: Parameters<typeof sendAppPushToBookingCustomer>,
-    ) => {
-      return Object.fromEntries(
-        new Map(
-          Object.entries(data).map(([key, value]) => {
-            return [key, value.toString()];
-          }),
-        ),
-      );
-    };
+    // const allPropTypeToString = (data: {
+    //   /// BookingChatMessageType fields..
+    //   message: string;
+    //   customerId: string;
+    //   adPlaceId: string;
+    // }) => {
+    //   return Object.fromEntries(
+    //     new Map(
+    //       Object.entries(data).map(([key, value]) => {
+    //         return [key, value.toString()];
+    //       }),
+    //     ),
+    //   );
+    // };
 
     if (
       !isNil(customerUser) &&
@@ -143,9 +163,13 @@ export const sendAppPushToBookingCustomer = async (params: {
       await fbAdmin.messaging().sendEach(
         customerUser.userFCMToken.map(v => {
           const { token } = v;
-          return {
+          const r = {
             data: {
-              serializedData: JSON.stringify(allPropTypeToString([params])),
+              serializedData: JSON.stringify(
+                allPropTypeToString<typeof sendAppPushToBookingCustomer>(
+                  params,
+                ),
+              ),
             },
             notification: {
               title: adPlace.title,
@@ -153,6 +177,7 @@ export const sendAppPushToBookingCustomer = async (params: {
             },
             token,
           };
+          return r;
         }),
       );
     }
@@ -174,38 +199,6 @@ export const sendAppPushToBookingCompany = async (params: {
 }): Promise<void> => {
   try {
     const { customerId, companyId, message, adPlaceId } = params;
-    // const customerUser = await prisma.user.findUnique({
-    //   where: {
-    //     id: Number(customerId),
-    //   },
-    //   select: {
-    //     id: true,
-    //     nickName: true,
-    //     email: true,
-    //   },
-    // });
-    // const companyUser = await prisma.user.findUnique({
-    //   where: {
-    //     id: Number(companyId),
-    //   },
-    //   select: {
-    //     id: true,
-    //     userFCMToken: {
-    //       select: {
-    //         token: true,
-    //       },
-    //     },
-    //   },
-    // });
-    // const adPlace = await prisma.adPlace.findUnique({
-    //   where: {
-    //     id: Number(adPlaceId),
-    //   },
-    //   select: {
-    //     id: true,
-    //     title: true,
-    //   },
-    // });
 
     const customerUser = await getUserInfoFromCacheNDB<CustomerUserInfoType>(
       customerId,
@@ -215,18 +208,21 @@ export const sendAppPushToBookingCompany = async (params: {
     );
     const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
 
-    const allPropTypeToString = (
-      data: Parameters<typeof sendAppPushToBookingCompany>,
-    ) => {
-      return Object.fromEntries(
-        new Map(
-          Object.entries(data).map(([key, value]) => {
-            return [key, value.toString()];
-          }),
-        ),
-      );
-    };
-
+    // const allPropTypeToString = (data: {
+    //   /// BookingChatMessageType fields..
+    //   message: string;
+    //   customerId: string;
+    //   companyId: string;
+    //   adPlaceId: string;
+    // }) => {
+    //   return Object.fromEntries(
+    //     new Map(
+    //       Object.entries(data).map(([key, value]) => {
+    //         return [key, value.toString()];
+    //       }),
+    //     ),
+    //   );
+    // };
     if (
       !isNil(customerUser) &&
       !isNil(companyUser) &&
@@ -237,9 +233,11 @@ export const sendAppPushToBookingCompany = async (params: {
       await fbAdmin.messaging().sendEach(
         companyUser.userFCMToken.map(v => {
           const { token } = v;
-          return {
+          const r = {
             data: {
-              serializedData: JSON.stringify(allPropTypeToString([params])),
+              serializedData: JSON.stringify(
+                allPropTypeToString<typeof sendAppPushToBookingCompany>(params),
+              ),
             },
             notification: {
               title: customerUser.nickName,
@@ -247,6 +245,7 @@ export const sendAppPushToBookingCompany = async (params: {
             },
             token,
           };
+          return r;
         }),
       );
     }
@@ -278,17 +277,19 @@ export const sendNotiMsgAppPush = async (params: {
 
     const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
 
-    const allPropTypeToString = (
-      data: Parameters<typeof sendNotiMsgAppPush>,
-    ) => {
-      return Object.fromEntries(
-        new Map(
-          Object.entries(data).map(([key, value]) => {
-            return [key, value.toString()];
-          }),
-        ),
-      );
-    };
+    // const allPropTypeToString = (data: {
+    //   /// BookingChatMessageType fields..
+    //   message: string;
+    //   userId: string;
+    // }) => {
+    //   return Object.fromEntries(
+    //     new Map(
+    //       Object.entries(data).map(([key, value]) => {
+    //         return [key, value.toString()];
+    //       }),
+    //     ),
+    //   );
+    // };
 
     if (
       !isNil(toUser) &&
@@ -298,9 +299,11 @@ export const sendNotiMsgAppPush = async (params: {
       await fbAdmin.messaging().sendEach(
         toUser.userFCMToken.map(v => {
           const { token } = v;
-          return {
+          const r = {
             data: {
-              serializedData: JSON.stringify(allPropTypeToString([params])),
+              serializedData: JSON.stringify(
+                allPropTypeToString<typeof sendNotiMsgAppPush>(params),
+              ),
             },
             notification: {
               title: 'brip 시스템 알림',
@@ -308,6 +311,7 @@ export const sendNotiMsgAppPush = async (params: {
             },
             token,
           };
+          return r;
         }),
       );
     }
