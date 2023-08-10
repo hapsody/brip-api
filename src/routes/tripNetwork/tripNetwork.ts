@@ -5744,6 +5744,11 @@ export type LikeOrUnlilkeShareTripMemoryResType = Omit<
   IBparams: LikeOrUnlilkeShareTripMemorySuccessResType | {};
 };
 
+/**
+ * 트립 네트워크 '공유' 항목 좋아요 +1 요청 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=464:2593&t=fxdTKyUVsRIw7Rd9-4
+ */
+
 export const likeOrUnlikeShareTripMemory = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<LikeOrUnlilkeShareTripMemoryRequestType>,
@@ -5930,6 +5935,10 @@ export type LikeOrUnlilkeTourPlaceResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: LikeOrUnlilkeTourPlaceSuccessResType | {};
 };
 
+/**
+ * 트립 네트워크 장소에 항목 좋아요 +1 요청 api
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?node-id=228:1202&t=yRRDwI04Yo5Y0wqe-4
+ */
 export const likeOrUnlikeTourPlace = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<LikeOrUnlilkeTourPlaceRequestType>,
@@ -5995,12 +6004,12 @@ export const likeOrUnlikeTourPlace = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.shareTripMemory)) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '어떤 user도 공유하지 않은 장소입니다.',
-        });
-      }
+      // if (isEmpty(existCheck.shareTripMemory)) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '어떤 user도 공유하지 않은 장소입니다.',
+      //   });
+      // }
 
       if (isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
@@ -6318,12 +6327,12 @@ export const checkLikeTourPlace = asyncWrapper(
         });
       }
 
-      if (isEmpty(existCheck.shareTripMemory)) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '어떤 user도 공유하지 않은 장소입니다.',
-        });
-      }
+      // if (isEmpty(existCheck.shareTripMemory)) {
+      //   throw new IBError({
+      //     type: 'NOTEXISTDATA',
+      //     message: '어떤 user도 공유하지 않은 장소입니다.',
+      //   });
+      // }
 
       if (isNil(existCheck.likeFrom) || isEmpty(existCheck.likeFrom)) {
         /// 이전에 memberId 유저가 이 tourPlace에 대해 like한 이력이 없음
