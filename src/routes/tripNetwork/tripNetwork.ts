@@ -39,8 +39,8 @@ import {
   // takeOutSysNotiMessage,
   // pubSSEvent,
   pubNotiPush,
-  SysNotiMessageType,
 } from '@src/routes/noti/noti';
+import { SysNotiMessageType } from '@src/routes/noti/types';
 
 import { isEmpty, isNil, isNull, remove, isNaN } from 'lodash';
 import moment from 'moment';
