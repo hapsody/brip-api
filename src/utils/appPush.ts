@@ -61,10 +61,30 @@ type CompanyUserInfoType = {
   // profileImg: string;
   // phone: string;
 } | null;
-const getUserInfoFromCacheNDB = async <T>(userId: string): Promise<T> => {
+const getUserInfoFromCacheNDB = async <
+  T extends CustomerUserInfoType | CompanyUserInfoType | ToUserInfoType,
+>(
+  userId: string,
+): Promise<T> => {
   const cachedCustomerInfo = await redis.get(`userInfo:${userId}`);
   if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
-    return JSON.parse(cachedCustomerInfo) as T;
+    const cachedObj = JSON.parse(cachedCustomerInfo) as T;
+    const { id, nickName, userFCMToken } = cachedObj!;
+
+    /// redis에 캐시되어 있던 데이터중 누락된것이 하나도 없어야 한다. 만약 하나라도 있으면 계속 아래로 진행하여 DB 조회를 다시해야하므로 return 을 하면 안된다..
+    if (
+      !isNil(id) &&
+      !isEmpty(id) &&
+      !isNil(nickName) &&
+      !isEmpty(nickName) &&
+      !isNil(userFCMToken) &&
+      !isEmpty(userFCMToken) &&
+      !isNil((cachedObj! as ToUserInfoType)!.email) &&
+      !isEmpty((cachedObj! as ToUserInfoType)!.email) &&
+      !userFCMToken.find(v => isNil(v.token) || isEmpty(v.token)) /// token이 비어있는게 하나도 없어야함.
+    ) {
+      return cachedObj;
+    }
   }
 
   const dbUserInfo = await prisma.user.findUnique({
@@ -99,7 +119,13 @@ const getAdPlaceInfoFromCacheNDB = async (
 ): Promise<AdPlaceInfoType> => {
   const cachedCustomerInfo = await redis.get(`adPlaceInfo:${adPlaceId}`);
   if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
-    return JSON.parse(cachedCustomerInfo) as AdPlaceInfoType;
+    const cachedObj = JSON.parse(cachedCustomerInfo) as AdPlaceInfoType;
+    const { id, title } = cachedObj!;
+
+    /// redis에 캐시되어 있던 데이터중 누락된것이 하나도 없어야 한다. 만약 하나라도 있으면 계속 아래로 진행하여 DB 조회를 다시해야하므로 return 을 하면 안된다..
+    if (!isNil(id) && !isEmpty(id) && !isNil(title) && !isEmpty(title)) {
+      return cachedObj;
+    }
   }
 
   const dbAdPlaceInfo = await prisma.adPlace.findUnique({
@@ -299,8 +325,8 @@ type ToUserInfoType = {
   userFCMToken: {
     token: string;
   }[];
-  nickName?: string;
-  email?: string;
+  nickName: string;
+  email: string;
 } | null;
 
 /// 알림(noti) 메시지 App Push
