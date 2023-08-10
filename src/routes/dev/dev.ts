@@ -12,6 +12,7 @@ import {
   getS3SignedUrl,
   putS3SignedUrl,
   getS3ClientViaAssumeRole,
+  getValidHttpsUrl,
 } from '@src/utils';
 
 const upload = multer();
@@ -456,6 +457,97 @@ settingRouter.post('/sseEvents', (req, res) => {
   // res.json(200);
 });
 
+export interface GetValidHttpsUrlTestRequestType {
+  siteUrl?: string;
+}
+export type GetValidHttpsUrlTestSuccessResType = string | undefined;
+
+export type GetValidHttpsUrlTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetValidHttpsUrlTestSuccessResType | {};
+};
+
+export const getValidHttpsUrlTest = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetValidHttpsUrlTestRequestType>,
+    res: Express.IBTypedResponse<GetValidHttpsUrlTestResType>,
+  ) => {
+    try {
+      const { siteUrl } = req.body;
+      /// https://로 접속하여 유효한 url일 경우에만 https://xxx.xxxx.com 등의 url을 반환한다. 유효하지 않을경우 undefined
+      // const formattedHttpsUrl = await (async () => {
+      //   const checkURLAccessibility = async (url: string) => {
+      //     try {
+      //       // HEAD 메소드를 사용하여 자원의 헤더만 가져옵니다.
+      //       const response = await axios.head(url);
+
+      //       // 요청이 성공적이고 응답 코드가 2xx 또는 3xx인 경우 접속 가능한 것으로 간주합니다.
+      //       if (response.status >= 200 && response.status < 400) return true;
+
+      //       return false;
+      //     } catch {
+      //       return false;
+      //     }
+      //   };
+
+      //   let httpsUrl: string | undefined;
+      //   /// 1.  유저입력 siteUrl이 없으면 undefined
+      //   if (isNil(siteUrl) || isEmpty(siteUrl)) return 'undefined';
+
+      //   /// 2.  유저입력 siteUrl이 http://로 시작하면
+      //   if (validUrl.isHttpUri(siteUrl)) {
+      //     ///  http:// 만 써있으면 undefined
+      //     if (siteUrl.split('http://').length < 2) return 'undefined';
+
+      //     /// http:// 뒤에 url이 써있으면
+      //     const url = siteUrl.split('http://')[1];
+      //     /// 앞을 https://로 바꿈
+      //     httpsUrl = `https://${url}`;
+      //     const accessibilityCheck = await checkURLAccessibility(httpsUrl);
+      //     return accessibilityCheck ? httpsUrl : 'undefined';
+      //   }
+
+      //   /// 3. 유저입력 siteUrl이 존재하고 http://가 아니라 https://로 시작하면 그대로 반환
+      //   if (validUrl.isHttpsUri(siteUrl)) {
+      //     const accessibilityCheck = await checkURLAccessibility(siteUrl);
+      //     return accessibilityCheck ? siteUrl : 'undefined';
+      //   }
+
+      //   /// 4. 유저입력 siteUrl이 존재하는데 http:// 또는 https://로 시작하지 않으면 DB 저장안함(undefined)
+      //   return 'undefined';
+      // })();
+
+      const formattedHttpsUrl = await getValidHttpsUrl(siteUrl);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: formattedHttpsUrl,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post(
   '/s3FileUpload',
   accessTokenValidCheck,
@@ -474,5 +566,6 @@ settingRouter.post(
   reqUriForPutObjectToS3,
 );
 settingRouter.post('/appPushTest', accessTokenValidCheck, appPushTest);
+settingRouter.post('/getValidHttpsUrlTest', getValidHttpsUrlTest);
 
 export default settingRouter;
