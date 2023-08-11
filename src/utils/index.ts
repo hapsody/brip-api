@@ -51,7 +51,7 @@ import {
   sendAppPushToBookingCompany,
   sendNotiMsgAppPush,
 } from './appPush';
-import { checkURLAccessibility, getValidHttpsUrl } from './exConnection';
+import { checkURLAccessibility, getValidUrl } from './exConnection';
 
 export {
   ibDefs,
@@ -98,5 +98,5 @@ export {
   sendAppPushToBookingCompany,
   sendNotiMsgAppPush,
   checkURLAccessibility,
-  getValidHttpsUrl,
+  getValidUrl,
 };

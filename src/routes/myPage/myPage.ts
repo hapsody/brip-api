@@ -20,7 +20,7 @@ import {
   ibTravelTagCategorize,
   getIBPhotoUrl,
   addrToGeoCode,
-  getValidHttpsUrl,
+  getValidUrl,
 } from '@src/utils';
 import { isNil, isEmpty, omit, isNaN } from 'lodash';
 
@@ -279,7 +279,7 @@ export const registAdPlace = asyncWrapper(
           openWeek,
           closedDay,
           contact,
-          siteUrl: await getValidHttpsUrl(siteUrl),
+          siteUrl: await getValidUrl(siteUrl),
           businessNumber,
           businessRegImgKey,
           nationalCode,
@@ -684,7 +684,7 @@ export const modifyAdPlace = asyncWrapper(
               openWeek,
               closedDay,
               contact,
-              siteUrl,
+              siteUrl: await getValidUrl(siteUrl),
               businessNumber,
               businessRegImgKey,
             },

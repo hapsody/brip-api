@@ -12,7 +12,7 @@ import {
   getS3SignedUrl,
   putS3SignedUrl,
   getS3ClientViaAssumeRole,
-  getValidHttpsUrl,
+  getValidUrl,
 } from '@src/utils';
 
 const upload = multer();
@@ -457,19 +457,19 @@ settingRouter.post('/sseEvents', (req, res) => {
   // res.json(200);
 });
 
-export interface GetValidHttpsUrlTestRequestType {
+export interface GetValidUrlTestRequestType {
   siteUrl?: string;
 }
-export type GetValidHttpsUrlTestSuccessResType = string | undefined;
+export type GetValidUrlTestSuccessResType = string | undefined;
 
-export type GetValidHttpsUrlTestResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: GetValidHttpsUrlTestSuccessResType | {};
+export type GetValidUrlTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetValidUrlTestSuccessResType | {};
 };
 
-export const getValidHttpsUrlTest = asyncWrapper(
+export const getValidUrlTest = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<GetValidHttpsUrlTestRequestType>,
-    res: Express.IBTypedResponse<GetValidHttpsUrlTestResType>,
+    req: Express.IBTypedReqBody<GetValidUrlTestRequestType>,
+    res: Express.IBTypedResponse<GetValidUrlTestResType>,
   ) => {
     try {
       const { siteUrl } = req.body;
@@ -516,7 +516,7 @@ export const getValidHttpsUrlTest = asyncWrapper(
       //   return 'undefined';
       // })();
 
-      const formattedHttpsUrl = await getValidHttpsUrl(siteUrl);
+      const formattedHttpsUrl = await getValidUrl(siteUrl);
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -566,6 +566,6 @@ settingRouter.post(
   reqUriForPutObjectToS3,
 );
 settingRouter.post('/appPushTest', accessTokenValidCheck, appPushTest);
-settingRouter.post('/getValidHttpsUrlTest', getValidHttpsUrlTest);
+settingRouter.post('/getValidUrlTest', getValidUrlTest);
 
 export default settingRouter;

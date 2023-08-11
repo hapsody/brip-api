@@ -18,7 +18,7 @@ export const checkURLAccessibility = async (url: string): Promise<boolean> => {
 };
 
 /// siteUrl 파라미터의 url값을 https 접속으로 변환하고 그 url이 acecssible한 사이트인지 체크하여 접근가능할 경우 반환한다.
-export const getValidHttpsUrl = async (
+export const getValidUrl = async (
   siteUrl: string | undefined,
 ): Promise<string | undefined> => {
   let httpsUrl: string | undefined;
