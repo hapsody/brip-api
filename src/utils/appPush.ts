@@ -1,9 +1,13 @@
 import fbAdmin from '@src/firebase';
 import prisma from '@src/prisma';
 import redis from '@src/redis';
-import { BookingChatMessageType } from '@src/routes/noti/types';
+import {
+  BookingChatMessageType,
+  BookingActionInputParam,
+  BookingChatMessageActionType,
+} from '@src/routes/noti/types';
 import { isNil, isEmpty } from 'lodash';
-import flatted from 'flatted';
+// import flatted from 'flatted';
 import { IBError } from './IBDefinitions';
 
 export const sendAppPush = async (params: {
@@ -151,22 +155,48 @@ type BookingAppPushMsgType = Partial<BookingChatMessageType> & {
   pushType: 'BOOKINGCHAT' | 'SYSTEMNOTI';
 };
 
-// const allPropTypeToString = <
-//   T extends
-//     | typeof sendAppPushToBookingCustomer
-//     | typeof sendAppPushToBookingCompany
-//     | typeof sendNotiMsgAppPush,
-// >(
-//   data: Parameters<T>[0],
-// ) => {
-//   return Object.fromEntries(
-//     new Map(
-//       Object.entries(data).map(([key, value]) => {
-//         return [key, value.toString()];
-//       }),
-//     ),
-//   );
-// };
+const allPropTypeToString = (data: BookingAppPushMsgType) => {
+  return Object.keys(data).reduce((acc, key) => {
+    const value = data[key] as
+      | string
+      | number
+      | boolean
+      | undefined
+      | BookingActionInputParam
+      | BookingChatMessageActionType;
+
+    if (isNil(value)) return acc;
+    if (key === 'bookingActionInputParams' && typeof value === 'object') {
+      acc[key] = data[key];
+      return acc;
+    }
+    acc[key] = value.toString();
+    return acc;
+  }, {});
+  // return Object.fromEntries(
+  //   new Map(
+  //     Object.entries(data).map(([key, value]) => {
+  //       if (key === 'bookingActionInputParams' && typeof value === 'object') {
+  //         // const obj = value;
+  //         // const objWithStringValue = Object.fromEntries(
+  //         //   new Map(
+  //         //     Object.entries(obj).map(([k, v]) => {
+  //         //       if (!isNil(v)) {
+  //         //         return [k, v.toString()];
+  //         //       }
+  //         //       return [k, 'null'];
+  //         //     }),
+  //         //   ),
+  //         // );
+  //         // return [key, JSON.stringify(objWithStringValue)];
+  //         return [key, value]
+  //       }
+
+  //       return [key, value.toString()];
+  //     }),
+  //   ),
+  // );
+};
 
 /// 예약문의 관련 메시지 앱 push 중 고객측으로 보내는 함수. 고객이 여러 디바이스를 연결했다면 연결한 디바이스 모두에 메시지를 보낸다.
 export const sendAppPushToBookingCustomer = async (params: {
@@ -206,12 +236,8 @@ export const sendAppPushToBookingCustomer = async (params: {
         const { token } = v;
         const r = {
           data: {
-            serializedData: flatted.stringify(messageInfo),
-            // serializedData: JSON.stringify(
-            //   allPropTypeToString<typeof sendAppPushToBookingCustomer>(
-            //     messageInfo,
-            //   ),
-            // ),
+            // serializedData: flatted.stringify(messageInfo),
+            serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
           notification: {
             title: adPlace.title,
@@ -288,12 +314,8 @@ export const sendAppPushToBookingCompany = async (params: {
         const { token } = v;
         const r = {
           data: {
-            serializedData: flatted.stringify(messageInfo),
-            // serializedData: JSON.stringify(
-            //   allPropTypeToString<typeof sendAppPushToBookingCompany>(
-            //     messageInfo,
-            //   ),
-            // ),
+            // serializedData: flatted.stringify(messageInfo),
+            serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
           notification: {
             title: customerUser.nickName,
@@ -367,10 +389,8 @@ export const sendNotiMsgAppPush = async (params: {
         const { token } = v;
         const r = {
           data: {
-            serializedData: flatted.stringify(messageInfo),
-            // serializedData: JSON.stringify(
-            //   allPropTypeToString<typeof sendNotiMsgAppPush>(messageInfo),
-            // ),
+            // serializedData: flatted.stringify(messageInfo),
+            serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
           notification: {
             title: 'brip 시스템 알림',
