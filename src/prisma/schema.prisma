@@ -56,6 +56,8 @@ model User {
   asCustomerBI                    BookingInfo[]                     @relation("asCompany")
   notiMessages                    NotificationMessage[]
   userFCMToken                    UserFCMToken[] /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
+  asCustomerBookingChatLog        BookingChatLog[]                  @relation("AsCustomerBookingChat")
+  asCompanyBookingChatLog         BookingChatLog[]                  @relation("AsCompanyBookingChat")
 }
 
 model FavoriteTravelType {
@@ -1152,11 +1154,13 @@ model BookingChatLog {
   bookingActionInputParam BookingChatActionInputParam?
   subjectGroupId          Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
   // redisKey         String                    @db.Char(27)
-  customerId              Int /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
-  companyId               Int /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
-  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id]) /// 해당 메시지 보낸 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  customer                User?                        @relation(name: "AsCustomerBookingChat", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  customerId              Int? /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  company                 User?                        @relation(name: "AsCompanyBookingChat", fields: [companyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  companyId               Int? /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// 해당 메시지 보낸 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   userId                  Int?
-  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id]) /// 해당 메시지를 받은 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// 해당 메시지를 받은 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   toUserId                Int?
   adPlace                 AdPlace?                     @relation(fields: [adPlaceId], references: [id])
   adPlaceId               Int?

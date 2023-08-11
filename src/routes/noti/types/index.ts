@@ -31,8 +31,8 @@ export type BookingActionInputParam = {
   agreeAnswer?: 'TRUE' | 'FALSE'; /// 개인정보 이용동의
 
   /// finalBookingCheck
-  reqUserNickname?: string;
-  reqUserContact: string | null;
+  reqUserNickname?: string; /// 예약문의를 요청한 고객
+  reqUserContact: string | null; /// 고객 연락처
   /// date?: string;
   /// numOfPeople?: string;
 };
@@ -80,4 +80,10 @@ export type RetrieveBookingMessageParamType = {
   startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
   customerId: string;
   companyId: string;
+};
+
+export type LastBookingMessageType = {
+  lastMsg: BookingChatMessageType;
+  me: string | null;
+  other: string | null;
 };

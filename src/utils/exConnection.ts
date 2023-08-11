@@ -34,8 +34,12 @@ export const getValidHttpsUrl = async (
     const url = siteUrl.split('http://')[1];
     /// 앞을 https://로 바꿈
     httpsUrl = `https://${url}`;
-    const accessibilityCheck = await checkURLAccessibility(httpsUrl);
-    return accessibilityCheck ? httpsUrl : undefined;
+    const httpsAccessibilityCheck = await checkURLAccessibility(httpsUrl);
+    if (httpsAccessibilityCheck) return httpsUrl;
+
+    /// https:// 접속이 안되면 http://로도 확인해봄
+    const httpAccessibilityCheck = await checkURLAccessibility(siteUrl);
+    return httpAccessibilityCheck ? siteUrl : undefined;
   }
 
   /// 3. 유저입력 siteUrl이 존재하고 http://가 아니라 https://로 시작하면 그대로 반환

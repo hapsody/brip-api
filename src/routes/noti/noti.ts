@@ -31,6 +31,7 @@ import {
   SysNotiMessageType,
   BookingRejectReasonType,
   RetrieveBookingMessageParamType,
+  LastBookingMessageType,
 } from './types';
 
 const notiRouter: express.Application = express();
@@ -103,17 +104,17 @@ const putInBookingMsg = async (params: BookingChatMessageType) => {
 const bookingChatLogToBookingChatMsg = (
   params: BookingChatLog & {
     bookingActionInputParam: BookingChatActionInputParam | null;
-    user: User | null;
+    customer: User | null;
   },
 ): BookingChatMessageType => {
   return {
-    adPlaceId: `${params.adPlaceId ?? 'unknown'}`,
+    adPlaceId: `${params.adPlaceId ?? 'deleted'}`,
     isUnread: false, /// 추가 테스트 필요. 읽지 않았는데 DB에 저장되는 경우도 있을것임
     createdAt: new Date(params.date).toISOString(),
-    customerId: `${params.customerId}`,
-    companyId: `${params.companyId}`,
-    from: `${params.userId ?? 'unknown'}`,
-    to: `${params.toUserId ?? 'unknown'}`,
+    customerId: `${params.customerId ?? 'deleted'}`,
+    companyId: `${params.companyId ?? 'deleted'}`,
+    from: `${params.userId ?? 'deleted'}`,
+    to: `${params.toUserId ?? 'deleted'}`,
     order: `${params.order}`,
     message: params.message,
     type: params.bookingActionType as BookingChatMessageActionType,
@@ -153,8 +154,8 @@ const bookingChatLogToBookingChatMsg = (
         }),
 
         /// finalBookingCheck
-        reqUserNickname: params.user?.nickName ?? 'unknown',
-        reqUserContact: params.user?.phone ?? 'unknown',
+        reqUserNickname: params.customer?.nickName ?? 'deleted',
+        reqUserContact: params.customer?.phone ?? 'deleted',
       },
     }),
   };
@@ -290,7 +291,8 @@ const getMyLastBookingMsgs = async (params: {
     },
     include: {
       bookingActionInputParam: true,
-      user: true,
+      customer: true,
+      // user: true,
     },
   });
 
@@ -298,7 +300,7 @@ const getMyLastBookingMsgs = async (params: {
   const lastMsgsGroupByOthers = mysqlMsgs.reduce<
     (BookingChatLog & {
       bookingActionInputParam: BookingChatActionInputParam | null;
-      user: User | null;
+      customer: User | null;
     })[]
   >((acc, cur) => {
     const alreadyExist = acc.find(v => {
@@ -357,7 +359,7 @@ const retrieveFromDb = async (
     },
     include: {
       bookingActionInputParam: true,
-      user: true,
+      customer: true,
     },
   });
   if (isNil(targetMsgsFromDB) || isEmpty(targetMsgsFromDB)) {
@@ -1882,11 +1884,6 @@ export const reqBookingChatWelcome = asyncWrapper(
 //   },
 // );
 
-type LastBookingMessageType = {
-  lastMsg: BookingChatMessageType;
-  me: string | null;
-  other: string | null;
-};
 export type GetLastBookingMsgListRequestType = {
   role: 'company' | 'customer'; /// api를 요청한 유저의 역할. company이면 해당 사업자 유저한테 온 문의메시지 리스트들을 모두 보여주고, customer이면 해당 고객 유저가 문의했었던 메시지 리스트들을 모두 보여준다.
   adPlaceId?: string; /// company 일 경우 조회하려는 특정 사업장이 있다면
