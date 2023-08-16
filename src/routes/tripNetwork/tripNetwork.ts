@@ -2887,6 +2887,10 @@ export interface GetShareTripMemListRequestType {
   take: string; /// default 10
   categoryKeyword: string; /// 카테고리 검색 키워드
   userId: string; /// 특정하고자 하는 userId
+  minLat?: string; /// 지도에서 shareTripMemory 위치 기반으로 검색할 경우
+  minLng?: string;
+  maxLat?: string;
+  maxLng?: string;
 }
 export interface GetShareTripMemListSuccessResType extends ShareTripMemory {
   // TourPlace: {
@@ -2926,6 +2930,10 @@ export const getShareTripMemList = asyncWrapper(
         take = '10',
         categoryKeyword = '',
         userId,
+        minLat,
+        maxLat,
+        minLng,
+        maxLng,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -3070,15 +3078,46 @@ export const getShareTripMemList = asyncWrapper(
 
       const foundShareTripMemList = await prisma.shareTripMemory.findMany({
         where: {
-          tripMemoryCategory: {
-            some: {
-              name: {
-                contains: categoryKeyword,
+          AND: [
+            {
+              tripMemoryCategory: {
+                some: {
+                  name: {
+                    contains: categoryKeyword,
+                  },
+                },
               },
             },
-          },
-          // isShare: true,
-          userId: Number(userId),
+            { userId: Number(userId) },
+            {
+              ...(!isNil(minLat) &&
+                !isEmpty(minLat) &&
+                !isNaN(Number(minLat)) && {
+                  lat: { gte: Number(minLat) },
+                }),
+            },
+            {
+              ...(!isNil(maxLat) &&
+                !isEmpty(maxLat) &&
+                !isNaN(Number(maxLat)) && {
+                  lat: { lt: Number(maxLat) },
+                }),
+            },
+            {
+              ...(!isNil(minLng) &&
+                !isEmpty(minLng) &&
+                !isNaN(Number(minLng)) && {
+                  lng: { gte: Number(minLng) },
+                }),
+            },
+            {
+              ...(!isNil(maxLng) &&
+                !isEmpty(maxLng) &&
+                !isNaN(Number(maxLng)) && {
+                  lng: { lt: Number(maxLng) },
+                }),
+            },
+          ],
         },
         ...(isNil(lastId) && {
           take: Number(take),
@@ -3283,6 +3322,10 @@ export interface GetShareTripMemListByPlaceRequestType {
   shareTripMemory?: {
     orderBy: string; /// 좋아요순(like), 최신순(latest) 정렬 default 최신순
   };
+  minLat?: string; /// 지도에서 tourPlace 위치 기반으로 검색할 경우
+  minLng?: string;
+  maxLat?: string;
+  maxLng?: string;
 }
 export interface GetShareTripMemListByPlaceSuccessResType
   extends TourPlaceCommonType {
@@ -3336,6 +3379,10 @@ export const getShareTripMemListByPlace = asyncWrapper(
         take = '10',
         categoryKeyword = '',
         shareTripMemory,
+        minLat,
+        maxLat,
+        minLng,
+        maxLng,
       } = req.body;
       const { locals } = req;
       const userTokenId = (() => {
@@ -3359,14 +3406,68 @@ export const getShareTripMemListByPlace = asyncWrapper(
 
       const tourPlaceList = await prisma.tourPlace.findMany({
         where: {
-          id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId),
-          OR: [
-            /// adPlace와 연관된 tp는 공유가 하나도 없더라도 검색되어야 함.
-            /// adPlace와 연관되지 않은 tp는 공유가 없다면 검색되면 안됨.
+          AND: [
+            { id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId) },
             {
-              adPlaceId: { not: null }, /// adPlace 연관 tp
-              ...(!isNil(categoryKeyword) &&
-                !isEmpty(categoryKeyword) && {
+              ...(isNil(tourPlaceId) &&
+                !isNil(minLat) &&
+                !isEmpty(minLat) &&
+                !isNaN(Number(minLat)) && {
+                  lat: { gte: Number(minLat) },
+                }),
+            },
+            {
+              ...(isNil(tourPlaceId) &&
+                !isNil(maxLat) &&
+                !isEmpty(maxLat) &&
+                !isNaN(Number(maxLat)) && {
+                  lat: { lt: Number(maxLat) },
+                }),
+            },
+            {
+              ...(isNil(tourPlaceId) &&
+                !isNil(minLng) &&
+                !isEmpty(minLng) &&
+                !isNaN(Number(minLng)) && {
+                  lng: { gte: Number(minLng) },
+                }),
+            },
+            {
+              ...(isNil(tourPlaceId) &&
+                !isNil(maxLng) &&
+                !isEmpty(maxLng) &&
+                !isNaN(Number(maxLng)) && {
+                  lng: { lt: Number(maxLng) },
+                }),
+            },
+            {
+              OR: [
+                /// adPlace와 연관된 tp는 공유가 하나도 없더라도 검색되어야 함.
+                /// adPlace와 연관되지 않은 tp는 공유가 없다면 검색되면 안됨.
+                {
+                  adPlaceId: { not: null }, /// adPlace 연관 tp
+                  ...(!isNil(categoryKeyword) &&
+                    !isEmpty(categoryKeyword) && {
+                      shareTripMemory: {
+                        some: {
+                          AND: [
+                            {
+                              tripMemoryCategory: {
+                                some: {
+                                  name: {
+                                    contains: categoryKeyword,
+                                  },
+                                },
+                              },
+                            },
+                            // { isShare: true },
+                          ],
+                        },
+                      },
+                    }),
+                },
+                {
+                  adPlaceId: null, /// adPlace와 연관없는 일반 tp
                   shareTripMemory: {
                     some: {
                       AND: [
@@ -3383,26 +3484,8 @@ export const getShareTripMemListByPlace = asyncWrapper(
                       ],
                     },
                   },
-                }),
-            },
-            {
-              adPlaceId: null, /// adPlace와 연관없는 일반 tp
-              shareTripMemory: {
-                some: {
-                  AND: [
-                    {
-                      tripMemoryCategory: {
-                        some: {
-                          name: {
-                            contains: categoryKeyword,
-                          },
-                        },
-                      },
-                    },
-                    // { isShare: true },
-                  ],
                 },
-              },
+              ],
             },
           ],
         },
