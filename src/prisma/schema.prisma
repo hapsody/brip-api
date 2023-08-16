@@ -29,6 +29,7 @@ model User {
   userTokenId      String    @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
   profileImg       String?
+  // smallProfileImg  String? /// small size profileImg
   admin            Boolean   @default(false)
 
   questionTicket                  QuestionTicket[]
@@ -89,8 +90,10 @@ model IBPhotos {
   id                Int              @id @default(autoincrement())
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @default(now()) @updatedAt
-  key               String? /// s3 key path
+  key               String? /// 원본사진 s3 key path 
+  // smallKey          String? /// small size s3 key path
   url               String?          @db.Text /// 직접접근이 가능한 url이 있을 경우
+  // smallUrl          String? /// 직접접근이 가능하며 url과 동일한 사진인 small 사이즈 사진 url이 있을 경우
   tourPlace         TourPlace?       @relation(fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?
   Hotel             Hotel?           @relation(fields: [hotelId], references: [id])
@@ -408,6 +411,7 @@ model ScheduleBank {
   updatedAt     DateTime      @default(now()) @updatedAt
   title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // smallThumbnail String? /// small size Thumbnail
   planType      PlanType
   hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
   // scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
@@ -461,6 +465,7 @@ model CardNewsContent {
   title           String /// 카드 컨텐츠의 타이틀
   content         String ///  카드 컨텐츠의 내용
   bgPicUri        String        @db.Text /// 카드 컨텐츠의 배경 이미지
+  // smallBgPicUri    String?       @db.Text /// small size Background Picture Uri
   cardNewsGroup   CardNewsGroup @relation(fields: [cardNewsGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   cardNewsGroupId Int
   cardTag         CardTag[]
@@ -473,6 +478,7 @@ model CardNewsGroup {
   updatedAt       DateTime          @default(now()) @updatedAt
   title           String /// 카드 뉴스 그룹 타이틀
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
+  // smallThumbnailUri String?           @db.Text /// small size 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
   // user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -751,22 +757,23 @@ model TripMemoryGroup {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다.
 model TripMemory {
-  id          Int             @id @default(autoincrement())
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  id          Int              @id @default(autoincrement())
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
   title       String /// 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 이름으로 나타난다.
-  comment     String          @db.Text
+  comment     String           @db.Text
   lat         Float /// tourPlace가 가지는 latitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng         Float /// tourPlace가 가지는 longitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address     String?         @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address     String?          @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   tag         TripMemoryTag[] /// 기억에 태그한 해시태그들.
   img         String /// 기억 사진
-  group       TripMemoryGroup @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
-  groupId     Int
-  TourPlace   TourPlace?      @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
+  // smallImg    String? /// 기억 사진 small size
+  group       TripMemoryGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
+  groupId     Int?
+  TourPlace   TourPlace?       @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId Int?
   // tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId      Int
 
   ShareTripMemory ShareTripMemory?
@@ -779,17 +786,17 @@ model TripMemory {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
 model ShareTripMemory {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id                              Int                               @id @default(autoincrement())
+  createdAt                       DateTime                          @default(now())
+  updatedAt                       DateTime                          @default(now()) @updatedAt
   // isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
-  title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
-  lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address   String?  @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  comment   String   @db.Text
-  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
-
+  title                           String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
+  lat                             Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  lng                             Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address                         String?                           @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  comment                         String                            @db.Text
+  img                             String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
+  // smallImg                        String? /// small size 이미지 url
   like                            Int                               @default(0) /// 공유기억 자체 like 여부
   TourPlace                       TourPlace?                        @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId                     Int?
@@ -933,6 +940,7 @@ model MainBackgroundImg {
   createdAt DateTime              @default(now())
   updatedAt DateTime              @default(now()) @updatedAt
   key       String? /// s3 key path
+  // smallKey  String? ///  small size s3 key path
   url       String?               @db.Text /// 직접접근이 가능한 url이 있을 경우
   title     String?
   type      MainBackgroundImgType

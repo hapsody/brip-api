@@ -44,6 +44,7 @@ import {
   getIBPhotoUrl,
   getThumbnailUrlFromIBPhotos,
   getImgUrlListFromIBPhotos,
+  // getUserSmallProfileUrl,
 } from './iBPhotos';
 import {
   sendAppPush,
@@ -99,4 +100,5 @@ export {
   sendNotiMsgAppPush,
   checkURLAccessibility,
   getValidUrl,
+  // getUserSmallProfileUrl,
 };

@@ -10,6 +10,7 @@ import {
   IBContext,
   getS3SignedUrl,
   getUserProfileUrl,
+  // getUserSmallProfileUrl,
   getAccessableUrl,
   categoryToIBTravelTag,
   // delObjectsFromS3,
@@ -258,7 +259,7 @@ export interface AddTripMemoryRequestType {
   address?: string;
   lat: string;
   lng: string;
-  groupId: string;
+  groupId?: string;
   tourPlaceId?: string; /// 기존에 존재하는 장소에 tripmemory 또는 shareTripMemory를 생성하는 경우 undefined 이면 안된다.
   // img: string;
   photos: {
@@ -308,7 +309,7 @@ type PhotoWithMetaType = Partial<IBPhotos> & {
 };
 export interface AddTripMemorySuccessResType extends TripMemory {
   tag: TripMemoryTag[];
-  group: TripMemoryGroup;
+  group: TripMemoryGroup | null;
   photos: PhotoWithMetaType[];
   TourPlace: TourPlaceCommonType | null;
   // TourPlace: {
@@ -390,26 +391,6 @@ const addTripMemory = async (
 
   const img = photos[0].key;
 
-  const tripMemoryGroup = await (
-    transaction ?? prisma
-  ).tripMemoryGroup.findUnique({
-    where: {
-      id: Number(groupId),
-    },
-  });
-
-  if (!tripMemoryGroup)
-    throw new IBError({
-      type: 'NOTEXISTDATA',
-      message: '존재하지 않는 그룹입니다.',
-    });
-
-  if (tripMemoryGroup.userId !== Number(ctx.memberId))
-    throw new IBError({
-      type: 'NOTAUTHORIZED',
-      message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
-    });
-
   /// addShareTrip api 호출로 인한 addTripMemory 요청의 경우
   if (!isNil(transaction)) {
     const tx = transaction;
@@ -429,50 +410,79 @@ const addTripMemory = async (
       });
     }
 
-    const prevStartDate = !isNil(tripMemoryGroup.startDate)
-      ? tripMemoryGroup.startDate
-      : moment().startOf('d').toISOString();
-    const prevEndDate = !isNil(tripMemoryGroup.endDate)
-      ? tripMemoryGroup.endDate
-      : moment().startOf('d').toISOString();
+    /// groupId 값이 주어졌다면 groupId의 유효성 검사후 해당 tripMemory 날짜 업데이트를 해준다.
+    await (async () => {
+      if (!isNil(groupId) && !isEmpty(groupId) && !isNaN(Number(groupId))) {
+        const tmGroup = await (
+          transaction ?? prisma
+        ).tripMemoryGroup.findUnique({
+          where: {
+            id: Number(groupId),
+          },
+        });
 
-    const sDay = moment(prevStartDate).format('YYYY-MM-DD');
-    const eDay = moment(prevEndDate).format('YYYY-MM-DD');
-    const curDay = moment().startOf('d').format('YYYY-MM-DD');
+        if (isNil(tmGroup))
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재하지 않는 그룹입니다.',
+          });
 
-    const startDate = (() => {
-      if (moment(sDay).diff(moment(curDay)) > 0)
-        return moment(curDay).toISOString();
-      return moment(sDay).toISOString();
+        if (isNil(tmGroup.userId) || tmGroup.userId !== Number(ctx.memberId)) {
+          throw new IBError({
+            type: 'NOTAUTHORIZED',
+            message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
+          });
+        }
+
+        const prevStartDate = !isNil(tmGroup.startDate)
+          ? tmGroup.startDate
+          : moment().startOf('d').toISOString();
+        const prevEndDate = !isNil(tmGroup.endDate)
+          ? tmGroup.endDate
+          : moment().startOf('d').toISOString();
+
+        const sDay = moment(prevStartDate).format('YYYY-MM-DD');
+        const eDay = moment(prevEndDate).format('YYYY-MM-DD');
+        const curDay = moment().startOf('d').format('YYYY-MM-DD');
+
+        const startDate = (() => {
+          if (moment(sDay).diff(moment(curDay)) > 0)
+            return moment(curDay).toISOString();
+          return moment(sDay).toISOString();
+        })();
+        const endDate = (() => {
+          if (moment(eDay).diff(moment(curDay)) < 0)
+            return moment(curDay).toISOString();
+          return moment(eDay).toISOString();
+        })();
+
+        const existMemGroup = await tx.tripMemoryGroup.findUnique({
+          where: {
+            id: Number(groupId),
+          },
+        });
+
+        if (!existMemGroup) {
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재 하지 않는 TripMemoryGroup ID입니다.',
+          });
+        }
+
+        await tx.tripMemoryGroup.update({
+          where: {
+            id: Number(groupId),
+          },
+          data: {
+            startDate,
+            endDate,
+          },
+        });
+
+        return tmGroup;
+      }
+      return null;
     })();
-    const endDate = (() => {
-      if (moment(eDay).diff(moment(curDay)) < 0)
-        return moment(curDay).toISOString();
-      return moment(eDay).toISOString();
-    })();
-
-    const existMemGroup = await tx.tripMemoryGroup.findUnique({
-      where: {
-        id: Number(groupId),
-      },
-    });
-
-    if (!existMemGroup) {
-      throw new IBError({
-        type: 'NOTEXISTDATA',
-        message: '존재 하지 않는 TripMemoryGroup ID입니다.',
-      });
-    }
-
-    await tx.tripMemoryGroup.update({
-      where: {
-        id: Number(groupId),
-      },
-      data: {
-        startDate,
-        endDate,
-      },
-    });
 
     /// 사진 메타 데이터와 사진을 먼저 생성후 tripMemory와 connect
     const photoMetaInfo = await Promise.all(
@@ -758,50 +768,79 @@ const addTripMemory = async (
       });
     }
 
-    const prevStartDate = !isNil(tripMemoryGroup.startDate)
-      ? tripMemoryGroup.startDate
-      : moment().startOf('d').toISOString();
-    const prevEndDate = !isNil(tripMemoryGroup.endDate)
-      ? tripMemoryGroup.endDate
-      : moment().startOf('d').toISOString();
+    /// groupId 값이 주어졌다면 groupId의 유효성 검사후 해당 tripMemory 날짜 업데이트를 해준다.
+    await (async () => {
+      if (!isNil(groupId) && !isEmpty(groupId) && !isNaN(Number(groupId))) {
+        const tmGroup = await (
+          transaction ?? prisma
+        ).tripMemoryGroup.findUnique({
+          where: {
+            id: Number(groupId),
+          },
+        });
 
-    const sDay = moment(prevStartDate).format('YYYY-MM-DD');
-    const eDay = moment(prevEndDate).format('YYYY-MM-DD');
-    const curDay = moment().startOf('d').format('YYYY-MM-DD');
+        if (isNil(tmGroup))
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재하지 않는 그룹입니다.',
+          });
 
-    const startDate = (() => {
-      if (moment(sDay).diff(moment(curDay)) > 0)
-        return moment(curDay).toISOString();
-      return moment(sDay).toISOString();
+        if (isNil(tmGroup.userId) || tmGroup.userId !== Number(ctx.memberId)) {
+          throw new IBError({
+            type: 'NOTAUTHORIZED',
+            message: '해당 유저의 권한으로 조회할수 없는 그룹입니다.',
+          });
+        }
+
+        const prevStartDate = !isNil(tmGroup.startDate)
+          ? tmGroup.startDate
+          : moment().startOf('d').toISOString();
+        const prevEndDate = !isNil(tmGroup.endDate)
+          ? tmGroup.endDate
+          : moment().startOf('d').toISOString();
+
+        const sDay = moment(prevStartDate).format('YYYY-MM-DD');
+        const eDay = moment(prevEndDate).format('YYYY-MM-DD');
+        const curDay = moment().startOf('d').format('YYYY-MM-DD');
+
+        const startDate = (() => {
+          if (moment(sDay).diff(moment(curDay)) > 0)
+            return moment(curDay).toISOString();
+          return moment(sDay).toISOString();
+        })();
+        const endDate = (() => {
+          if (moment(eDay).diff(moment(curDay)) < 0)
+            return moment(curDay).toISOString();
+          return moment(eDay).toISOString();
+        })();
+
+        const existMemGroup = await tx.tripMemoryGroup.findUnique({
+          where: {
+            id: Number(groupId),
+          },
+        });
+
+        if (!existMemGroup) {
+          throw new IBError({
+            type: 'NOTEXISTDATA',
+            message: '존재 하지 않는 TripMemoryGroup ID입니다.',
+          });
+        }
+
+        await tx.tripMemoryGroup.update({
+          where: {
+            id: Number(groupId),
+          },
+          data: {
+            startDate,
+            endDate,
+          },
+        });
+
+        return tmGroup;
+      }
+      return null;
     })();
-    const endDate = (() => {
-      if (moment(eDay).diff(moment(curDay)) < 0)
-        return moment(curDay).toISOString();
-      return moment(eDay).toISOString();
-    })();
-
-    const existMemGroup = await tx.tripMemoryGroup.findUnique({
-      where: {
-        id: Number(groupId),
-      },
-    });
-
-    if (!existMemGroup) {
-      throw new IBError({
-        type: 'NOTEXISTDATA',
-        message: '존재 하지 않는 TripMemoryGroup ID입니다.',
-      });
-    }
-
-    await tx.tripMemoryGroup.update({
-      where: {
-        id: Number(groupId),
-      },
-      data: {
-        startDate,
-        endDate,
-      },
-    });
 
     /// tourPlaceId가 제공되었으면 찾아서 반환, 없으면 생성해서 반환
     /// 반환된 tourPlace는 tripMemory 생성할때 connect해준다.
@@ -945,11 +984,16 @@ const addTripMemory = async (
         lng: Number(lng),
         address,
         img,
-        group: {
-          connect: {
-            id: Number(groupId),
-          },
-        },
+        ...(!isNil(groupId) &&
+          !isEmpty(groupId) &&
+          !isNaN(groupId) && {
+            group: {
+              connect: {
+                id: Number(groupId),
+              },
+            },
+          }),
+
         user: {
           connect: {
             id: ctx.memberId!,
@@ -3402,6 +3446,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                   id: true,
                   nickName: true,
                   profileImg: true,
+                  // smallProfileImg: true,
                   tripCreator: {
                     select: {
                       nickName: true,
@@ -3474,24 +3519,14 @@ export const getShareTripMemListByPlace = asyncWrapper(
               photos: await getImgUrlListFromIBPhotos(t.photos),
               shareTripMemory: await Promise.all(
                 t.shareTripMemory.map(async s => {
-                  // const userImg = await (() => {
-                  //   const { profileImg } = s.user;
-                  //   if (!isNil(profileImg)) {
-                  //     if (profileImg.includes('http')) return profileImg;
-                  //     return getS3SignedUrl(profileImg);
-                  //   }
-                  //   return null;
-                  // })();
                   const ret = {
                     ...s,
                     img: await getAccessableUrl(s.img),
-                    // img: s.img.includes('http')
-                    //   ? s.img
-                    //   : await getS3SignedUrl(s.img),
+                    // smallImg: await getAccessableUrl(s.smallImg),
                     user: {
                       ...s.user,
-                      // profileImg: userImg,
                       profileImg: await getUserProfileUrl(s.user),
+                      // smallProfileImg: await getUserSmallProfileUrl(s.user),
                     },
                     photos: await Promise.all(s.photos.map(getIBPhotoUrl)),
                   };
@@ -3568,6 +3603,7 @@ export interface GetTripMemListRequestType {
   take?: string; /// default 10
   tagKeyword?: string; /// 해시태그 검색 키워드
   groupId?: string; /// 그룹에 따라 조회하려면 groupId가 제공되어야 한다.
+  onlyNonGroup?: string; /// true or false. true라면 group에 속해있지 않은것만 찾는다. false이면 group에 속해있건 없건 모두 찾는다. default false. 그룹에 속해있는 것들만 찾을 경우에는 getTripMemListByGroup을 이용할것. 기본적으로 tripMemory는 반드시 tripMemoryGroup에 속했었으나 이것이 옵셔널로 바뀌면서 그룹에 속해있지 않는 tripMemory들만 조회할 필요가 있어서 추가함. 논리적으로 groupId와 onlyNonGroup이 동시에 쓰일수 있는 경우는 없기 때문에 같이 제공되어서는 안된다.
   minLat?: string; /// 지도에서 위치 기반으로 검색할 경우
   minLng?: string;
   maxLat?: string;
@@ -3591,7 +3627,7 @@ export interface GetTripMemListSuccessResType {
     name: string;
     startDate: string;
     endDate: string;
-  };
+  } | null;
   user: {
     id: number;
     nickName: string;
@@ -3625,6 +3661,7 @@ export const getTripMemList = asyncWrapper(
         take = '10',
         tagKeyword = '',
         groupId,
+        onlyNonGroup = 'false',
         minLat,
         minLng,
         maxLat,
@@ -3808,6 +3845,11 @@ export const getTripMemList = asyncWrapper(
                 !isNaN(Number(groupId)) && {
                   groupId: Number(groupId),
                 }),
+            },
+            {
+              ...(onlyNonGroup.toLowerCase().includes('true') && {
+                groupId: null,
+              }),
             },
             {
               ...(!isNil(minLat) &&
@@ -4590,7 +4632,7 @@ export interface ModifyTripMemoryRequestType {
 }
 export interface ModifyTripMemorySuccessResType extends TripMemory {
   photos: PhotoWithMetaType[];
-  group: TripMemoryGroup;
+  group: TripMemoryGroup | null;
   tag: TripMemoryTag[];
 }
 
@@ -4656,7 +4698,7 @@ const modifyTripMemory = async (
     });
   }
 
-  if (tripMemory.userId !== Number(ctx.memberId)) {
+  if (isNil(tripMemory.userId) || tripMemory.userId !== Number(ctx.memberId)) {
     throw new IBError({
       type: 'NOTAUTHORIZED',
       message: '해당 유저의 권한으로 수정할 수 없는 tripMemory입니다.',
