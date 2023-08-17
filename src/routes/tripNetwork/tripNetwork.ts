@@ -639,11 +639,15 @@ const addTripMemory = async (
         lng: Number(lng),
         address,
         img,
-        group: {
-          connect: {
-            id: Number(groupId),
-          },
-        },
+        ...(!isNil(groupId) &&
+          !isEmpty(groupId) &&
+          !isNaN(groupId) && {
+            group: {
+              connect: {
+                id: Number(groupId),
+              },
+            },
+          }),
         user: {
           connect: {
             id: ctx.memberId!,
