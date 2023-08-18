@@ -2309,6 +2309,7 @@ export const getRecommendRegion = (): string => {
   const randIdx = randNum === maxNum ? randNum - 1 : randNum;
 
   const keyword = randCandRegion[randIdx];
+  console.log(`추천지역: ${keyword}`);
   return keyword;
 };
 
