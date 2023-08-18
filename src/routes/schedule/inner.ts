@@ -2211,6 +2211,107 @@ export const nearestWithBaseLoc = (
   };
 };
 
+interface RegionalCodeType {
+  regionCode1?: number;
+  regionCode2?: number;
+}
+interface ScheduleScanType {
+  type: string;
+  regionalCodes?: RegionalCodeType[];
+}
+
+export const scanKeywordToRegionalCode = (
+  keyword: string,
+): RegionalCodeType | undefined => {
+  const keywordArr = keyword.split(' ');
+
+  /// ex) 전라남도, 서울특별시, 제주특별자치도
+  if (keywordArr.length === 1) {
+    if (
+      keywordArr[0].match(
+        /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
+      )
+    ) {
+      const superRegion = keywordArr[0];
+      const regionCode1 =
+        krRegionToCode[superRegion as keyof typeof krRegionToCode];
+      return {
+        regionCode1,
+      };
+    }
+
+    /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
+    if (keywordArr[0].match(/.+[시|군|구]$/)) {
+      const subRegion = keywordArr[0];
+      const regionCode2 =
+        krRegionToCode[subRegion as keyof typeof krRegionToCode];
+      return {
+        regionCode2,
+      };
+    }
+  }
+  /// ex) 전라남도 순천시, 서울특별시 중구
+  if (keywordArr.length > 1) {
+    const superRegion = keywordArr[0];
+    const subRegion = keywordArr[1];
+
+    let regionCode1: number | undefined;
+    let regionCode2: number | undefined;
+    if (!isNil(superRegion.match(/.+[도|시]$/))) {
+      regionCode1 = krRegionToCode[superRegion as keyof typeof krRegionToCode];
+    }
+
+    if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
+      regionCode2 =
+        krRegionToCode[
+          `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
+        ];
+    }
+
+    return {
+      regionCode1,
+      regionCode2,
+    };
+  }
+
+  return undefined;
+};
+
+export const getRecommendRegion = (): string => {
+  const randCandRegion = [
+    /// regionCode1
+    '강원특별자치도',
+    '경기도',
+    '경상남도',
+    '경상북도',
+    '광주광역시',
+    '대구광역시',
+    '대전광역시',
+    '부산광역시',
+    '서울특별시',
+    '세종특별자치시',
+    '울산광역시',
+    '인천광역시',
+    '전라남도',
+    '전라북도',
+    '제주특별자치도',
+    '충청남도',
+    '충청북도',
+    /// regionCode1 + regionCode2
+    '강원특별자치도 양양시',
+    '전라남도 목포시',
+    '전라남도 여수시',
+    '경상남도 거제시',
+  ];
+
+  const maxNum = randCandRegion.length;
+  const randNum = Math.floor(maxNum * Math.random());
+  const randIdx = randNum === maxNum ? randNum - 1 : randNum;
+
+  const keyword = randCandRegion[randIdx];
+  return keyword;
+};
+
 /**
  * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
  */
@@ -2330,13 +2431,8 @@ export const makeSchedule = async (
   /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
   /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
   /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
-  const scanType: {
-    type: string;
-    regionalCodes?: {
-      regionCode1?: number;
-      regionCode2?: number;
-    }[];
-  } | null = (() => {
+
+  const scanType: ScheduleScanType | null = (() => {
     const isRegionCodeType =
       !isNil(scanRange) &&
       scanRange.every(range => {
@@ -2401,59 +2497,7 @@ export const makeSchedule = async (
           | undefined
         >(range => {
           const { keyword } = range;
-          const keywordArr = keyword!.split(' ');
-
-          /// ex) 전라남도, 서울특별시, 제주특별자치도
-          if (keywordArr.length === 1) {
-            if (
-              keywordArr[0].match(
-                /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
-              )
-            ) {
-              const superRegion = keywordArr[0];
-              const regionCode1 =
-                krRegionToCode[superRegion as keyof typeof krRegionToCode];
-              return {
-                regionCode1,
-              };
-            }
-
-            /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
-            if (keywordArr[0].match(/.+[시|군|구]$/)) {
-              const subRegion = keywordArr[0];
-              const regionCode2 =
-                krRegionToCode[subRegion as keyof typeof krRegionToCode];
-              return {
-                regionCode2,
-              };
-            }
-          }
-          /// ex) 전라남도 순천시, 서울특별시 중구
-          if (keywordArr.length > 1) {
-            const superRegion = keywordArr[0];
-            const subRegion = keywordArr[1];
-
-            let regionCode1: number | undefined;
-            let regionCode2: number | undefined;
-            if (!isNil(superRegion.match(/.+[도|시]$/))) {
-              regionCode1 =
-                krRegionToCode[superRegion as keyof typeof krRegionToCode];
-            }
-
-            if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
-              regionCode2 =
-                krRegionToCode[
-                  `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
-                ];
-            }
-
-            return {
-              regionCode1,
-              regionCode2,
-            };
-          }
-
-          return undefined;
+          return scanKeywordToRegionalCode(keyword!);
         })
         .filter(
           (v): v is { regionCode1?: number; regionCode2?: number } =>
@@ -2482,10 +2526,16 @@ export const makeSchedule = async (
 
     if (isGeocodeType) return { type: 'geocode' };
 
-    return null;
+    /// scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
+    const recommendRegionKeyword = getRecommendRegion();
+    const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
+    return {
+      type: 'keyword',
+      regionalCodes: [regionalCode!],
+    };
   })();
 
-  console.log(scanType);
+  console.log(`scanType`, scanType);
 
   const spots = await prisma.tourPlace.findMany({
     where: {
