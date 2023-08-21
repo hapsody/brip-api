@@ -59,6 +59,7 @@ model User {
   userFCMToken                    UserFCMToken[] /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
   asCustomerBookingChatLog        BookingChatLog[]                  @relation("AsCustomerBookingChat")
   asCompanyBookingChatLog         BookingChatLog[]                  @relation("AsCompanyBookingChat")
+  AdPlaceDraft                    AdPlaceDraft[]
 }
 
 model FavoriteTravelType {
@@ -104,9 +105,12 @@ model IBPhotos {
   tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId      Int?
 
-  adPlaceAsMain  AdPlace? @relation(name: "mainPhoto")
-  adPlaceAsSub   AdPlace? @relation(name: "subPhoto", fields: [adPlaceAsSubId], references: [id])
-  adPlaceAsSubId Int?
+  adPlaceAsMain       AdPlace?      @relation(name: "mainPhoto")
+  adPlaceAsSub        AdPlace?      @relation(name: "subPhoto", fields: [adPlaceAsSubId], references: [id])
+  adPlaceAsSubId      Int?
+  adPlaceDraftAsMain  AdPlaceDraft? @relation(name: "DraftMainPhoto")
+  adPlaceDraftAsSub   AdPlaceDraft? @relation(name: "DraftSubPhoto", fields: [adPlaceDraftAsSubId], references: [id])
+  adPlaceDraftAsSubId Int?
 }
 
 enum IBPhotoMetaInfoType {
@@ -251,16 +255,19 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good      Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad    Int      @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad       Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like      Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good           Int           @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad         Int           @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad            Int           @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like           Int           @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
   // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
   // gglNearbySearchResTypeId Int?
-  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
-  adPlaceId Int?
+  adPlace        AdPlace?      @relation(fields: [adPlaceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceId      Int?
+  AdPlaceDraft   AdPlaceDraft? @relation(fields: [adPlaceDraftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceDraftId Int?
 
+  @@unique([title, lat, lng, status])
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
   @@index([nationalCode, regionCode1, regionCode2, id])
@@ -672,6 +679,7 @@ model IBTravelTag {
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
   AdPlace       AdPlace[]
+  AdPlaceDraft  AdPlaceDraft[]
 
   @@index([minDifficulty, maxDifficulty, id])
 }
@@ -961,11 +969,16 @@ model ContentGrpExposedHistory {
 }
 
 enum AdPlaceStatus {
-  NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
-  APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
+  // NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
+  // APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
   IN_USE /// TourPlace에 복사되어 일정 서비스에 장소로 노출된 상태
   STOP /// 사용하다가 여러가지 이유로 TourPlace에서 사용중지 되어 현재는 서비스에 노출되지 않는 상태
-  REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
+  // REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
+}
+
+enum AdPlaceDraftStatus {
+  STAGING /// 새로 등록 신청되거나 수정 요청된 상태 향후 idealbloom 관리자가 확인하면 APPLIED 상태로 변경되고 AdPlace에 데이터가 반영됨
+  APPLIED /// Draft 내용이 AdPlace에 반영된 상태
 }
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
@@ -973,7 +986,7 @@ model AdPlace {
   id                Int                @id @default(autoincrement())
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now()) @updatedAt
-  status            AdPlaceStatus      @default(NEW)
+  status            AdPlaceStatus      @default(STOP)
   subscribe         Boolean            @default(false) /// 구독상태인지 아닌지
   title             String /// 상호명
   // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
@@ -995,11 +1008,44 @@ model AdPlace {
   nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User?              @relation(fields: [userId], references: [id])
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId            Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
   BookingChatLog    BookingChatLog[] /// 문의 메시지들
   BookingInfo       BookingInfo[]
   adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
+  AdPlaceDraft      AdPlaceDraft?
+}
+
+/// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
+model AdPlaceDraft {
+  id                Int                @id @default(autoincrement())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  status            AdPlaceDraftStatus @default(STAGING)
+  title             String /// 상호명
+  // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhoto         IBPhotos           @relation(name: "DraftMainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId       Int                @unique
+  photos            IBPhotos[]         @relation("DraftSubPhoto") ///  기타 매장 사진 
+  // category          AdPlaceCategory[]
+  category          IBTravelTag[]
+  desc              String? /// 소개글
+  address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
+  roadAddress       String? /// 도로명주소
+  detailAddress     String? /// 있는 경우 상세주소 nullable
+  openWeek          String?            @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay         String?            @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  contact           String? /// 대표번호
+  siteUrl           String?            @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber    String?            @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
+  nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
+  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId            Int
+  adPlace           AdPlace?           @relation(fields: [adPlaceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceId         Int?               @unique
 }
 
 /// 통계 집계와 관련한 유저 액션이 타입

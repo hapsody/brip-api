@@ -2298,7 +2298,7 @@ export const getRecommendRegion = (): string => {
     '충청남도',
     '충청북도',
     /// regionCode1 + regionCode2
-    '강원특별자치도 양양시',
+    '강원특별자치도 양양군',
     '전라남도 목포시',
     '전라남도 여수시',
     '경상남도 거제시',

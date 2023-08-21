@@ -7,6 +7,9 @@ import {
   TourPlace,
   ShareTripMemory,
   TripMemoryCategory,
+  AdPlaceStatus,
+  AdPlaceDraftStatus,
+  DataStageStatus,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -20,9 +23,11 @@ import {
   getAccessableUrl,
   getUserProfileUrl,
   // getS3SignedUrl,
+  IBContext,
 } from '@src/utils';
-import { isNil, isEmpty, isNaN, omit } from 'lodash';
 import moment from 'moment';
+import { isNil, isEmpty, isNaN, omit } from 'lodash';
+import { delAdPlacePhoto } from '../myPage/myPage';
 
 const adPlaceRouter: express.Application = express();
 
@@ -462,10 +467,10 @@ export const getAdPlaceStatistics = asyncWrapper(
   },
 );
 
-export type ApproveAdPlaceRequestType = {
-  adPlaceId: string;
+export type ApproveAdPlaceDraftRequestType = {
+  adPlaceDraftId: string;
 };
-export type ApproveAdPlaceSuccessResType = AdPlace & {
+export type ApproveAdPlaceDraftSuccessResType = AdPlace & {
   mainPhoto: IBPhotos;
   photos: IBPhotos[];
   tourPlace: TourPlace & {
@@ -475,17 +480,18 @@ export type ApproveAdPlaceSuccessResType = AdPlace & {
   };
 };
 export type ApproveAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: ApproveAdPlaceSuccessResType | {};
+  IBparams: ApproveAdPlaceDraftSuccessResType | {};
 };
 
 /**
- * 광고주 사업자가 신청한 AdPlace를 idealbllom이 승인하는 api.
- * 승인하는 과정에서 adPlace와 대응하는 mainTourPlace가 생성된다.
- * 승인하려는 adPlace의 status 상태가 NEW 상태여야 한다.
+ * 광고주 사업자가 신청한 AdPlaceDraft를 idealbloom이 승인하는 api.
+ * 정보수정을 요청해도 approveAdPlaceDraft를 요청해야 한다.
+ * 승인하는 과정에서 adPlace와 대응하는 mainTourPlace가 생성된다. 기 존재한다면 adPlace를 업데이트 하는것일텐데 업데이트하려는 draft 정보에 맞춰 tourPlace 정보가 update 된다.
+ * 승인하려는 draft 상태가 staging 상태여야한다.
  */
-export const approveAdPlace = asyncWrapper(
+export const approveAdPlaceDraft = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<ApproveAdPlaceRequestType>,
+    req: Express.IBTypedReqBody<ApproveAdPlaceDraftRequestType>,
     res: Express.IBTypedResponse<ApproveAdPlaceResType>,
   ) => {
     try {
@@ -506,18 +512,22 @@ export const approveAdPlace = asyncWrapper(
         });
       }
 
-      const { adPlaceId } = req.body;
+      const { adPlaceDraftId } = req.body;
 
-      if (isNil(adPlaceId) || isEmpty(adPlaceId) || isNaN(Number(adPlaceId))) {
+      if (
+        isNil(adPlaceDraftId) ||
+        isEmpty(adPlaceDraftId) ||
+        isNaN(Number(adPlaceDraftId))
+      ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
-          message: 'adPlaceId나 파라미터는 반드시 제공되어야 합니다.',
+          message: 'adPlaceDraftId나 파라미터는 반드시 제공되어야 합니다.',
         });
       }
 
-      const adPlace = await prisma.adPlace.findUnique({
+      const adPlaceDraft = await prisma.adPlaceDraft.findUnique({
         where: {
-          id: Number(adPlaceId),
+          id: Number(adPlaceDraftId),
         },
         include: {
           photos: true,
@@ -537,32 +547,36 @@ export const approveAdPlace = asyncWrapper(
               },
             },
           },
+          adPlace: {
+            select: {
+              id: true,
+              photos: true,
+              mainPhotoId: true,
+            },
+          },
         },
       });
 
-      if (isNil(adPlace) || isEmpty(adPlace)) {
+      if (
+        isNil(adPlaceDraft) ||
+        isEmpty(adPlaceDraft) ||
+        adPlaceDraft.status !== 'STAGING'
+      ) {
         throw new IBError({
           type: 'NOTEXISTDATA',
           message:
-            'adPlaceId에 해당하는 NEW 상태의 adPlace가 존재하지 않습니다.',
-        });
-      }
-
-      if (adPlace.status !== 'NEW') {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'adPlace가 NEW 상태가 아닙니다.',
+            'adPlaceDraftId에 해당하는 STAGING 상태의 adPlaceDraft가 존재하지 않습니다.',
         });
       }
 
       const geoCode = await addrToGeoCode(
-        !isNil(adPlace.address) && !isEmpty(adPlace.address)
+        !isNil(adPlaceDraft.address) && !isEmpty(adPlaceDraft.address)
           ? {
-              address: adPlace.address,
+              address: adPlaceDraft.address,
               type: 'parcel',
             }
           : {
-              address: adPlace.roadAddress!,
+              address: adPlaceDraft.roadAddress!,
               type: 'road',
             },
       );
@@ -576,49 +590,62 @@ export const approveAdPlace = asyncWrapper(
       }
 
       const result = await prisma.$transaction(async tx => {
-        const mainTourPlace = await tx.tourPlace.create({
-          data: {
-            title: adPlace.title,
-            status: 'IN_USE',
-            tourPlaceType: ibTravelTagToTourPlaceType({
-              tag: adPlace.category[0],
-              subject: 'ADPLACE',
-            }),
+        const tpUpsertData = {
+          title: adPlaceDraft.title,
+          status: 'IN_USE' as DataStageStatus,
+          tourPlaceType: ibTravelTagToTourPlaceType({
+            tag: adPlaceDraft.category[0],
+            subject: 'ADPLACE',
+          }),
+          photos: {
+            set: [], /// 기존연결 모두 제거, Draft 연결로 모두 덮어씀
+            connect: [
+              { id: adPlaceDraft.mainPhotoId }, /// mainPhoto를 제일 앞으로
+              ...adPlaceDraft.photos.map(v => {
+                return {
+                  id: v.id,
+                };
+              }),
+            ],
+          },
+          lat: geoCode?.lat,
+          lng: geoCode?.lng,
+          regionCode1: geoCode.regionCode1,
+          regionCode2: geoCode.regionCode2,
+          desc: adPlaceDraft.desc,
+          address: adPlaceDraft.address,
+          roadAddress: adPlaceDraft.roadAddress,
+          detailAddress: adPlaceDraft.detailAddress,
+          openWeek: adPlaceDraft.openWeek,
+          contact: adPlaceDraft.contact,
+          AdPlaceDraft: {
+            connect: {
+              id: Number(adPlaceDraftId),
+            },
+          },
+
+          /// nationalCode: '82'
+        };
+
+        const mainTourPlace = await tx.tourPlace.upsert({
+          where: {
+            id: adPlaceDraft.mainTourPlaceId ?? -1,
+          },
+          update: { ...omit(tpUpsertData, 'AdPlaceDraft') },
+          create: {
+            ...tpUpsertData,
             photos: {
-              connect: [
-                { id: adPlace.mainPhotoId }, /// mainPhoto를 제일 앞으로
-                ...adPlace.photos.map(v => {
-                  return {
-                    id: v.id,
-                  };
-                }),
-              ],
+              ...omit(tpUpsertData.photos, 'set'),
             },
-            lat: geoCode?.lat,
-            lng: geoCode?.lng,
-            regionCode1: geoCode.regionCode1,
-            regionCode2: geoCode.regionCode2,
-            desc: adPlace.desc,
-            address: adPlace.address,
-            roadAddress: adPlace.roadAddress,
-            detailAddress: adPlace.detailAddress,
-            openWeek: adPlace.openWeek,
-            contact: adPlace.contact,
-            adPlace: {
-              connect: {
-                id: Number(adPlaceId),
-              },
-            },
-            /// nationalCode: '82'
           },
         });
 
-        const adPlaceRes = await tx.adPlace.update({
+        const adPlaceDraftRes = await tx.adPlaceDraft.update({
           where: {
-            id: Number(adPlaceId),
+            id: Number(adPlaceDraftId),
           },
           data: {
-            status: 'IN_USE', /// 'IN_USE' 상태로 바로 전환하는것은 임시코드이다. 'APPROVED' 단계를 거쳐 batch 스크립트등을 통해 'IN_USE' 상태로 전환하는것을 원칙으로 한다.
+            status: 'APPLIED' as AdPlaceDraftStatus, /// 'IN_USE' 상태로 바로 전환하는것은 임시코드이다. 'APPROVED' 단계를 거쳐 batch 스크립트등을 통해 'IN_USE' 상태로 전환하는것을 원칙으로 한다.
             mainTourPlaceId: mainTourPlace.id,
             tourPlace: {
               connect: {
@@ -636,25 +663,123 @@ export const approveAdPlace = asyncWrapper(
                 shareTripMemory: true,
               },
             },
+            category: true,
+            adPlace: true,
           },
         });
+
+        const adPlaceRes = await (async () => {
+          const adPlaceUpsertData = {
+            status: 'IN_USE' as AdPlaceStatus, /// 'IN_USE' 상태로 바로 전환하는것은 임시코드이다. 'APPROVED' 단계를 거쳐 batch 스크립트등을 통해 'IN_USE' 상태로 전환하는것을 원칙으로 한다.
+            title: adPlaceDraftRes.title,
+            mainTourPlaceId: mainTourPlace.id,
+            tourPlace: {
+              set: [], /// 기존 연결 모두 끊고 draft 연결로 덮어씀
+              connect: {
+                id: mainTourPlace.id,
+              },
+            },
+            mainPhoto: {
+              connect: {
+                id: adPlaceDraftRes.mainPhotoId,
+              },
+            },
+            photos: {
+              set: [], /// 기존 연결 모두 끊고 draft 연결로 덮어씀
+              connect: [
+                { id: adPlaceDraftRes.mainPhotoId }, /// mainPhoto를 제일 앞으로
+                ...adPlaceDraftRes.photos.map(v => {
+                  return {
+                    id: v.id,
+                  };
+                }),
+              ],
+            },
+            category: {
+              set: [], /// 기존 연결 모두 끊고 draft 연결로 덮어씀
+              connect: [
+                ...adPlaceDraftRes.category.map(v => {
+                  return {
+                    id: v.id,
+                  };
+                }),
+              ],
+            },
+            desc: adPlaceDraftRes.desc,
+            address: adPlaceDraftRes.address,
+            roadAddress: adPlaceDraftRes.roadAddress,
+            detailAddress: adPlaceDraftRes.detailAddress,
+            openWeek: adPlaceDraftRes.openWeek,
+            closedDay: adPlaceDraftRes.closedDay,
+            contact: adPlaceDraftRes.contact,
+            siteUrl: adPlaceDraftRes.siteUrl,
+            businessNumber: adPlaceDraftRes.businessNumber,
+            businessRegImgKey: adPlaceDraftRes.businessRegImgKey,
+            nationalCode: adPlaceDraftRes.nationalCode,
+            user: {
+              connect: {
+                id: adPlaceDraftRes.userId,
+              },
+            },
+            AdPlaceDraft: {
+              connect: {
+                id: adPlaceDraftRes.id,
+              },
+            },
+          };
+
+          const adPlace = await tx.adPlace.upsert({
+            where: {
+              id: adPlaceDraftRes.adPlaceId ?? -1,
+            },
+            update: {
+              ...adPlaceUpsertData,
+            },
+            create: {
+              ...adPlaceUpsertData,
+              tourPlace: {
+                ...omit(adPlaceUpsertData.tourPlace, 'set'),
+              },
+              photos: {
+                ...omit(adPlaceUpsertData.photos, 'set'),
+              },
+              category: {
+                ...omit(adPlaceUpsertData.category, 'set'),
+              },
+            },
+            include: {
+              mainPhoto: true,
+              photos: true,
+              tourPlace: {
+                include: {
+                  ibTravelTag: true,
+                  photos: true,
+                  shareTripMemory: true,
+                },
+              },
+              category: true,
+            },
+          });
+
+          return adPlace;
+        })();
+
         return adPlaceRes;
       });
 
-      // const result = await Promise.all(
-      //   adPlaces.map(async v => {
-      //     return {
-      //       ...omit(v, ['tourPlace']),
-      //       mainPhoto: isNil(v.photos)
-      //         ? null
-      //         : await getIBPhotoUrl(v.mainPhoto),
-      //       photos: isNil(v.photos)
-      //         ? null
-      //         : await Promise.all(v.photos.map(getIBPhotoUrl)),
-      //       shareTripMemory: v.tourPlace.map(k => k.shareTripMemory).flat(1),
-      //     };
-      //   }),
-      // );
+      if (!isNil(adPlaceDraft.adPlace)) {
+        const ctx: IBContext = {
+          userTokenId,
+          admin: true,
+        };
+        await delAdPlacePhoto(
+          {
+            adPlaceId: adPlaceDraft.adPlace.id.toString(),
+            delPhotoList: adPlaceDraft.adPlace.photos.map(v => v.id.toString()),
+          },
+          ctx,
+        );
+      }
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -724,7 +849,12 @@ export const approveAdPlace = asyncWrapper(
 );
 
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
-adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
+// adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
+adPlaceRouter.post(
+  '/approveAdPlaceDraft',
+  accessTokenValidCheck,
+  approveAdPlaceDraft,
+);
 adPlaceRouter.get(
   '/getAdPlaceStatistics',
   accessTokenValidCheck,

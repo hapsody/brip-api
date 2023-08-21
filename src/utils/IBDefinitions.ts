@@ -33,6 +33,7 @@ export interface IBContext {
   queryParamsId?: string;
   userTokenId?: string;
   memberId?: number;
+  admin?: boolean; /// admin 권한의 user인가
 }
 
 // export interface IBTypedReqBody<T> extends Express.Request {
