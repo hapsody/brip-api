@@ -3411,6 +3411,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
       const tourPlaceList = await prisma.tourPlace.findMany({
         where: {
           AND: [
+            { status: 'IN_USE' },
             { id: isNil(tourPlaceId) ? undefined : Number(tourPlaceId) },
             {
               ...(isNil(tourPlaceId) &&
@@ -3445,33 +3446,8 @@ export const getShareTripMemListByPlace = asyncWrapper(
                 }),
             },
             {
-              OR: [
-                /// adPlace와 연관된 tp는 공유가 하나도 없더라도 검색되어야 함.
-                /// adPlace와 연관되지 않은 tp는 공유가 없다면 검색되면 안됨.
-                {
-                  adPlaceId: { not: null }, /// adPlace 연관 tp
-                  ...(!isNil(categoryKeyword) &&
-                    !isEmpty(categoryKeyword) && {
-                      shareTripMemory: {
-                        some: {
-                          AND: [
-                            {
-                              tripMemoryCategory: {
-                                some: {
-                                  name: {
-                                    contains: categoryKeyword,
-                                  },
-                                },
-                              },
-                            },
-                            // { isShare: true },
-                          ],
-                        },
-                      },
-                    }),
-                },
-                {
-                  adPlaceId: null, /// adPlace와 연관없는 일반 tp
+              ...(!isNil(categoryKeyword) &&
+                !isEmpty(categoryKeyword) && {
                   shareTripMemory: {
                     some: {
                       AND: [
@@ -3488,8 +3464,7 @@ export const getShareTripMemListByPlace = asyncWrapper(
                       ],
                     },
                   },
-                },
-              ],
+                }),
             },
           ],
         },
