@@ -1259,7 +1259,7 @@ model BookingInfo {
   customerId     Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
   company        User?    @relation(name: "asCompany", fields: [companyId], references: [id])
   companyId      Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
-  adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id])
+  adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adPlaceId      Int
 }
 
