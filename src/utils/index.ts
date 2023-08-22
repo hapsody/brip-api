@@ -24,7 +24,14 @@ import { getToday, getTomorrow, getNDaysLater } from './time';
 import {
   IBTravelTagList,
   ibTravelTagCategorize,
-} from './ibTravelTagCategorize';
+  getSubTags,
+  getSuperTags,
+  getRootTags,
+  getLeafTags,
+  doAllTagTreeTraversal,
+  doSubTreeTraversal,
+  doSuperTreeTraversal,
+} from './ibTravelTag';
 import {
   degreeToMeter,
   estGeoLocFromMeter,
@@ -100,5 +107,12 @@ export {
   sendNotiMsgAppPush,
   checkURLAccessibility,
   getValidUrl,
+  getSubTags,
+  getSuperTags,
+  getRootTags,
+  getLeafTags,
+  doAllTagTreeTraversal,
+  doSubTreeTraversal,
+  doSuperTreeTraversal,
   // getUserSmallProfileUrl,
 };

@@ -11,7 +11,13 @@ import {
   s3FileUpload,
   getS3SignedUrl,
   putS3SignedUrl,
-  getS3ClientViaAssumeRole,
+  // getS3ClientViaAssumeRole,
+  // getSubTags,
+  // getSuperTags,
+  // getLeafTags,
+  // doAllTagTreeTraversal,
+  // doSubTreeTraversal,
+  doSuperTreeTraversal,
   getValidUrl,
 } from '@src/utils';
 
@@ -244,7 +250,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
 );
 
 export interface PrismaTestRequestType {
-  key: string;
+  tagId: string;
 }
 export interface PrismaTestSuccessResType {}
 
@@ -259,24 +265,15 @@ export const prismaTest = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { key } = param;
-      const s3 = await getS3ClientViaAssumeRole();
-      if (isNil(s3)) {
-        throw new IBError({
-          type: 'EXTERNALAPI',
-          message: 'AWS S3 엑세스에 문제가 있습니다.',
-        });
-      }
-      const s3Resp = await s3
-        .getObject({
-          Bucket: process.env.AWS_S3_BUCKET ?? '',
-          Key: key,
-        })
-        .promise();
+      const { tagId } = param;
+
+      // const result = await doSubTreeTraversal(Number(tagId));
+      // const result = await doAllTagTreeTraversal(Number(tagId));
+      const result = await doSuperTreeTraversal(Number(tagId));
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: s3Resp,
+        IBparams: result,
       });
     } catch (err) {
       if (err instanceof IBError) {

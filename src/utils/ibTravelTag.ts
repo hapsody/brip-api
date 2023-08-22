@@ -248,3 +248,155 @@ export const ibTravelTagCategorize = async (
   //   superTypeId = curIBTType.id;
   // }
 };
+
+/// IBTravelTag 관계중 한단계 아래 sub tag들을 반환한다.
+export const getSubTags = async (tagId: number): Promise<IBTravelTag[]> => {
+  const ibTravelTag = await prisma.iBTravelTag.findUnique({
+    where: {
+      id: tagId,
+    },
+    select: {
+      related: {
+        select: {
+          to: true,
+        },
+      },
+    },
+  });
+  const result = ibTravelTag?.related.map(v => v.to) ?? [];
+  return result;
+};
+
+/// IBTravelTag 관계중 한단계 상위 super tag들을 반환한다.
+export const getSuperTags = async (tagId: number): Promise<IBTravelTag[]> => {
+  const ibTravelTag = await prisma.iBTravelTag.findUnique({
+    where: {
+      id: tagId,
+    },
+    select: {
+      noPtr: {
+        select: {
+          from: true,
+        },
+      },
+    },
+  });
+  const result = ibTravelTag?.noPtr.map(v => v.from) ?? [];
+  return result;
+};
+
+/// 해당 IBTravelTag 가 속한 트리의 가장 상위 root 태그들을 반환한다.
+export const getRootTags = async (tagId: number): Promise<IBTravelTag[]> => {
+  const superTags = await getSuperTags(tagId);
+  if (superTags.length === 0) {
+    const tag = await prisma.iBTravelTag.findUnique({
+      where: {
+        id: tagId,
+      },
+    });
+
+    return tag ? [tag] : [];
+  }
+  const result = await Promise.all(superTags.map(v => getRootTags(v.id)));
+
+  return result.flat();
+};
+
+/// 해당 IBTravelTag 가 속한 트리의 가장 말단 태그들을 반환한다.
+export const getLeafTags = async (tagId: number): Promise<IBTravelTag[]> => {
+  const subTags = await getSubTags(tagId);
+  if (subTags.length === 0) {
+    const tag = await prisma.iBTravelTag.findUnique({
+      where: {
+        id: tagId,
+      },
+    });
+
+    return tag ? [tag] : [];
+  }
+  const result = await Promise.all(subTags.map(v => getLeafTags(v.id)));
+
+  return result.flat();
+};
+
+/// 해당 IBTravelTag 가 갖는 subTree를 아래방향으로 전부 순회한 결과를 반환한다.
+export const doSubTreeTraversal = async (
+  tagId: number,
+): Promise<IBTravelTag[][]> => {
+  const addSubTags = async (
+    tid: number,
+    history: IBTravelTag[],
+  ): Promise<IBTravelTag[][]> => {
+    const subTags = await getSubTags(tid);
+    if (subTags.length === 0) return [history];
+    const result = await Promise.all(
+      subTags.map(async v => {
+        const newHistory = [...history, v];
+        const subHistories = await addSubTags(v.id, newHistory);
+        return subHistories;
+      }),
+    );
+    return result.flat();
+  };
+
+  const tag = await prisma.iBTravelTag.findUnique({
+    where: {
+      id: tagId,
+    },
+  });
+  if (isNil(tag)) return [[]];
+
+  const result = await addSubTags(tagId, [tag]);
+  return result;
+};
+
+/// 해당 IBTravelTag 가 갖는 SuperTree를 윗방향으로 전부 순회한 결과를 반환한다.
+export const doSuperTreeTraversal = async (
+  tagId: number,
+): Promise<IBTravelTag[][]> => {
+  const addSuperTags = async (
+    tid: number,
+    history: IBTravelTag[],
+  ): Promise<IBTravelTag[][]> => {
+    const superTags = await getSuperTags(tid);
+    if (superTags.length === 0) return [history];
+    const result = await Promise.all(
+      superTags.map(async v => {
+        const newHistory = [v, ...history];
+        const subHistories = await addSuperTags(v.id, newHistory);
+        return subHistories;
+      }),
+    );
+    return result.flat();
+  };
+
+  const tag = await prisma.iBTravelTag.findUnique({
+    where: {
+      id: tagId,
+    },
+  });
+  if (isNil(tag)) return [[]];
+
+  const result = await addSuperTags(tagId, [tag]);
+  return result;
+};
+
+/// 해당 IBTravelTag 가 속한 트리의 root를 찾고 아래방향으로 전부 순회한 결과를 반환한다.
+export const doAllTagTreeTraversal = async (
+  tagId: number,
+  direction: 'up' | 'down' = 'down',
+): Promise<IBTravelTag[][]> => {
+  const rootTags = await getRootTags(tagId);
+
+  if (direction === 'down') {
+    const result = await Promise.all(
+      rootTags.map(v => doSubTreeTraversal(v.id)),
+    );
+    return result.flat();
+  }
+
+  const result = await Promise.all(
+    rootTags.map(v => doSuperTreeTraversal(v.id)),
+  );
+  return result.flat();
+};
