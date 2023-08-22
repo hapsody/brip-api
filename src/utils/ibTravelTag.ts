@@ -1,6 +1,6 @@
 import prisma from '@src/prisma';
 import { IBTravelTag, PrismaClient } from '@prisma/client';
-import { isNull, isNil } from 'lodash';
+import { isNull, isNil, isEmpty } from 'lodash';
 import * as runtime from '@prisma/client/runtime/library';
 
 export type IBTravelTagList = {
@@ -319,7 +319,7 @@ export const getLeafTags = async (tagId: number): Promise<IBTravelTag[]> => {
   return result.flat();
 };
 
-/// 해당 IBTravelTag 가 갖는 subTree를 아래방향으로 전부 순회한 결과를 반환한다.
+/// tagId 자신을 포함하고 해당 IBTravelTag 가 갖는 subTree를 아래방향으로 전부 순회한 결과를 반환한다.
 export const doSubTreeTraversal = async (
   tagId: number,
 ): Promise<IBTravelTag[][]> => {
@@ -350,7 +350,7 @@ export const doSubTreeTraversal = async (
   return result;
 };
 
-/// 해당 IBTravelTag 가 갖는 SuperTree를 윗방향으로 전부 순회한 결과를 반환한다.
+/// tagId 자신을 포함하고 해당 IBTravelTag 가 갖는 SuperTree를 윗방향으로 전부 순회한 결과를 반환한다.
 export const doSuperTreeTraversal = async (
   tagId: number,
 ): Promise<IBTravelTag[][]> => {
@@ -381,22 +381,91 @@ export const doSuperTreeTraversal = async (
   return result;
 };
 
-/// 해당 IBTravelTag 가 속한 트리의 root를 찾고 아래방향으로 전부 순회한 결과를 반환한다.
+/// tagId 자신을 포함하고  해당 IBTravelTag 가 속한 트리의 root 또는 leaf를 찾고 윗방향 또는 아랫방향으로(default: 아랫방향) 전부 순회한 결과를 반환한다.
 export const doAllTagTreeTraversal = async (
   tagId: number,
   direction: 'up' | 'down' = 'down',
 ): Promise<IBTravelTag[][]> => {
-  const rootTags = await getRootTags(tagId);
-
   if (direction === 'down') {
+    const rootTags = await getRootTags(tagId);
     const result = await Promise.all(
       rootTags.map(v => doSubTreeTraversal(v.id)),
     );
     return result.flat();
   }
 
+  const leafTags = await getLeafTags(tagId);
   const result = await Promise.all(
-    rootTags.map(v => doSuperTreeTraversal(v.id)),
+    leafTags.map(v => doSuperTreeTraversal(v.id)),
   );
   return result.flat();
+};
+
+/// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 pathArr와 매칭되는 경로들을 찾아 해당 IBTravelTag 배열들을 반환한다.(tag tree의 경로중 일부만 일치하여도 된다.)
+export const getPartialMatchedPathTags = async (params: {
+  pathArr: string[];
+}): Promise<IBTravelTag[][]> => {
+  const { pathArr } = params;
+
+  /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
+  if (isNil(pathArr) || pathArr.length < 2) return [];
+
+  const firstTags = await prisma.iBTravelTag.findMany({
+    where: {
+      value: pathArr[0],
+    },
+  });
+
+  if (isNil(firstTags) || isEmpty(firstTags)) return [];
+
+  const matchedPathResult = (
+    await Promise.all(
+      firstTags.map(async v => {
+        const subTreePathes = await doSubTreeTraversal(v.id);
+        const matchedPath = subTreePathes.filter(
+          eachPath =>
+            pathArr.every((str, index) => str === eachPath[index].value),
+          // eachPath.every((tag, index) => tag.value === pathArr[index]),
+        );
+        if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+        return null;
+      }),
+    )
+  ).find((v): v is IBTravelTag[][] => v !== null);
+  return matchedPathResult ?? [];
+};
+
+/// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 최상단부터 말단까지 '정확히' 모두 매칭되어야 해당 IBTravelTag 배열을 반환한다.
+/// 부분만 일치하면 반환하지 않는다.
+export const getMatchedAllPathTags = async (params: {
+  pathArr: string[];
+}): Promise<IBTravelTag[]> => {
+  const { pathArr } = params;
+
+  /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
+  if (isNil(pathArr) || pathArr.length < 2) return [];
+
+  const firstTags = await prisma.iBTravelTag.findMany({
+    where: {
+      value: pathArr[0],
+    },
+  });
+  if (isNil(firstTags) || isEmpty(firstTags)) return [];
+  const matchedPathResult = (
+    await Promise.all(
+      firstTags.map(async v => {
+        /// 제시된 pathArr의 처음이 root 태그여야 하는데 부모가 있다는것은 root가 아니라는 뜻
+        const superTags = await getSuperTags(v.id);
+        if (superTags.length > 0) return [];
+
+        const subTreePathes = await doSubTreeTraversal(v.id);
+        const matchedPath = subTreePathes.find(eachPath =>
+          eachPath.every((tag, index) => tag.value === pathArr[index]),
+        );
+        if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+        return null;
+      }),
+    )
+  ).find((v): v is IBTravelTag[] => v !== null);
+  return matchedPathResult ?? [];
 };

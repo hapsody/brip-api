@@ -17,7 +17,9 @@ import {
   // getLeafTags,
   // doAllTagTreeTraversal,
   // doSubTreeTraversal,
-  doSuperTreeTraversal,
+  // doSuperTreeTraversal,
+  // getPartialMatchedPathTags,
+  getMatchedAllPathTags,
   getValidUrl,
 } from '@src/utils';
 
@@ -250,7 +252,8 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
 );
 
 export interface PrismaTestRequestType {
-  tagId: string;
+  // tagId: string;
+  pathArr: string[];
 }
 export interface PrismaTestSuccessResType {}
 
@@ -265,11 +268,16 @@ export const prismaTest = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { tagId } = param;
+      const {
+        // tagId
+        pathArr,
+      } = param;
 
       // const result = await doSubTreeTraversal(Number(tagId));
-      // const result = await doAllTagTreeTraversal(Number(tagId));
-      const result = await doSuperTreeTraversal(Number(tagId));
+      // const result = await doAllTagTreeTraversal(Number(tagId), 'up');
+      // const result = await doSuperTreeTraversal(Number(tagId));
+      // const result = await getPartialMatchedPathTags({ pathArr });
+      const result = await getMatchedAllPathTags({ pathArr });
 
       res.json({
         ...ibDefs.SUCCESS,

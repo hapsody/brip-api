@@ -31,6 +31,8 @@ import {
   doAllTagTreeTraversal,
   doSubTreeTraversal,
   doSuperTreeTraversal,
+  getPartialMatchedPathTags,
+  getMatchedAllPathTags,
 } from './ibTravelTag';
 import {
   degreeToMeter,
@@ -114,5 +116,7 @@ export {
   doAllTagTreeTraversal,
   doSubTreeTraversal,
   doSuperTreeTraversal,
+  getPartialMatchedPathTags,
+  getMatchedAllPathTags,
   // getUserSmallProfileUrl,
 };
