@@ -116,6 +116,7 @@ export const getAdPlace = asyncWrapper(
               },
             },
           },
+          AdPlaceDraft: true,
         },
       });
 

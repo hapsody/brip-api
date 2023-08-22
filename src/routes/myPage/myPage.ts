@@ -454,6 +454,7 @@ export const getMyAdPlace = asyncWrapper(
           mainPhoto: true,
           photos: true,
           category: true,
+          AdPlaceDraft: true,
         },
       });
 
@@ -662,11 +663,49 @@ export const modifyAdPlace = asyncWrapper(
             // tourPlace: TourPlace | undefined;
           }
         > => {
-          const adPlaceDraftUpdatedResult = await tx.adPlaceDraft.update({
+          const adPlaceDraftUpdatedResult = await tx.adPlaceDraft.upsert({
             where: {
-              id: existCheck.AdPlaceDraft!.id,
+              id: existCheck.AdPlaceDraft?.id ?? -1,
             },
-            data: {
+            create: {
+              status: 'STAGING',
+              title: title!,
+              mainPhoto: {
+                create: {
+                  key: mainPhotoKey,
+                },
+              },
+              category: await adPlaceCategoryToIBTravelTag({
+                category: category!,
+                tx,
+              }),
+              photos: {
+                createMany: {
+                  data: photos!,
+                },
+              },
+              desc,
+              address,
+              roadAddress,
+              detailAddress,
+              openWeek,
+              closedDay,
+              contact,
+              siteUrl: await getValidUrl(siteUrl),
+              businessNumber,
+              businessRegImgKey,
+              user: {
+                connect: {
+                  userTokenId,
+                },
+              },
+              adPlace: {
+                connect: {
+                  id: existCheck.id,
+                },
+              },
+            },
+            update: {
               status: 'STAGING',
               title,
               ...(!isNil(mainPhotoKey) &&
@@ -680,7 +719,9 @@ export const modifyAdPlace = asyncWrapper(
               ...(!isNil(category) && {
                 category: await adPlaceCategoryToIBTravelTag({
                   category,
-                  adPlaceDraftId: Number(existCheck.AdPlaceDraft!.id),
+                  ...(!isNil(existCheck.AdPlaceDraft) && {
+                    adPlaceDraftId: Number(existCheck.AdPlaceDraft!.id),
+                  }),
                   tx,
                 }),
               }),
