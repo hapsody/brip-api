@@ -879,7 +879,8 @@ export const modifyAdPlace = asyncWrapper(
 
 export type DelAdPlacePhotoRequestType = {
   adPlaceId: string; /// 수정할 adPlace의 Id
-  delPhotoList: string[]; /// 삭제할 photoId
+  delPhotoListFromDB: string[]; /// DB에서 삭제할 IBPhotos photoId
+  delPhotoListFromS3?: string[]; /// S3에서 삭제할 key를 검색할 photoId
 };
 export type DelAdPlacePhotoSuccessResType = {
   count: number; ///  DB에서 삭제 성공한 숫자
@@ -892,12 +893,18 @@ export const delAdPlacePhoto = async (
   params: DelAdPlacePhotoRequestType,
   ctx: IBContext,
 ): Promise<DelAdPlacePhotoSuccessResType> => {
-  const { adPlaceId, delPhotoList } = params;
+  const { adPlaceId, delPhotoListFromDB, delPhotoListFromS3 } = params;
 
-  if (isNil(adPlaceId) || isNil(delPhotoList || isEmpty(delPhotoList))) {
+  if (
+    isNil(adPlaceId) ||
+    isNil(delPhotoListFromDB) ||
+    isEmpty(delPhotoListFromDB)
+    // isNil(delPhotoListFromS3) ||
+    // isEmpty(delPhotoListFromS3)
+  ) {
     throw new IBError({
       type: 'INVALIDPARAMS',
-      message: 'adPlaceId, delPhotoList는 필수 파라미터입니다.',
+      message: 'adPlaceId, delPhotoListFromDB는 필수 파라미터입니다.',
     });
   }
 
@@ -912,6 +919,7 @@ export const delAdPlacePhoto = async (
           userTokenId: true,
         },
       },
+      photos: true,
     },
   });
 
@@ -935,16 +943,31 @@ export const delAdPlacePhoto = async (
 
   const targetPhotos = await prisma.iBPhotos.findMany({
     where: {
-      id: { in: delPhotoList.map(v => Number(v)) },
+      id: { in: delPhotoListFromDB.map(v => Number(v)) },
     },
   });
 
-  if (targetPhotos.length !== delPhotoList.length) {
+  if (targetPhotos.length !== delPhotoListFromDB.length) {
     throw new IBError({
       type: 'NOTMATCHEDDATA',
       message: '존재하지 않는 photoId가 포함되었습니다.',
     });
   }
+
+  const s3TargetPhotos = await (async () => {
+    if (!isNil(delPhotoListFromS3) && !isEmpty(delPhotoListFromS3)) {
+      const targetP = await prisma.iBPhotos.findMany({
+        where: {
+          id: { in: delPhotoListFromS3.map(v => Number(v)) },
+        },
+      });
+      return targetP;
+    }
+
+    if (!isNil(delPhotoListFromS3) && isEmpty(delPhotoListFromS3)) return [];
+
+    return targetPhotos;
+  })();
 
   /// admin 권한이 아닐 경우에만 체크, 어드민일때는 adPlaceAsSubId가 없어도 지울수 있음
   if (isNil(ctx.admin) || ctx.admin === false) {
@@ -966,11 +989,15 @@ export const delAdPlacePhoto = async (
     },
   });
 
-  const deleteFromS3Result = await delObjectsFromS3(
-    targetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
-  );
+  /// delete 요청이 들어온 리스트중 현재 수정된 adPlace에 존재하는 사진이면 DB에서는 모두 지워도 되지만(IBPhotos가 새로 생성되었기 때문) s3에는 다시 올리지 않기 때문에 지워서는 안된다.
+  if (!isEmpty(s3TargetPhotos)) {
+    const deleteFromS3Result = await delObjectsFromS3(
+      s3TargetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+    );
 
-  console.log(deleteFromS3Result);
+    console.log(deleteFromS3Result);
+  }
+
   return prismaDelResult;
 };
 

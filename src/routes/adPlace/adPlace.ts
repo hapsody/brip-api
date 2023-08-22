@@ -688,7 +688,7 @@ export const approveAdPlaceDraft = asyncWrapper(
             photos: {
               set: [], /// 기존 연결 모두 끊고 draft 연결로 덮어씀
               connect: [
-                { id: adPlaceDraftRes.mainPhotoId }, /// mainPhoto를 제일 앞으로
+                // { id: adPlaceDraftRes.mainPhotoId }, /// mainPhoto를 제일 앞으로
                 ...adPlaceDraftRes.photos.map(v => {
                   return {
                     id: v.id,
@@ -776,7 +776,18 @@ export const approveAdPlaceDraft = asyncWrapper(
         await delAdPlacePhoto(
           {
             adPlaceId: adPlaceDraft.adPlace.id.toString(),
-            delPhotoList: adPlaceDraft.adPlace.photos.map(v => v.id.toString()),
+            delPhotoListFromDB: adPlaceDraft.adPlace.photos.map(v =>
+              v.id.toString(),
+            ),
+            delPhotoListFromS3: adPlaceDraft.adPlace.photos
+              .filter(oldPhoto => {
+                return isNil(
+                  adPlaceDraft.photos.find(
+                    newPhoto => newPhoto.key === oldPhoto.key,
+                  ),
+                );
+              })
+              .map(v => v.id.toString()),
           },
           ctx,
         );
