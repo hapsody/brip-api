@@ -2003,6 +2003,46 @@ export const getNrbyPlaceListWithGeoLoc = async (
   const foundTourPlace = await prisma.tourPlace.findMany({
     where: {
       AND: [
+        /// 기본적으로 IN_USE 상태의 tourPlace만 반환되어야 하나
+        /// 내가 남긴 글이 최초로 작성되는 경우에는 tourPlace가 새로 생성되기 때문에 IN_USE가 아니어도 내가 남긴글와 관계된 tourPlace는 반환되어야 한다.
+        {
+          OR: [
+            { status: 'IN_USE' },
+            {
+              shareTripMemory: {
+                some: {
+                  userId: ctx.memberId,
+                },
+              },
+            },
+            {
+              shareTripMemory: {
+                some: {
+                  user: {
+                    userTokenId: ctx.userTokenId,
+                  },
+                },
+              },
+            },
+            {
+              tripMemory: {
+                some: {
+                  userId: ctx.memberId,
+                },
+              },
+            },
+            {
+              tripMemory: {
+                some: {
+                  user: {
+                    userTokenId: ctx.userTokenId,
+                  },
+                },
+              },
+            },
+          ],
+        },
+
         { lat: { gte: Number(minLat) } },
         { lat: { lt: Number(maxLat) } },
         { lng: { gte: Number(minLng) } },
