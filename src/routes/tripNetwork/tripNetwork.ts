@@ -1720,7 +1720,7 @@ export const addShareTripMemory = asyncWrapper(
             TourPlace: {
               connectOrCreate: {
                 where: {
-                  id: createdOrFoundTripMem.TourPlace?.id,
+                  id: createdOrFoundTripMem.TourPlace?.id ?? -1,
                 },
                 create: {
                   title,
