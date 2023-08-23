@@ -33,6 +33,8 @@ import {
   doSuperTreeTraversal,
   getPartialMatchedPathTags,
   getMatchedAllPathTags,
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
 } from './ibTravelTag';
 import {
   degreeToMeter,
@@ -43,10 +45,10 @@ import {
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
-import {
-  categoryToIBTravelTag,
-  ibTravelTagToTourPlaceType,
-} from './categoryToIBTravelTag';
+// import {
+//   categoryToIBTravelTag,
+//   ibTravelTagToTourPlaceType,
+// } from './categoryToIBTravelTag';
 import {
   getUserProfileUrl,
   getAccessableUrl,
