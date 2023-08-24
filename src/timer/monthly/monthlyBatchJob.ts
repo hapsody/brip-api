@@ -5,11 +5,10 @@ import tourPlace from '@src/prisma/seeds/tourPlace/tourPlace';
 
 // import { getAllTextSearchPages } from '@src/routes/schedule/schedule';
 // import { TextSearchReqParams } from '@src/routes/schedule/types/schduleTypes';
-import {
-  getPlaceDataFromVJ,
-  // getPlaceByGglTxtSrch,
-  // getPlaceDetail,
-} from '@src/routes/schedule/inner';
+import // getPlaceDataFromVJ,
+// getPlaceByGglTxtSrch,
+// getPlaceDetail,
+'@src/routes/schedule/inner';
 // import {
 //   // GglTextSearchReqOpt,
 //   GglPlaceResultRawData,
@@ -20,10 +19,10 @@ import {
 const prisma = new PrismaClient();
 
 async function batchJob(): Promise<void> {
-  const lastOne = await prisma.batchQueryParams.findFirst({
-    orderBy: { id: 'desc' },
-  });
-  const nextBatchJobId = lastOne ? Number(lastOne.id) + 1 : 1;
+  // const lastOne = await prisma.batchQueryParams.findFirst({
+  //   orderBy: { id: 'desc' },
+  // });
+  // const nextBatchJobId = lastOne ? Number(lastOne.id) + 1 : 1;
 
   // const totalResult: GglPlaceResultRawData[] = [];
   // // eslint-disable-next-line no-restricted-syntax
@@ -153,17 +152,17 @@ async function batchJob(): Promise<void> {
 
   // console.log('restaurant dummy data created too');
 
-  await getPlaceDataFromVJ({
-    locale: 'kr',
-    page: 1,
-    loadAll: true,
-    store: true,
-    batchJobCtx: {
-      batchQueryParamsId: nextBatchJobId,
-    },
-  });
+  // await getPlaceDataFromVJ({
+  //   locale: 'kr',
+  //   page: 1,
+  //   loadAll: true,
+  //   store: true,
+  //   batchJobCtx: {
+  //     batchQueryParamsId: nextBatchJobId,
+  //   },
+  // });
 
-  console.log('fetching visitjeju data job is done');
+  // console.log('fetching visitjeju data job is done');
 
   await tourPlace();
   console.log('fetching 한국관광공사 tourAPI 4.0 data job is done');

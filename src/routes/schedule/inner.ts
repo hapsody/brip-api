@@ -1174,17 +1174,21 @@ export const getVisitJejuData = async (
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   const { locale, page, cid } = param;
 
-  const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
+  const option = `https://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
     process.env.VISITJEJU_API_KEY as string
   }${`&locale=${locale ?? 'kr'}`}${page ? `&page=${page}` : '1'}${
     cid ? `&cid=${cid ?? ''}` : ''
   }`;
-  const jejuRawRes = await axios.get(option);
-  console.log(option);
+  try {
+    const jejuRawRes = await axios.get(option);
+    console.log(option);
+    const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
 
-  const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
-
-  return jejuRes;
+    return jejuRes;
+  } catch (err) {
+    console.error(JSON.stringify((err as Error).message, null, 2));
+    return {};
+  }
 };
 
 /**

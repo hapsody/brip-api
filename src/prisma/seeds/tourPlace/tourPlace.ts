@@ -7,6 +7,7 @@ import {
   // IBTravelTag
   DataStageStatus,
 } from '@prisma/client';
+import { getMatchedAllPathTags } from '@src/utils';
 // import { searchKRJuso } from '@src/utils';
 // import { IBTravelTagList, ibTravelTagCategorize } from '@src/utils';
 
@@ -1008,8 +1009,33 @@ async function main(): Promise<void> {
       numOfRows: '60000',
     });
 
+    type DataForCreateType = {
+      tourPlaceType: PlaceType;
+      status: DataStageStatus;
+      ibTravelTag: {
+        connect: {
+          id: number | undefined;
+        }[];
+      };
+      title: string;
+      lat: number;
+      lng: number;
+      roadAddress: string;
+      contact: string;
+      postcode: string;
+      photos:
+        | {
+            createMany: {
+              data: {
+                url: string;
+              }[];
+            };
+          }
+        | undefined;
+    };
+
     // let dupCheckData: { title?: string; lat?: number; lng?: number } = {};
-    const dataForCreate = tour4InfoItems.reduce((acc, v) => {
+    const dataForCreate = await tour4InfoItems.reduce(async (acc, v) => {
       const tourPlaceType = (() => {
         switch (v.cat1) {
           case 'A05': /// 음식
@@ -1311,12 +1337,24 @@ async function main(): Promise<void> {
           tourPlaceType: tourPlaceType as PlaceType,
           status: 'IN_USE' as DataStageStatus,
           ibTravelTag: {
-            connect: ibTTTypePath.map(k => {
-              const leafTag = k.split('>').pop();
-              return {
-                value: leafTag,
-              };
-            }),
+            connect: (
+              await Promise.all(
+                ibTTTypePath.map(async k => {
+                  // const leafTag = k.split('>').pop();
+                  // return {
+                  //   value: leafTag,
+                  // };
+                  const typePath = k.split('>');
+                  const matchedPath = await getMatchedAllPathTags({
+                    pathArr: typePath,
+                  });
+                  if (isEmpty(matchedPath)) return null;
+                  return {
+                    id: matchedPath.pop()?.id,
+                  };
+                }),
+              )
+            ).filter((k): k is { id: number } => k !== null),
           },
           title: v.title,
           lat: Number(v.mapy),
@@ -1389,66 +1427,72 @@ async function main(): Promise<void> {
         };
 
         // dupCheckData = { ...newOne };
-        return [...acc, newOne];
+        return [...(await acc), newOne];
       }
       return acc;
-    }, []);
+    }, Promise.resolve([] as DataForCreateType[]));
 
     // eslint-disable-next-line no-restricted-syntax
     for await (const [i, buffer] of dataForCreate.entries()) {
       try {
         // const juso = await searchKRJuso(buffer.roadAddress);
-        const createResult = await prisma.$transaction(async tx => {
-          await tx.tourPlace.updateMany({
-            where: {
-              lat: buffer.lat,
-              lng: buffer.lng,
-              title: buffer.title,
-              status: 'IN_USE',
-              tourPlaceType: { in: ['TOUR4_RESTAURANT', 'TOUR4_SPOT'] },
-            },
-            data: {
-              status: 'ARCHIVED',
-            },
-          });
+        const createResult = await prisma.$transaction(
+          async tx => {
+            await tx.tourPlace.updateMany({
+              where: {
+                lat: buffer.lat,
+                lng: buffer.lng,
+                title: buffer.title,
+                status: 'IN_USE',
+                tourPlaceType: { in: ['TOUR4_RESTAURANT', 'TOUR4_SPOT'] },
+              },
+              data: {
+                status: 'ARCHIVED',
+              },
+            });
 
-          const result = await tx.tourPlace.create({
-            data: {
-              ...buffer,
-              // ...(!isNil(juso) && {
-              //   roadAddress: juso.roadAddr,
-              //   address: juso.jibunAddr,
-              //   postcode: juso.zipNo,
-              // }),
-            },
-            select: {
-              id: true,
-              title: true,
-              tourPlaceType: true,
-              status: true,
-              ibTravelTag: {
-                select: {
-                  id: true,
-                  value: true,
+            const result = await tx.tourPlace.create({
+              data: {
+                ...buffer,
+                // ...(!isNil(juso) && {
+                //   roadAddress: juso.roadAddr,
+                //   address: juso.jibunAddr,
+                //   postcode: juso.zipNo,
+                // }),
+              },
+              select: {
+                id: true,
+                title: true,
+                tourPlaceType: true,
+                status: true,
+                ibTravelTag: {
+                  select: {
+                    id: true,
+                    value: true,
+                  },
+                },
+                lat: true,
+                lng: true,
+                roadAddress: true,
+                address: true,
+                openWeek: true,
+                contact: true,
+                postcode: true,
+                photos: {
+                  select: {
+                    id: true,
+                    url: true,
+                  },
                 },
               },
-              lat: true,
-              lng: true,
-              roadAddress: true,
-              address: true,
-              openWeek: true,
-              contact: true,
-              postcode: true,
-              photos: {
-                select: {
-                  id: true,
-                  url: true,
-                },
-              },
-            },
-          });
-          return result;
-        });
+            });
+            return result;
+          },
+          {
+            maxWait: 5000000, // default: 2000
+            timeout: 10000000, // default: 5000
+          },
+        );
         console.log(`[${i}]:`, `id:${createResult.id}`, createResult.title);
       } catch (error) {
         console.error(error);

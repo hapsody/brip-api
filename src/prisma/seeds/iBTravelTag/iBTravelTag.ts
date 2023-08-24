@@ -570,14 +570,6 @@ export const seedData: IBTravelTagList[] = [
   {
     /// new
     ibType: {
-      typePath: 'food>dining>japanese',
-      minDifficulty: 1,
-      maxDifficulty: 1,
-    },
-  },
-  {
-    /// new
-    ibType: {
       typePath: 'food>dining>etc',
       minDifficulty: 1,
       maxDifficulty: 1,

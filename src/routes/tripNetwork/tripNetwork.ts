@@ -1679,16 +1679,16 @@ export const addShareTripMemory = asyncWrapper(
           });
         }
 
-        const typeNTags = categoryToIBTravelTag(tripMemoryCategory);
+        const typeNTags = await categoryToIBTravelTag(tripMemoryCategory);
 
-        const ibTravelTagNames = typeNTags.ibTravelTagNames
+        const ibTravelTagIds = typeNTags.ibTravelTagIds
           .map(v => {
             if (v === null) return null;
             return {
-              value: v,
+              id: v,
             };
           })
-          .filter((v): v is { value: string } => v !== null);
+          .filter((v): v is { id: number } => v !== null);
 
         const shareTripMemory = await tx.shareTripMemory.create({
           data: {
@@ -1729,10 +1729,10 @@ export const addShareTripMemory = asyncWrapper(
                   address,
                   // tourPlaceType: 'USER_SPOT',
                   tourPlaceType: typeNTags.tourPlaceType,
-                  ...(!isNil(ibTravelTagNames) &&
-                    !isEmpty(ibTravelTagNames) && {
+                  ...(!isNil(ibTravelTagIds) &&
+                    !isEmpty(ibTravelTagIds) && {
                       ibTravelTag: {
-                        connect: ibTravelTagNames,
+                        connect: ibTravelTagIds,
                       },
                     }),
                 },

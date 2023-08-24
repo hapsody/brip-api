@@ -674,7 +674,7 @@ model IBTravelTag {
   updatedAt     DateTime                  @default(now()) @updatedAt
   minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
   maxDifficulty Int?
-  value         String                    @unique
+  value         String
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
