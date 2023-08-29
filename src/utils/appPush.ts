@@ -50,6 +50,8 @@ type CustomerUserInfoType = {
   id: number;
   userFCMToken: {
     token: string;
+    sysNotiPushAlarm: boolean;
+    bookingChatPushAlarm: boolean;
   }[];
   nickName: string;
   // email: string;
@@ -61,6 +63,8 @@ type CompanyUserInfoType = {
   id: number;
   userFCMToken: {
     token: string;
+    sysNotiPushAlarm: boolean;
+    bookingChatPushAlarm: boolean;
   }[];
   nickName: string;
   // email: string;
@@ -106,6 +110,8 @@ const getUserInfoFromCacheNDB = async <
       userFCMToken: {
         select: {
           token: true,
+          sysNotiPushAlarm: true,
+          bookingChatPushAlarm: true,
         },
       },
     },
@@ -233,16 +239,18 @@ export const sendAppPushToBookingCustomer = async (params: {
     };
     const result = await fbAdmin.messaging().sendEach(
       customerUser.userFCMToken.map(v => {
-        const { token } = v;
+        const { token, bookingChatPushAlarm } = v;
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
             serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
-          notification: {
-            title: adPlace.title,
-            body: message,
-          },
+          ...(bookingChatPushAlarm && {
+            notification: {
+              title: adPlace.title,
+              body: message,
+            },
+          }),
           android: {
             priority: 'high' as 'high',
           },
@@ -311,16 +319,19 @@ export const sendAppPushToBookingCompany = async (params: {
 
     const result = await fbAdmin.messaging().sendEach(
       companyUser.userFCMToken.map(v => {
-        const { token } = v;
+        const { token, bookingChatPushAlarm } = v;
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
             serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
-          notification: {
-            title: customerUser.nickName,
-            body: message,
-          },
+          ...(bookingChatPushAlarm && {
+            notification: {
+              title: customerUser.nickName,
+              body: message,
+            },
+          }),
+
           android: {
             priority: 'high' as 'high',
           },
@@ -333,7 +344,7 @@ export const sendAppPushToBookingCompany = async (params: {
             headers: {
               // 'apns-push-type': 'background',
               'apns-push-type': 'alert',
-              'apns-priority': '5',
+              'apns-priority': '10',
               'apns-topic': '', // your app bundle identifier
             },
           },
@@ -357,6 +368,8 @@ type ToUserInfoType = {
   id: number;
   userFCMToken: {
     token: string;
+    sysNotiPushAlarm: boolean;
+    bookingChatPushAlarm: boolean;
   }[];
   nickName: string;
   email: string;
@@ -386,16 +399,19 @@ export const sendNotiMsgAppPush = async (params: {
 
     const result = await fbAdmin.messaging().sendEach(
       toUser.userFCMToken.map(v => {
-        const { token } = v;
+        const { token, sysNotiPushAlarm } = v;
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
             serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
           },
-          notification: {
-            title: 'brip 시스템 알림',
-            body: message,
-          },
+          ...(sysNotiPushAlarm && {
+            notification: {
+              title: 'brip 시스템 알림',
+              body: message,
+            },
+          }),
+
           android: {
             priority: 'high' as 'high',
           },
@@ -409,7 +425,7 @@ export const sendNotiMsgAppPush = async (params: {
             headers: {
               // 'apns-push-type': 'background',
               'apns-push-type': 'alert',
-              'apns-priority': '5',
+              'apns-priority': '10',
               'apns-topic': '', // your app bundle identifier
             },
           },
