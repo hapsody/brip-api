@@ -1,10 +1,11 @@
+/* eslint-disable no-restricted-syntax */
 import axios from 'axios';
 import { isNil, isEmpty } from 'lodash';
 import * as dotenv from 'dotenv';
 import {
   PrismaClient,
   PlaceType,
-  // IBTravelTag
+  IBTravelTag,
   DataStageStatus,
 } from '@prisma/client';
 import { getMatchedAllPathTags } from '@src/utils';
@@ -1338,22 +1339,28 @@ async function main(): Promise<void> {
           status: 'IN_USE' as DataStageStatus,
           ibTravelTag: {
             connect: (
-              await Promise.all(
-                ibTTTypePath.map(async k => {
-                  // const leafTag = k.split('>').pop();
-                  // return {
-                  //   value: leafTag,
-                  // };
-                  const typePath = k.split('>');
-                  const matchedPath = await getMatchedAllPathTags({
+              await (async () => {
+                let typePath: string[] = [];
+                let matchedPath: IBTravelTag[] = [];
+                let result: ({ id?: number } | null)[] = [];
+                for await (const k of ibTTTypePath) {
+                  typePath = k.split('>');
+                  matchedPath = await getMatchedAllPathTags({
                     pathArr: typePath,
                   });
-                  if (isEmpty(matchedPath)) return null;
-                  return {
-                    id: matchedPath.pop()?.id,
-                  };
-                }),
-              )
+                  if (isEmpty(matchedPath)) {
+                    result = [...result, null];
+                  } else {
+                    result = [
+                      ...result,
+                      {
+                        id: matchedPath.pop()?.id,
+                      },
+                    ];
+                  }
+                }
+                return result;
+              })()
             ).filter((k): k is { id: number } => k !== null),
           },
           title: v.title,

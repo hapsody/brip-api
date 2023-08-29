@@ -90,13 +90,22 @@ export const doSubTreeTraversal = async (
   ): Promise<IBTravelTag[][]> => {
     const subTags = await getSubTags(tid);
     if (subTags.length === 0) return [history];
-    const result = await Promise.all(
-      subTags.map(async v => {
-        const newHistory = [...history, v];
-        const subHistories = await addSubTags(v.id, newHistory);
-        return subHistories;
-      }),
-    );
+    let newHistory: IBTravelTag[] = [];
+    let subHistories: IBTravelTag[][] = [[]];
+    let result: IBTravelTag[][][] = [[[]]];
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const v of subTags) {
+      newHistory = [...history, v];
+      subHistories = await addSubTags(v.id, newHistory);
+      result = [...result, subHistories];
+    }
+    // const result = await Promise.all(
+    //   subTags.map(async v => {
+    //     const newHistory = [...history, v];
+    //     const subHistories = await addSubTags(v.id, newHistory);
+    //     return subHistories;
+    //   }),
+    // );
     return result.flat();
   };
 
@@ -121,13 +130,22 @@ export const doSuperTreeTraversal = async (
   ): Promise<IBTravelTag[][]> => {
     const superTags = await getSuperTags(tid);
     if (superTags.length === 0) return [history];
-    const result = await Promise.all(
-      superTags.map(async v => {
-        const newHistory = [v, ...history];
-        const subHistories = await addSuperTags(v.id, newHistory);
-        return subHistories;
-      }),
-    );
+    let newHistory: IBTravelTag[] = [];
+    let superHistories: IBTravelTag[][] = [[]];
+    let result: IBTravelTag[][][] = [[[]]];
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const v of superTags) {
+      newHistory = [...history, v];
+      superHistories = await addSuperTags(v.id, newHistory);
+      result = [...result, superHistories];
+    }
+    // const result = await Promise.all(
+    //   superTags.map(async v => {
+    //     const newHistory = [v, ...history];
+    //     const subHistories = await addSuperTags(v.id, newHistory);
+    //     return subHistories;
+    //   }),
+    // );
     return result.flat();
   };
 
@@ -206,51 +224,91 @@ export const getMatchedAllPathTags = async (params: {
 
   /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
   if (!isNil(pathArr) && pathArr.length >= 2) {
-    const firstTags = await prisma.iBTravelTag.findMany({
-      where: {
-        value: pathArr[0],
-      },
-    });
-    if (isNil(firstTags) || isEmpty(firstTags)) return [];
-    const matchedPathResult = (
-      await Promise.all(
-        firstTags.map(async v => {
+    let matchedPathResult: IBTravelTag[] = [];
+    const result = await (async () => {
+      const firstTags = await prisma.iBTravelTag.findMany({
+        where: {
+          value: pathArr[0],
+        },
+      });
+
+      if (isNil(firstTags) || isEmpty(firstTags)) return [];
+
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const v of firstTags) {
+        const curRes = await (async () => {
+          let superTags: IBTravelTag[] = [];
+          let subTreePaths: IBTravelTag[][] = [[]];
+          let matchedPath: IBTravelTag[] | undefined = [];
+
           /// 제시된 pathArr의 처음이 root 태그여야 하는데 부모가 있다는것은 root가 아니라는 뜻
-          const superTags = await getSuperTags(v.id);
+          superTags = await getSuperTags(v.id);
           if (superTags.length > 0) return [];
 
-          const subTreePathes = await doSubTreeTraversal(v.id);
-          const matchedPath = subTreePathes.find(eachPath =>
-            eachPath.every((tag, index) => tag.value === pathArr[index]),
+          subTreePaths = await doSubTreeTraversal(v.id);
+          matchedPath = subTreePaths.find(
+            eachPath =>
+              !isEmpty(eachPath) &&
+              eachPath.every((tag, index) => tag.value === pathArr[index]),
           );
           if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+
           return null;
-        }),
-      )
-    ).find((v): v is IBTravelTag[] => v !== null);
-    return matchedPathResult ?? [];
+        })();
+        if (!isNil(curRes)) {
+          matchedPathResult = curRes;
+          break;
+        }
+      }
+
+      return matchedPathResult ?? [];
+    })();
+
+    return result ?? [];
   }
 
   if (!isNil(tagIdArr) && tagIdArr.length >= 2) {
-    const firstTag = await prisma.iBTravelTag.findUnique({
-      where: {
-        id: tagIdArr[0],
-      },
-    });
-    if (isNil(firstTag)) return [];
-    const matchedPathResult = await (async () => {
-      const superTags = await getSuperTags(firstTag.id);
-      if (superTags.length > 0) return [];
+    let matchedPathResult: IBTravelTag[] = [];
+    const result = await (async () => {
+      const firstTags = await prisma.iBTravelTag.findMany({
+        where: {
+          id: tagIdArr[0],
+        },
+      });
 
-      const subTreePathes = await doSubTreeTraversal(firstTag.id);
-      const matchedPath = subTreePathes.find(eachPath =>
-        eachPath.every((tag, index) => tag.id === tagIdArr[index]),
-      );
-      if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
-      return null;
+      if (isNil(firstTags) || isEmpty(firstTags)) return [];
+
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const v of firstTags) {
+        const curRes = await (async () => {
+          let superTags: IBTravelTag[] = [];
+          let subTreePaths: IBTravelTag[][] = [[]];
+          let matchedPath: IBTravelTag[] | undefined = [];
+
+          /// 제시된 pathArr의 처음이 root 태그여야 하는데 부모가 있다는것은 root가 아니라는 뜻
+          superTags = await getSuperTags(v.id);
+          if (superTags.length > 0) return [];
+
+          subTreePaths = await doSubTreeTraversal(v.id);
+          matchedPath = subTreePaths.find(
+            eachPath =>
+              !isEmpty(eachPath) &&
+              eachPath.every((tag, index) => tag.id === tagIdArr[index]),
+          );
+          if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+
+          return null;
+        })();
+        if (!isNil(curRes)) {
+          matchedPathResult = curRes;
+          break;
+        }
+      }
+
+      return matchedPathResult ?? [];
     })();
 
-    return matchedPathResult ?? [];
+    return result ?? [];
   }
 
   return [];
