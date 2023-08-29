@@ -20,7 +20,8 @@ import {
   getUserProfileUrl,
   sendEmail,
 } from '@src/utils';
-import { omit, isEmpty, isNil, isNaN, isBoolean } from 'lodash';
+import { omit, isEmpty, isNil, isNaN } from 'lodash';
+import redis from '@src/redis';
 
 const upload = multer();
 
@@ -1470,14 +1471,19 @@ export const changePushAlarmSet = asyncWrapper(
           message: 'deviceToken 파라미터는 필수 파라미터입니다.',
         });
       }
-
       if (
         (isNil(sysNotiPushAlarm) ||
           isEmpty(sysNotiPushAlarm) ||
-          !isBoolean(sysNotiPushAlarm)) &&
+          !(
+            sysNotiPushAlarm.toLowerCase() === 'true' ||
+            sysNotiPushAlarm.toLowerCase() === 'false'
+          )) &&
         (isNil(bookingChatPushAlarm) ||
           isEmpty(bookingChatPushAlarm) ||
-          !isBoolean(bookingChatPushAlarm))
+          !(
+            bookingChatPushAlarm.toLowerCase() === 'true' ||
+            bookingChatPushAlarm.toLowerCase() === 'false'
+          ))
       ) {
         throw new IBError({
           type: 'INVALIDPARAMS',
@@ -1531,6 +1537,27 @@ export const changePushAlarmSet = asyncWrapper(
         },
       });
 
+      const dbUserInfo = await prisma.user.findUnique({
+        where: {
+          userTokenId,
+        },
+        select: {
+          id: true,
+          nickName: true,
+          // email: true,
+          // profileImg: true,
+          // phone: true,
+          userFCMToken: {
+            select: {
+              token: true,
+              sysNotiPushAlarm: true,
+              bookingChatPushAlarm: true,
+            },
+          },
+        },
+      });
+
+      await redis.set(`userInfo:${dbUserInfo!.id}`, JSON.stringify(dbUserInfo));
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: updatedRes,

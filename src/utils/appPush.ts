@@ -91,7 +91,15 @@ const getUserInfoFromCacheNDB = async <
       !isEmpty(userFCMToken) &&
       !isNil((cachedObj! as ToUserInfoType)!.email) &&
       !isEmpty((cachedObj! as ToUserInfoType)!.email) &&
-      !userFCMToken.find(v => isNil(v.token) || isEmpty(v.token)) /// token이 비어있는게 하나도 없어야함.
+      !userFCMToken.find(
+        v =>
+          isNil(v.token) ||
+          isEmpty(v.token) ||
+          isNil(v.sysNotiPushAlarm) ||
+          isEmpty(v.sysNotiPushAlarm) ||
+          isNil(v.bookingChatPushAlarm) ||
+          isEmpty(v.bookingChatPushAlarm),
+      ) /// token이 비어있는게 하나도 없어야함.
     ) {
       return cachedObj;
     }
@@ -262,8 +270,8 @@ export const sendAppPushToBookingCustomer = async (params: {
             },
             headers: {
               // 'apns-push-type': 'background',
-              'apns-push-type': 'alert',
-              'apns-priority': '10',
+              'apns-push-type': bookingChatPushAlarm ? 'alert' : 'background',
+              'apns-priority': '5',
               'apns-topic': '', // your app bundle identifier
             },
           },
@@ -343,8 +351,8 @@ export const sendAppPushToBookingCompany = async (params: {
             },
             headers: {
               // 'apns-push-type': 'background',
-              'apns-push-type': 'alert',
-              'apns-priority': '10',
+              'apns-push-type': bookingChatPushAlarm ? 'alert' : 'background',
+              'apns-priority': '5',
               'apns-topic': '', // your app bundle identifier
             },
           },
@@ -424,8 +432,8 @@ export const sendNotiMsgAppPush = async (params: {
             },
             headers: {
               // 'apns-push-type': 'background',
-              'apns-push-type': 'alert',
-              'apns-priority': '10',
+              'apns-push-type': sysNotiPushAlarm ? 'alert' : 'background',
+              'apns-priority': '5',
               'apns-topic': '', // your app bundle identifier
             },
           },
