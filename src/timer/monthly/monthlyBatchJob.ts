@@ -5,10 +5,11 @@ import tourPlace from '@src/prisma/seeds/tourPlace/tourPlace';
 
 // import { getAllTextSearchPages } from '@src/routes/schedule/schedule';
 // import { TextSearchReqParams } from '@src/routes/schedule/types/schduleTypes';
-import // getPlaceDataFromVJ,
-// getPlaceByGglTxtSrch,
-// getPlaceDetail,
-'@src/routes/schedule/inner';
+// import {
+//   getPlaceDataFromVJ,
+//   // getPlaceByGglTxtSrch,
+//   // getPlaceDetail,
+// } from '@src/routes/schedule/inner';
 // import {
 //   // GglTextSearchReqOpt,
 //   GglPlaceResultRawData,
@@ -177,11 +178,11 @@ function wrapper(func: () => Promise<void>): () => void {
 batchJob()
   .catch(e => {
     console.error(e);
-    process.exit(1);
   })
   .finally(
     wrapper(async () => {
       await prisma.$disconnect();
+      process.exit(1);
     }),
   );
 
