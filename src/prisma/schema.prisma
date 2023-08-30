@@ -1278,14 +1278,16 @@ model BookingInfo {
 
 /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값을 저장하는 모델
 model UserFCMToken {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  id                   Int      @id @default(autoincrement())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
   // modelName  String?
   // os         OSType?
   // deviceType DeviceType?
-  token       String   @unique /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId      Int?
-  userTokenId String /// 비회원일 경우에는 user는 null이고 userTokenId값만 가질것이다.
+  token                String   @unique /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
+  sysNotiPushAlarm     Boolean  @default(true) /// 유저가 시스템 노티관련 푸시 알림을 받기로 했는지 여부. 이게 true이면 알림이 왔을때 유저의 해당 token을 가진 디바이스의 푸시알람이 뜬다. 
+  bookingChatPushAlarm Boolean  @default(true) /// 유저가 예약문의 채팅관련 푸시 알림을 받기로 했는지 여부. 이게 true이면 채팅 메시지이 왔을때 유저의 해당 token을 가진 디바이스의 푸시알람이 뜬다. 
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId               Int?
+  userTokenId          String /// 비회원일 경우에는 user는 null이고 userTokenId값만 가질것이다.
 }
