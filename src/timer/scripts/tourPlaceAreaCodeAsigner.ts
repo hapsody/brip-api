@@ -192,11 +192,11 @@ function wrapper(func: () => Promise<void>): () => void {
 tourPlaceAreaCodeAsigner()
   .catch(e => {
     console.error(e);
-    process.exit(1);
   })
   .finally(
     wrapper(async () => {
-      // await prisma.$disconnect();
+      await prisma.$disconnect();
+      process.exit(1);
     }),
   );
 
