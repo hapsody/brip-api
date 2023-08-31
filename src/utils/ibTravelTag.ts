@@ -161,26 +161,62 @@ export const doSuperTreeTraversal = async (
 };
 
 /// tagId 자신을 포함하고  해당 IBTravelTag 가 속한 트리의 root 또는 leaf를 찾고 윗방향 또는 아랫방향으로(default: 아랫방향) 전부 순회한 결과를 반환한다.
-export const doAllTagTreeTraversal = async (
-  tagId: number,
-  direction: 'up' | 'down' = 'down',
-): Promise<IBTravelTag[][]> => {
-  if (direction === 'down') {
-    const rootTags = await getRootTags(tagId);
+export const doAllTagTreeTraversal = async (params: {
+  tagId?: number;
+  tagName?: string;
+  direction?: 'up' | 'down';
+}): Promise<IBTravelTag[][]> => {
+  const singleAllTagTreeTraversal = async (
+    tagId: number,
+    direction: 'up' | 'down',
+  ) => {
+    if (direction === 'down') {
+      const rootTags = await getRootTags(tagId);
+      const result = await Promise.all(
+        rootTags.map(v => doSubTreeTraversal(v.id)),
+      );
+      return result;
+    }
+
+    const leafTags = await getLeafTags(tagId);
     const result = await Promise.all(
-      rootTags.map(v => doSubTreeTraversal(v.id)),
+      leafTags.map(v => doSuperTreeTraversal(v.id)),
     );
+    return result;
+  };
+
+  const { tagId, tagName, direction = 'down' } = params;
+
+  if (!isNil(tagId)) {
+    const result = await singleAllTagTreeTraversal(tagId, direction);
     return result.flat();
   }
 
-  const leafTags = await getLeafTags(tagId);
-  const result = await Promise.all(
-    leafTags.map(v => doSuperTreeTraversal(v.id)),
-  );
-  return result.flat();
+  if (!isNil(tagName) && !isEmpty(tagName)) {
+    const tags = await prisma.iBTravelTag.findMany({
+      where: {
+        value: tagName,
+      },
+    });
+
+    if (isEmpty(tags)) return [];
+
+    let result: IBTravelTag[][] = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const tag of tags) {
+      const singleResult = (
+        await singleAllTagTreeTraversal(tag.id, direction)
+      ).flat();
+
+      result = [...result, ...singleResult];
+    }
+
+    return result;
+  }
+  return [];
 };
 
-/// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 pathArr와 매칭되는 경로들을 찾아 해당 IBTravelTag 배열들을 반환한다.(tag tree의 경로중 일부만 일치하여도 된다.)
+/// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 pathArr와 매칭되는 경로들을 찾아 해당 IBTravelTag 배열들을 반환한다.(tag tree의 연속되는 경로중 일부만 일치하여도 된다.)
 export const getPartialMatchedPathTags = async (params: {
   pathArr: string[];
 }): Promise<IBTravelTag[][]> => {
@@ -200,12 +236,17 @@ export const getPartialMatchedPathTags = async (params: {
   const matchedPathResult = (
     await Promise.all(
       firstTags.map(async v => {
-        const subTreePathes = await doSubTreeTraversal(v.id);
-        const matchedPath = subTreePathes.filter(
-          eachPath =>
-            pathArr.every((str, index) => str === eachPath[index].value),
-          // eachPath.every((tag, index) => tag.value === pathArr[index]),
-        );
+        // const treePaths = await doAllTagTreeTraversal({ tagId: v.id });
+        const treePaths = await doAllTagTreeTraversal({ tagName: v.value });
+        const matchedPath = treePaths.filter(eachPath => {
+          const firstTagIdx = eachPath.findIndex(
+            tag => tag.value === pathArr[0],
+          );
+          if (firstTagIdx < 0) return false;
+          return pathArr.every(
+            (str, index) => str === eachPath[firstTagIdx + index].value,
+          );
+        });
         if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
         return null;
       }),
@@ -312,6 +353,31 @@ export const getMatchedAllPathTags = async (params: {
   }
 
   return [];
+};
+
+/// 부분적으로라도 매칭된 path의 superTag들을 반환한다.
+/// 예를들어 ["dining"]으로 요청했다면
+/// food>dining>korean, food>dining>chinese, festival>dining>한식 ... 등의 경로들이 partialMatch 된다.
+/// 이럴경우 반환값은 food, festival ... 이다.
+export const getSuperTagsOfPath = async (params: {
+  pathArr: string[];
+}): Promise<IBTravelTag[]> => {
+  const { pathArr } = params;
+  const matchedPathTags = await getPartialMatchedPathTags({ pathArr });
+  const foundSuperTags = matchedPathTags
+    .map(path => {
+      const firstTagIdx = path.findIndex(tag => tag.value === pathArr[0]);
+      return firstTagIdx > 0 ? path[firstTagIdx - 1] : null;
+    })
+    .filter((v): v is IBTravelTag => v !== null);
+
+  const nonDupResult = foundSuperTags.reduce((acc, cur) => {
+    if (isEmpty(acc)) return [cur];
+    const dupCheck = acc.find(v => v.id === cur.id);
+    if (!dupCheck) return [...acc, cur];
+    return acc;
+  }, [] as IBTravelTag[]);
+  return nonDupResult;
 };
 
 /**

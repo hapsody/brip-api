@@ -35,6 +35,7 @@ import {
   getMatchedAllPathTags,
   categoryToIBTravelTag,
   ibTravelTagToTourPlaceType,
+  getSuperTagsOfPath,
 } from './ibTravelTag';
 import {
   degreeToMeter,
@@ -121,4 +122,5 @@ export {
   getPartialMatchedPathTags,
   getMatchedAllPathTags,
   // getUserSmallProfileUrl,
+  getSuperTagsOfPath,
 };

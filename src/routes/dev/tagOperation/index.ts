@@ -1,5 +1,4 @@
 import express, { Express } from 'express';
-import { isNil } from 'lodash';
 import {
   ibDefs,
   asyncWrapper,
@@ -14,7 +13,9 @@ import {
   doSuperTreeTraversal,
   getPartialMatchedPathTags,
   getMatchedAllPathTags,
+  getSuperTagsOfPath,
 } from '@src/utils';
+import { isNil, isEmpty, isNaN } from 'lodash';
 
 const devTagOperationRouter: express.Application = express();
 
@@ -269,7 +270,8 @@ export const doSubTreeTraversalWrapper = asyncWrapper(
 );
 
 export interface DoAllTagTreeTraversalRequestType {
-  tagId: number;
+  tagId?: number;
+  tagName?: string;
   direction?: 'up' | 'down';
 }
 export interface DoAllTagTreeTraversalSuccessResType {}
@@ -285,9 +287,15 @@ export const doAllTagTreeTraversalWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { tagId, direction } = param;
+      const { tagId, tagName, direction } = param;
 
-      const result = await doAllTagTreeTraversal(Number(tagId), direction);
+      const result = await doAllTagTreeTraversal({
+        ...(!isNil(tagId) &&
+          !isEmpty(tagId) &&
+          !isNaN(tagId) && { tagId: Number(tagId) }),
+        tagName,
+        direction,
+      });
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -423,8 +431,8 @@ export const getPartialMatchedPathTagsWrapper = asyncWrapper(
 );
 
 export interface GetMatchedAllPathTagsRequestType {
-  pathArr?: string[];
-  tagIdArr?: string[];
+  pathArr: string[];
+  // tagIdArr?: string[];
 }
 export interface GetMatchedAllPathTagsSuccessResType {}
 
@@ -439,15 +447,81 @@ export const getMatchedAllPathTagsWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { pathArr, tagIdArr } = param;
+      const {
+        pathArr,
+        // , tagIdArr
+      } = param;
 
       const result = await getMatchedAllPathTags({
-        ...(!isNil(pathArr) && {
-          pathArr,
-        }),
-        ...(!isNil(tagIdArr) && {
-          tagIdArr: tagIdArr.map(v => Number(v)),
-        }),
+        pathArr,
+        // ...(!isNil(pathArr) && {
+        //   pathArr,
+        // }),
+        // ...(!isNil(tagIdArr) && {
+        //   tagIdArr: tagIdArr.map(v => Number(v)),
+        // }),
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: result,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface GetSuperTagsOfPathRequestType {
+  pathArr: string[];
+  // tagIds?: string[];
+}
+export interface GetSuperTagsOfPathSuccessResType {}
+
+export type GetSuperTagsOfPathResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetSuperTagsOfPathSuccessResType | {};
+};
+
+export const getSuperTagsOfPathWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetSuperTagsOfPathRequestType>,
+    res: Express.IBTypedResponse<GetSuperTagsOfPathResType>,
+  ) => {
+    try {
+      const param = req.body;
+      const {
+        pathArr,
+        //  tagIdArr
+      } = param;
+
+      const result = await getSuperTagsOfPath({
+        pathArr,
+        // ...(!isNil(pathArr) && {
+        //   pathArr,
+        // }),
+        // ...(!isNil(tagIdArr) && {
+        //   tagIdArr: tagIdArr.map(v => Number(v)),
+        // }),
       });
 
       res.json({
@@ -502,5 +576,7 @@ devTagOperationRouter.post(
   '/getMatchedAllPathTags',
   getMatchedAllPathTagsWrapper,
 );
+
+devTagOperationRouter.post('/getSuperTagsOfPath', getSuperTagsOfPathWrapper);
 
 export default devTagOperationRouter;
