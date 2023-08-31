@@ -14,6 +14,8 @@ import {
   getPartialMatchedPathTags,
   getMatchedAllPathTags,
   getSuperTagsOfPath,
+  ibTravelTagCategorize,
+  IBTravelTagList,
 } from '@src/utils';
 import { isNil, isEmpty, isNaN } from 'lodash';
 
@@ -554,6 +556,59 @@ export const getSuperTagsOfPathWrapper = asyncWrapper(
   },
 );
 
+export type AddTagPathRequestType = Pick<IBTravelTagList, 'ibType'>;
+export interface AddTagPathSuccessResType {}
+
+export type AddTagPathResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AddTagPathSuccessResType | {};
+};
+
+export const addTagPathWrapper = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AddTagPathRequestType>,
+    res: Express.IBTypedResponse<AddTagPathResType>,
+  ) => {
+    try {
+      const param = req.body;
+
+      const result = await ibTravelTagCategorize({
+        ibType: {
+          ...param.ibType,
+          minDifficulty: Number(param.ibType.minDifficulty),
+          maxDifficulty: Number(param.ibType.maxDifficulty),
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: result,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 devTagOperationRouter.post('/getSubTags', getSubTagsWrapper);
 devTagOperationRouter.post('/getSuperTags', getSuperTagsWrapper);
 devTagOperationRouter.post('/getLeafTags', getLeafTagsWrapper);
@@ -578,5 +633,6 @@ devTagOperationRouter.post(
 );
 
 devTagOperationRouter.post('/getSuperTagsOfPath', getSuperTagsOfPathWrapper);
+devTagOperationRouter.post('/addTagPath', addTagPathWrapper);
 
 export default devTagOperationRouter;
