@@ -1,4 +1,5 @@
 import prisma from '@src/prisma';
+
 import {
   TripMemoryCategory,
   PlaceType,
@@ -684,15 +685,19 @@ export const ibTravelTagCategorize = async (
   const {
     ibType: { typePath, minDifficulty, maxDifficulty },
   } = seed;
+  const pathArr = typePath.split('>');
+
+  /// 만약 기존의 DB에 같은 path를 가진 태그 path를 발견한다면(발견된 태그 Path는 설계원칙상 1개만 발견되도록 DB에 저장되어 있어야한다. 만약 중복 태그가 존재한다면 IBTravelTag 데이터가 corrupted 된 상태 또는 설계상의 오류이다.) 해당 path의 가장 말단 tag의 id를 반환한다.
+  const matchedPath = await getMatchedAllPathTags({ pathArr });
+  if (!isEmpty(matchedPath)) return matchedPath.pop()!.id;
+
   const types = typePath.split('>').reverse();
 
   let firstCreatedId = 0;
   let subType: IBTravelTag | null = null;
-  let i = -1;
   if (isNil(transaction)) {
     // eslint-disable-next-line no-restricted-syntax
-    for await (const type of types) {
-      i += 1;
+    for await (const [i, type] of types.entries()) {
       // eslint-disable-next-line @typescript-eslint/no-loop-func
       const curIBTType = await prisma.$transaction(
         // eslint-disable-next-line @typescript-eslint/no-loop-func
@@ -784,10 +789,8 @@ export const ibTravelTagCategorize = async (
     return firstCreatedId;
   }
 
-  i = -1;
   // eslint-disable-next-line no-restricted-syntax
-  for await (const type of types) {
-    i += 1;
+  for await (const [i, type] of types.entries()) {
     // eslint-disable-next-line @typescript-eslint/no-loop-func
     const curIBTType = await (async (): Promise<IBTravelTag> => {
       // let cur = await transaction.iBTravelTag.findUnique({
