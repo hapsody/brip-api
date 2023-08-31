@@ -94,11 +94,11 @@ function wrapper(func: () => Promise<void>): () => void {
 tourPlaceDupChecker()
   .catch(e => {
     console.error(e);
-    process.exit(1);
   })
   .finally(
     wrapper(async () => {
       await prisma.$disconnect();
+      process.exit(0);
     }),
   );
 
