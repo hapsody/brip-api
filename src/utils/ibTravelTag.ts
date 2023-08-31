@@ -92,7 +92,7 @@ export const doSubTreeTraversal = async (
     if (subTags.length === 0) return [history];
     let newHistory: IBTravelTag[] = [];
     let subHistories: IBTravelTag[][] = [[]];
-    let result: IBTravelTag[][][] = [[[]]];
+    let result: IBTravelTag[][][] = [[]];
     // eslint-disable-next-line no-restricted-syntax
     for await (const v of subTags) {
       newHistory = [...history, v];
@@ -132,7 +132,7 @@ export const doSuperTreeTraversal = async (
     if (superTags.length === 0) return [history];
     let newHistory: IBTravelTag[] = [];
     let superHistories: IBTravelTag[][] = [[]];
-    let result: IBTravelTag[][][] = [[[]]];
+    let result: IBTravelTag[][][] = [[]];
     // eslint-disable-next-line no-restricted-syntax
     for await (const v of superTags) {
       newHistory = [...history, v];
@@ -187,7 +187,7 @@ export const getPartialMatchedPathTags = async (params: {
   const { pathArr } = params;
 
   /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
-  if (isNil(pathArr) || pathArr.length < 2) return [];
+  // if (isNil(pathArr) || pathArr.length < 2) return [];
 
   const firstTags = await prisma.iBTravelTag.findMany({
     where: {
