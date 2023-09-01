@@ -272,9 +272,8 @@ export const doSubTreeTraversalWrapper = asyncWrapper(
 );
 
 export interface DoAllTagTreeTraversalRequestType {
-  tagId?: number;
+  tagId?: string;
   tagName?: string;
-  direction?: 'up' | 'down';
 }
 export interface DoAllTagTreeTraversalSuccessResType {}
 
@@ -289,14 +288,16 @@ export const doAllTagTreeTraversalWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { tagId, tagName, direction } = param;
+      const { tagId, tagName } = param;
 
       const result = await doAllTagTreeTraversal({
         ...(!isNil(tagId) &&
           !isEmpty(tagId) &&
           !isNaN(tagId) && { tagId: Number(tagId) }),
-        tagName,
-        direction,
+
+        ...(!isNil(tagName) &&
+          !isEmpty(tagName) &&
+          !isNaN(tagName) && { tagName }),
       });
 
       res.json({

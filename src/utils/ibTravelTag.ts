@@ -136,9 +136,9 @@ export const doSuperTreeTraversal = async (
     let result: IBTravelTag[][][] = [[]];
     // eslint-disable-next-line no-restricted-syntax
     for await (const v of superTags) {
-      newHistory = [...history, v];
+      newHistory = [v, ...history];
       superHistories = await addSuperTags(v.id, newHistory);
-      result = [...result, superHistories];
+      result = [superHistories, ...result];
     }
     // const result = await Promise.all(
     //   superTags.map(async v => {
@@ -165,31 +165,19 @@ export const doSuperTreeTraversal = async (
 export const doAllTagTreeTraversal = async (params: {
   tagId?: number;
   tagName?: string;
-  direction?: 'up' | 'down';
 }): Promise<IBTravelTag[][]> => {
-  const singleAllTagTreeTraversal = async (
-    tagId: number,
-    direction: 'up' | 'down',
-  ) => {
-    if (direction === 'down') {
-      const rootTags = await getRootTags(tagId);
-      const result = await Promise.all(
-        rootTags.map(v => doSubTreeTraversal(v.id)),
-      );
-      return result;
-    }
-
-    const leafTags = await getLeafTags(tagId);
+  const singleAllTagTreeTraversal = async (tagId: number) => {
+    const rootTags = await getRootTags(tagId);
     const result = await Promise.all(
-      leafTags.map(v => doSuperTreeTraversal(v.id)),
+      rootTags.map(v => doSubTreeTraversal(v.id)),
     );
     return result;
   };
 
-  const { tagId, tagName, direction = 'down' } = params;
+  const { tagId, tagName } = params;
 
   if (!isNil(tagId)) {
-    const result = await singleAllTagTreeTraversal(tagId, direction);
+    const result = await singleAllTagTreeTraversal(tagId);
     return result.flat();
   }
 
@@ -205,9 +193,7 @@ export const doAllTagTreeTraversal = async (params: {
     let result: IBTravelTag[][] = [];
     // eslint-disable-next-line no-restricted-syntax
     for await (const tag of tags) {
-      const singleResult = (
-        await singleAllTagTreeTraversal(tag.id, direction)
-      ).flat();
+      const singleResult = (await singleAllTagTreeTraversal(tag.id)).flat();
 
       result = [...result, ...singleResult];
     }
