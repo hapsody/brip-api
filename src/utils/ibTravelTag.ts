@@ -300,7 +300,13 @@ export const getMatchedAllPathTags = async (params: {
               !isEmpty(eachPath) &&
               eachPath.every((tag, index) => tag.value === pathArr[index]),
           );
-          if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+
+          if (
+            !isNil(matchedPath) &&
+            !isEmpty(matchedPath) &&
+            matchedPath.length === pathArr.length
+          )
+            return matchedPath;
 
           return null;
         })();
