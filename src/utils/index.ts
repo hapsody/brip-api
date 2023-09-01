@@ -37,6 +37,7 @@ import {
   ibTravelTagToTourPlaceType,
   getSuperTagsOfPath,
   addTagPath,
+  addTagWithParentPath,
 } from './ibTravelTag';
 import {
   degreeToMeter,
@@ -125,4 +126,5 @@ export {
   // getUserSmallProfileUrl,
   getSuperTagsOfPath,
   addTagPath,
+  addTagWithParentPath,
 };

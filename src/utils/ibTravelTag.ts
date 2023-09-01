@@ -886,6 +886,10 @@ export const ibTravelTagCategorize = async (
   return firstCreatedId;
 };
 
+/**
+ * pathArr: ["a", "b", "c", "d"] 와 같은 형태로 기존에 상위 path인 a>b>c 패스가 존재하지 않는다면 새로 생성한다. 만약 a>b나 b>c등의 부분적으로 이름이 일치하는 path가 존재하더라도 이것이 a>b>c와 정확히 일치하는 패스는 아니므로 새로 a>b>c 패스를 생성하고 d를 더해 붙이기 때문에 a,b,c 의 상위 태그들에서 중복이 나타날수 있으므로 주의해야한다.
+ * 만약에 기존에 존재하는 path에 d를 붙이고 싶다면 아래 addTagWithParentPath를 이용해라.
+ */
 export const addTagPath = async (params: {
   pathArr: string[];
   leafTagData: {
@@ -968,5 +972,107 @@ export const addTagPath = async (params: {
     },
   });
 
+  return leafTag;
+};
+
+/**
+ * a>b>c>d 를 입력하면 a>b>c>d가 정확히 존재하지 않는한 상위 태그들을 모조리 생성하면서 d를 생성하는 addTagPath와 다르게
+ * addTagWithParentPath는 존재하는 parentPath인 a>b>c를 검색해서 거기에 d를 생성해 붙인다.
+ * 만약 parentPath를 검색했는데 검색이 되지 않는다면 오류가 발생한다. 주의
+ *
+ * 이러한 메커니즘으로 a>b>c>e 가 기존에 존재했는데 여기에 addTagWithParentPath로 pathArr: ["a", "b", "c", "d"], leafTagData:{value: "d", ...}식으로 호출했다면
+ * 기존에 존재하는 a>b>c를 찾아 거기에 d를 붙이라는 말이므로
+ * a->b->c->e
+ *        ㄴ>d
+ * 형태의 트리가 생성된다. 즉 중복없이 a,b,c,e,d가 존재하게된다.
+ * @param params
+ * @returns
+ */
+export const addTagWithParentPath = async (params: {
+  pathArr: string[];
+  leafTagData: {
+    value: string;
+    minDifficulty: number;
+    maxDifficulty: number;
+  };
+}): Promise<IBTravelTag | null> => {
+  const { pathArr, leafTagData } = params;
+
+  const matchedPath = await getMatchedAllPathTags({ pathArr });
+  /// 중복 path 존재
+  if (!isEmpty(matchedPath)) {
+    return matchedPath.pop()!; /// 말단태그 반환 반드시 존재함.
+  }
+
+  /// 말단 태그 생성
+  const leafTag = await prisma.iBTravelTag.create({
+    data: {
+      value: leafTagData.value,
+      minDifficulty: leafTagData.minDifficulty,
+      maxDifficulty: leafTagData.maxDifficulty,
+    },
+  });
+
+  const tempArr = [...pathArr];
+  /// 주어졌던 path에서 말단 태그 분리 ex): a>b>c => a>b, c a>b는 upperPathArr가 되고, c는 leafTag가 된다.
+  tempArr.pop();
+  const upperPathArr = [...tempArr];
+
+  const partialMatchedUpperPath = await getPartialMatchedPathTags({
+    pathArr: upperPathArr,
+  });
+
+  /// 기존에 존재하는 상위 path가 없음... 오류!
+  if (isEmpty(partialMatchedUpperPath)) return null;
+
+  const matchedUpperPath = partialMatchedUpperPath.find(eachPath => {
+    const res =
+      !isEmpty(eachPath) &&
+      upperPathArr.every((tagName, index) => {
+        const r = eachPath[index].value === tagName;
+        return r;
+      });
+
+    return res;
+  });
+
+  if (isNil(matchedUpperPath) || isEmpty(matchedUpperPath)) {
+    return null;
+  }
+
+  /// 기존에 존재하는 상위 path가 존재함 => 생성한 leafTag 연결
+  const prevLeafTag = matchedUpperPath.find(
+    v => v.value === upperPathArr[upperPathArr.length - 1],
+  )!;
+  await prisma.iBTravelTag.update({
+    where: {
+      id: prevLeafTag.id,
+    },
+    data: {
+      minDifficulty:
+        prevLeafTag.minDifficulty! > leafTag.minDifficulty!
+          ? leafTag.minDifficulty
+          : prevLeafTag.minDifficulty,
+      maxDifficulty:
+        prevLeafTag.maxDifficulty! < leafTag.maxDifficulty!
+          ? leafTag.maxDifficulty
+          : prevLeafTag.maxDifficulty,
+      ...(!isNull(leafTag) && {
+        related: {
+          connectOrCreate: {
+            where: {
+              fromId_toId: {
+                fromId: prevLeafTag.id,
+                toId: leafTag.id,
+              },
+            },
+            create: {
+              toId: leafTag.id,
+            },
+          },
+        },
+      }),
+    },
+  });
   return leafTag;
 };
