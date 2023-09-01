@@ -219,41 +219,62 @@ export const doAllTagTreeTraversal = async (params: {
 
 /// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 pathArr와 매칭되는 경로들을 찾아 해당 IBTravelTag 배열들을 반환한다.(tag tree의 연속되는 경로중 일부만 일치하여도 된다.)
 export const getPartialMatchedPathTags = async (params: {
-  pathArr: string[];
+  pathArr?: string[];
+  tagIdArr?: number[];
 }): Promise<IBTravelTag[][]> => {
-  const { pathArr } = params;
+  const { pathArr, tagIdArr } = params;
 
-  /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
-  // if (isNil(pathArr) || pathArr.length < 2) return [];
+  if (!isNil(pathArr) && !isEmpty(pathArr)) {
+    /// path로 비교 매칭하는것이기 때문이 2개 이상은 태그가 주어져야한다.
+    // if (isNil(pathArr) || pathArr.length < 2) return [];
 
-  const firstTags = await prisma.iBTravelTag.findMany({
-    where: {
-      value: pathArr[0],
-    },
-  });
+    const firstTags = await prisma.iBTravelTag.findMany({
+      where: {
+        value: pathArr[0],
+      },
+    });
 
-  if (isNil(firstTags) || isEmpty(firstTags)) return [];
+    if (isNil(firstTags) || isEmpty(firstTags)) return [];
 
-  const matchedPathResult = (
-    await Promise.all(
-      firstTags.map(async v => {
-        // const treePaths = await doAllTagTreeTraversal({ tagId: v.id });
-        const treePaths = await doAllTagTreeTraversal({ tagName: v.value });
-        const matchedPath = treePaths.filter(eachPath => {
-          const firstTagIdx = eachPath.findIndex(
-            tag => tag.value === pathArr[0],
-          );
-          if (firstTagIdx < 0) return false;
-          return pathArr.every(
-            (str, index) => str === eachPath[firstTagIdx + index].value,
-          );
-        });
-        if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
-        return null;
-      }),
-    )
-  ).find((v): v is IBTravelTag[][] => v !== null);
-  return matchedPathResult ?? [];
+    const matchedPathResult = (
+      await Promise.all(
+        firstTags.map(async v => {
+          // const treePaths = await doAllTagTreeTraversal({ tagId: v.id });
+          const treePaths = await doAllTagTreeTraversal({ tagName: v.value });
+          const matchedPath = treePaths.filter(eachPath => {
+            const firstTagIdx = eachPath.findIndex(
+              tag => tag.value === pathArr[0],
+            );
+            if (firstTagIdx < 0) return false;
+            return pathArr.every(
+              (str, index) => str === eachPath[firstTagIdx + index].value,
+            );
+          });
+          if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+          return null;
+        }),
+      )
+    ).find((v): v is IBTravelTag[][] => v !== null);
+    return matchedPathResult ?? [];
+  }
+
+  if (!isNil(tagIdArr) && !isEmpty(tagIdArr)) {
+    const matchedPathResult = await (async () => {
+      // const treePaths = await doAllTagTreeTraversal({ tagId: v.id });
+      const treePaths = await doAllTagTreeTraversal({ tagId: tagIdArr[0] });
+      const matchedPath = treePaths.filter(eachPath => {
+        const firstTagIdx = eachPath.findIndex(tag => tag.id === tagIdArr[0]);
+        if (firstTagIdx < 0) return false;
+        return tagIdArr.every(
+          (id, index) => id === eachPath[firstTagIdx + index].id,
+        );
+      });
+      if (!isNil(matchedPath) && !isEmpty(matchedPath)) return matchedPath;
+      return null;
+    })();
+    return matchedPathResult ?? [];
+  }
+  return [];
 };
 
 /// food > dining > etc 등과 같이 tag 이름 배열과 존재하는 Tag Path중 최상단부터 말단까지 '정확히' 모두 매칭되어야 해당 IBTravelTag 배열을 반환한다.

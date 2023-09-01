@@ -380,6 +380,7 @@ export const getLeafTagsWrapper = asyncWrapper(
 );
 
 export interface GetPartialMatchedPathTagsRequestType {
+  tagIdArr: string[];
   pathArr: string[];
 }
 export interface GetPartialMatchedPathTagsSuccessResType {}
@@ -395,12 +396,16 @@ export const getPartialMatchedPathTagsWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const { pathArr } = param;
+      const { pathArr, tagIdArr } = param;
 
-      // const result = await doSubTreeTraversal(Number(tagId));
-      // const result = await doAllTagTreeTraversal(Number(tagId), 'up');
-      // const result = await doSuperTreeTraversal(Number(tagId));
-      const result = await getPartialMatchedPathTags({ pathArr });
+      const result = await getPartialMatchedPathTags({
+        ...(!isNil(pathArr) && !isEmpty(pathArr) && { pathArr }),
+        ...(!isNil(tagIdArr) &&
+          !isEmpty(tagIdArr) &&
+          tagIdArr.every(v => !isNaN(Number(v))) && {
+            tagIdArr: tagIdArr.map(v => Number(v)),
+          }),
+      });
 
       res.json({
         ...ibDefs.SUCCESS,
