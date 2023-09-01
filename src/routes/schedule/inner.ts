@@ -3752,6 +3752,7 @@ export const makeSchedule = async (
       id: true,
       ibTravelTag: {
         select: {
+          id: true,
           value: true,
           minDifficulty: true,
           maxDifficulty: true,

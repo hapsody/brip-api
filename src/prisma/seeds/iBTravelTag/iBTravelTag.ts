@@ -599,6 +599,50 @@ export const seedData: IBTravelTagList[] = [
       maxDifficulty: 1,
     },
   },
+
+  /// for test
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>서울특별시>성동구>성수동', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>서울특별시>성동구>화양동', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>서울특별시>성동구>왕십리', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>서울특별시>구로구>가산동', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>충청남도>천안시>서북구>봉서동', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
+  // {
+  //   ibType: {
+  //     typePath: '대한민국>충청남도>공주시', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
 ];
 
 async function main(): Promise<void> {
