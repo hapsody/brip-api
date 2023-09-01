@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import { IBTravelTag } from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -14,8 +15,8 @@ import {
   getPartialMatchedPathTags,
   getMatchedAllPathTags,
   getSuperTagsOfPath,
-  ibTravelTagCategorize,
-  IBTravelTagList,
+  addTagPath,
+  // IBTravelTagList,
 } from '@src/utils';
 import { isNil, isEmpty, isNaN } from 'lodash';
 
@@ -559,8 +560,15 @@ export const getSuperTagsOfPathWrapper = asyncWrapper(
   },
 );
 
-export type AddTagPathRequestType = Pick<IBTravelTagList, 'ibType'>;
-export interface AddTagPathSuccessResType {}
+export type AddTagPathRequestType = {
+  pathArr: string[];
+  leafTagData: {
+    value: string;
+    minDifficulty: string;
+    maxDifficulty: string;
+  };
+};
+export interface AddTagPathSuccessResType extends IBTravelTag {}
 
 export type AddTagPathResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: AddTagPathSuccessResType | {};
@@ -572,13 +580,14 @@ export const addTagPathWrapper = asyncWrapper(
     res: Express.IBTypedResponse<AddTagPathResType>,
   ) => {
     try {
-      const param = req.body;
+      const params = req.body;
 
-      const result = await ibTravelTagCategorize({
-        ibType: {
-          ...param.ibType,
-          minDifficulty: Number(param.ibType.minDifficulty),
-          maxDifficulty: Number(param.ibType.maxDifficulty),
+      const result = await addTagPath({
+        ...params,
+        leafTagData: {
+          ...params.leafTagData,
+          minDifficulty: Number(params.leafTagData.minDifficulty),
+          maxDifficulty: Number(params.leafTagData.maxDifficulty),
         },
       });
 

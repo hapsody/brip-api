@@ -676,14 +676,6 @@ export type IBTravelTagList = {
  * @param seed IBTravelTagList 타입으로 전달되는 파라미터
  * @return ibTravelTag들의 생성결과중 대표값으로 반환되는 가장 말단태그의 ibTravelTag id값
  */
-// type PrismaTransaction = Omit<
-//   PrismaClient<
-//     Prisma.PrismaClientOptions,
-//     never,
-//     Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
-//   >,
-//   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
-// >;
 type PrismaTransaction = Omit<PrismaClient, runtime.ITXClientDenyList>;
 export const ibTravelTagCategorize = async (
   seed: IBTravelTagList,
@@ -886,69 +878,89 @@ export const ibTravelTagCategorize = async (
     subType = curIBTType!;
   }
   return firstCreatedId;
-  // // eslint-disable-next-line no-restricted-syntax
-  // for await (const type of types) {
-  //   let curIBTType = await prisma.iBTravelTag.findUnique({
-  //     where: {
-  //       value: type,
-  //     },
-  //   });
-  //   if (!curIBTType) {
-  //     curIBTType = await prisma.iBTravelTag.create({
-  //       data: {
-  //         value: type,
-  //         minDifficulty,
-  //         maxDifficulty,
-  //       },
-  //     });
-  //     console.log(curIBTType);
-  //   }
-  //   if (superTypeId > -1) {
-  //     curIBTType = await prisma.iBTravelTag.update({
-  //       where: {
-  //         id: curIBTType.id,
-  //       },
-  //       data: {
-  //         related: {
-  //           connectOrCreate: {
-  //             where: {
-  //               fromId_toId: {
-  //                 fromId: curIBTType.id,
-  //                 toId: superTypeId,
-  //               },
-  //             },
-  //             create: {
-  //               toId: superTypeId,
-  //             },
-  //           },
-  //         },
-  //       },
-  //     });
+};
 
-  //     /// 부모태그의 여행강도는 실질적으로 관계맺는 TourPlace가 없기 때문에 쓰지 않지만
-  //     /// 하위 태그를 모두 범주에 두는 여행강도로 기록해두도록 한다.
-  //     const superTag = await prisma.iBTravelTag.findUnique({
-  //       where: {
-  //         id: superTypeId,
-  //       },
-  //     });
+export const addTagPath = async (params: {
+  pathArr: string[];
+  leafTagData: {
+    value: string;
+    minDifficulty: number;
+    maxDifficulty: number;
+  };
+}): Promise<IBTravelTag> => {
+  const { pathArr, leafTagData } = params;
 
-  //     await prisma.iBTravelTag.update({
-  //       where: {
-  //         id: superTypeId,
-  //       },
-  //       data: {
-  //         minDifficulty:
-  //           Number(superTag!.minDifficulty) > minDifficulty
-  //             ? minDifficulty
-  //             : Number(superTag!.minDifficulty),
-  //         maxDifficulty:
-  //           Number(superTag!.maxDifficulty) < maxDifficulty
-  //             ? maxDifficulty
-  //             : Number(superTag!.maxDifficulty),
-  //       },
-  //     });
-  //   }
-  //   superTypeId = curIBTType.id;
-  // }
+  const matchedPath = await getMatchedAllPathTags({ pathArr });
+  /// 중복 path 존재
+  if (!isEmpty(matchedPath)) {
+    return matchedPath.pop()!; /// 말단태그 반환 반드시 존재함.
+  }
+
+  const tempArr = [...pathArr];
+  /// 주어졌던 path에서 말단 태그 분리 ex): a>b>c => a>b, c a>b는 upperPathArr가 되고, c는 leafTag가 된다.
+  const leafTagName = tempArr.pop()!;
+  const upperPathArr = [...tempArr];
+
+  /// exit condition
+  if (isEmpty(upperPathArr)) {
+    const leafTag = await prisma.iBTravelTag.create({
+      data: {
+        value: leafTagName,
+        minDifficulty: leafTagData.minDifficulty,
+        maxDifficulty: leafTagData.maxDifficulty,
+      },
+    });
+    return leafTag;
+  }
+
+  /// 말단 태그 생성
+  const leafTag = await prisma.iBTravelTag.create({
+    data: {
+      value: leafTagName,
+      minDifficulty: leafTagData.minDifficulty,
+      maxDifficulty: leafTagData.maxDifficulty,
+    },
+  });
+
+  /// 상위 태그 path 생성
+  const prevLeafTag = await addTagPath({
+    pathArr: upperPathArr,
+    leafTagData: {
+      ...leafTagData,
+      value: leafTagName,
+    },
+  });
+
+  await prisma.iBTravelTag.update({
+    where: {
+      id: prevLeafTag.id,
+    },
+    data: {
+      minDifficulty:
+        prevLeafTag.minDifficulty! > leafTag.minDifficulty!
+          ? leafTag.minDifficulty
+          : prevLeafTag.minDifficulty,
+      maxDifficulty:
+        prevLeafTag.maxDifficulty! < leafTag.maxDifficulty!
+          ? leafTag.maxDifficulty
+          : prevLeafTag.maxDifficulty,
+      ...(!isNull(leafTag) && {
+        related: {
+          connectOrCreate: {
+            where: {
+              fromId_toId: {
+                fromId: prevLeafTag.id,
+                toId: leafTag.id,
+              },
+            },
+            create: {
+              toId: leafTag.id,
+            },
+          },
+        },
+      }),
+    },
+  });
+
+  return leafTag;
 };
