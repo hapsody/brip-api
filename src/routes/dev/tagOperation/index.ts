@@ -433,8 +433,8 @@ export const getPartialMatchedPathTagsWrapper = asyncWrapper(
 );
 
 export interface GetMatchedAllPathTagsRequestType {
-  pathArr: string[];
-  // tagIdArr?: string[];
+  pathArr?: string[];
+  tagIdArr?: string[];
 }
 export interface GetMatchedAllPathTagsSuccessResType {}
 
@@ -449,19 +449,16 @@ export const getMatchedAllPathTagsWrapper = asyncWrapper(
   ) => {
     try {
       const param = req.body;
-      const {
-        pathArr,
-        // , tagIdArr
-      } = param;
+      const { pathArr, tagIdArr } = param;
 
       const result = await getMatchedAllPathTags({
-        pathArr,
-        // ...(!isNil(pathArr) && {
-        //   pathArr,
-        // }),
-        // ...(!isNil(tagIdArr) && {
-        //   tagIdArr: tagIdArr.map(v => Number(v)),
-        // }),
+        // pathArr,
+        ...(!isNil(pathArr) && {
+          pathArr,
+        }),
+        ...(!isNil(tagIdArr) && {
+          tagIdArr: tagIdArr.map(v => Number(v)),
+        }),
       });
 
       res.json({
