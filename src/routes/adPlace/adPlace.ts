@@ -10,6 +10,7 @@ import {
   AdPlaceStatus,
   AdPlaceDraftStatus,
   DataStageStatus,
+  AdPlaceDraft,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -24,6 +25,8 @@ import {
   getUserProfileUrl,
   // getS3SignedUrl,
   IBContext,
+  // getIBPhotoUrl,
+  getImgUrlListFromIBPhotos,
 } from '@src/utils';
 import moment from 'moment';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
@@ -190,6 +193,155 @@ export const getAdPlace = asyncWrapper(
           console.error(err);
           res.status(409).json({
             ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export interface GetMyAdPlaceDraftRequestType {
+  adPlaceDraftId?: string; /// 검색할 adPlaceId
+}
+export interface GetMyAdPlaceDraftSuccessResType extends AdPlaceDraft {
+  photos: IBPhotos[];
+  category: (IBTravelTag & {})[];
+  mainPhoto: IBPhotos & {};
+  tourPlace: (TourPlace & {})[];
+  adPlace: AdPlace | null;
+}
+export type GetMyAdPlaceDraftResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetMyAdPlaceDraftSuccessResType[] | {};
+};
+
+/**
+ * 자신이 소유한 AdPlaceDraft 정보를 요청한다.
+ */
+export const getMyAdPlaceDraft = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetMyAdPlaceDraftRequestType>,
+    res: Express.IBTypedResponse<GetMyAdPlaceDraftResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { adPlaceDraftId } = req.query;
+
+      if (
+        isNil(adPlaceDraftId) ||
+        isEmpty(adPlaceDraftId) ||
+        isNaN(Number(adPlaceDraftId))
+      ) {
+        const adPlaceDrafts = await prisma.adPlaceDraft.findMany({
+          where: {
+            user: {
+              userTokenId,
+            },
+          },
+          include: {
+            photos: true,
+            category: true,
+            mainPhoto: true,
+            tourPlace: true,
+            adPlace: true,
+          },
+        });
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: await Promise.all(
+            adPlaceDrafts.map(async v => {
+              return {
+                ...v,
+                mainPhoto: await getIBPhotoUrl(v.mainPhoto),
+                photos: await getImgUrlListFromIBPhotos(v.photos),
+              };
+            }),
+          ),
+        });
+        return;
+      }
+
+      const adPlaceDraft = await prisma.adPlaceDraft.findUnique({
+        where: {
+          id: Number(adPlaceDraftId),
+        },
+        include: {
+          user: {
+            select: {
+              userTokenId: true,
+            },
+          },
+          photos: true,
+          category: true,
+          mainPhoto: true,
+          tourPlace: true,
+          adPlace: true,
+        },
+      });
+
+      if (isNil(adPlaceDraft)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message:
+            'adPlaceDraftId에 해당하는 adPlaceDraft 정보가 존재하지 않습니다.',
+        });
+      }
+
+      if (adPlaceDraft.user.userTokenId !== userTokenId) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '조회 권한이 없는 유저의 adPlaceDraft입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          ...omit(adPlaceDraft, 'user'),
+          mainPhoto: await getIBPhotoUrl(adPlaceDraft.mainPhoto),
+          photos: await getImgUrlListFromIBPhotos(adPlaceDraft.photos),
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
@@ -862,6 +1014,11 @@ export const approveAdPlaceDraft = asyncWrapper(
 
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
 // adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
+adPlaceRouter.get(
+  '/getMyAdPlaceDraft',
+  accessTokenValidCheck,
+  getMyAdPlaceDraft,
+);
 adPlaceRouter.post(
   '/approveAdPlaceDraft',
   accessTokenValidCheck,
