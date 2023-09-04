@@ -248,10 +248,33 @@ export const getMyAdPlaceDraft = asyncWrapper(
         isEmpty(adPlaceDraftId) ||
         isNaN(Number(adPlaceDraftId))
       ) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message: 'adPlaceDraftId는 제공되어야 합니다.',
+        const adPlaceDrafts = await prisma.adPlaceDraft.findMany({
+          where: {
+            user: {
+              userTokenId,
+            },
+          },
+          include: {
+            photos: true,
+            category: true,
+            mainPhoto: true,
+            tourPlace: true,
+            adPlace: true,
+          },
         });
+        res.json({
+          ...ibDefs.SUCCESS,
+          IBparams: await Promise.all(
+            adPlaceDrafts.map(async v => {
+              return {
+                ...v,
+                mainPhoto: await getIBPhotoUrl(v.mainPhoto),
+                photos: await getImgUrlListFromIBPhotos(v.photos),
+              };
+            }),
+          ),
+        });
+        return;
       }
 
       const adPlaceDraft = await prisma.adPlaceDraft.findUnique({
