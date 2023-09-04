@@ -998,20 +998,33 @@ export const addTagWithParentPath = async (params: {
 }): Promise<IBTravelTag | null> => {
   const { pathArr, leafTagData } = params;
 
-  const matchedPath = await getMatchedAllPathTags({ pathArr });
+  let matchedPath: IBTravelTag[] = [];
+  /// 중복검사
+  if (pathArr.length === 1) {
+    const existTag = await prisma.iBTravelTag.findFirst({
+      where: {
+        value: pathArr[0],
+      },
+    });
+    if (!isNil(existTag)) {
+      return existTag;
+    }
+
+    const leafTag = await prisma.iBTravelTag.create({
+      data: {
+        value: leafTagData.value,
+        minDifficulty: leafTagData.minDifficulty,
+        maxDifficulty: leafTagData.maxDifficulty,
+      },
+    });
+    return leafTag;
+  }
+
+  matchedPath = await getMatchedAllPathTags({ pathArr });
   /// 중복 path 존재
   if (!isEmpty(matchedPath)) {
     return matchedPath.pop()!; /// 말단태그 반환 반드시 존재함.
   }
-
-  /// 말단 태그 생성
-  const leafTag = await prisma.iBTravelTag.create({
-    data: {
-      value: leafTagData.value,
-      minDifficulty: leafTagData.minDifficulty,
-      maxDifficulty: leafTagData.maxDifficulty,
-    },
-  });
 
   const tempArr = [...pathArr];
   /// 주어졌던 path에서 말단 태그 분리 ex): a>b>c => a>b, c a>b는 upperPathArr가 되고, c는 leafTag가 된다.
@@ -1039,6 +1052,15 @@ export const addTagWithParentPath = async (params: {
   if (isNil(matchedUpperPath) || isEmpty(matchedUpperPath)) {
     return null;
   }
+
+  /// 말단 태그 생성
+  const leafTag = await prisma.iBTravelTag.create({
+    data: {
+      value: leafTagData.value,
+      minDifficulty: leafTagData.minDifficulty,
+      maxDifficulty: leafTagData.maxDifficulty,
+    },
+  });
 
   /// 기존에 존재하는 상위 path가 존재함 => 생성한 leafTag 연결
   const prevLeafTag = matchedUpperPath.find(

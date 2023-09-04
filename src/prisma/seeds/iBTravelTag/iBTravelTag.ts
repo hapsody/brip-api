@@ -1,5 +1,11 @@
-import { PrismaClient } from '@prisma/client';
-import { IBTravelTagList, ibTravelTagCategorize } from '@src/utils';
+import { PrismaClient, IBTravelTag } from '@prisma/client';
+import {
+  IBTravelTagList,
+  // ibTravelTagCategorize,
+  addTagWithParentPath,
+  // addTagPath,
+} from '@src/utils';
+import { isNil } from 'lodash';
 
 const prisma = new PrismaClient();
 
@@ -47,7 +53,6 @@ export const seedData: IBTravelTagList[] = [
       maxDifficulty: 7,
     },
   },
-
   {
     ibType: {
       typePath: 'oceanActivity>paddleBoard',
@@ -591,14 +596,14 @@ export const seedData: IBTravelTagList[] = [
       maxDifficulty: 1,
     },
   },
-  {
-    /// new
-    ibType: {
-      typePath: 'lodging', /// 숙박시설
-      minDifficulty: 1,
-      maxDifficulty: 1,
-    },
-  },
+  // {
+  //   /// new
+  //   ibType: {
+  //     typePath: 'lodging', /// 숙박시설
+  //     minDifficulty: 1,
+  //     maxDifficulty: 1,
+  //   },
+  // },
 
   /// for test
   // {
@@ -646,9 +651,56 @@ export const seedData: IBTravelTagList[] = [
 ];
 
 async function main(): Promise<void> {
+  /// pathArr로 주어지는 food>dining>etc 패스에서 food>dining이 path가 존재한다면 존재하는 food>dining 패스와 etc를 생성해서 연결해준다.
+  /// 만약 존재하지 않는다면 food>dining에서 상위 패스가 있는지 찾고(food) 있으면 해당 패스와 dining을 연결하며 없다면 또 다시 상위 패스가 있는지 찾는 등의 작업을 반복한다.
+  /// 결국 패스의 길이가 1일때까지 거슬러 올라가게 되는데 예제에서는 food이다. 이 태그가 존재하지 않는다면 food를 생성하고 dining을 생성해서 연결하고 다시 etc를 생성해서 연결해주게 된다.
+  const addTagWithParentPathCreatedOrConnected = async (data: {
+    pathArr: string[];
+    leafTagData: {
+      value: string;
+      minDifficulty: number;
+      maxDifficulty: number;
+    };
+  }): Promise<IBTravelTag> => {
+    let result: IBTravelTag | null = null;
+    result = await addTagWithParentPath(data);
+    if (!isNil(result)) {
+      return result;
+    }
+
+    let parentPathData = {
+      ...data,
+      pathArr: [...data.pathArr].splice(0, data.pathArr.length - 1),
+    };
+
+    parentPathData = {
+      ...parentPathData,
+      leafTagData: {
+        ...parentPathData.leafTagData,
+        value: [...parentPathData.pathArr].pop()!,
+      },
+    };
+
+    await addTagWithParentPathCreatedOrConnected(parentPathData);
+    result = await addTagWithParentPath(data);
+
+    return result!;
+  };
+
   // eslint-disable-next-line no-restricted-syntax
   for await (const seed of seedData) {
-    await ibTravelTagCategorize(seed);
+    // await ibTravelTagCategorize(seed);
+
+    const data = {
+      pathArr: seed.ibType.typePath.split('>'),
+      leafTagData: {
+        value: seed.ibType.typePath.split('>').pop()!,
+        minDifficulty: seed.ibType.minDifficulty,
+        maxDifficulty: seed.ibType.maxDifficulty,
+      },
+    };
+    const createdLeafTag = await addTagWithParentPathCreatedOrConnected(data);
+    console.log(createdLeafTag);
   }
 
   await prisma.$disconnect();
