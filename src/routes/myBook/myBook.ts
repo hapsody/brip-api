@@ -353,7 +353,7 @@ export const changeBookingInfoStatus = asyncWrapper(
             type: 'BOOKINGVISITED',
             message: `${bookingInfo.adPlace.title}의 ${moment(
               bookingInfo.date,
-            ).format('MM월 DD일 HH시')} 예약이 방문처리 되었어요`,
+            ).format('M월 D일 HH시')} 예약이 방문처리 되었어요`,
           };
           const compNotiMsg: SysNotiMessageType = {
             userId: bookingInfo.companyId!.toString(), // 사업주

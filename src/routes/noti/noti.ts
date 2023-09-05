@@ -1261,17 +1261,32 @@ export const sendBookingMsg = asyncWrapper(
                   await putInBookingMsg(finalBookingCheckMsgData);
                   await pubChatPush(finalBookingCheckMsgData);
 
-                  const notiMsg: SysNotiMessageType = {
+                  const cusNotiMsg: SysNotiMessageType = {
                     userId: finalBookingCheckMsgData.to, // 고객
                     createdAt: finalBookingCheckMsgData.createdAt,
                     type: 'BOOKINGCOMPLETE',
-                    message: `${adPlace.title}에 예약이 확정되었어요.`,
+                    message: `${moment(
+                      finalBookingCheckMsgData.bookingActionInputParams!.date,
+                    ).format('M월 D일 HH시')} ${
+                      adPlace.title
+                    }에 예약이 확정되었어요.`,
                   };
-                  await putInSysNotiMessage(notiMsg);
-                  await pubNotiPush({
-                    ...notiMsg,
-                    userId: finalBookingCheckMsgData.to,
-                  });
+                  await putInSysNotiMessage(cusNotiMsg);
+                  await pubNotiPush(cusNotiMsg);
+
+                  const compNotiMsg: SysNotiMessageType = {
+                    userId: finalBookingCheckMsgData.from, // 사업주
+                    createdAt: finalBookingCheckMsgData.createdAt,
+                    type: 'BOOKINGCOMPLETE',
+                    message: `${finalBookingCheckMsgData.bookingActionInputParams!
+                      .reqUserNickname!} 님의 ${moment(
+                      finalBookingCheckMsgData.bookingActionInputParams!.date,
+                    ).format('M월 D일 HH시')} ${
+                      adPlace.title
+                    }의 예약이 확정되었어요.`, /// 갸라도스님의 9월 5일 13시 주야장천의 예약이 확정되었어요
+                  };
+                  await putInSysNotiMessage(compNotiMsg);
+                  await pubNotiPush(compNotiMsg);
                   return;
                 }
 
