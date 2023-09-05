@@ -5560,7 +5560,7 @@ export const fixHotel = async (
 
   if (
     isNil(hotelPerDay) ||
-    isEmpty(hotelPerDay) ||
+    // isEmpty(hotelPerDay) ||
     hotelPerDay.length < queryParams.period! - 1
   ) {
     throw new IBError({
@@ -5590,7 +5590,10 @@ export const fixHotel = async (
   /// 마지막 날 숙소는 사용하지 않기 때문에 의미가 없지만 프론트에서 편의상 일괄적으로 여행 마지막날을 전날의 숙소와 동일하게 맞춰달라는 요구가 있어서 처리함
   if (hotelPerDay.length === queryParams.period!) {
     hotelPerDay[hotelPerDay.length - 1] = hotelPerDay[hotelPerDay.length - 2];
-  } else if (hotelPerDay.length === queryParams.period! - 1) {
+  } else if (
+    hotelPerDay.length === queryParams.period! - 1 &&
+    hotelPerDay.length >= 1
+  ) {
     hotelPerDay.push(hotelPerDay[hotelPerDay.length - 1]);
   }
 
@@ -5617,67 +5620,74 @@ export const fixHotel = async (
   const updateList = await prisma.$transaction(async tx => {
     let estimatedCost = 0;
     let validClusterId = -1;
-    const retList = await Promise.all(
-      hotelPerDay.map((hotelId, dayNo) => {
-        const promise = new Promise<VisitSchedule>(resolve => {
-          // eslint-disable-next-line no-void
-          void (async () => {
-            const [vs] = await tx.visitSchedule.findMany({
-              where: {
-                queryParamsId: Number(queryParamsId),
-                dayNo,
-                placeType: {
-                  contains: 'HOTEL',
-                },
-              },
-              select: {
-                id: true,
-                validCluster: true,
-              },
-            });
-
-            const transitionNo = removedDup.findIndex(
-              v => v === Number(hotelId),
-            );
-            const updateRes = await tx.visitSchedule.update({
-              where: {
-                id: vs.id,
-              },
-              data: {
-                hotelId: Number(hotelId),
-                transitionNo, /// -1은 존재할수 없는 상태값이다.
-              },
-            });
-
-            if (validClusterId !== vs.validCluster!.id) {
-              validClusterId = vs.validCluster!.id;
-              await tx.validCluster.update({
+    const retList = await (async () => {
+      if (isEmpty(hotelPerDay)) {
+        return [];
+      }
+      const result = await Promise.all(
+        hotelPerDay.map((hotelId, dayNo) => {
+          const promise = new Promise<VisitSchedule>(resolve => {
+            // eslint-disable-next-line no-void
+            void (async () => {
+              const [vs] = await tx.visitSchedule.findMany({
                 where: {
-                  id: validClusterId,
+                  queryParamsId: Number(queryParamsId),
+                  dayNo,
+                  placeType: {
+                    contains: 'HOTEL',
+                  },
                 },
-                data: {
-                  transitionNo,
+                select: {
+                  id: true,
+                  validCluster: true,
                 },
               });
-            }
 
-            const hotel = await tx.hotel.findUnique({
-              where: {
-                id: Number(hotelId),
-              },
-            });
+              const transitionNo = removedDup.findIndex(
+                v => v === Number(hotelId),
+              );
+              const updateRes = await tx.visitSchedule.update({
+                where: {
+                  id: vs.id,
+                },
+                data: {
+                  hotelId: Number(hotelId),
+                  transitionNo, /// -1은 존재할수 없는 상태값이다.
+                },
+              });
 
-            if (dayNo !== queryParams.period! - 1) {
-              estimatedCost += hotel?.bkc_gross_amount_per_night ?? 0;
-            }
+              if (validClusterId !== vs.validCluster!.id) {
+                validClusterId = vs.validCluster!.id;
+                await tx.validCluster.update({
+                  where: {
+                    id: validClusterId,
+                  },
+                  data: {
+                    transitionNo,
+                  },
+                });
+              }
 
-            resolve(updateRes);
-          })();
-        });
+              const hotel = await tx.hotel.findUnique({
+                where: {
+                  id: Number(hotelId),
+                },
+              });
 
-        return promise;
-      }),
-    );
+              if (dayNo !== queryParams.period! - 1) {
+                estimatedCost += hotel?.bkc_gross_amount_per_night ?? 0;
+              }
+
+              resolve(updateRes);
+            })();
+          });
+
+          return promise;
+        }),
+      );
+      return result;
+    })();
+
     await tx.metaScheduleInfo.update({
       where: {
         queryParamsId: Number(queryParamsId),
