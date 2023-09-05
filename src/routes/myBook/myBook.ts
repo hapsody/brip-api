@@ -11,6 +11,9 @@ import {
   getUserProfileUrl,
 } from '@src/utils';
 import { isNil, isEmpty, isNaN } from 'lodash';
+import { SysNotiMessageType } from '@src/routes/noti/types';
+import { pubNotiPush, putInSysNotiMessage } from '@src/routes/noti/noti';
+import moment from 'moment';
 
 const myBookRouter: express.Application = express();
 
@@ -230,6 +233,18 @@ export const changeBookingInfoStatus = asyncWrapper(
         where: {
           id: Number(bookingInfoId),
         },
+        include: {
+          adPlace: {
+            select: {
+              title: true,
+            },
+          },
+          customer: {
+            select: {
+              nickName: true,
+            },
+          },
+        },
       });
 
       if (isNil(bookingInfo)) {
@@ -280,6 +295,83 @@ export const changeBookingInfoStatus = asyncWrapper(
           status: bookingInfoStatus,
         },
       });
+
+      await (async () => {
+        const now = moment().toISOString();
+        /// 시스템 알림
+        if (bookingInfoStatus === 'CUSTOMERCANCEL') {
+          const cusNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.customerId!.toString(), // 고객
+            userRole: 'customer',
+            createdAt: now,
+            type: 'BOOKINGCUSTOMERCANCEL',
+            message: `${bookingInfo.adPlace.title}의 ${moment(
+              bookingInfo.date,
+            ).format('MM월 DD일 HH시')} 예약이 취소되었어요`,
+          };
+          const compNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            createdAt: now,
+            type: 'BOOKINGCUSTOMERCANCEL',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 취소되었어요`,
+          };
+          await putInSysNotiMessage(cusNotiMsg);
+          await pubNotiPush(cusNotiMsg);
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush(compNotiMsg);
+          return;
+        }
+
+        if (bookingInfoStatus === 'NOSHOW') {
+          const compNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            createdAt: now,
+            type: 'BOOKINGCUSTOMERNOSHOW',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 노쇼처리 되었어요`,
+          };
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush(compNotiMsg);
+          return;
+        }
+
+        if (bookingInfoStatus === 'VISITED') {
+          /// 방문처리
+          const cusNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.customerId!.toString(), // 고객
+            userRole: 'customer',
+            createdAt: now,
+            type: 'BOOKINGVISITED',
+            message: `${bookingInfo.adPlace.title}의 ${moment(
+              bookingInfo.date,
+            ).format('MM월 DD일 HH시')} 예약이 방문처리 되었어요`,
+          };
+          const compNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            createdAt: now,
+            type: 'BOOKINGVISITED',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 방문처리 되었어요`,
+          };
+          await putInSysNotiMessage(cusNotiMsg);
+          await pubNotiPush(cusNotiMsg);
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush(compNotiMsg);
+        }
+      })();
 
       res.json({
         ...ibDefs.SUCCESS,

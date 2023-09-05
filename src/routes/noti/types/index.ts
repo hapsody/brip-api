@@ -53,9 +53,13 @@ export type BookingChatMessageType = ChatMessageType & {
 };
 
 export type SysNotiActionType =
-  | 'REPLYFORMYSHARETRIPMEM'
-  | 'REPLYFORMYREPLY'
-  | 'BOOKINGCOMPLETE';
+  | 'REPLYFORMYSHARETRIPMEM' /// 공유기억 게시글 댓글
+  | 'REPLYFORMYREPLY' /// 대댓글
+  | 'BOOKINGCOMPLETE' /// 예약완료
+  | 'BOOKINGCUSTOMERCANCEL' /// 예약완료후 유저 취소
+  | 'BOOKINGVISITED' /// 예약완료후 방문처리
+  | 'BOOKINGCUSTOMERNOSHOW'; /// 예약완료후 고객 노쇼
+
 export type SysNotiMessageType = {
   userId: string; /// 수신인 UserId
   userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
