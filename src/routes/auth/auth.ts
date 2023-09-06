@@ -1818,6 +1818,96 @@ export const deleteAppPushToken = asyncWrapper(
   },
 );
 
+export type UserNickDupCheckRequestType = {
+  nickName: string;
+};
+export type UserNickDupCheckSuccessResType = {
+  isDup: boolean; /// true이면 중복, false이면 미중복
+};
+export type UserNickDupCheckResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UserNickDupCheckSuccessResType | {};
+};
+
+/**
+ * 회원 nickName이 존재하는지 중복 체크를 요청하는 api
+ * code(1000) Success이면 중복되지 않음
+ */
+export const userNickDupCheck = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UserNickDupCheckRequestType>,
+    res: Express.IBTypedResponse<UserNickDupCheckResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member') {
+          return locals?.user?.userTokenId;
+        }
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { nickName } = req.body;
+      if (isNil(nickName) || isEmpty(nickName)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'nickName 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          nickName,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          isDup: !isNil(user),
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -1869,5 +1959,6 @@ authRouter.post(
   accessTokenValidCheck,
   deleteAppPushToken,
 );
+authRouter.post('/userNickDupCheck', accessTokenValidCheck, userNickDupCheck);
 
 export default authRouter;
