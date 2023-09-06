@@ -1193,7 +1193,9 @@ enum BookingChatActionType {
   ANSCONFIRMBOOKING /// 예약확정 system 확인 메시지 ex) 예약 확정을 위해 연락처가 가게에 전달돼요.
   PRIVACYAGREE /// 정보동의 고객 => 사업자 ex) 동의
   FINALBOOKINGCHECK /// 예약 확정 system 확인 메시지 ex) 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
-  TEXT /// 일반 채팅 메시지
+  USERCANCELAFTERBOOKING /// 예약 확정이후 유저 켄슬 ex) 예약 취소
+  USERCANCELAFTERBOOKINGCHK /// 예약 확정이후 유저 켄슬에 대한 사업자 확인 답변 ex) 사용자명님이 2023년 9월 15일 15시 2명 예정된 예약을 취소했어요.
+  TEXT /// 일반 채팅 메시지 
 }
 
 /// 예약 문의 관련 채팅 기록

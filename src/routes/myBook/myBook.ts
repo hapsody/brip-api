@@ -1,6 +1,11 @@
 import express from 'express';
 import prisma from '@src/prisma';
-import { BookingInfo, AdPlace, BookingInfoStatus } from '@prisma/client';
+import {
+  BookingInfo,
+  AdPlace,
+  BookingInfoStatus,
+  BookingChatActionType,
+} from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -10,9 +15,18 @@ import {
   // getS3SignedUrl,
   getUserProfileUrl,
 } from '@src/utils';
+import redis from '@src/redis';
 import { isNil, isEmpty, isNaN } from 'lodash';
-import { SysNotiMessageType } from '@src/routes/noti/types';
-import { pubNotiPush, putInSysNotiMessage } from '@src/routes/noti/noti';
+import {
+  SysNotiMessageType,
+  BookingChatMessageType,
+} from '@src/routes/noti/types';
+import {
+  pubNotiPush,
+  putInSysNotiMessage,
+  putInBookingMsg,
+  pubChatPush,
+} from '@src/routes/noti/noti';
 import moment from 'moment';
 
 const myBookRouter: express.Application = express();
@@ -178,7 +192,7 @@ export type ChangeBookingInfoStatusResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
- * BookingInfoStatus 를 수정함
+ * BookingInfoStatus 를 수정하고 변경된 status에 맞게 system noti를 발송함
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=5732-1968&mode=design&t=nrkIGB9SSxifdtJ0-4
  */
 export const changeBookingInfoStatus = asyncWrapper(
@@ -234,14 +248,22 @@ export const changeBookingInfoStatus = asyncWrapper(
           id: Number(bookingInfoId),
         },
         include: {
-          adPlace: {
+          company: {
             select: {
-              title: true,
+              // id: true,
+              nickName: true,
             },
           },
           customer: {
             select: {
+              // id:true,
               nickName: true,
+            },
+          },
+          adPlace: {
+            select: {
+              // id: true,
+              title: true,
             },
           },
         },
@@ -298,8 +320,8 @@ export const changeBookingInfoStatus = asyncWrapper(
 
       await (async () => {
         const now = moment().toISOString();
-        /// 시스템 알림
         if (bookingInfoStatus === 'CUSTOMERCANCEL') {
+          /// 시스템 알림
           const cusNotiMsg: SysNotiMessageType = {
             userId: bookingInfo.customerId!.toString(), // 고객
             userRole: 'customer',
@@ -324,6 +346,43 @@ export const changeBookingInfoStatus = asyncWrapper(
           await pubNotiPush(cusNotiMsg);
           await putInSysNotiMessage(compNotiMsg);
           await pubNotiPush(compNotiMsg);
+
+          const redisLastMsgBuffer = await redis.hget(
+            `lastMsg:customer:${bookingInfo.customerId!.toString()}`,
+            `${bookingInfo.companyId!.toString()}`,
+          );
+          if (isNil(redisLastMsgBuffer) || isEmpty(redisLastMsgBuffer)) {
+            throw new IBError({
+              type: 'INVALIDSTATUS',
+              message: 'redis 데이터가 유효하지 않습니다.',
+            });
+          }
+          const lastMsgObj = JSON.parse(
+            redisLastMsgBuffer,
+          ) as BookingChatMessageType;
+
+          /// 채팅창 업데이트
+          const cusChatMsg: BookingChatMessageType = {
+            adPlaceId: bookingInfo.adPlaceId.toString(),
+            isUnread: true,
+            customerId: bookingInfo.customerId!.toString(),
+            companyId: bookingInfo.companyId!.toString(),
+            from: bookingInfo.customerId!.toString(), /// 고객
+            to: bookingInfo.companyId!.toString(), /// 사업자
+            subjectGroupId: bookingInfo.subjectGroupId.toString(),
+            createdAt: new Date().toISOString(),
+            type: 'USERCANCELAFTERBOOKINGCHK' as BookingChatActionType,
+            order: `${Number(lastMsgObj.order) + 1}`,
+            message: `${bookingInfo.customer!.nickName}님이 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'M월 D일 HH시',
+            )} 예약이 취소되었어요`,
+          };
+
+          await putInBookingMsg(cusChatMsg);
+          await pubChatPush(cusChatMsg);
+
           return;
         }
 

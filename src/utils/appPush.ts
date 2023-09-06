@@ -1,10 +1,10 @@
 import fbAdmin from '@src/firebase';
 import prisma from '@src/prisma';
 import redis from '@src/redis';
+import { BookingChatActionType } from '@prisma/client';
 import {
   BookingChatMessageType,
   BookingActionInputParam,
-  BookingChatMessageActionType,
 } from '@src/routes/noti/types';
 import { isNil, isEmpty } from 'lodash';
 // import flatted from 'flatted';
@@ -177,7 +177,7 @@ const allPropTypeToString = (data: BookingAppPushMsgType) => {
       | boolean
       | undefined
       | BookingActionInputParam
-      | BookingChatMessageActionType;
+      | BookingChatActionType;
 
     if (isNil(value)) return acc;
     if (key === 'bookingActionInputParams' && typeof value === 'object') {

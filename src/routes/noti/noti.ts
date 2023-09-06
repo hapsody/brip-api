@@ -4,6 +4,7 @@ import {
   BookingChatLog,
   BookingChatActionInputParam,
   User,
+  BookingChatActionType,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -24,7 +25,6 @@ import moment from 'moment';
 import { isNil, isNaN, isEmpty } from 'lodash';
 // import 'moment/locale/ko';
 import {
-  BookingChatMessageActionType,
   BookingActionInputParam,
   BookingChatMessageType,
   // SysNotiActionType,
@@ -85,7 +85,9 @@ export const takeOutSysNotiMessage = async (params: {
  * 메시지 송신시에 보내고자 하는 상대(to)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from으로부터의 메시지 큐에
  * 보내고자 하는 메시지 data를 등록해두는 함수
  */
-const putInBookingMsg = async (params: BookingChatMessageType) => {
+export const putInBookingMsg = async (
+  params: BookingChatMessageType,
+): Promise<string> => {
   const data = params;
 
   const { customerId, companyId } = data;
@@ -117,7 +119,7 @@ const bookingChatLogToBookingChatMsg = (
     to: `${params.toUserId ?? 'deleted'}`,
     order: `${params.order}`,
     message: params.message,
-    type: params.bookingActionType as BookingChatMessageActionType,
+    type: params.bookingActionType,
     ...(!isNil(params.bookingActionInputParam) && {
       bookingActionInputParams: {
         // askBookingAvailable
@@ -1574,7 +1576,7 @@ export const reqNewBooking = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `예약하기`,
         order: `${result.nextOrder}`,
-        type: 'NEWBOOKINGMSG' as BookingChatMessageActionType,
+        type: 'NEWBOOKINGMSG' as BookingChatActionType,
       };
       const forwardData: BookingChatMessageType = {
         ...bookingData,
@@ -1598,7 +1600,7 @@ export const reqNewBooking = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!`,
         order: `${result.nextOrder + 1}`,
-        type: 'ANSNEWBOOKINGMSG' as BookingChatMessageActionType,
+        type: 'ANSNEWBOOKINGMSG' as BookingChatActionType,
       };
 
       const reverseData: BookingChatMessageType = {
@@ -1731,7 +1733,7 @@ export const reqBookingChatWelcome = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
         order: `${result.nextOrder}`,
-        type: 'ASKBOOKINGWELCOME' as BookingChatMessageActionType,
+        type: 'ASKBOOKINGWELCOME' as BookingChatActionType,
       };
       const forwardData: BookingChatMessageType = {
         ...data,
