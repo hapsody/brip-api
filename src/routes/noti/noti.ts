@@ -594,7 +594,9 @@ const bookingChatSyncToDB = async (params: {
             toUserId: Number(data.to),
             userId: Number(data.from),
             bookingActionType: data.type,
-            subjectGroupId: nextSubjectGroupId,
+            subjectGroupId: !isNil(data.subjectGroupId)
+              ? Number(data.subjectGroupId)
+              : nextSubjectGroupId,
             // redisKey: key,
             customerId: Number(customerId),
             companyId: Number(companyId),

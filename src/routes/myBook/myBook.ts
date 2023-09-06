@@ -375,9 +375,8 @@ export const changeBookingInfoStatus = asyncWrapper(
             order: `${Number(lastMsgObj.order) + 1}`,
             message: `${bookingInfo.customer!.nickName}님이 ${
               bookingInfo.adPlace.title
-            }의 ${moment(bookingInfo.date).format(
-              'M월 D일 HH시',
-            )} 예약이 취소되었어요`,
+            }의 ${moment(bookingInfo.date).format('M월 D일 HH시')}\n
+            ${bookingInfo.numOfPeople}명 예정된 예약을 취소했어요`,
           };
 
           await putInBookingMsg(cusChatMsg);
