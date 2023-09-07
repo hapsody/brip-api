@@ -242,6 +242,7 @@ export const reqScheduleWrapper = asyncWrapper(
         ...ibDefs.SUCCESS,
         IBparams: {
           queryParamsId: scheduleResult.queryParamsId,
+          recommendedRegion: scheduleResult.recommendedRegion,
           plan: scheduleResult.visitSchedules,
         },
       });

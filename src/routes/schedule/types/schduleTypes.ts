@@ -620,10 +620,12 @@ export interface ContextMakeSchedule extends IBContext {
   travelDays?: number; /// 여행 일정중 '박'수
   hotelTransition?: number; /// 여행일정중 숙소 변경횟수
   visitSchedules?: IVisitDaySchedule[];
+  recommendedRegion?: string;
 }
 
 export interface MakeScheduleRETParamPayload {
   queryParamsId: number;
+  recommendedRegion?: string; /// 유저가 추천지역을 요청 경우에는 반환값에 자동추천된 지역키워드가 반환된다.
   spotPerDay?: number;
   calibUserLevel?: {
     min: number;
@@ -1091,3 +1093,12 @@ export interface GetEstimatedCostRETParamPayload {
 export type GetEstimatedCostRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: RefreshScheduleRETParamPayload | {};
 };
+
+export interface RegionalCodeType {
+  regionCode1?: number;
+  regionCode2?: number;
+}
+export interface ScheduleScanType {
+  type: string;
+  regionalCodes?: RegionalCodeType[];
+}

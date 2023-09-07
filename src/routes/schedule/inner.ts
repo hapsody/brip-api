@@ -112,6 +112,8 @@ import {
   GetEstimatedCostRETParamPayload,
   ChangeScheduleTitleREQParam,
   ChangeScheduleTitleRETParamPayload,
+  RegionalCodeType,
+  ScheduleScanType,
 } from './types/schduleTypes';
 
 /**
@@ -2215,15 +2217,6 @@ export const nearestWithBaseLoc = (
   };
 };
 
-interface RegionalCodeType {
-  regionCode1?: number;
-  regionCode2?: number;
-}
-interface ScheduleScanType {
-  type: string;
-  regionalCodes?: RegionalCodeType[];
-}
-
 export const scanKeywordToRegionalCode = (
   keyword: string,
 ): RegionalCodeType | undefined => {
@@ -2432,8 +2425,8 @@ export const makeSchedule = async (
 
   console.log(calibUserLevel);
 
-  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다.
-  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
+  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다. => keyword 또는 regionalCodes 검색모드도 추가됨 min max geocode 또는 keyword 또는 regionCodes
+  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있거나 keyword 또는 regionCodes를 제공해야함
   /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
   /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
 
@@ -2534,6 +2527,7 @@ export const makeSchedule = async (
     /// scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
     const recommendRegionKeyword = getRecommendRegion();
     const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
+    ctx.recommendedRegion = recommendRegionKeyword;
     return {
       type: 'keyword',
       regionalCodes: [regionalCode!],
@@ -3970,6 +3964,7 @@ export const makeSchedule = async (
 
   return {
     queryParamsId: queryParams.id,
+    recommendedRegion: ctx.recommendedRegion,
     spotPerDay: ctx.spotPerDay,
     calibUserLevel,
     spotClusterRes: ctx.spotClusterRes,
