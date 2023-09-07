@@ -65,6 +65,7 @@ import {
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
   sendNotiMsgAppPush,
+  getAdPlaceInfoFromCacheNDB,
 } from './appPush';
 import { checkURLAccessibility, getValidUrl } from './exConnection';
 
@@ -127,4 +128,5 @@ export {
   getSuperTagsOfPath,
   addTagPath,
   addTagWithParentPath,
+  getAdPlaceInfoFromCacheNDB,
 };

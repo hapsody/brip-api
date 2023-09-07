@@ -5,6 +5,7 @@ import {
   BookingChatActionInputParam,
   User,
   BookingChatActionType,
+  AdPlace,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -19,6 +20,7 @@ import {
   sendNotiMsgAppPush,
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
+  getAdPlaceInfoFromCacheNDB,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
@@ -93,10 +95,14 @@ export const putInBookingMsg = async (
   const { customerId, companyId } = data;
   const key = `${customerId}=>${companyId}`;
 
+  /// adPlace 정보를 조회해서 추가
+  const adPlace = await getAdPlaceInfoFromCacheNDB(data.adPlaceId);
   const msgData = JSON.stringify({
     uuid: uuidv4(),
     ...data,
+    adPlace,
   });
+
   await redis.rpush(key, msgData);
   await redis.hset(`lastMsg:customer:${customerId}`, `${companyId}`, msgData);
   await redis.hset(`lastMsg:company:${companyId}`, `${customerId}`, msgData);
@@ -107,10 +113,12 @@ const bookingChatLogToBookingChatMsg = (
   params: BookingChatLog & {
     bookingActionInputParam: BookingChatActionInputParam | null;
     customer: User | null;
+    adPlace: AdPlace | null;
   },
 ): BookingChatMessageType => {
   return {
     adPlaceId: `${params.adPlaceId ?? 'deleted'}`,
+    adPlace: params.adPlace ?? undefined,
     isUnread: false, /// 추가 테스트 필요. 읽지 않았는데 DB에 저장되는 경우도 있을것임
     createdAt: new Date(params.date).toISOString(),
     customerId: `${params.customerId ?? 'deleted'}`,
@@ -294,6 +302,7 @@ const getMyLastBookingMsgs = async (params: {
     include: {
       bookingActionInputParam: true,
       customer: true,
+      adPlace: true,
       // user: true,
     },
   });
@@ -303,6 +312,7 @@ const getMyLastBookingMsgs = async (params: {
     (BookingChatLog & {
       bookingActionInputParam: BookingChatActionInputParam | null;
       customer: User | null;
+      adPlace: AdPlace | null;
     })[]
   >((acc, cur) => {
     const alreadyExist = acc.find(v => {
@@ -362,6 +372,7 @@ const retrieveFromDb = async (
     include: {
       bookingActionInputParam: true,
       customer: true,
+      adPlace: true,
     },
   });
   if (isNil(targetMsgsFromDB) || isEmpty(targetMsgsFromDB)) {

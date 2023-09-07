@@ -1,4 +1,4 @@
-import { BookingChatActionType } from '@prisma/client';
+import { BookingChatActionType, AdPlace } from '@prisma/client';
 
 // export type BookingChatMessageActionType =
 //   | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
@@ -41,6 +41,7 @@ export type BookingActionInputParam = {
 };
 export type ChatMessageType = {
   adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
+  adPlace?: Partial<AdPlace>;
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각

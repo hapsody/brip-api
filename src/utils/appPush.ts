@@ -134,7 +134,7 @@ type AdPlaceInfoType = {
   title: string;
 } | null;
 
-const getAdPlaceInfoFromCacheNDB = async (
+export const getAdPlaceInfoFromCacheNDB = async (
   adPlaceId: string,
 ): Promise<AdPlaceInfoType> => {
   const cachedCustomerInfo = await redis.get(`adPlaceInfo:${adPlaceId}`);
