@@ -66,6 +66,9 @@ import {
   sendAppPushToBookingCompany,
   sendNotiMsgAppPush,
   getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  getTourPlaceInfoFromCacheNDB,
+  ToUserInfoType,
 } from './appPush';
 import { checkURLAccessibility, getValidUrl } from './exConnection';
 
@@ -129,4 +132,7 @@ export {
   addTagPath,
   addTagWithParentPath,
   getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  ToUserInfoType,
+  getTourPlaceInfoFromCacheNDB,
 };

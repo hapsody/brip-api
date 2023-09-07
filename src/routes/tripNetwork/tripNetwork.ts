@@ -2259,6 +2259,7 @@ export const addReplyToShareTripMemory = asyncWrapper(
             shareTripMemory: {
               select: {
                 userId: true,
+                tourPlaceId: true,
               },
 
               // select: {
@@ -2279,12 +2280,20 @@ export const addReplyToShareTripMemory = asyncWrapper(
           createdAt: new Date(createdOne.createdAt).toISOString(),
           message: '내 게시물에 댓글이 달렸어요',
           type: 'REPLYFORMYSHARETRIPMEM',
+          additionalInfo: {
+            replyAlarm: {
+              tourPlaceId: createdOne.shareTripMemory.tourPlaceId!.toString(),
+              shareTripMemoryId: createdOne.shareTripMemoryId.toString(),
+              replyId: createdOne.id.toString(),
+            },
+          },
         };
         await putInSysNotiMessage(notiMsg);
         await pubNotiPush({
           // from: 'system',
           ...notiMsg,
           userId: `${createdOne.shareTripMemory.userId}`,
+          pushType: 'SYSTEMNOTI',
         });
 
         /// 2. 대댓글인경우 부모 댓글 쓴사람
@@ -2296,12 +2305,20 @@ export const addReplyToShareTripMemory = asyncWrapper(
             createdAt: new Date(createdOne.createdAt).toISOString(),
             message: '내 게시물에 댓글이 달렸어요',
             type: 'REPLYFORMYREPLY',
+            additionalInfo: {
+              replyAlarm: {
+                tourPlaceId: createdOne.shareTripMemory.tourPlaceId!.toString(),
+                shareTripMemoryId: createdOne.shareTripMemoryId.toString(),
+                replyId: createdOne.id.toString(),
+              },
+            },
           };
           await putInSysNotiMessage(notiMsg);
           await pubNotiPush({
             // from: 'system',
             ...notiMsg,
             userId: `${parentRpl.userId}`,
+            pushType: 'SYSTEMNOTI',
           });
         }
       }

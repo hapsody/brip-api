@@ -264,6 +264,7 @@ export const changeBookingInfoStatus = asyncWrapper(
             select: {
               // id: true,
               title: true,
+              mainTourPlaceId: true,
             },
           },
         },
@@ -330,6 +331,16 @@ export const changeBookingInfoStatus = asyncWrapper(
             message: `${bookingInfo.adPlace.title}의 ${moment(
               bookingInfo.date,
             ).format('MM월 DD일 HH시')} 예약이 취소되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                bookingInfoId: bookingInfo.id.toString(),
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
           };
           const compNotiMsg: SysNotiMessageType = {
             userId: bookingInfo.companyId!.toString(), // 사업주
@@ -341,11 +352,21 @@ export const changeBookingInfoStatus = asyncWrapper(
             }의 ${moment(bookingInfo.date).format(
               'MM월 DD일 HH시',
             )} 예약이 취소되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                bookingInfoId: bookingInfo.id.toString(),
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
           };
           await putInSysNotiMessage(cusNotiMsg);
-          await pubNotiPush(cusNotiMsg);
+          await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
           await putInSysNotiMessage(compNotiMsg);
-          await pubNotiPush(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
 
           const redisLastMsgBuffer = await redis.hget(
             `lastMsg:customer:${bookingInfo.customerId!.toString()}`,
@@ -375,8 +396,9 @@ export const changeBookingInfoStatus = asyncWrapper(
             order: `${Number(lastMsgObj.order) + 1}`,
             message: `${bookingInfo.customer!.nickName}님이 ${
               bookingInfo.adPlace.title
-            }의 ${moment(bookingInfo.date).format('M월 D일 HH시')}\n
-            ${bookingInfo.numOfPeople}명 예정된 예약을 취소했어요`,
+            }의 ${moment(bookingInfo.date).format('M월 D일 HH시')} ${
+              bookingInfo.numOfPeople
+            }명 예정된 예약을 취소했어요`,
           };
 
           await putInBookingMsg(cusChatMsg);
@@ -396,9 +418,19 @@ export const changeBookingInfoStatus = asyncWrapper(
             }의 ${moment(bookingInfo.date).format(
               'MM월 DD일 HH시',
             )} 예약이 노쇼처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                bookingInfoId: bookingInfo.id.toString(),
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
           };
           await putInSysNotiMessage(compNotiMsg);
-          await pubNotiPush(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
           return;
         }
 
@@ -412,6 +444,16 @@ export const changeBookingInfoStatus = asyncWrapper(
             message: `${bookingInfo.adPlace.title}의 ${moment(
               bookingInfo.date,
             ).format('M월 D일 HH시')} 예약이 방문처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                bookingInfoId: bookingInfo.id.toString(),
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
           };
           const compNotiMsg: SysNotiMessageType = {
             userId: bookingInfo.companyId!.toString(), // 사업주
@@ -423,11 +465,21 @@ export const changeBookingInfoStatus = asyncWrapper(
             }의 ${moment(bookingInfo.date).format(
               'MM월 DD일 HH시',
             )} 예약이 방문처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                bookingInfoId: bookingInfo.id.toString(),
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
           };
           await putInSysNotiMessage(cusNotiMsg);
-          await pubNotiPush(cusNotiMsg);
+          await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
           await putInSysNotiMessage(compNotiMsg);
-          await pubNotiPush(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
         }
       })();
 

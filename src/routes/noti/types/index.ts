@@ -40,10 +40,6 @@ export type BookingActionInputParam = {
   /// numOfPeople?: string;
 };
 export type ChatMessageType = {
-  adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
-  adPlace?: Partial<AdPlace>;
-  tourPlace?: Partial<TourPlace>;
-  tourPlaceId?: string;
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각
@@ -56,6 +52,20 @@ export type BookingChatMessageType = ChatMessageType & {
   isUnread: boolean; /// 해당 메시지가 읽지 않은 새 메시지 상태인지 아닌지를 알기위한 프로퍼티. true이면 읽지 않은 새 메시지.
   customerId: string; /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
   companyId: string; /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
+  companyNickName?: string;
+  customerNickName?: string;
+  adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
+  tourPlaceId?: string;
+  adPlace?: {
+    id: number;
+    title: string;
+    mainTourPlaceId: number | null;
+  };
+  tourPlace?: {
+    id: number;
+    title: string;
+  };
+  bookingInfoId?: string;
   subjectGroupId?: string; /// 이 대화스레드가 DB에 저장된 이후 본 메시지를 해당 대화스레드에 포함시키려면 대화스레드를 대표하는 subjectGroupId를 보내줘야한다. booking 프로세스가 끝나서 DB sync가 이루어진 이후 프로세스의 sendBookingMsg 호출에 쓰임(USERCANCELAFTERBOOKING)
 };
 
@@ -71,19 +81,47 @@ export interface ISysNotiAdditionalBookingChatInfo {
   /// type이 예약채팅과 관련된 시스템 노티일 경우 부가정보값
   customerId: string;
   companyId: string;
+  companyNickName?: string;
+  customerNickName?: string;
   adPlaceId: string;
   tourPlaceId?: string;
-  adPlace?: Partial<AdPlace>;
-  tourPlace?: Partial<TourPlace>;
+  adPlace?: {
+    id: number;
+    title: string;
+    mainTourPlaceId: number | null;
+  };
+  tourPlace?: {
+    id: number;
+    title: string;
+  };
+  bookingInfoId?: string; /// 예약이 성사되었다면 bookingInfo id가 존재
+  subjectGroupId?: string; /// 예약이 성사된 이후로 bookingChatLog의 subjectGroupId 가 존재
 }
+
+export interface ISysNotiAdditionalReplyAlarmInfo {
+  tourPlaceId: string;
+  // tourPlace?: {
+  //   id: string;
+  //   title: string;
+  // };
+  shareTripMemoryId: string;
+  // shareTripMemory?: {
+  //   id: string;
+  //   title: string;
+  // };
+  replyId: string; /// 해당 시스템 알람을 일으킨 댓글의 id
+}
+
 export type SysNotiMessageType = {
   userId: string; /// 수신인 UserId
   userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
   createdAt: string; /// 메시지 전송된 시각
   message: string; /// 메시지 본문
   type: SysNotiActionType; /// 메시지 타입
-  additionalBookingChatInfo?: ISysNotiAdditionalBookingChatInfo;
-  // bookingActionInputParams?: BookingActionInputParam;
+  additionalInfo: {
+    bookingChat?: ISysNotiAdditionalBookingChatInfo; /// 시스템 노티 메시지중 예약관련 추가 정보
+    replyAlarm?: ISysNotiAdditionalReplyAlarmInfo; /// reply 관련 추가정보
+  };
 };
 
 export type BookingRejectReasonType =
@@ -108,3 +146,26 @@ export type LastBookingMessageType = {
   me: string | null;
   other: string | null;
 };
+
+export interface IAppPushType {
+  pushType: 'BOOKINGCHAT' | 'SYSTEMNOTI';
+}
+
+export type BookingAppPushType = BookingChatMessageType & IAppPushType;
+
+export type SysNotiAppPushType = SysNotiMessageType & IAppPushType;
+
+export type AdPlaceInfoType =
+  | (Partial<AdPlace> & {
+      id: number;
+      title: string;
+      mainTourPlaceId: number | null;
+    })
+  | null;
+
+export type TourPlaceInfoType =
+  | (Partial<TourPlace> & {
+      id: number;
+      title: string;
+    })
+  | null;

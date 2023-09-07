@@ -21,6 +21,9 @@ import {
   sendAppPushToBookingCustomer,
   sendAppPushToBookingCompany,
   getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  ToUserInfoType,
+  getTourPlaceInfoFromCacheNDB,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
@@ -34,6 +37,10 @@ import {
   BookingRejectReasonType,
   RetrieveBookingMessageParamType,
   LastBookingMessageType,
+  SysNotiAppPushType,
+  BookingAppPushType,
+  AdPlaceInfoType,
+  TourPlaceInfoType,
 } from './types';
 
 const notiRouter: express.Application = express();
@@ -750,25 +757,110 @@ const bookingChatSyncToDB = async (params: {
 export const pubChatPush = async (
   params: BookingChatMessageType,
 ): Promise<void> => {
-  const { to, message, customerId, companyId } = params;
+  const { to, message, customerId, companyId, adPlaceId } = params;
 
-  /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
+  const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  const tourPlace = await getTourPlaceInfoFromCacheNDB(
+    adPlace!.mainTourPlaceId!.toString(),
+  );
 
-  if (!isNil(message)) {
-    if (customerId === to) await sendAppPushToBookingCustomer(params);
-    else if (companyId === to) await sendAppPushToBookingCompany(params);
+  if (!isNil(message) && !isNil(adPlace)) {
+    const messageInfo: BookingAppPushType = {
+      ...params,
+      adPlace,
+      adPlaceId,
+      tourPlace: tourPlace!,
+      tourPlaceId: tourPlace!.id.toString(),
+      pushType: 'BOOKINGCHAT',
+    };
+    if (customerId === to) await sendAppPushToBookingCustomer(messageInfo);
+    else if (companyId === to) await sendAppPushToBookingCompany(messageInfo);
   }
 };
 
+/// SysNotiAppPushType 데이터중에서 서버 조회가 추가적으로 필요한부분을 찾아(adPlace, tourPlace, shareTripMemory ...) 푸시 전송 데이터를 완성하는 함수
+export const completeSysNotiAppPushMsgData = async (
+  params: SysNotiAppPushType,
+): Promise<SysNotiAppPushType> => {
+  const {
+    additionalInfo: { bookingChat },
+  } = params;
+
+  console.log('[sendNotiMsgAppPush]: ');
+
+  /// booking Chat 관련 시스템 노티일 경우 부가정보 검색
+  const { adPlaceInfo, tourPlaceInfo, customerNickName, companyNickName } =
+    await (async (): Promise<{
+      adPlaceInfo: AdPlaceInfoType | null;
+      tourPlaceInfo: TourPlaceInfoType | null;
+      customerNickName: string | null;
+      companyNickName: string | null;
+    }> => {
+      if (!isNil(bookingChat) && !isEmpty(bookingChat)) {
+        const { adPlaceId, customerId, companyId } = bookingChat;
+        const adPlaceData = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+        const tourPlaceData = await getTourPlaceInfoFromCacheNDB(
+          adPlaceData!.mainTourPlaceId!.toString(),
+        );
+
+        const customer = await getUserInfoFromCacheNDB<ToUserInfoType>(
+          customerId,
+        );
+        const company = await getUserInfoFromCacheNDB<ToUserInfoType>(
+          companyId,
+        );
+
+        return {
+          adPlaceInfo: adPlaceData,
+          tourPlaceInfo: tourPlaceData,
+          customerNickName: customer!.nickName,
+          companyNickName: company!.nickName,
+        };
+      }
+
+      return {
+        adPlaceInfo: null,
+        tourPlaceInfo: null,
+        customerNickName: null,
+        companyNickName: null,
+      };
+    })();
+
+  /// 부가정보를 결합한 완성된 sysNotiPushApp 타입의 데이터 생성
+  const messageInfo: SysNotiAppPushType = {
+    ...params,
+
+    /// bookingChat 관련 시스템 노티일 경우 위에서 마련한 부가정보를 추가한다.
+    ...(!isNil(bookingChat) && {
+      ...(!isNil(adPlaceInfo) && {
+        adPlace: adPlaceInfo,
+        adPlaceId: adPlaceInfo.id.toString(),
+      }),
+      ...(!isNil(tourPlaceInfo) && {
+        tourPlace: tourPlaceInfo,
+        tourPlaceId: tourPlaceInfo.id.toString(),
+      }),
+      ...(!isNil(customerNickName) && {
+        customerNickName,
+      }),
+      ...(!isNil(companyNickName) && {
+        companyNickName,
+      }),
+    }),
+
+    pushType: 'SYSTEMNOTI',
+  };
+  return messageInfo;
+};
+
 export const pubNotiPush = async (
-  params: SysNotiMessageType,
+  params: SysNotiAppPushType,
 ): Promise<void> => {
   const { message } = params;
 
-  /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
-
   if (!isNil(message)) {
-    await sendNotiMsgAppPush(params);
+    const messageInfo = await completeSysNotiAppPushMsgData(params);
+    await sendNotiMsgAppPush(messageInfo);
   }
 };
 
@@ -1285,35 +1377,31 @@ export const sendBookingMsg = asyncWrapper(
                     ).format('M월 D일 HH시')} ${
                       adPlace.title
                     }에 예약이 확정되었어요.`,
-                    additionalBookingChatInfo: {
-                      adPlaceId: finalBookingCheckMsgData.adPlaceId,
-                      customerId:
-                        finalBookingCheckMsgData.customerId.toString(),
-                      companyId: finalBookingCheckMsgData.companyId.toString(),
+                    additionalInfo: {
+                      bookingChat: {
+                        adPlaceId: finalBookingCheckMsgData.adPlaceId,
+                        customerId:
+                          finalBookingCheckMsgData.customerId.toString(),
+                        companyId:
+                          finalBookingCheckMsgData.companyId.toString(),
+                      },
                     },
                   };
                   await putInSysNotiMessage(cusNotiMsg);
-                  await pubNotiPush(cusNotiMsg);
+                  await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
 
                   const compNotiMsg: SysNotiMessageType = {
+                    ...cusNotiMsg,
                     userId: finalBookingCheckMsgData.from, // 사업주
-                    createdAt: finalBookingCheckMsgData.createdAt,
-                    type: 'BOOKINGCOMPLETE',
                     message: `${finalBookingCheckMsgData.bookingActionInputParams!
                       .reqUserNickname!} 님의 ${moment(
                       finalBookingCheckMsgData.bookingActionInputParams!.date,
                     ).format('M월 D일 HH시')} ${
                       adPlace.title
                     }의 예약이 확정되었어요.`, /// 갸라도스님의 9월 5일 13시 주야장천의 예약이 확정되었어요
-                    additionalBookingChatInfo: {
-                      adPlaceId: finalBookingCheckMsgData.adPlaceId,
-                      customerId:
-                        finalBookingCheckMsgData.customerId.toString(),
-                      companyId: finalBookingCheckMsgData.companyId.toString(),
-                    },
                   };
                   await putInSysNotiMessage(compNotiMsg);
-                  await pubNotiPush(compNotiMsg);
+                  await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
                   return;
                 }
 
