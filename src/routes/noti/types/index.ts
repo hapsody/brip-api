@@ -1,4 +1,4 @@
-import { BookingChatActionType, AdPlace } from '@prisma/client';
+import { BookingChatActionType, AdPlace, TourPlace } from '@prisma/client';
 
 // export type BookingChatMessageActionType =
 //   | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
@@ -42,6 +42,8 @@ export type BookingActionInputParam = {
 export type ChatMessageType = {
   adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
   adPlace?: Partial<AdPlace>;
+  tourPlace?: Partial<TourPlace>;
+  tourPlaceId?: string;
   from: string; /// 보내는 UserId
   to: string; /// 보낼 UserId
   createdAt: string; /// 메시지 전송된 시각
@@ -65,12 +67,22 @@ export type SysNotiActionType =
   | 'BOOKINGVISITED' /// 예약완료후 방문처리
   | 'BOOKINGCUSTOMERNOSHOW'; /// 예약완료후 고객 노쇼
 
+export interface ISysNotiAdditionalBookingChatInfo {
+  /// type이 예약채팅과 관련된 시스템 노티일 경우 부가정보값
+  customerId: string;
+  companyId: string;
+  adPlaceId: string;
+  tourPlaceId?: string;
+  adPlace?: Partial<AdPlace>;
+  tourPlace?: Partial<TourPlace>;
+}
 export type SysNotiMessageType = {
   userId: string; /// 수신인 UserId
   userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
   createdAt: string; /// 메시지 전송된 시각
   message: string; /// 메시지 본문
   type: SysNotiActionType; /// 메시지 타입
+  additionalBookingChatInfo?: ISysNotiAdditionalBookingChatInfo;
   // bookingActionInputParams?: BookingActionInputParam;
 };
 

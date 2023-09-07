@@ -1285,6 +1285,12 @@ export const sendBookingMsg = asyncWrapper(
                     ).format('M월 D일 HH시')} ${
                       adPlace.title
                     }에 예약이 확정되었어요.`,
+                    additionalBookingChatInfo: {
+                      adPlaceId: finalBookingCheckMsgData.adPlaceId,
+                      customerId:
+                        finalBookingCheckMsgData.customerId.toString(),
+                      companyId: finalBookingCheckMsgData.companyId.toString(),
+                    },
                   };
                   await putInSysNotiMessage(cusNotiMsg);
                   await pubNotiPush(cusNotiMsg);
@@ -1299,6 +1305,12 @@ export const sendBookingMsg = asyncWrapper(
                     ).format('M월 D일 HH시')} ${
                       adPlace.title
                     }의 예약이 확정되었어요.`, /// 갸라도스님의 9월 5일 13시 주야장천의 예약이 확정되었어요
+                    additionalBookingChatInfo: {
+                      adPlaceId: finalBookingCheckMsgData.adPlaceId,
+                      customerId:
+                        finalBookingCheckMsgData.customerId.toString(),
+                      companyId: finalBookingCheckMsgData.companyId.toString(),
+                    },
                   };
                   await putInSysNotiMessage(compNotiMsg);
                   await pubNotiPush(compNotiMsg);

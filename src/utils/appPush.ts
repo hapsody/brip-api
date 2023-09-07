@@ -1,12 +1,14 @@
 import fbAdmin from '@src/firebase';
+import serialize from 'serialize-javascript';
 import prisma from '@src/prisma';
 import redis from '@src/redis';
-import { BookingChatActionType } from '@prisma/client';
+import { AdPlace, TourPlace, BookingChatActionType } from '@prisma/client';
 import {
   BookingChatMessageType,
   BookingActionInputParam,
+  ISysNotiAdditionalBookingChatInfo,
 } from '@src/routes/noti/types';
-import { isNil, isEmpty } from 'lodash';
+import { isNil, isEmpty, omit } from 'lodash';
 // import flatted from 'flatted';
 import { IBError } from './IBDefinitions';
 
@@ -76,9 +78,9 @@ const getUserInfoFromCacheNDB = async <
 >(
   userId: string,
 ): Promise<T> => {
-  const cachedCustomerInfo = await redis.get(`userInfo:${userId}`);
-  if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
-    const cachedObj = JSON.parse(cachedCustomerInfo) as T;
+  const cachedAdPlaceInfo = await redis.get(`userInfo:${userId}`);
+  if (!isNil(cachedAdPlaceInfo) && !isEmpty(cachedAdPlaceInfo)) {
+    const cachedObj = JSON.parse(cachedAdPlaceInfo) as T;
     const { id, nickName, userFCMToken } = cachedObj!;
 
     /// redis에 캐시되어 있던 데이터중 누락된것이 하나도 없어야 한다. 만약 하나라도 있으면 계속 아래로 진행하여 DB 조회를 다시해야하므로 return 을 하면 안된다..
@@ -129,10 +131,12 @@ const getUserInfoFromCacheNDB = async <
   return dbUserInfo as T;
 };
 
-type AdPlaceInfoType = {
-  id: number;
-  title: string;
-} | null;
+type AdPlaceInfoType =
+  | (Partial<AdPlace> & {
+      id: number;
+      title: string;
+    })
+  | null;
 
 export const getAdPlaceInfoFromCacheNDB = async (
   adPlaceId: string,
@@ -140,10 +144,17 @@ export const getAdPlaceInfoFromCacheNDB = async (
   const cachedCustomerInfo = await redis.get(`adPlaceInfo:${adPlaceId}`);
   if (!isNil(cachedCustomerInfo) && !isEmpty(cachedCustomerInfo)) {
     const cachedObj = JSON.parse(cachedCustomerInfo) as AdPlaceInfoType;
-    const { id, title } = cachedObj!;
+    const { id, title, mainTourPlaceId } = cachedObj!;
 
     /// redis에 캐시되어 있던 데이터중 누락된것이 하나도 없어야 한다. 만약 하나라도 있으면 계속 아래로 진행하여 DB 조회를 다시해야하므로 return 을 하면 안된다..
-    if (!isNil(id) && !isEmpty(id) && !isNil(title) && !isEmpty(title)) {
+    if (
+      !isNil(id) &&
+      !isEmpty(id) &&
+      !isNil(title) &&
+      !isEmpty(title) &&
+      !isNil(mainTourPlaceId) &&
+      !isEmpty(mainTourPlaceId)
+    ) {
       return cachedObj;
     }
   }
@@ -155,11 +166,50 @@ export const getAdPlaceInfoFromCacheNDB = async (
     select: {
       id: true,
       title: true,
+      mainTourPlaceId: true,
     },
   });
 
   await redis.set(`adPlaceInfo:${adPlaceId}`, JSON.stringify(dbAdPlaceInfo));
   return dbAdPlaceInfo;
+};
+
+type TourPlaceInfoType =
+  | (Partial<TourPlace> & {
+      id: number;
+      title: string;
+    })
+  | null;
+
+export const getTourPlaceInfoFromCacheNDB = async (
+  tourPlaceId: string,
+): Promise<TourPlaceInfoType> => {
+  const cachedTourPlaceInfo = await redis.get(`tourPlaceInfo:${tourPlaceId}`);
+  if (!isNil(cachedTourPlaceInfo) && !isEmpty(cachedTourPlaceInfo)) {
+    const cachedObj = JSON.parse(cachedTourPlaceInfo) as TourPlaceInfoType;
+    const { id, title } = cachedObj!;
+
+    /// redis에 캐시되어 있던 데이터중 누락된것이 하나도 없어야 한다. 만약 하나라도 있으면 계속 아래로 진행하여 DB 조회를 다시해야하므로 return 을 하면 안된다..
+    if (!isNil(id) && !isEmpty(id) && !isNil(title) && !isEmpty(title)) {
+      return cachedObj;
+    }
+  }
+
+  const dbTourPlaceInfo = await prisma.tourPlace.findUnique({
+    where: {
+      id: Number(tourPlaceId),
+    },
+    select: {
+      id: true,
+      title: true,
+    },
+  });
+
+  await redis.set(
+    `tourPlaceInfo:${tourPlaceId}`,
+    JSON.stringify(dbTourPlaceInfo),
+  );
+  return dbTourPlaceInfo;
 };
 
 type BookingAppPushMsgType = Partial<BookingChatMessageType> & {
@@ -177,39 +227,23 @@ const allPropTypeToString = (data: BookingAppPushMsgType) => {
       | boolean
       | undefined
       | BookingActionInputParam
-      | BookingChatActionType;
+      | BookingChatActionType
+      | Partial<AdPlace>
+      | Partial<TourPlace>;
 
     if (isNil(value)) return acc;
-    if (key === 'bookingActionInputParams' && typeof value === 'object') {
+    if (
+      (key === 'bookingActionInputParams' && typeof value === 'object') ||
+      (key === 'adPlace' && typeof value === 'object') ||
+      (key === 'tourPlace' && typeof value === 'object')
+    ) {
       acc[key] = data[key];
       return acc;
     }
+
     acc[key] = value.toString();
     return acc;
   }, {});
-  // return Object.fromEntries(
-  //   new Map(
-  //     Object.entries(data).map(([key, value]) => {
-  //       if (key === 'bookingActionInputParams' && typeof value === 'object') {
-  //         // const obj = value;
-  //         // const objWithStringValue = Object.fromEntries(
-  //         //   new Map(
-  //         //     Object.entries(obj).map(([k, v]) => {
-  //         //       if (!isNil(v)) {
-  //         //         return [k, v.toString()];
-  //         //       }
-  //         //       return [k, 'null'];
-  //         //     }),
-  //         //   ),
-  //         // );
-  //         // return [key, JSON.stringify(objWithStringValue)];
-  //         return [key, value]
-  //       }
-
-  //       return [key, value.toString()];
-  //     }),
-  //   ),
-  // );
 };
 
 /// 예약문의 관련 메시지 앱 push 중 고객측으로 보내는 함수. 고객이 여러 디바이스를 연결했다면 연결한 디바이스 모두에 메시지를 보낸다.
@@ -231,6 +265,9 @@ export const sendAppPushToBookingCustomer = async (params: {
     companyId,
   );
   const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  const tourPlace = await getTourPlaceInfoFromCacheNDB(
+    adPlace!.mainTourPlaceId!.toString(),
+  );
 
   if (
     !isNil(adPlace) &&
@@ -243,6 +280,10 @@ export const sendAppPushToBookingCustomer = async (params: {
       ...params,
       companyNickName: companyUser.nickName,
       adPlaceTitle: adPlace.title,
+      adPlace,
+      adPlaceId,
+      tourPlace: tourPlace!,
+      tourPlaceId: tourPlace!.id.toString(),
       pushType: 'BOOKINGCHAT',
     };
     const result = await fbAdmin.messaging().sendEach(
@@ -310,6 +351,9 @@ export const sendAppPushToBookingCompany = async (params: {
     companyId,
   );
   const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  const tourPlace = await getTourPlaceInfoFromCacheNDB(
+    adPlace!.mainTourPlaceId!.toString(),
+  );
 
   if (
     !isNil(customerUser) &&
@@ -322,6 +366,10 @@ export const sendAppPushToBookingCompany = async (params: {
       ...params,
       customerNickName: customerUser.nickName,
       adPlaceTitle: adPlace.title,
+      adPlace,
+      adPlaceId,
+      tourPlace: tourPlace!,
+      tourPlaceId: tourPlace!.id.toString(),
       pushType: 'BOOKINGCHAT',
     };
 
@@ -388,12 +436,32 @@ export const sendNotiMsgAppPush = async (params: {
   /// BookingChatMessageType fields..
   message: string;
   userId: string;
+  additionalBookingChatInfo?: ISysNotiAdditionalBookingChatInfo;
 }): Promise<void> => {
   // try {
-  const { message, userId } = params;
+  const { message, userId, additionalBookingChatInfo } = params;
 
   console.log('[sendNotiMsgAppPush]: ');
   const toUser = await getUserInfoFromCacheNDB<ToUserInfoType>(userId);
+
+  const { adPlaceInfo, tourPlaceInfo } = await (async (): Promise<{
+    adPlaceInfo: AdPlaceInfoType | null;
+    tourPlaceInfo: TourPlaceInfoType | null;
+  }> => {
+    /// booking Chat 관련 시스템 노티일 경우 부가정보 검색
+    if (
+      !isNil(additionalBookingChatInfo) &&
+      !isEmpty(additionalBookingChatInfo)
+    ) {
+      const { adPlaceId } = additionalBookingChatInfo;
+      const adPlaceData = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+      const tourPlaceData = await getTourPlaceInfoFromCacheNDB(
+        adPlaceData!.mainTourPlaceId!.toString(),
+      );
+      return { adPlaceInfo: adPlaceData, tourPlaceInfo: tourPlaceData };
+    }
+    return { adPlaceInfo: null, tourPlaceInfo: null };
+  })();
 
   if (
     !isNil(toUser) &&
@@ -401,7 +469,17 @@ export const sendNotiMsgAppPush = async (params: {
     !isEmpty(toUser.userFCMToken)
   ) {
     const messageInfo: BookingAppPushMsgType = {
-      ...params,
+      ...omit(params, 'additionalBookinghatInfo'),
+      ...(!isNil(additionalBookingChatInfo) && {
+        ...(!isNil(adPlaceInfo) && {
+          adPlace: adPlaceInfo,
+          adPlaceId: adPlaceInfo.id.toString(),
+        }),
+        ...(!isNil(tourPlaceInfo) && {
+          tourPlace: tourPlaceInfo,
+          tourPlaceId: tourPlaceInfo.id.toString(),
+        }),
+      }),
       pushType: 'SYSTEMNOTI',
     };
 
@@ -411,7 +489,7 @@ export const sendNotiMsgAppPush = async (params: {
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
-            serializedData: JSON.stringify(allPropTypeToString(messageInfo)),
+            serializedData: serialize(messageInfo),
           },
           ...(sysNotiPushAlarm && {
             notification: {
