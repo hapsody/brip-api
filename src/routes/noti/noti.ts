@@ -6,6 +6,7 @@ import {
   User,
   BookingChatActionType,
   AdPlace,
+  BookingInfo,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -547,7 +548,7 @@ const bookingChatSyncToDB = async (params: {
   // to: string; /// 사업자
   customerId: string;
   companyId: string;
-}) => {
+}): Promise<BookingInfo> => {
   const { adPlaceId, customerId, companyId } = params;
 
   if (
@@ -561,7 +562,10 @@ const bookingChatSyncToDB = async (params: {
     isEmpty(companyId) ||
     isNaN(companyId)
   ) {
-    return false;
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '내부 상태값이 잘못되어 예약채팅을 DB로 sync할수 없습니다.',
+    });
   }
 
   const key = `${customerId}=>${companyId}`;
@@ -594,7 +598,7 @@ const bookingChatSyncToDB = async (params: {
     return bookingChatLog.subjectGroupId + 1;
   })();
 
-  await prisma.$transaction(async tx => {
+  const result = await prisma.$transaction(async tx => {
     /// 직전에 sync했던곳 이후부터 DB sync
     await Promise.all(
       messages.map(v => {
@@ -677,7 +681,7 @@ const bookingChatSyncToDB = async (params: {
     }
 
     /// move bookingInfo from redis to mysql
-    await (async () => {
+    const res = await (async () => {
       const bookingInfo = await redis.hget(
         `bookingInfo:${key}`,
         `${adPlaceId}`,
@@ -686,7 +690,7 @@ const bookingChatSyncToDB = async (params: {
       const date = bookingInfo?.split(',')[0]!;
       const numOfPeople = Number(bookingInfo?.split(',')[1]);
 
-      await tx.bookingInfo.create({
+      const createdBookingInfo = await tx.bookingInfo.create({
         data: {
           date,
           numOfPeople,
@@ -699,9 +703,11 @@ const bookingChatSyncToDB = async (params: {
 
       // await redis.del(`bookingInfo:${key}`);
       await redis.hdel(`bookingInfo:${key}`, `${adPlaceId}`);
+      return createdBookingInfo;
     })();
+    return res;
   });
-  return true;
+  return result;
 };
 
 // export const pubSSEvent = (params: { from: string; to: string }): void => {
@@ -1328,23 +1334,30 @@ export const sendBookingMsg = asyncWrapper(
 
                 await putInBookingMsg(d);
 
+                const bookingInfo = await bookingChatSyncToDB({
+                  adPlaceId: d.adPlaceId,
+                  customerId: d.customerId, /// 고객
+                  companyId: d.companyId, /// 사업자
+                });
+
                 /// 동의했을 경우
                 if (
                   d.bookingActionInputParams?.agreeAnswer &&
                   d.bookingActionInputParams.agreeAnswer === 'TRUE'
                 ) {
-                  const bookingInfo = await redis.hget(
-                    `bookingInfo:${d.customerId}=>${d.companyId}`,
-                    `${d.adPlaceId}`,
-                  );
-                  if (isNil(bookingInfo)) {
-                    throw new IBError({
-                      type: 'INVALIDSTATUS',
-                      message: `bookingInfo 데이터가 유실되었습니다.`,
-                    });
-                  }
+                  // const bookingInfo = await redis.hget(
+                  //   `bookingInfo:${d.customerId}=>${d.companyId}`,
+                  //   `${d.adPlaceId}`,
+                  // );
+                  // if (isNil(bookingInfo)) {
+                  //   throw new IBError({
+                  //     type: 'INVALIDSTATUS',
+                  //     message: `bookingInfo 데이터가 유실되었습니다.`,
+                  //   });
+                  // }
 
-                  const [date, numOfPeople] = bookingInfo.split(',');
+                  // const [date, numOfPeople] = bookingInfo.split(',');
+                  const { date, numOfPeople } = bookingInfo;
 
                   const finalBookingCheckMsgData: BookingChatMessageType = {
                     adPlaceId: d.adPlaceId,
@@ -1361,8 +1374,8 @@ export const sendBookingMsg = asyncWrapper(
                     bookingActionInputParams: {
                       reqUserNickname: locals.user!.nickName,
                       reqUserContact: locals.user!.phone,
-                      date,
-                      numOfPeople,
+                      date: moment(date).toISOString(),
+                      numOfPeople: numOfPeople.toString(),
                     },
                   };
                   await putInBookingMsg(finalBookingCheckMsgData);
@@ -1384,6 +1397,8 @@ export const sendBookingMsg = asyncWrapper(
                           finalBookingCheckMsgData.customerId.toString(),
                         companyId:
                           finalBookingCheckMsgData.companyId.toString(),
+                        bookingInfoId: bookingInfo.id.toString(),
+                        bookingInfo,
                       },
                     },
                   };
@@ -1422,11 +1437,7 @@ export const sendBookingMsg = asyncWrapper(
                 await putInBookingMsg(systemGuideMsg);
                 await pubChatPush(systemGuideMsg);
               })();
-              await bookingChatSyncToDB({
-                adPlaceId: d.adPlaceId,
-                customerId: d.customerId, /// 고객
-                companyId: d.companyId, /// 사업자
-              });
+
               break;
 
             default:

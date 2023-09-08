@@ -1,4 +1,9 @@
-import { BookingChatActionType, AdPlace, TourPlace } from '@prisma/client';
+import {
+  BookingChatActionType,
+  AdPlace,
+  TourPlace,
+  BookingInfo,
+} from '@prisma/client';
 
 // export type BookingChatMessageActionType =
 //   | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
@@ -95,6 +100,7 @@ export interface ISysNotiAdditionalBookingChatInfo {
     title: string;
   };
   bookingInfoId?: string; /// 예약이 성사되었다면 bookingInfo id가 존재
+  bookingInfo?: Partial<BookingInfo>;
   subjectGroupId?: string; /// 예약이 성사된 이후로 bookingChatLog의 subjectGroupId 가 존재
 }
 

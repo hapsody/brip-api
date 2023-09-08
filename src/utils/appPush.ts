@@ -1,5 +1,5 @@
 import fbAdmin from '@src/firebase';
-import serialize from 'serialize-javascript';
+// import serialize from 'serialize-javascript';
 import prisma from '@src/prisma';
 import redis from '@src/redis';
 import {
@@ -256,7 +256,8 @@ export const sendAppPushToBookingCustomer = async (
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
-            serializedData: serialize(messageInfo),
+            // serializedData: serialize(messageInfo),
+            serializedData: JSON.stringify(messageInfo),
           },
           ...(bookingChatPushAlarm && {
             notification: {
@@ -329,7 +330,8 @@ export const sendAppPushToBookingCompany = async (
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
-            serializedData: serialize(messageInfo),
+            // serializedData: serialize(messageInfo),
+            serializedData: JSON.stringify(messageInfo),
           },
           ...(bookingChatPushAlarm && {
             notification: {
@@ -399,7 +401,8 @@ export const sendNotiMsgAppPush = async (
         const r = {
           data: {
             // serializedData: flatted.stringify(messageInfo),
-            serializedData: serialize(params),
+            // serializedData: serialize(params),
+            serializedData: JSON.stringify(params),
           },
           ...(sysNotiPushAlarm && {
             notification: {

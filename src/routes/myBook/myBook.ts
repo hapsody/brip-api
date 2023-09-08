@@ -338,30 +338,20 @@ export const changeBookingInfoStatus = asyncWrapper(
                 adPlaceId: bookingInfo.adPlaceId.toString(),
                 tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
                 bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
                 subjectGroupId: bookingInfo.subjectGroupId.toString(),
               },
             },
           };
           const compNotiMsg: SysNotiMessageType = {
+            ...cusNotiMsg,
             userId: bookingInfo.companyId!.toString(), // 사업주
             userRole: 'company',
-            createdAt: now,
-            type: 'BOOKINGCUSTOMERCANCEL',
             message: `${bookingInfo.customer!.nickName}님의 ${
               bookingInfo.adPlace.title
             }의 ${moment(bookingInfo.date).format(
               'MM월 DD일 HH시',
             )} 예약이 취소되었어요`,
-            additionalInfo: {
-              bookingChat: {
-                customerId: bookingInfo.customerId!.toString(),
-                companyId: bookingInfo.companyId!.toString(),
-                adPlaceId: bookingInfo.adPlaceId.toString(),
-                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
-                bookingInfoId: bookingInfo.id.toString(),
-                subjectGroupId: bookingInfo.subjectGroupId.toString(),
-              },
-            },
           };
           await putInSysNotiMessage(cusNotiMsg);
           await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
@@ -425,6 +415,7 @@ export const changeBookingInfoStatus = asyncWrapper(
                 adPlaceId: bookingInfo.adPlaceId.toString(),
                 tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
                 bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
                 subjectGroupId: bookingInfo.subjectGroupId.toString(),
               },
             },
@@ -451,6 +442,7 @@ export const changeBookingInfoStatus = asyncWrapper(
                 adPlaceId: bookingInfo.adPlaceId.toString(),
                 tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
                 bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
                 subjectGroupId: bookingInfo.subjectGroupId.toString(),
               },
             },
@@ -472,6 +464,7 @@ export const changeBookingInfoStatus = asyncWrapper(
                 adPlaceId: bookingInfo.adPlaceId.toString(),
                 tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
                 bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
                 subjectGroupId: bookingInfo.subjectGroupId.toString(),
               },
             },
