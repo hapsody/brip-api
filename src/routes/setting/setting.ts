@@ -103,7 +103,8 @@ export const reqTicket = asyncWrapper(
 
       await sendEmail({
         from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        to: `idealbloom@idealbloom.io`,
+        bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
         subject: 'BRiP System - User Question Notification',
         html: `<b>${createdTicket.user.email}</b> 에 의해 문의된 항목입니다. 
         <br><br>
@@ -252,7 +253,8 @@ export const reqBusinessTicket = asyncWrapper(
 
       await sendEmail({
         from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        to: `idealbloom@idealbloom.io`,
+        bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
         subject: 'BRiP System - Business Question Notification',
         html: `<b>${
           createdTicket.user.email
@@ -530,7 +532,8 @@ export const reqTripCreator = asyncWrapper(
 
         await sendEmail({
           from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-          to: `${user.email}, hapsody@gmail.com`,
+          to: `idealbloom@idealbloom.io`,
+          bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
           subject: 'BRiP System - Trip Creator Proposal Notification',
           html: `<b>${
             user.email

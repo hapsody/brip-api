@@ -1,10 +1,11 @@
 import nodemailer from 'nodemailer';
-import { isNil } from 'lodash';
+import { isNil, isEmpty } from 'lodash';
 import { IBError } from '@src/utils/IBDefinitions';
 
 const sendEmail = async (params: {
   from: string;
   to: string;
+  bcc?: string;
   subject: string;
   html: string;
 }): Promise<void> => {
@@ -12,6 +13,7 @@ const sendEmail = async (params: {
     const {
       // from,
       to,
+      bcc,
       subject,
       html,
     } = params;
@@ -42,6 +44,10 @@ const sendEmail = async (params: {
     await transporter.sendMail({
       from: 'Brip Admin <idealbloom@idealbloom.io>', // sender address
       to, // list of receivers
+      ...(!isNil(bcc) &&
+        !isEmpty(bcc) && {
+          bcc,
+        }),
       subject, // Subject line
       // text: '', // plain text body
       html, // html body
