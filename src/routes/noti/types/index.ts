@@ -99,7 +99,7 @@ export interface ISysNotiAdditionalBookingChatInfo {
     id: number;
     title: string;
   };
-  bookingInfoId?: string; /// 예약이 성사되었다면 bookingInfo id가 존재
+  // bookingInfoId?: string; /// 예약이 성사되었다면 bookingInfo id가 존재
   bookingInfo?: Partial<BookingInfo>;
   subjectGroupId?: string; /// 예약이 성사된 이후로 bookingChatLog의 subjectGroupId 가 존재
 }
