@@ -72,12 +72,21 @@ export const putInSysNotiMessage = async (
 
 export const takeOutSysNotiMessage = async (params: {
   userId: string;
-  startCursor: string;
+  startCursor?: string;
 }): Promise<{
   messages: SysNotiMessageType[];
   nextCursor: number;
 }> => {
-  const { userId, startCursor } = params;
+  const { userId } = params;
+  const cursorKey = `unreadSysNotiStartCursorIdx:${userId}`;
+  const startCursor = await (async () => {
+    const { startCursor: inputCursor } = params;
+    if (isNil(inputCursor) || isEmpty(inputCursor)) {
+      const storedStartCursor = await redis.get(cursorKey);
+      return storedStartCursor;
+    }
+    return inputCursor;
+  })();
 
   const key = `sysNoti:${userId}`;
   const rawSysNotiMsgs = await redis.lrange(key, Number(startCursor), -1);
@@ -85,9 +94,12 @@ export const takeOutSysNotiMessage = async (params: {
   const sysNotiMsgs = rawSysNotiMsgs.map(v => {
     return JSON.parse(v) as SysNotiMessageType;
   });
+
+  const nextCursor = Number(startCursor) + rawSysNotiMsgs.length;
+  await redis.set(cursorKey, nextCursor);
   return {
     messages: sysNotiMsgs,
-    nextCursor: Number(startCursor) + rawSysNotiMsgs.length,
+    nextCursor,
   };
 };
 
@@ -1380,7 +1392,6 @@ export const sendBookingMsg = asyncWrapper(
                   };
                   await putInBookingMsg(finalBookingCheckMsgData);
                   await pubChatPush(finalBookingCheckMsgData);
-
                   const cusNotiMsg: SysNotiMessageType = {
                     userId: finalBookingCheckMsgData.to, // 고객
                     createdAt: finalBookingCheckMsgData.createdAt,
@@ -2155,7 +2166,7 @@ export const getLastBookingMsgList = asyncWrapper(
 );
 
 export type GetSysNotiMessageRequestType = {
-  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
+  startCursor?: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
 };
 export type GetSysNotiMessageSuccessResType = {
   nextCursor: string;
@@ -2195,16 +2206,16 @@ export const getSysNotiMessage = asyncWrapper(
 
       const params = req.body;
       const { startCursor } = params;
-      if (
-        isNil(startCursor) ||
-        isEmpty(startCursor) ||
-        isNaN(Number(startCursor))
-      ) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'startCursor가 제공되어야 합니다.',
-        });
-      }
+      // if (
+      //   isNil(startCursor) ||
+      //   isEmpty(startCursor) ||
+      //   isNaN(Number(startCursor))
+      // ) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'startCursor가 제공되어야 합니다.',
+      //   });
+      // }
 
       const result = await takeOutSysNotiMessage({
         userId,
