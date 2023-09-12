@@ -3612,8 +3612,14 @@ export const makeSchedule = async (
                       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1]
                         .nearbyFoods,
                     )
-                  )
-                    return null;
+                  ) {
+                    /// 더이상 다음 클러스터링에서도 빌려올 식당이 없을 경우
+                    throw new IBError({
+                      type: 'NOTEXISTDATA',
+                      message: '더이상 채워넣을 식당이 존재하지 않습니다.',
+                    });
+                    // return null;
+                  }
 
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
@@ -3693,8 +3699,14 @@ export const makeSchedule = async (
                     isUndefined(
                       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
                     )
-                  )
-                    return null;
+                  ) {
+                    /// 더이상 다음 클러스터링에서도 빌려올 방문지가 없을 경우
+                    throw new IBError({
+                      type: 'NOTEXISTDATA',
+                      message: '더이상 채워넣을 방문지가 존재하지 않습니다.',
+                    });
+                  }
+
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.

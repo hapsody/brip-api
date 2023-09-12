@@ -262,6 +262,12 @@ export const reqScheduleWrapper = asyncWrapper(
               ) &&
               !err.message.includes(
                 '충분한 수의 식당 클러스터가 형성되지 못하였습니다.',
+              ) &&
+              !err.message.includes(
+                '더이상 채워넣을 식당이 존재하지 않습니다.',
+              ) &&
+              !err.message.includes(
+                '더이상 채워넣을 방문지가 존재하지 않습니다.',
               )
             ) {
               throw err;
