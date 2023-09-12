@@ -621,6 +621,7 @@ export interface ContextMakeSchedule extends IBContext {
   hotelTransition?: number; /// 여행일정중 숙소 변경횟수
   visitSchedules?: IVisitDaySchedule[];
   recommendedRegion?: string;
+  exclusiveRegion?: string[]; /// destination이 recommend일 경우 추천지역 후보지(getRecommendRegion의 randCandRegion 배열항목중) 중에 배제하고 싶은 리스트가 있다면 해당 파라미터로 보낸다. 클라이언트가 사용하는 파라미터는 아니고 서버 시스템 내부적으로 makeSchedule 반복 호출시에 사용
 }
 
 export interface MakeScheduleRETParamPayload {

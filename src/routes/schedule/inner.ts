@@ -796,7 +796,7 @@ export const getAllPlaceByGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GglPlaceResultRawData[]> => {
   let retry = 1;
-  const retryLimit = 5;
+  const retryLimit = 6;
 
   console.log(param);
 
@@ -2274,32 +2274,46 @@ export const scanKeywordToRegionalCode = (
   return undefined;
 };
 
-export const getRecommendRegion = (): string => {
-  const randCandRegion = [
-    /// regionCode1
-    '강원특별자치도',
-    '경기도',
-    '경상남도',
-    '경상북도',
-    '광주광역시',
-    '대구광역시',
-    '대전광역시',
-    '부산광역시',
-    '서울특별시',
-    '세종특별자치시',
-    '울산광역시',
-    '인천광역시',
-    '전라남도',
-    '전라북도',
-    '제주특별자치도',
-    '충청남도',
-    '충청북도',
-    /// regionCode1 + regionCode2
-    '강원특별자치도 양양군',
-    '전라남도 목포시',
-    '전라남도 여수시',
-    '경상남도 거제시',
-  ];
+export const getRecommendRegion = (exclusiveRegion?: string[]): string => {
+  const randCandRegion = (() => {
+    const candidateRegion = [
+      /// regionCode1
+      '강원특별자치도',
+      '경기도',
+      '경상남도',
+      '경상북도',
+      '광주광역시',
+      '대구광역시',
+      '대전광역시',
+      '부산광역시',
+      '서울특별시',
+      '세종특별자치시',
+      '울산광역시',
+      '인천광역시',
+      '전라남도',
+      '전라북도',
+      '제주특별자치도',
+      '충청남도',
+      '충청북도',
+      /// regionCode1 + regionCode2
+      '강원특별자치도 양양군',
+      '전라남도 목포시',
+      '전라남도 여수시',
+      '경상남도 거제시',
+    ];
+    if (!isNil(exclusiveRegion) && !isEmpty(exclusiveRegion)) {
+      /// 제외지역 배제
+      exclusiveRegion.forEach(exRegion => {
+        const idx = candidateRegion.findIndex(
+          candRegion => candRegion === exRegion,
+        );
+
+        candidateRegion.splice(idx, 1);
+      });
+    }
+
+    return candidateRegion;
+  })();
 
   const maxNum = randCandRegion.length;
   const randNum = Math.floor(maxNum * Math.random());
@@ -2433,7 +2447,7 @@ export const makeSchedule = async (
   const scanType: ScheduleScanType | null = (() => {
     if (destination === 'recommend') {
       /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
-      const recommendRegionKeyword = getRecommendRegion();
+      const recommendRegionKeyword = getRecommendRegion(ctx.exclusiveRegion);
       const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
       ctx.recommendedRegion = recommendRegionKeyword;
       return {
@@ -2536,7 +2550,7 @@ export const makeSchedule = async (
     if (isGeocodeType) return { type: 'geocode' };
 
     /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
-    const recommendRegionKeyword = getRecommendRegion();
+    const recommendRegionKeyword = getRecommendRegion(ctx.exclusiveRegion);
     const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
     ctx.recommendedRegion = recommendRegionKeyword;
     return {
