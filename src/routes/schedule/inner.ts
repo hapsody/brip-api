@@ -3509,7 +3509,7 @@ export const makeSchedule = async (
 
   trackRecord = moment().diff(stopWatch, 'ms').toString();
   console.log(
-    `[!!! determining visit order End !!!]: duration: ${trackRecord}ms`,
+    `[!!! 7. determining visit order End !!!]: duration: ${trackRecord}ms`,
   );
 
   console.log(`\n\n[8. visitSchedule 데이터 생성 (DB x)]`);
