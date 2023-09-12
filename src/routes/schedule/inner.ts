@@ -2431,6 +2431,17 @@ export const makeSchedule = async (
   /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
 
   const scanType: ScheduleScanType | null = (() => {
+    if (destination === 'recommend') {
+      /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
+      const recommendRegionKeyword = getRecommendRegion();
+      const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
+      ctx.recommendedRegion = recommendRegionKeyword;
+      return {
+        type: 'keyword',
+        regionalCodes: [regionalCode!],
+      };
+    }
+
     const isRegionCodeType =
       !isNil(scanRange) &&
       scanRange.every(range => {
@@ -2524,7 +2535,7 @@ export const makeSchedule = async (
 
     if (isGeocodeType) return { type: 'geocode' };
 
-    /// scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
+    /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
     const recommendRegionKeyword = getRecommendRegion();
     const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
     ctx.recommendedRegion = recommendRegionKeyword;
