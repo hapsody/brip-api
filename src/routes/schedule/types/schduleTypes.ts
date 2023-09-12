@@ -524,7 +524,7 @@ export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
  * makeSchedule (reqSchedule 변경스펙)
  */
 export interface MakeScheduleREQParam {
-  isNow: string;
+  ingNow: string;
   companion: string;
   familyOpt: string[];
   minFriend: string;

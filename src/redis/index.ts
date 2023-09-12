@@ -57,6 +57,7 @@ dotenv.config();
 
 export default redisClient;
 
+// dev-redis cli 명령과 데이터 포맷 예시
 // dev-redis:6379> scan 0
 // 1) "6"
 // 2)  1) "lastMsg:company:8"

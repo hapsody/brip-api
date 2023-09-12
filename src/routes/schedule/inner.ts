@@ -2319,7 +2319,7 @@ export const makeSchedule = async (
   ctx: ContextMakeSchedule,
 ): Promise<MakeScheduleRETParamPayload> => {
   const {
-    isNow,
+    ingNow,
     companion,
     familyOpt,
     minFriend,
@@ -3790,7 +3790,7 @@ export const makeSchedule = async (
     async tx => {
       const createdQueryParams = await tx.queryParams.create({
         data: {
-          ingNow: isNow,
+          ingNow,
           companion,
           familyOpt: familyOpt.toString(),
           minFriend: Number(minFriend),
