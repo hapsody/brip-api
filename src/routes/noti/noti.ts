@@ -1244,9 +1244,12 @@ export const sendBookingMsg = asyncWrapper(
                     message: '예약이 취소 되었어요',
                   };
 
-                  const result = await putInBookingMsg(systemGuideMsg);
+                  const { nextOrder } = await putInBookingMsg(systemGuideMsg);
                   await pubChatPush(systemGuideMsg);
-                  return result;
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
                 })();
                 await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
@@ -1312,14 +1315,17 @@ export const sendBookingMsg = asyncWrapper(
                     message: '예약이 취소 되었어요',
                   };
 
-                  const result = await putInBookingMsg(systemGuideMsg);
+                  const { nextOrder } = await putInBookingMsg(systemGuideMsg);
                   await pubChatPush(systemGuideMsg);
                   await bookingChatSyncToDB({
                     adPlaceId: d.adPlaceId,
                     customerId: d.from,
                     companyId: d.to,
                   });
-                  return result;
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
                 })();
                 break;
               case 'PRIVACYAGREE':
