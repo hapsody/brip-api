@@ -7,6 +7,7 @@ import {
   BookingChatActionType,
   AdPlace,
   BookingInfo,
+  BookingInfoStatus,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -560,8 +561,9 @@ const bookingChatSyncToDB = async (params: {
   // to: string; /// 사업자
   customerId: string;
   companyId: string;
+  actionType: BookingChatActionType;
 }): Promise<BookingInfo> => {
-  const { adPlaceId, customerId, companyId } = params;
+  const { adPlaceId, customerId, companyId, actionType } = params;
 
   if (
     isNil(adPlaceId) ||
@@ -572,7 +574,8 @@ const bookingChatSyncToDB = async (params: {
     isNaN(customerId) ||
     isNil(companyId) ||
     isEmpty(companyId) ||
-    isNaN(companyId)
+    isNaN(companyId) ||
+    isNil(actionType)
   ) {
     throw new IBError({
       type: 'INVALIDSTATUS',
@@ -706,6 +709,16 @@ const bookingChatSyncToDB = async (params: {
         data: {
           date,
           numOfPeople,
+          status: ((): BookingInfoStatus => {
+            switch (actionType) {
+              case 'ASKBOOKINGCANCEL':
+                return 'CUSTOMERPRECANCEL';
+              case 'ANSBOOKINGAVAILABLEREJECT':
+                return 'COMPANYPRECANCEL';
+              default:
+                return 'RESERVED';
+            }
+          })(),
           subjectGroupId: nextSubjectGroupId,
           customerId: Number(customerId),
           companyId: Number(companyId),
@@ -1194,7 +1207,32 @@ export const sendBookingMsg = asyncWrapper(
 
                 break;
               case 'ANSBOOKINGAVAILABLE':
-                nextCursorNOrder = await (() => {
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                    });
+                  }
+
+                  const { answer } = bookingActionInputParams;
+
+                  if (isNil(answer) || isEmpty(answer)) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 actionInputParams의 answer 파라미터는 필수입니다.`,
+                    });
+                  }
+
+                  const result = await putInBookingMsg(d);
+                  return result;
+                })();
+                break;
+              case 'ANSBOOKINGAVAILABLEREJECT':
+                nextCursorNOrder = await (async () => {
                   if (
                     isNil(bookingActionInputParams) ||
                     isEmpty(bookingActionInputParams)
@@ -1224,9 +1262,18 @@ export const sendBookingMsg = asyncWrapper(
                     });
                   }
 
-                  const result = putInBookingMsg(d);
-                  return result;
+                  const { nextOrder } = await putInBookingMsg(d);
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
                 })();
+                await bookingChatSyncToDB({
+                  adPlaceId: d.adPlaceId,
+                  customerId: d.to,
+                  companyId: d.from,
+                  actionType: 'ANSBOOKINGAVAILABLEREJECT',
+                });
                 break;
               case 'ASKBOOKINGCANCEL':
                 nextCursorNOrder = await (async () => {
@@ -1255,6 +1302,7 @@ export const sendBookingMsg = asyncWrapper(
                   adPlaceId: d.adPlaceId,
                   customerId: d.from,
                   companyId: d.to,
+                  actionType: 'ASKBOOKINGCANCEL',
                 });
                 break;
               case 'CONFIRMBOOKING':
@@ -1321,6 +1369,7 @@ export const sendBookingMsg = asyncWrapper(
                     adPlaceId: d.adPlaceId,
                     customerId: d.from,
                     companyId: d.to,
+                    actionType: 'CONFIRMBOOKING',
                   });
                   return {
                     nextCursor: 0,
@@ -1482,6 +1531,7 @@ export const sendBookingMsg = asyncWrapper(
                   adPlaceId: d.adPlaceId,
                   customerId: d.customerId, /// 고객
                   companyId: d.companyId, /// 사업자
+                  actionType: 'PRIVACYAGREE',
                 });
 
                 break;

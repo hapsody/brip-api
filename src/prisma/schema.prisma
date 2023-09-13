@@ -1186,7 +1186,8 @@ enum BookingChatActionType {
   NEWBOOKINGMSG /// ex) 예약하기
   ANSNEWBOOKINGMSG /// ex) '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!)
   ASKBOOKINGAVAILABLE /// 예약문의 고객 => 사업자 ex) 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
-  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객  ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
+  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객  ex) 예약이 가능해요. 예약을 확정하시겠어요?
+  ANSBOOKINGAVAILABLEREJECT /// 예약문의 사업자 거절 사업자 => 고객  ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
   ASKBOOKINGCANCEL ///  예약 문의 취소 ex) 예약 취소
   ASKBOOKINGCANCELCHK /// 예약문의 취소 system 확인 메시지 ex) 예약이 취소 되었어요.
   CONFIRMBOOKING /// 예약확정 고객 => 사업자, ex) 네 확정할게요
@@ -1251,6 +1252,8 @@ model BookingChatActionInputParam {
 
 enum BookingInfoStatus {
   RESERVED /// 예약완료
+  CUSTOMERPRECANCEL /// 예약문의 프로세스중 유저취소 (예약확정하지 않고 취소할경우 ASKBOOKINGCANCEL)
+  COMPANYPRECANCEL /// 예약문의 프로세스중 사업주 취소 (사업주 거절사유 ANSBOOKINGAVAILABLEREJECT )
   CUSTOMERCANCEL /// 예약완료후 유저 취소
   COMPANYCANCEL /// 예약완료후 사업주 취소
   NOSHOW /// 유저 예약완료 후 노쇼
