@@ -3826,6 +3826,11 @@ export const makeSchedule = async (
           adult: Number(adultsNumber),
           travelHard: Number(travelHard),
           destination,
+          ...(destination === 'recommend' &&
+            !isNil(ctx.recommendedRegion) && {
+              recommendedRegion: ctx.recommendedRegion,
+            }),
+
           // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
           // tourPlace: {
           //   connect: [

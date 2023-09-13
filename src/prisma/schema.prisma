@@ -393,10 +393,11 @@ model QueryParams {
   minFriend Int? ///  친구 동반자 최소인원 ex) "5"
   maxFriend Int? /// 친구 동반자 최대 인원 ex) "7"
 
-  period      Int? /// 여행기간 ex) '3'
-  travelType  String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
-  destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
-  travelHard  Int? /// 여행강도 ex) "5"
+  period            Int? /// 여행기간 ex) '3'
+  travelType        String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
+  destination       String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
+  recommendedRegion String? /// destination에서 유저가 추천지역을 요구하는 경우 추천된 지역을 기록
+  travelHard        Int? /// 여행강도 ex) "5"
 
   tourPlace        TourPlace[] /// 일쩡에 대응하는 주변 관광지와 식당 후보지 검색 결과 검색 결과
   hotel            Hotel[] /// 일정에 대응되어 검색된 호텔 
