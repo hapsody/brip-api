@@ -14,7 +14,14 @@ import {
 import _, { isEmpty, isEqual, isNil } from 'lodash';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { User, TripCreator, AdPlace, TourPlace } from '@prisma/client';
+import {
+  User,
+  TripCreator,
+  AdPlace,
+  TourPlace,
+  ServerVersion,
+  ClientVersion,
+} from '@prisma/client';
 import axios, { Method } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
@@ -1908,6 +1915,290 @@ export const userNickDupCheck = asyncWrapper(
   },
 );
 
+export type UserEmailDupCheckRequestType = {
+  email: string;
+};
+export type UserEmailDupCheckSuccessResType = {
+  isDup: boolean; /// true이면 중복, false이면 미중복
+};
+export type UserEmailDupCheckResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: UserEmailDupCheckSuccessResType | {};
+};
+
+/**
+ * 회원 email이 존재하는지 중복 체크를 요청하는 api
+ * code(1000) Success이면 중복되지 않음
+ */
+export const userEmailDupCheck = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<UserEmailDupCheckRequestType>,
+    res: Express.IBTypedResponse<UserEmailDupCheckResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member') {
+          return locals?.user?.userTokenId;
+        }
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { email } = req.body;
+      if (isNil(email) || isEmpty(email)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'email 파라미터는 반드시 제공되어야 합니다.',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: {
+          email,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          isDup: !isNil(user),
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export type GetServerNClientVersionRequestType = {};
+export type GetServerNClientVersionSuccessResType = ServerVersion & {
+  pairClientVersion: ClientVersion | null;
+};
+export type GetServerNClientVersionResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetServerNClientVersionSuccessResType | {};
+};
+
+/**
+ * 서버와 클라이언트 버전 확인 요청
+ * 서버버전중 isUsing이 true인 것을 찾기 때문에 하나의 버전만 반환된다.(ServerVersion의 isUsing은 전체중 하나만 true인것을 유지해야한다.)
+ */
+export const getServerNClientVersion = asyncWrapper(
+  async (
+    req: Express.IBTypedReqQuery<GetServerNClientVersionRequestType>,
+    res: Express.IBTypedResponse<GetServerNClientVersionResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member') {
+          return locals?.user?.userTokenId;
+        }
+
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const usingVersion = await prisma.serverVersion.findFirst({
+        where: {
+          isUsing: true,
+        },
+        include: {
+          pairClientVersion: true,
+        },
+      });
+
+      if (isNil(usingVersion)) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: 'using Version이 하나도 존재하지 않는 상태입니다.',
+        });
+      }
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: usingVersion,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+export type AddServerVersionRequestType = {
+  // type: string;
+  versionName: string;
+  clientVersionNames?: string[];
+};
+export type AddServerVersionSuccessResType = ServerVersion & {
+  pairClientVersion: ClientVersion | null;
+};
+export type AddServerVersionResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AddServerVersionSuccessResType | {};
+};
+
+/**
+ * 서버와 클라이언트 버전 추가 (어드민용)
+ */
+export const addServerVersion = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AddServerVersionRequestType>,
+    res: Express.IBTypedResponse<AddServerVersionResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (!isNil(locals) && locals.grade === 'member' && locals.user?.admin)
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'admin member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const params = req.body;
+      const { versionName, clientVersionNames } = params;
+
+      if (
+        // isNil(type) ||
+        // isEmpty(type) ||
+        isNil(versionName) ||
+        isEmpty(versionName)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'versionName은 필수 파라미터입니다.',
+        });
+      }
+
+      const usingVersion = await prisma.serverVersion.create({
+        data: {
+          isUsing: false,
+          versionName,
+          ...(!isNil(clientVersionNames) &&
+            !isEmpty(clientVersionNames) && {
+              pairClientVersion: {
+                connectOrCreate: clientVersionNames.map(v => {
+                  return {
+                    where: {
+                      versionName: v,
+                    },
+                    create: {
+                      versionName: v,
+                    },
+                  };
+                }),
+              },
+            }),
+        },
+        include: {
+          pairClientVersion: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: usingVersion,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -1960,5 +2251,12 @@ authRouter.post(
   deleteAppPushToken,
 );
 authRouter.post('/userNickDupCheck', accessTokenValidCheck, userNickDupCheck);
+authRouter.post('/userEmailDupCheck', accessTokenValidCheck, userEmailDupCheck);
+authRouter.get(
+  '/getServerNClientVersion',
+  accessTokenValidCheck,
+  getServerNClientVersion,
+);
+authRouter.post('/addServerVersion', accessTokenValidCheck, addServerVersion);
 
 export default authRouter;

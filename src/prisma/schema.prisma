@@ -1306,3 +1306,28 @@ model UserFCMToken {
   userId               Int?
   userTokenId          String /// 비회원일 경우에는 user는 null이고 userTokenId값만 가질것이다.
 }
+
+// enum VersionType {
+//   SERVER
+//   MOBILEAPP
+// }
+
+/// 서버 버전 리스트
+model ServerVersion {
+  id                Int             @id @default(autoincrement())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
+  versionName       String          @unique /// SP0.2.2, CD-i1.0.21에서 SP, CD등의 접두어(CD:Client dev, SD: Server dev, CP:Client Production, SP:Server Production)
+  pairClientVersion ClientVersion[]
+  isUsing           Boolean         @default(false) /// 현재 사용중인 버전인가. 롤백을 하는경우가 있다면 가장 큰 id가 항상 사용중이진 않을것이다
+}
+
+/// 서버 버전 리스트
+model ClientVersion {
+  id                  Int            @id @default(autoincrement())
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+  versionName         String         @unique /// SP0.2.2, CD-i1.0.21에서 SP, CD등의 접두어(CD:Client dev, SD: Server dev, CP:Client Production, SP:Server Production)
+  pairServerVersion   ServerVersion? @relation(fields: [pairServerVersionId], references: [id])
+  pairServerVersionId Int?
+}
