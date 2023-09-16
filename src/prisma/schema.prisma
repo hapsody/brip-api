@@ -984,37 +984,56 @@ enum AdPlaceDraftStatus {
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
 model AdPlace {
-  id                Int                @id @default(autoincrement())
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
-  status            AdPlaceStatus      @default(STOP)
-  subscribe         Boolean            @default(false) /// 구독상태인지 아닌지
-  title             String /// 상호명
+  id                     Int                      @id @default(autoincrement())
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
+  status                 AdPlaceStatus            @default(STOP)
+  subscribe              Boolean                  @default(false) /// 구독상태인지 아닌지
+  title                  String /// 상호명
   // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  mainPhoto         IBPhotos           @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
-  mainPhotoId       Int                @unique
-  photos            IBPhotos[]         @relation("subPhoto") ///  기타 매장 사진 
+  mainPhoto              IBPhotos                 @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId            Int                      @unique
+  photos                 IBPhotos[]               @relation("subPhoto") ///  기타 매장 사진 
   // category          AdPlaceCategory[]
-  category          IBTravelTag[]
-  desc              String? /// 소개글
-  address           String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
-  roadAddress       String? /// 도로명주소
-  detailAddress     String? /// 있는 경우 상세주소 nullable
-  openWeek          String?            @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
-  closedDay         String?            @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
-  contact           String? /// 대표번호
-  siteUrl           String?            @db.Text /// 홈페이지 또는 소셜 계정
-  businessNumber    String?            @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
-  businessRegImgKey String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
-  nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
-  tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
-  mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId            Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
-  BookingChatLog    BookingChatLog[] /// 문의 메시지들
-  BookingInfo       BookingInfo[]
-  adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
-  AdPlaceDraft      AdPlaceDraft?
+  category               IBTravelTag[]
+  desc                   String? /// 소개글
+  address                String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
+  roadAddress            String? /// 도로명주소
+  detailAddress          String? /// 있는 경우 상세주소 nullable
+  openWeek               String?                  @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay              String?                  @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  contact                String? /// 대표번호
+  siteUrl                String?                  @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber         String?                  @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  businessRegImgKey      String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
+  nationalCode           String                   @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  tourPlace              TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
+  mainTourPlaceId        Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
+  user                   User?                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId                 Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
+  BookingChatLog         BookingChatLog[] /// 문의 메시지들
+  BookingInfo            BookingInfo[]
+  adPlaceStatistics      AdPlaceStatistics? /// 통계들..(년,월,일)
+  AdPlaceDraft           AdPlaceDraft?
+  googleInAppPurchaseLog GoogleInAppPurchaseLog[]
+}
+
+/// 구글 subscribe 결제 내역
+model GoogleInAppPurchaseLog {
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+  orderId       String   @unique /// ex) google: GPA.3362-9672-9861-44566,
+  packageName   String /// ex) google: com.io.idealbloom.brip,
+  productId     String ///  ex) google: brip_business_subscribe
+  purchaseTime  String /// ex) google: 1694760310759
+  purchaseState Int /// ex) 0
+  purchaseToken String   @unique @db.VarChar(255) /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+  quantity      Int /// ex) 1
+  autoRenewing  Boolean /// ex) true
+  acknowledged  Boolean /// ex) false
+  adPlace       AdPlace  @relation(fields: [adPlaceId], references: [id])
+  adPlaceId     Int
 }
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.

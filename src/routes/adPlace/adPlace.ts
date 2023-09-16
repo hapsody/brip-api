@@ -11,6 +11,7 @@ import {
   AdPlaceDraftStatus,
   DataStageStatus,
   AdPlaceDraft,
+  GoogleInAppPurchaseLog,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -1012,6 +1013,167 @@ export const approveAdPlaceDraft = asyncWrapper(
   },
 );
 
+type GoogleInAppPurchaseReceipt = {
+  orderId: string; /// ex) google: GPA.3362-9672-9861-44566,
+  packageName: string; /// ex) google: com.io.idealbloom.brip,
+  productId: string; ///  ex) google: brip_business_subscribe
+  purchaseTime: string; /// ex) google: 1694760310759
+  purchaseState: string; /// ex) 0
+  purchaseToken: string; /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+  quantity: string; /// ex) 1
+  autoRenewing: string; /// ex) true
+  acknowledged: string; /// ex) false
+};
+export type SubscribeAdPlaceRequestType = {
+  adPlaceId: string;
+  receipt: GoogleInAppPurchaseReceipt;
+};
+export type SubscribeAdPlaceSuccessResType = GoogleInAppPurchaseLog & {
+  adPlace: AdPlace;
+};
+export type SubscribeAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: SubscribeAdPlaceSuccessResType | {};
+};
+
+/**
+ * 구글 또는 애플 인앱 결제후 결제내역 저장과 함께 adPlce 구독 요청 api
+ */
+export const subscribeAdPlace = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubscribeAdPlaceRequestType>,
+    res: Express.IBTypedResponse<SubscribeAdPlaceResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { userTokenId, userId } = (() => {
+        if (locals && locals?.grade === 'member') {
+          return {
+            userTokenId: locals?.user?.userTokenId,
+            userId: locals?.user?.id,
+          };
+          // return locals?.tokenId;
+        }
+
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { adPlaceId, receipt } = req.body;
+      if (
+        isNil(adPlaceId) ||
+        isEmpty(adPlaceId) ||
+        isNaN(Number(adPlaceId)) ||
+        isNil(receipt) ||
+        isEmpty(receipt)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'adPlaceId와(number 형태 string) receipt 파라미터는 필수 파라미터입니다.',
+        });
+      }
+
+      const {
+        orderId,
+        packageName,
+        productId,
+        purchaseState,
+        purchaseTime,
+        purchaseToken,
+        quantity,
+        autoRenewing,
+        acknowledged,
+      } = receipt;
+
+      const adPlace = await prisma.adPlace.findUnique({
+        where: {
+          id: Number(adPlaceId),
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+      if (adPlace?.userId !== userId) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message:
+            'adPlace 소유주 권한이 아니므로 subscribe 신청을 할수 없는 adPlaceId입니다.',
+        });
+      }
+
+      const purchaseLog = await prisma.googleInAppPurchaseLog.create({
+        data: {
+          orderId,
+          packageName,
+          productId,
+          purchaseTime,
+          purchaseState: Number(purchaseState),
+          purchaseToken,
+          quantity: Number(quantity),
+          autoRenewing: autoRenewing === 'true',
+          acknowledged: acknowledged === 'true',
+          adPlace: {
+            connect: {
+              id: Number(adPlaceId),
+            },
+          },
+        },
+        include: {
+          adPlace: true,
+        },
+      });
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: purchaseLog,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
 // adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
 adPlaceRouter.get(
@@ -1028,5 +1190,10 @@ adPlaceRouter.get(
   '/getAdPlaceStatistics',
   accessTokenValidCheck,
   getAdPlaceStatistics,
+);
+adPlaceRouter.post(
+  '/subscribeAdPlace',
+  accessTokenValidCheck,
+  subscribeAdPlace,
 );
 export default adPlaceRouter;
