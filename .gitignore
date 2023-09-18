@@ -8,3 +8,4 @@ category_result.txt
 *.pem
 mongodb/*
 src/firebase/key/*
+brip-*.json

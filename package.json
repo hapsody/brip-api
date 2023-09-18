@@ -86,6 +86,7 @@
     "@aws-sdk/client-sts": "^3.338.0",
     "@aws-sdk/s3-request-presigner": "^3.258.0",
     "@aws-sdk/types": "^3.257.0",
+    "@googleapis/androidpublisher": "^8.4.0",
     "@prisma/client": "^4.16.2",
     "@turf/turf": "^6.5.0",
     "@types/async": "^3.2.15",

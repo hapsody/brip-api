@@ -85,6 +85,7 @@ export interface IBResFormats {
   UNEXPECTED: IBResFormat; // 500
   INVALIDENVPARAMS: IBResFormat; // 500
   EXTERNALAPI: IBResFormat; // 500
+  NOTFOUNDRESOURCE: IBResFormat; /// 404, 정적 리소스 등(파일)을 찾을수 없습니다.
 }
 
 export const ibDefs: IBResFormats = {
@@ -200,6 +201,12 @@ export const ibDefs: IBResFormats = {
   EXTERNALAPI: {
     IBcode: '6000',
     IBmessage: '외부 API와 관련한 문제가 발생했습니다.',
+    IBdetail: '',
+    IBparams: {},
+  },
+  NOTFOUNDRESOURCE: {
+    IBcode: '7000',
+    IBmessage: '서버 리소스를 찾을수 없습니다.',
     IBdetail: '',
     IBparams: {},
   },

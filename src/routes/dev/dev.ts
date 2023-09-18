@@ -19,7 +19,7 @@ import {
   // doSubTreeTraversal,
   // doSuperTreeTraversal,
   // getPartialMatchedPathTags,
-  getMatchedAllPathTags,
+  validateSubscriptionReceipt,
   getValidUrl,
 } from '@src/utils';
 
@@ -251,6 +251,9 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
   },
 );
 
+/**
+ * https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.io.idealbloom.brip/purchases/subscriptions/brip_business_subscribe/tokens/eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+ */
 export interface PrismaTestRequestType {
   // tagId: string;
   pathArr: string[];
@@ -267,17 +270,10 @@ export const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<PrismaTestResType>,
   ) => {
     try {
-      const param = req.body;
-      const {
-        // tagId
-        pathArr,
-      } = param;
-
-      // const result = await doSubTreeTraversal(Number(tagId));
-      // const result = await doAllTagTreeTraversal(Number(tagId), 'up');
-      // const result = await doSuperTreeTraversal(Number(tagId));
-      // const result = await getPartialMatchedPathTags({ pathArr });
-      const result = await getMatchedAllPathTags({ pathArr });
+      const result = await validateSubscriptionReceipt({
+        purchaseToken:
+          'eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0',
+      });
 
       res.json({
         ...ibDefs.SUCCESS,
@@ -298,6 +294,15 @@ export const prismaTest = asyncWrapper(
           console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });
