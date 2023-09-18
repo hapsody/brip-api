@@ -9,3 +9,4 @@ category_result.txt
 mongodb/*
 src/firebase/key/*
 brip-*.json
+keys/*

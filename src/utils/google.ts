@@ -40,7 +40,9 @@ export const validateSubscriptionReceipt = async (params: {
   /// google 구독결제 검증
   const keyFilePath = path.join(
     // __dirname,
-    './brip-399109-358bd070fe4e.json',
+    process.env.BRIP_JSON_KEY_PATH as string,
+    process.env
+      .GOOGLE_BRIP_SUBSCRIPTION_CHECKER_SERVICE_ACCOUNT_KEY_FILENAME as string,
   );
 
   if (!fs.existsSync(keyFilePath)) {
