@@ -28,6 +28,7 @@ import {
   IBContext,
   // getIBPhotoUrl,
   getImgUrlListFromIBPhotos,
+  validateSubscriptionReceipt,
 } from '@src/utils';
 import moment from 'moment';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
@@ -1099,6 +1100,7 @@ export const subscribeAdPlace = asyncWrapper(
         },
         select: {
           userId: true,
+          status: true,
         },
       });
 
@@ -1110,27 +1112,77 @@ export const subscribeAdPlace = asyncWrapper(
         });
       }
 
-      const purchaseLog = await prisma.googleInAppPurchaseLog.create({
-        data: {
-          orderId,
-          packageName,
-          productId,
-          purchaseTime,
-          purchaseState: Number(purchaseState),
-          purchaseToken,
-          quantity: Number(quantity),
-          autoRenewing: autoRenewing === 'true',
-          acknowledged: acknowledged === 'true',
-          adPlace: {
-            connect: {
+      if (adPlace?.status !== ('IN_USE' as AdPlaceStatus)) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message:
+            'adPlace 상태가 사용가능한 상태가 아니여서 subscribe 신청을 할수 없는 adPlaceId입니다.',
+        });
+      }
+
+      const validationResult = await validateSubscriptionReceipt({
+        purchaseToken,
+      });
+
+      if (
+        moment().diff(moment(Number(validationResult.expiryTimeMillis))) >= 0
+      ) {
+        /// expired
+        throw new IBError({
+          type: 'EXPIREDDATA',
+          message: '만료기일이 지난 purchaseToken입니다.',
+        });
+      }
+
+      const purchaseLog = await prisma.$transaction(
+        async (
+          tx,
+        ): Promise<
+          GoogleInAppPurchaseLog & {
+            adPlace: AdPlace | null;
+          }
+        > => {
+          const log = await tx.googleInAppPurchaseLog.create({
+            data: {
+              startTime: Math.ceil(
+                Number(validationResult.startTimeMillis) / 1000,
+              ),
+              expiryTime: Math.ceil(
+                Number(validationResult.expiryTimeMillis) / 1000,
+              ),
+              orderId,
+              packageName,
+              productId,
+              purchaseTime,
+              purchaseState: Number(purchaseState),
+              purchaseToken,
+              quantity: Number(quantity),
+              autoRenewing: autoRenewing === 'true',
+              acknowledged: acknowledged === 'true',
+              adPlace: {
+                connect: {
+                  id: Number(adPlaceId),
+                },
+              },
+            },
+          });
+
+          const adP = await tx.adPlace.update({
+            where: {
               id: Number(adPlaceId),
             },
-          },
+            data: {
+              subscribe: true,
+            },
+          });
+
+          const result = {
+            ...log,
+            adPlace: adP,
+          };
+          return result;
         },
-        include: {
-          adPlace: true,
-        },
-      });
+      );
 
       res.json({
         ...ibDefs.SUCCESS,

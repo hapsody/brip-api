@@ -1023,6 +1023,8 @@ model GoogleInAppPurchaseLog {
   id            Int      @id @default(autoincrement())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
+  startTime     Int /// ecochTime / 1000 => 단위 초
+  expiryTime    Int /// ecochTime / 1000 => 단위 초
   orderId       String   @unique /// ex) google: GPA.3362-9672-9861-44566,
   packageName   String /// ex) google: com.io.idealbloom.brip,
   productId     String ///  ex) google: brip_business_subscribe

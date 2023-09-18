@@ -74,6 +74,8 @@ export const validateSubscriptionReceipt = async (params: {
     token: purchaseToken, /// purchaseToken
   });
 
+  // console.log(result.data);
+
   if (result.status !== 200) {
     throw new IBError({
       type: 'EXTERNALAPI',

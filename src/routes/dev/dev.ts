@@ -255,8 +255,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
  * https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.io.idealbloom.brip/purchases/subscriptions/brip_business_subscribe/tokens/eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
  */
 export interface PrismaTestRequestType {
-  // tagId: string;
-  pathArr: string[];
+  token: string;
 }
 export interface PrismaTestSuccessResType {}
 
@@ -270,9 +269,11 @@ export const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<PrismaTestResType>,
   ) => {
     try {
+      const { token } = req.body;
       const result = await validateSubscriptionReceipt({
-        purchaseToken:
-          'eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0',
+        // purchaseToken:
+        //   'eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0',
+        purchaseToken: token,
       });
 
       res.json({
