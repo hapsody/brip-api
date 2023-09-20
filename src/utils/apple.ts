@@ -18,7 +18,7 @@ import * as path from 'path';
 /**
  * 애플 구독 결제 조회 api
  */
-export const retrieveSubscriptionReceipt = async (
+export const retrieveLastSubscriptionReceipt = async (
   originalTransactionId: string,
 ): Promise<{
   transactionInfo: JWSTransactionDecodedPayload;

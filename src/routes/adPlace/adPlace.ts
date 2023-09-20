@@ -41,7 +41,7 @@ import {
   // getIBPhotoUrl,
   getImgUrlListFromIBPhotos,
   validateSubscriptionReceipt,
-  retrieveSubscriptionReceipt,
+  retrieveLastSubscriptionReceipt,
 } from '@src/utils';
 import moment from 'moment';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
@@ -1481,16 +1481,17 @@ export const appleSubscribeAdPlace = asyncWrapper(
         },
       });
 
-      if (!isNil(alreadyExistLog)) {
-        throw new IBError({
-          type: 'DUPLICATEDDATA',
-          message: '이미 존재하는 originalTransactionId 입니다.',
-        });
-      }
-
-      const { transactionInfo } = await retrieveSubscriptionReceipt(
+      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
         originalTransactionIdentifierIOS,
       );
+
+      if (transactionInfo.transactionId !== transactionId) {
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message:
+            'apple 서버에 해당 originalTranssactionId와 transactionId로 결제 내역이 조회되지 않습니다.',
+        });
+      }
 
       const purchaseLog = await prisma.$transaction(
         async (
@@ -1500,50 +1501,59 @@ export const appleSubscribeAdPlace = asyncWrapper(
             adPlace: AdPlace;
           }
         > => {
-          const log = await tx.appleInAppPurchaseLog.create({
-            data: {
-              originalTransactionDate: Math.ceil(
-                Number(originalTransactionDateIOS) / 1000,
-              ),
-              originalTransactionId: originalTransactionIdentifierIOS,
-              productId,
-              transactionDate: Math.ceil(Number(transactionDate) / 1000),
-              transactionId,
-              expiresDate: Math.ceil(
-                Number(transactionInfo.expiresDate) / 1000,
-              ),
-              adPlace: {
-                connect: {
-                  id: Number(adPlaceId),
+          const log = await (async () => {
+            if (!isNil(alreadyExistLog)) {
+              return alreadyExistLog;
+            }
+
+            const createdLog = await tx.appleInAppPurchaseLog.create({
+              data: {
+                originalTransactionDate: Math.ceil(
+                  Number(originalTransactionDateIOS) / 1000,
+                ),
+                originalTransactionId: originalTransactionIdentifierIOS,
+                productId,
+                transactionDate: Math.ceil(Number(transactionDate) / 1000),
+                transactionId,
+                expiresDate: Math.ceil(
+                  Number(transactionInfo.expiresDate) / 1000,
+                ),
+                adPlace: {
+                  connect: {
+                    id: Number(adPlaceId),
+                  },
                 },
               },
-            },
-          });
-
-          const appleHookLog =
-            await tx.appleInAppPurchaseAutoHookLog.findUnique({
-              where: {
-                TItransactionId: transactionInfo.transactionId,
-              },
-              select: {
-                appleInAppPurchaseLogId: true,
-              },
             });
 
-          /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
-          if (
-            !isNil(appleHookLog) &&
-            isNil(appleHookLog.appleInAppPurchaseLogId)
-          ) {
-            await tx.appleInAppPurchaseAutoHookLog.update({
-              where: {
-                TItransactionId: transactionInfo.transactionId,
-              },
-              data: {
-                appleInAppPurchaseLogId: log.id,
-              },
-            });
-          }
+            /// 이하 hookLog와 appleInAppPurchaseLog 연결과정
+            const appleHookLog =
+              await tx.appleInAppPurchaseAutoHookLog.findUnique({
+                where: {
+                  TItransactionId: transactionInfo.transactionId,
+                },
+                select: {
+                  appleInAppPurchaseLogId: true,
+                },
+              });
+
+            /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
+            if (
+              !isNil(appleHookLog) &&
+              isNil(appleHookLog.appleInAppPurchaseLogId)
+            ) {
+              await tx.appleInAppPurchaseAutoHookLog.update({
+                where: {
+                  TItransactionId: transactionInfo.transactionId,
+                },
+                data: {
+                  appleInAppPurchaseLogId: createdLog.id,
+                },
+              });
+            }
+
+            return createdLog;
+          })();
 
           const adP = await tx.adPlace.update({
             where: {

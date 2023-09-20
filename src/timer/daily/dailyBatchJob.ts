@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 // import registTPFromAdPlace from '../scripts/registTPFromAdPlace/registTPFromAdPlace';
 import {
   validateSubscriptionReceipt,
-  retrieveSubscriptionReceipt,
+  retrieveLastSubscriptionReceipt,
 } from '@src/utils';
 import moment from 'moment';
 
@@ -65,7 +65,7 @@ async function batchJob(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax
   for await (const v of appleExpiredSubscriptions) {
     console.log(`apple originalTransactionId: ${v.originalTransactionId}`);
-    const validationResult = await retrieveSubscriptionReceipt(
+    const validationResult = await retrieveLastSubscriptionReceipt(
       v.originalTransactionId,
     );
 
