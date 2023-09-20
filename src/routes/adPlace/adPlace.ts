@@ -110,65 +110,79 @@ export const appleSubscriptionHook = asyncWrapper(
       },
     });
 
-    await prisma.appleInAppPurchaseAutoHookLog.create({
-      data: {
-        TIappAccountToken: transactionInfo.appAccountToken,
-        TIbundleId: transactionInfo.bundleId,
-        TIenvironment: transactionInfo.environment,
-        TIexpiresDate: !isNil(transactionInfo.expiresDate)
-          ? Math.ceil(transactionInfo.expiresDate / 1000)
-          : undefined,
-        TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
-        TIisUpgraded: transactionInfo.isUpgraded,
-        TIofferIdentifier: transactionInfo.offerIdentifier,
-        TIofferType: transactionInfo.offerType,
-        TIoriginalPurchaseDate: Math.ceil(
-          transactionInfo.originalPurchaseDate / 1000,
-        ),
-        TIoriginalTransactionId: transactionInfo.originalTransactionId,
-        TIproductId: transactionInfo.productId,
-        TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
-        TIquantity: transactionInfo.quantity,
-        TIrevocationDate: !isNil(transactionInfo.revocationDate)
-          ? Math.ceil(transactionInfo.revocationDate / 1000)
-          : undefined,
-        TIrevocationReason: transactionInfo.revocationReason,
-        TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
-        TIstorefront: transactionInfo.storefront,
-        TIstorefrontId: transactionInfo.storefrontId,
-        TIsubscriptionGroupIdentifier:
-          transactionInfo.subscriptionGroupIdentifier,
-        TItransactionId: transactionInfo.transactionId,
-        TItransactionReason: transactionInfo.transactionReason,
-        TItype: transactionInfo.type,
-        TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
-
-        RIautoRenewProductId: renewalInfo.autoRenewProductId,
-        RIautoRenewStatus: renewalInfo.autoRenewStatus,
-        RIenvironment: renewalInfo.environment,
-        RIexpirationIntent: renewalInfo.expirationIntent,
-        RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
-          ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
-          : undefined,
-        RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
-        RIofferIdentifier: renewalInfo.offerIdentifier,
-        RIofferType: renewalInfo.offerType,
-        RIoriginalTransactionId: renewalInfo.originalTransactionId,
-        RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
-        RIproductId: renewalInfo.productId,
-        RIrecentSubscriptionStartDate: Math.ceil(
-          renewalInfo.recentSubscriptionStartDate / 1000,
-        ),
-        RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
-        RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
-        ...(!isNil(parentPurchaseLog) && {
-          appleInAppPurchaseLog: {
-            connect: {
-              id: parentPurchaseLog.id,
-            },
+    await prisma.$transaction(async tx => {
+      /// parentPurchaseLog가 존재하지 않는 경우는 최초 결제 이후 brip 앱에서 appleSubscribeAdPlace를 호출한것보다 먼저 본 hook함수가 실행된 경우다.
+      if (!isNil(parentPurchaseLog)) {
+        await tx.appleInAppPurchaseLog.update({
+          where: {
+            id: parentPurchaseLog?.id,
           },
-        }),
-      },
+          data: {
+            expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
+          },
+        });
+      }
+
+      await tx.appleInAppPurchaseAutoHookLog.create({
+        data: {
+          TIappAccountToken: transactionInfo.appAccountToken,
+          TIbundleId: transactionInfo.bundleId,
+          TIenvironment: transactionInfo.environment,
+          TIexpiresDate: !isNil(transactionInfo.expiresDate)
+            ? Math.ceil(transactionInfo.expiresDate / 1000)
+            : undefined,
+          TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
+          TIisUpgraded: transactionInfo.isUpgraded,
+          TIofferIdentifier: transactionInfo.offerIdentifier,
+          TIofferType: transactionInfo.offerType,
+          TIoriginalPurchaseDate: Math.ceil(
+            transactionInfo.originalPurchaseDate / 1000,
+          ),
+          TIoriginalTransactionId: transactionInfo.originalTransactionId,
+          TIproductId: transactionInfo.productId,
+          TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
+          TIquantity: transactionInfo.quantity,
+          TIrevocationDate: !isNil(transactionInfo.revocationDate)
+            ? Math.ceil(transactionInfo.revocationDate / 1000)
+            : undefined,
+          TIrevocationReason: transactionInfo.revocationReason,
+          TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
+          TIstorefront: transactionInfo.storefront,
+          TIstorefrontId: transactionInfo.storefrontId,
+          TIsubscriptionGroupIdentifier:
+            transactionInfo.subscriptionGroupIdentifier,
+          TItransactionId: transactionInfo.transactionId,
+          TItransactionReason: transactionInfo.transactionReason,
+          TItype: transactionInfo.type,
+          TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
+
+          RIautoRenewProductId: renewalInfo.autoRenewProductId,
+          RIautoRenewStatus: renewalInfo.autoRenewStatus,
+          RIenvironment: renewalInfo.environment,
+          RIexpirationIntent: renewalInfo.expirationIntent,
+          RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
+            ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
+            : undefined,
+          RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
+          RIofferIdentifier: renewalInfo.offerIdentifier,
+          RIofferType: renewalInfo.offerType,
+          RIoriginalTransactionId: renewalInfo.originalTransactionId,
+          RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
+          RIproductId: renewalInfo.productId,
+          RIrecentSubscriptionStartDate: Math.ceil(
+            renewalInfo.recentSubscriptionStartDate / 1000,
+          ),
+          RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
+          RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
+          ...(!isNil(parentPurchaseLog) && {
+            appleInAppPurchaseLog: {
+              connect: {
+                id: parentPurchaseLog.id,
+              },
+            },
+          }),
+        },
+      });
     });
 
     res.status(200);
@@ -1495,6 +1509,9 @@ export const appleSubscribeAdPlace = asyncWrapper(
               productId,
               transactionDate: Math.ceil(Number(transactionDate) / 1000),
               transactionId,
+              expiresDate: Math.ceil(
+                Number(transactionInfo.expiresDate) / 1000,
+              ),
               adPlace: {
                 connect: {
                   id: Number(adPlaceId),

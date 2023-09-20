@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 // import registTPFromAdPlace from '../scripts/registTPFromAdPlace/registTPFromAdPlace';
-import { validateSubscriptionReceipt } from '@src/utils';
+import {
+  validateSubscriptionReceipt,
+  retrieveSubscriptionReceipt,
+} from '@src/utils';
 import moment from 'moment';
 
 const prisma = new PrismaClient();
@@ -17,11 +20,19 @@ async function batchJob(): Promise<void> {
       },
     });
 
-  // const appleExpiredSubscriptions = await prisma.appleIn
+  const appleExpiredSubscriptions = await prisma.appleInAppPurchaseLog.findMany(
+    {
+      where: {
+        expiresDate: {
+          lt: Math.ceil(nowTimestamp / 1000),
+        },
+      },
+    },
+  );
 
-  console.log('메롱');
   // eslint-disable-next-line no-restricted-syntax
   for await (const v of googleExpiredSubscriptions) {
+    console.log(`google purchaseToken: ${v.purchaseToken}`);
     const validationResult = await validateSubscriptionReceipt({
       purchaseToken: v.purchaseToken,
     });
@@ -45,6 +56,42 @@ async function batchJob(): Promise<void> {
         data: {
           expiryTime: Math.ceil(
             Number(validationResult.expiryTimeMillis) / 1000,
+          ),
+        },
+      });
+    }
+  }
+
+  // eslint-disable-next-line no-restricted-syntax
+  for await (const v of appleExpiredSubscriptions) {
+    console.log(`apple originalTransactionId: ${v.originalTransactionId}`);
+    const validationResult = await retrieveSubscriptionReceipt(
+      v.originalTransactionId,
+    );
+
+    if (
+      moment().diff(
+        moment(Number(validationResult.transactionInfo.expiresDate)),
+      ) >= 0
+    ) {
+      /// expired
+      await prisma.adPlace.update({
+        where: {
+          id: v.adPlaceId,
+        },
+        data: {
+          subscribe: false,
+        },
+      });
+    } else {
+      /// not expired, revised expiryTime
+      await prisma.appleInAppPurchaseLog.update({
+        where: {
+          id: v.id,
+        },
+        data: {
+          expiresDate: Math.ceil(
+            Number(validationResult.transactionInfo.expiresDate) / 1000,
           ),
         },
       });

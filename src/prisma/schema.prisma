@@ -1048,6 +1048,7 @@ model AppleInAppPurchaseLog {
   productId                     String /// 'brip.adplace.subscribe.default';
   transactionDate               Int // ex) 단위 초 1695096993;
   transactionId                 String /// '2000000416416016';
+  expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
   adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id])
   adPlaceId                     Int
   appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]

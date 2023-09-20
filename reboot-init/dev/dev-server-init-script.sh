@@ -41,7 +41,7 @@ function run_process () {
   yarn
   yarn prisma db push
   downloadAmazonRootCA1
-  # yarn build
+  yarn build
   # yarn restart
   yarn stop
   yarn start:dev
