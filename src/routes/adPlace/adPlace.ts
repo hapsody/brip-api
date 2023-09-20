@@ -1,4 +1,15 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
+
+import {
+  // AppStoreServerAPI,
+  // Environment,
+  // decodeRenewalInfo,
+  decodeTransaction,
+  // decodeTransactions,
+  decodeNotificationPayload,
+  decodeRenewalInfo,
+} from 'app-store-server-api';
+
 import prisma from '@src/prisma';
 import {
   AdPlace,
@@ -12,6 +23,7 @@ import {
   DataStageStatus,
   AdPlaceDraft,
   GoogleInAppPurchaseLog,
+  AppleInAppPurchaseLog,
 } from '@prisma/client';
 import {
   ibDefs,
@@ -29,12 +41,139 @@ import {
   // getIBPhotoUrl,
   getImgUrlListFromIBPhotos,
   validateSubscriptionReceipt,
+  retrieveSubscriptionReceipt,
 } from '@src/utils';
 import moment from 'moment';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
 import { delAdPlacePhoto } from '../myPage/myPage';
 
 const adPlaceRouter: express.Application = express();
+
+/**
+ * apple 결제가 일어나면 애플 서버로부터 호출되는 hook 함수
+ * 관련 결제 정보가 signedPayload 형태로(JWS) 넘어온다.
+ */
+export const appleSubscriptionHook = asyncWrapper(
+  async (req: Request, res: Response): Promise<void> => {
+    // console.log(req);
+
+    // // Your signed payload from Apple
+    const { signedPayload } = req.body as { signedPayload: string };
+    if (isNil(signedPayload)) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message: 'this not contains signedPayload in body',
+      });
+    }
+
+    const payload = await decodeNotificationPayload(signedPayload);
+
+    if (isNil(payload) || isNil(payload.data)) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message:
+          'this not contains data object field decoded from signedPayload',
+      });
+    }
+
+    if (payload.data.bundleId !== process.env.APPLE_APP_BUNDLE_ID) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message: "this is not a brip's app bundle id",
+      });
+    }
+
+    const transactionInfo = await decodeTransaction(
+      payload.data.signedTransactionInfo,
+    );
+    const renewalInfo = await decodeRenewalInfo(payload.data.signedRenewalInfo);
+
+    const { transactionId, originalTransactionId } = transactionInfo;
+
+    const alreadyExistLog =
+      await prisma.appleInAppPurchaseAutoHookLog.findUnique({
+        where: {
+          TItransactionId: transactionId,
+        },
+      });
+
+    if (!isNil(alreadyExistLog)) {
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: 'this transactionId already exists',
+      });
+    }
+
+    const parentPurchaseLog = await prisma.appleInAppPurchaseLog.findUnique({
+      where: {
+        originalTransactionId,
+      },
+    });
+
+    await prisma.appleInAppPurchaseAutoHookLog.create({
+      data: {
+        TIappAccountToken: transactionInfo.appAccountToken,
+        TIbundleId: transactionInfo.bundleId,
+        TIenvironment: transactionInfo.environment,
+        TIexpiresDate: !isNil(transactionInfo.expiresDate)
+          ? Math.ceil(transactionInfo.expiresDate / 1000)
+          : undefined,
+        TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
+        TIisUpgraded: transactionInfo.isUpgraded,
+        TIofferIdentifier: transactionInfo.offerIdentifier,
+        TIofferType: transactionInfo.offerType,
+        TIoriginalPurchaseDate: Math.ceil(
+          transactionInfo.originalPurchaseDate / 1000,
+        ),
+        TIoriginalTransactionId: transactionInfo.originalTransactionId,
+        TIproductId: transactionInfo.productId,
+        TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
+        TIquantity: transactionInfo.quantity,
+        TIrevocationDate: !isNil(transactionInfo.revocationDate)
+          ? Math.ceil(transactionInfo.revocationDate / 1000)
+          : undefined,
+        TIrevocationReason: transactionInfo.revocationReason,
+        TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
+        TIstorefront: transactionInfo.storefront,
+        TIstorefrontId: transactionInfo.storefrontId,
+        TIsubscriptionGroupIdentifier:
+          transactionInfo.subscriptionGroupIdentifier,
+        TItransactionId: transactionInfo.transactionId,
+        TItransactionReason: transactionInfo.transactionReason,
+        TItype: transactionInfo.type,
+        TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
+
+        RIautoRenewProductId: renewalInfo.autoRenewProductId,
+        RIautoRenewStatus: renewalInfo.autoRenewStatus,
+        RIenvironment: renewalInfo.environment,
+        RIexpirationIntent: renewalInfo.expirationIntent,
+        RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
+          ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
+          : undefined,
+        RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
+        RIofferIdentifier: renewalInfo.offerIdentifier,
+        RIofferType: renewalInfo.offerType,
+        RIoriginalTransactionId: renewalInfo.originalTransactionId,
+        RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
+        RIproductId: renewalInfo.productId,
+        RIrecentSubscriptionStartDate: Math.ceil(
+          renewalInfo.recentSubscriptionStartDate / 1000,
+        ),
+        RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
+        RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
+        ...(!isNil(parentPurchaseLog) && {
+          appleInAppPurchaseLog: {
+            connect: {
+              id: parentPurchaseLog.id,
+            },
+          },
+        }),
+      },
+    });
+
+    res.status(200);
+  },
+);
 
 export type GetAdPlaceRequestType = {
   adPlaceId?: string; /// 검색할 adPlaceId
@@ -1025,24 +1164,24 @@ type GoogleInAppPurchaseReceipt = {
   autoRenewing: string; /// ex) true
   acknowledged: string; /// ex) false
 };
-export type SubscribeAdPlaceRequestType = {
+export type GoogleSubscribeAdPlaceRequestType = {
   adPlaceId: string;
   receipt: GoogleInAppPurchaseReceipt;
 };
-export type SubscribeAdPlaceSuccessResType = GoogleInAppPurchaseLog & {
+export type GoogleSubscribeAdPlaceSuccessResType = GoogleInAppPurchaseLog & {
   adPlace: AdPlace;
 };
-export type SubscribeAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: SubscribeAdPlaceSuccessResType | {};
+export type GoogleSubscribeAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GoogleSubscribeAdPlaceSuccessResType | {};
 };
 
 /**
- * 구글 또는 애플 인앱 결제후 결제내역 저장과 함께 adPlce 구독 요청 api
+ * 구글 인앱 결제후 결제내역 저장과 함께 adPlce 구독 요청 api
  */
-export const subscribeAdPlace = asyncWrapper(
+export const googleSubscribeAdPlace = asyncWrapper(
   async (
-    req: Express.IBTypedReqBody<SubscribeAdPlaceRequestType>,
-    res: Express.IBTypedResponse<SubscribeAdPlaceResType>,
+    req: Express.IBTypedReqBody<GoogleSubscribeAdPlaceRequestType>,
+    res: Express.IBTypedResponse<GoogleSubscribeAdPlaceResType>,
   ) => {
     try {
       const { locals } = req;
@@ -1139,7 +1278,7 @@ export const subscribeAdPlace = asyncWrapper(
           tx,
         ): Promise<
           GoogleInAppPurchaseLog & {
-            adPlace: AdPlace | null;
+            adPlace: AdPlace;
           }
         > => {
           const log = await tx.googleInAppPurchaseLog.create({
@@ -1226,6 +1365,239 @@ export const subscribeAdPlace = asyncWrapper(
   },
 );
 
+type AppleInAppPurchaseReceipt = {
+  originalTransactionDateIOS: string; /// ex) 1695021683000;
+  originalTransactionIdentifierIOS: string; /// ex) '2000000415594125';
+  productId: string; /// ex) 'brip.adplace.subscribe.default';
+  transactionDate: string; /// ex) '1695096993000';
+  transactionId: string; /// ex) '2000000416416016';
+};
+export type AppleSubscribeAdPlaceRequestType = AppleInAppPurchaseReceipt & {
+  adPlaceId: string;
+};
+export type AppleSubscribeAdPlaceSuccessResType = AppleInAppPurchaseLog & {
+  adPlace: AdPlace;
+};
+export type AppleSubscribeAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AppleSubscribeAdPlaceSuccessResType | {};
+};
+
+/**
+ * 애플 인앱 결제후 adPlce 구독 요청 api
+ */
+export const appleSubscribeAdPlace = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AppleSubscribeAdPlaceRequestType>,
+    res: Express.IBTypedResponse<AppleSubscribeAdPlaceResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const { userTokenId, userId } = (() => {
+        if (locals && locals?.grade === 'member') {
+          return {
+            userTokenId: locals?.user?.userTokenId,
+            userId: locals?.user?.id,
+          };
+          // return locals?.tokenId;
+        }
+
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const {
+        adPlaceId,
+        originalTransactionIdentifierIOS,
+        originalTransactionDateIOS,
+        productId,
+        transactionDate,
+        transactionId,
+      } = req.body;
+      if (
+        isNil(adPlaceId) ||
+        isEmpty(adPlaceId) ||
+        isNaN(Number(adPlaceId)) ||
+        isNil(transactionId) ||
+        isEmpty(transactionId)
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'adPlaceId와(number 형태 string) transactionId 파라미터는 필수 파라미터입니다.',
+        });
+      }
+
+      const adPlace = await prisma.adPlace.findUnique({
+        where: {
+          id: Number(adPlaceId),
+        },
+        select: {
+          userId: true,
+          status: true,
+        },
+      });
+
+      if (adPlace?.userId !== userId) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message:
+            'adPlace 소유주 권한이 아니므로 subscribe 신청을 할수 없는 adPlaceId입니다.',
+        });
+      }
+
+      if (adPlace?.status !== ('IN_USE' as AdPlaceStatus)) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message:
+            'adPlace 상태가 사용가능한 상태가 아니여서 subscribe 신청을 할수 없는 adPlaceId입니다.',
+        });
+      }
+
+      const alreadyExistLog = await prisma.appleInAppPurchaseLog.findUnique({
+        where: {
+          originalTransactionId: originalTransactionIdentifierIOS,
+        },
+      });
+
+      if (!isNil(alreadyExistLog)) {
+        throw new IBError({
+          type: 'DUPLICATEDDATA',
+          message: '이미 존재하는 originalTransactionId 입니다.',
+        });
+      }
+
+      const { transactionInfo } = await retrieveSubscriptionReceipt(
+        originalTransactionIdentifierIOS,
+      );
+
+      const purchaseLog = await prisma.$transaction(
+        async (
+          tx,
+        ): Promise<
+          AppleInAppPurchaseLog & {
+            adPlace: AdPlace;
+          }
+        > => {
+          const log = await tx.appleInAppPurchaseLog.create({
+            data: {
+              originalTransactionDate: Math.ceil(
+                Number(originalTransactionDateIOS) / 1000,
+              ),
+              originalTransactionId: originalTransactionIdentifierIOS,
+              productId,
+              transactionDate: Math.ceil(Number(transactionDate) / 1000),
+              transactionId,
+              adPlace: {
+                connect: {
+                  id: Number(adPlaceId),
+                },
+              },
+            },
+          });
+
+          const appleHookLog =
+            await tx.appleInAppPurchaseAutoHookLog.findUnique({
+              where: {
+                TItransactionId: transactionInfo.transactionId,
+              },
+              select: {
+                appleInAppPurchaseLogId: true,
+              },
+            });
+
+          /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
+          if (
+            !isNil(appleHookLog) &&
+            isNil(appleHookLog.appleInAppPurchaseLogId)
+          ) {
+            await tx.appleInAppPurchaseAutoHookLog.update({
+              where: {
+                TItransactionId: transactionInfo.transactionId,
+              },
+              data: {
+                appleInAppPurchaseLogId: log.id,
+              },
+            });
+          }
+
+          const adP = await tx.adPlace.update({
+            where: {
+              id: Number(adPlaceId),
+            },
+            data: {
+              subscribe: true,
+            },
+          });
+
+          const result = {
+            ...log,
+            adPlace: adP,
+          };
+          return result;
+        },
+      );
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: purchaseLog,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
+adPlaceRouter.post('/appleSubscriptionHook', appleSubscriptionHook);
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
 // adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
 adPlaceRouter.get(
@@ -1244,8 +1616,14 @@ adPlaceRouter.get(
   getAdPlaceStatistics,
 );
 adPlaceRouter.post(
-  '/subscribeAdPlace',
+  '/googleSubscribeAdPlace',
   accessTokenValidCheck,
-  subscribeAdPlace,
+  googleSubscribeAdPlace,
 );
+adPlaceRouter.post(
+  '/appleSubscribeAdPlace',
+  accessTokenValidCheck,
+  appleSubscribeAdPlace,
+);
+
 export default adPlaceRouter;
