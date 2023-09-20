@@ -8,16 +8,20 @@ const prisma = new PrismaClient();
 async function batchJob(): Promise<void> {
   // await registTPFromAdPlace();
   const nowTimestamp = new Date().getTime();
-  const expiredSubscriptions = await prisma.googleInAppPurchaseLog.findMany({
-    where: {
-      expiryTime: {
-        lt: Math.ceil(nowTimestamp / 1000),
+  const googleExpiredSubscriptions =
+    await prisma.googleInAppPurchaseLog.findMany({
+      where: {
+        expiryTime: {
+          lt: Math.ceil(nowTimestamp / 1000),
+        },
       },
-    },
-  });
+    });
 
+  // const appleExpiredSubscriptions = await prisma.appleIn
+
+  console.log('메롱');
   // eslint-disable-next-line no-restricted-syntax
-  for await (const v of expiredSubscriptions) {
+  for await (const v of googleExpiredSubscriptions) {
     const validationResult = await validateSubscriptionReceipt({
       purchaseToken: v.purchaseToken,
     });
