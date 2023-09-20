@@ -4006,7 +4006,17 @@ export const makeSchedule = async (
 
   return {
     queryParamsId: queryParams.id,
-    recommendedRegion: ctx.recommendedRegion,
+    recommendedRegion: (() => {
+      if (!isNil(ctx.recommendedRegion)) {
+        return ctx.recommendedRegion;
+      }
+
+      const keywords = scanRange
+        ?.map(v => v.keyword)
+        .filter((v): v is string => !isNil(v));
+      return isNil(keywords) ? undefined : keywords.toString();
+    })(),
+
     spotPerDay: ctx.spotPerDay,
     calibUserLevel,
     spotClusterRes: ctx.spotClusterRes,
