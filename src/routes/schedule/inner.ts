@@ -2527,6 +2527,11 @@ export const makeSchedule = async (
             v !== undefined,
         );
 
+      const keywords = scanRange
+        ?.map(v => v.keyword)
+        .filter((v): v is string => !isNil(v));
+      ctx.recommendedRegion = isNil(keywords) ? undefined : keywords.toString();
+
       return {
         type: 'keyword',
         regionalCodes,
@@ -2621,6 +2626,15 @@ export const makeSchedule = async (
             };
           });
           console.log(condition);
+          ctx.recommendedRegion = condition
+            .map(v => {
+              let result = !isNil(v.regionCode1) ? `${v.regionCode1}` : '';
+              result = !isNil(v.regionCode2)
+                ? `${result} ${v.regionCode2}`
+                : result;
+              return result;
+            })
+            .toString();
           return {
             OR: condition,
           };
@@ -3826,10 +3840,9 @@ export const makeSchedule = async (
           adult: Number(adultsNumber),
           travelHard: Number(travelHard),
           destination,
-          ...(destination === 'recommend' &&
-            !isNil(ctx.recommendedRegion) && {
-              recommendedRegion: ctx.recommendedRegion,
-            }),
+          ...(!isNil(ctx.recommendedRegion) && {
+            recommendedRegion: ctx.recommendedRegion,
+          }),
 
           // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
           // tourPlace: {
