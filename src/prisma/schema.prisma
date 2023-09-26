@@ -1020,17 +1020,22 @@ model AdPlace {
 }
 
 /// 구글 subscribe 결제 내역
+/// https://adapty.io/ko/blog/android-in-app-purchases-part-5-server-side-purchase-validation/
+/// https://googleapis.dev/nodejs/googleapis/latest/androidpublisher/classes/Androidpublisher-3.html
+// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions?hl=ko
+// https://developer.android.com/google/play/billing/rtdn-reference?hl=ko&authuser=1 결제 상태 13가지
+// https://developer.android.com/google/play/billing/subscriptions?authuser=1&hl=ko#lifecycle
 model GoogleInAppPurchaseLog {
   id                Int                              @id @default(autoincrement())
   createdAt         DateTime                         @default(now())
   updatedAt         DateTime                         @default(now()) @updatedAt
   startTime         Int /// ecochTime / 1000 => 단위 초
-  expiryTime        Int /// ecochTime / 1000 => 단위 초
-  expireDateFormat  DateTime?
+  // expiryTime        Int /// ecochTime / 1000 => 단위 초
+  expireDateFormat  DateTime
   orderId           String                           @unique /// ex) google: GPA.3362-9672-9861-44566,
-  packageName       String /// ex) google: com.io.idealbloom.brip,
-  productId         String ///  ex) google: brip_business_subscribe
-  purchaseTime      String /// ex) google: 1694760310759
+  // packageName       String /// ex) google: com.io.idealbloom.brip,
+  // productId         String ///  ex) google: brip_business_subscribe
+  purchaseTime      String? /// ex) google: 1694760310759
   purchaseState     Int /// ex) 0
   purchaseToken     String                           @unique @db.VarChar(255) /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
   quantity          Int /// ex) 1
@@ -1045,7 +1050,7 @@ model GoogleInAppPurchaseAutoHookLog {
   id               Int      @id @default(autoincrement())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
-  packageName      String
+  // packageName      String
   /// data.subscriptionNotification
   notificationType Int
   //   (1) SUBSCRIPTION_RECOVERED: 정기 결제가 계정 보류에서 복구되었습니다.
@@ -1062,7 +1067,7 @@ model GoogleInAppPurchaseAutoHookLog {
   // (12) SUBSCRIPTION_REVOKED - 정기 결제가 만료 시간 전에 사용자에 의해 취소되었습니다.
   // (13) SUBSCRIPTION_EXPIRED: 정기 결제가 만료되었습니다.
   purchaseToken    String   @db.Char(255)
-  subscriptionId   String
+  // subscriptionId   String
 
   messageId                String
   publishTime              String
@@ -1079,8 +1084,8 @@ model AppleInAppPurchaseLog {
   productId                     String /// 'brip.adplace.subscribe.default';
   transactionDate               Int // ex) 단위 초 1695096993;
   transactionId                 String /// '2000000416416016';
-  expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
-  expireDateFormat              DateTime?
+  // expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
+  expireDateFormat              DateTime
   adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id])
   adPlaceId                     Int
   appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]

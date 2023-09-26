@@ -118,7 +118,37 @@ export const appleSubscriptionHook = asyncWrapper(
             id: parentPurchaseLog?.id,
           },
           data: {
-            expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
+            // expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
+            expireDateFormat: new Date(
+              Number(transactionInfo.expiresDate),
+            ).toISOString(),
+          },
+        });
+
+        const lastPurchaseLog = await prisma.appleInAppPurchaseLog.findFirst({
+          where: {
+            adPlaceId: parentPurchaseLog?.adPlaceId,
+          },
+          orderBy: {
+            id: 'desc',
+          },
+          select: {
+            // expiresDate: true,
+            expireDateFormat: true,
+            adPlaceId: true,
+          },
+        });
+
+        /// adPlace 구독 상태 업데이트 로직
+        /// lastPurchaseLog는 최소 방금 생성한 GoogleInAppPurchaseLog 데이터가 있기 때문에 null일수 없음
+        await prisma.adPlace.update({
+          where: {
+            id: lastPurchaseLog?.adPlaceId,
+          },
+          data: {
+            subscribe:
+              moment().diff(moment(lastPurchaseLog!.expireDateFormat)) < 0,
+            // moment().diff(moment(lastPurchaseLog!.expiresDate * 1000)) < 0,
           },
         });
       }
@@ -274,10 +304,10 @@ export const googleSubscriptionHook = asyncWrapper(
 
     await prisma.googleInAppPurchaseAutoHookLog.create({
       data: {
-        packageName: data.packageName,
+        // packageName: data.packageName,
         notificationType: data.subscriptionNotification.notificationType,
         purchaseToken: data.subscriptionNotification.purchaseToken,
-        subscriptionId: data.subscriptionNotification.subscriptionId,
+        // subscriptionId: data.subscriptionNotification.subscriptionId,
 
         messageId: message.messageId,
         publishTime: message.publishTime,
@@ -294,7 +324,7 @@ export const googleSubscriptionHook = asyncWrapper(
         purchaseToken: data.subscriptionNotification.purchaseToken,
       },
       data: {
-        expiryTime: Math.ceil(Number(validationResult.expiryTimeMillis) / 1000),
+        // expiryTime: Math.ceil(Number(validationResult.expiryTimeMillis) / 1000),
         expireDateFormat: new Date(
           Number(validationResult.expiryTimeMillis),
         ).toISOString(),
@@ -309,7 +339,8 @@ export const googleSubscriptionHook = asyncWrapper(
         id: 'desc',
       },
       select: {
-        expiryTime: true,
+        // expiryTime: true,
+        expireDateFormat: true,
         adPlaceId: true,
       },
     });
@@ -321,8 +352,8 @@ export const googleSubscriptionHook = asyncWrapper(
         id: lastPurchaseLog?.adPlaceId,
       },
       data: {
-        subscribe:
-          moment().diff(moment(lastPurchaseLog!.expiryTime * 1000)) < 0,
+        subscribe: moment().diff(moment(lastPurchaseLog!.expireDateFormat)) < 0,
+        // moment().diff(moment(lastPurchaseLog!.expiryTime * 1000)) < 0,
       },
     });
 
@@ -1465,9 +1496,9 @@ export const googleSubscribeAdPlace = asyncWrapper(
               startTime: Math.ceil(
                 Number(validationResult.startTimeMillis) / 1000,
               ),
-              expiryTime: Math.ceil(
-                Number(validationResult.expiryTimeMillis) / 1000,
-              ),
+              // expiryTime: Math.ceil(
+              //   Number(validationResult.expiryTimeMillis) / 1000,
+              // ),
               expireDateFormat: new Date(
                 Number(validationResult.expiryTimeMillis),
               ).toISOString(),
@@ -1683,9 +1714,12 @@ export const appleSubscribeAdPlace = asyncWrapper(
                 productId,
                 transactionDate: Math.ceil(Number(transactionDate) / 1000),
                 transactionId,
-                expiresDate: Math.ceil(
-                  Number(transactionInfo.expiresDate) / 1000,
-                ),
+                // expiresDate: Math.ceil(
+                //   Number(transactionInfo.expiresDate) / 1000,
+                // ),
+                expireDateFormat: new Date(
+                  Number(transactionInfo.expiresDate),
+                ).toISOString(),
                 adPlace: {
                   connect: {
                     id: Number(adPlaceId),

@@ -275,9 +275,12 @@ export const prismaTest = asyncWrapper(
       const result = await prisma.googleInAppPurchaseLog.groupBy({
         by: ['adPlaceId', 'id'],
         where: {
-          expiryTime: {
-            lt: Math.ceil(nowTimestamp / 1000),
+          expireDateFormat: {
+            lt: new Date(nowTimestamp).toISOString(),
           },
+          // expire: {
+          //   lt: Math.ceil(nowTimestamp / 1000),
+          // },
         },
         orderBy: {
           id: 'desc',
