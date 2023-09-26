@@ -1,3 +1,4 @@
+import prisma from '@src/prisma';
 import express, { Express } from 'express';
 import multer from 'multer';
 import { isNil } from 'lodash';
@@ -19,7 +20,6 @@ import {
   // doSubTreeTraversal,
   // doSuperTreeTraversal,
   // getPartialMatchedPathTags,
-  validateSubscriptionReceipt,
   getValidUrl,
 } from '@src/utils';
 
@@ -255,7 +255,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
  * https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.io.idealbloom.brip/purchases/subscriptions/brip_business_subscribe/tokens/eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
  */
 export interface PrismaTestRequestType {
-  token: string;
+  nowTimestamp: number;
 }
 export interface PrismaTestSuccessResType {}
 
@@ -269,11 +269,19 @@ export const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<PrismaTestResType>,
   ) => {
     try {
-      const { token } = req.body;
-      const result = await validateSubscriptionReceipt({
-        // purchaseToken:
-        //   'eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0',
-        purchaseToken: token,
+      const { nowTimestamp } = req.body;
+
+      /// 지금보다 과거의 만료일을 가지고 있는것 = 만료일이 지난것
+      const result = await prisma.googleInAppPurchaseLog.groupBy({
+        by: ['adPlaceId', 'id'],
+        where: {
+          expiryTime: {
+            lt: Math.ceil(nowTimestamp / 1000),
+          },
+        },
+        orderBy: {
+          id: 'desc',
+        },
       });
 
       res.json({

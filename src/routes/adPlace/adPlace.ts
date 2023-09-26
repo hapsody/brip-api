@@ -185,7 +185,171 @@ export const appleSubscriptionHook = asyncWrapper(
       });
     });
 
-    res.status(200);
+    res.status(200).send();
+  },
+);
+
+/**
+ * google 결제가 일어나면 google 서버로부터 호출되는 hook 함수
+ * 관련 결제 정보가 signedPayload 형태로(JWS) 넘어온다.
+ * 참조 구글 메뉴얼: https://developer.android.com/google/play/billing/getting-ready?hl=ko#configure-rtdn
+ * google cloud platform - pub/sub api(구독) push 구독
+ *
+ */
+export const googleSubscriptionHook = asyncWrapper(
+  async (req: Request, res: Response): Promise<void> => {
+    console.log('\n\n');
+
+    // // Your signed payload from Apple
+    const { message } = req.body as {
+      message: {
+        messageId: string;
+        publishTime: string;
+        data: string;
+      };
+      subscription: string;
+    };
+    if (isNil(message)) {
+      throw new IBError({
+        type: 'INVALIDPARAMS',
+        message: 'this not contains message in body',
+      });
+    }
+
+    const data = JSON.parse(Buffer.from(message.data, 'base64').toString()) as {
+      /// https://developer.android.com/google/play/billing/rtdn-reference?hl=ko
+      version: string;
+      packageName: string;
+      eventTimeMillis: number;
+      oneTimeProductNotification?: {
+        version: string;
+        notificationType: number;
+        purchaseToken: string;
+        sku: string;
+      };
+      subscriptionNotification: {
+        version: string;
+        notificationType: number;
+        purchaseToken: string;
+        subscriptionId: string;
+      };
+      testNotification?: {
+        version: string;
+      };
+    };
+
+    const validationResult = await validateSubscriptionReceipt({
+      purchaseToken: data.subscriptionNotification.purchaseToken,
+    });
+    console.log(
+      omit(
+        {
+          ...message,
+          data: {
+            ...data,
+            subscriptionNotification: {
+              ...data.subscriptionNotification,
+              validationResult: JSON.stringify(validationResult, null, 2),
+            },
+          },
+          publishTime: moment(message.publishTime).format('YYYY-MM-DD H:mm:ss'),
+        },
+        'message_id',
+        'publish_time',
+      ),
+    );
+
+    const purchaseLog = await prisma.googleInAppPurchaseLog.findUnique({
+      where: {
+        purchaseToken: data.subscriptionNotification.purchaseToken,
+      },
+    });
+
+    if (isNil(purchaseLog)) {
+      console.log('Not Exist purchaseToken in DB');
+      console.log('\n');
+      res.status(400).send();
+      return;
+    }
+
+    await prisma.googleInAppPurchaseAutoHookLog.create({
+      data: {
+        packageName: data.packageName,
+        notificationType: data.subscriptionNotification.notificationType,
+        purchaseToken: data.subscriptionNotification.purchaseToken,
+        subscriptionId: data.subscriptionNotification.subscriptionId,
+
+        messageId: message.messageId,
+        publishTime: message.publishTime,
+        GoogleInAppPurchaseLog: {
+          connect: {
+            id: purchaseLog.id,
+          },
+        },
+      },
+    });
+
+    await prisma.googleInAppPurchaseLog.update({
+      where: {
+        purchaseToken: data.subscriptionNotification.purchaseToken,
+      },
+      data: {
+        expiryTime: Math.ceil(Number(validationResult.expiryTimeMillis) / 1000),
+        expireDateFormat: new Date(
+          Number(validationResult.expiryTimeMillis),
+        ).toISOString(),
+      },
+    });
+
+    const lastPurchaseLog = await prisma.googleInAppPurchaseLog.findFirst({
+      where: {
+        adPlaceId: purchaseLog.adPlaceId,
+      },
+      orderBy: {
+        id: 'desc',
+      },
+      select: {
+        expiryTime: true,
+        adPlaceId: true,
+      },
+    });
+
+    /// adPlace 구독 상태 업데이트 로직
+    /// lastPurchaseLog는 최소 방금 생성한 GoogleInAppPurchaseLog 데이터가 있기 때문에 null일수 없음
+    await prisma.adPlace.update({
+      where: {
+        id: lastPurchaseLog?.adPlaceId,
+      },
+      data: {
+        subscribe:
+          moment().diff(moment(lastPurchaseLog!.expiryTime * 1000)) < 0,
+      },
+    });
+
+    res.status(200).send();
+
+    // if (moment().diff(moment(Number(validationResult.expiryTimeMillis))) >= 0) {
+    //   /// expired
+    //   console.log('[Expired case]');
+    //   console.log('now: ', moment().format('YYYY-MM-D HH:mm:ss'));
+    //   console.log(
+    //     'expire time: ',
+    //     moment(Number(validationResult.expiryTimeMillis)).format(
+    //       'YYYY-MM-D HH:mm:ss',
+    //     ),
+    //   );
+    // } else {
+    //   console.log('[Not expired case]');
+    //   console.log('now: ', moment().format('YYYY-MM-D HH:mm:ss'));
+    //   console.log(
+    //     'expire time: ',
+    //     moment(Number(validationResult.expiryTimeMillis)).format(
+    //       'YYYY-MM-D HH:mm:ss',
+    //     ),
+    //   );
+    // }
+
+    // res.status(200).send();
   },
 );
 
@@ -1220,6 +1384,7 @@ export const googleSubscribeAdPlace = asyncWrapper(
         });
       }
 
+      console.log(`\n\n[googleAdPlace]:`, req.body);
       const { adPlaceId, receipt } = req.body;
       if (
         isNil(adPlaceId) ||
@@ -1303,6 +1468,9 @@ export const googleSubscribeAdPlace = asyncWrapper(
               expiryTime: Math.ceil(
                 Number(validationResult.expiryTimeMillis) / 1000,
               ),
+              expireDateFormat: new Date(
+                Number(validationResult.expiryTimeMillis),
+              ).toISOString(),
               orderId,
               packageName,
               productId,
@@ -1625,6 +1793,7 @@ export const appleSubscribeAdPlace = asyncWrapper(
 );
 
 adPlaceRouter.post('/appleSubscriptionHook', appleSubscriptionHook);
+adPlaceRouter.post('/googleSubscriptionHook', googleSubscriptionHook);
 adPlaceRouter.get('/getAdPlace', accessTokenValidCheck, getAdPlace);
 // adPlaceRouter.post('/approveAdPlace', accessTokenValidCheck, approveAdPlace);
 adPlaceRouter.get(

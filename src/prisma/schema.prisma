@@ -1021,22 +1021,53 @@ model AdPlace {
 
 /// 구글 subscribe 결제 내역
 model GoogleInAppPurchaseLog {
-  id            Int      @id @default(autoincrement())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
-  startTime     Int /// ecochTime / 1000 => 단위 초
-  expiryTime    Int /// ecochTime / 1000 => 단위 초
-  orderId       String   @unique /// ex) google: GPA.3362-9672-9861-44566,
-  packageName   String /// ex) google: com.io.idealbloom.brip,
-  productId     String ///  ex) google: brip_business_subscribe
-  purchaseTime  String /// ex) google: 1694760310759
-  purchaseState Int /// ex) 0
-  purchaseToken String   @unique @db.VarChar(255) /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
-  quantity      Int /// ex) 1
-  autoRenewing  Boolean /// ex) true
-  acknowledged  Boolean /// ex) false
-  adPlace       AdPlace  @relation(fields: [adPlaceId], references: [id])
-  adPlaceId     Int
+  id                Int                              @id @default(autoincrement())
+  createdAt         DateTime                         @default(now())
+  updatedAt         DateTime                         @default(now()) @updatedAt
+  startTime         Int /// ecochTime / 1000 => 단위 초
+  expiryTime        Int /// ecochTime / 1000 => 단위 초
+  expireDateFormat  DateTime?
+  orderId           String                           @unique /// ex) google: GPA.3362-9672-9861-44566,
+  packageName       String /// ex) google: com.io.idealbloom.brip,
+  productId         String ///  ex) google: brip_business_subscribe
+  purchaseTime      String /// ex) google: 1694760310759
+  purchaseState     Int /// ex) 0
+  purchaseToken     String                           @unique @db.VarChar(255) /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+  quantity          Int /// ex) 1
+  autoRenewing      Boolean /// ex) true
+  acknowledged      Boolean /// ex) false
+  adPlace           AdPlace                          @relation(fields: [adPlaceId], references: [id])
+  adPlaceId         Int
+  googleAutoHookLog GoogleInAppPurchaseAutoHookLog[]
+}
+
+model GoogleInAppPurchaseAutoHookLog {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+  packageName      String
+  /// data.subscriptionNotification
+  notificationType Int
+  //   (1) SUBSCRIPTION_RECOVERED: 정기 결제가 계정 보류에서 복구되었습니다.
+  // (2) SUBSCRIPTION_RENEWED: 활성 정기 결제가 갱신되었습니다.
+  // (3) SUBSCRIPTION_CANCELED - 정기 결제가 자발적으로 또는 비자발적으로 취소되었습니다. 자발적 취소의 경우 사용자가 취소할 때 전송됩니다.
+  // (4) SUBSCRIPTION_PURCHASED: 새로운 정기 결제가 구매되었습니다.
+  // (5) SUBSCRIPTION_ON_HOLD - 정기 결제가 계정 보류 상태가 되었습니다(사용 설정된 경우).
+  // (6) SUBSCRIPTION_IN_GRACE_PERIOD: 정기 결제가 유예 기간 상태로 전환되었습니다(사용 설정된 경우).
+  // (7) SUBSCRIPTION_RESTARTED: 사용자가 Play > 계정 > 정기 결제에서 정기 결제를 복원했습니다. 정기 결제가 취소되었지만 사용자가 복원할 때 아직 만료되지 않았습니다. 자세한 내용은 복원을 참고하세요.
+  // (8) SUBSCRIPTION_PRICE_CHANGE_CONFIRMED: 사용자가 정기 결제 가격 변경을 확인했습니다.
+  // (9) SUBSCRIPTION_DEFERRED: 구독 갱신 기한이 연장되었습니다.
+  // (10) SUBSCRIPTION_PAUSED - 구독이 일시중지되었습니다.
+  // (11) SUBSCRIPTION_PAUSE_SCHEDULE_CHANGED - 정기 결제 일시중지 일정이 변경되었습니다.
+  // (12) SUBSCRIPTION_REVOKED - 정기 결제가 만료 시간 전에 사용자에 의해 취소되었습니다.
+  // (13) SUBSCRIPTION_EXPIRED: 정기 결제가 만료되었습니다.
+  purchaseToken    String   @db.Char(255)
+  subscriptionId   String
+
+  messageId                String
+  publishTime              String
+  GoogleInAppPurchaseLog   GoogleInAppPurchaseLog? @relation(fields: [googleInAppPurchaseLogId], references: [id])
+  googleInAppPurchaseLogId Int?
 }
 
 model AppleInAppPurchaseLog {
@@ -1049,6 +1080,7 @@ model AppleInAppPurchaseLog {
   transactionDate               Int // ex) 단위 초 1695096993;
   transactionId                 String /// '2000000416416016';
   expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
+  expireDateFormat              DateTime?
   adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id])
   adPlaceId                     Int
   appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]
