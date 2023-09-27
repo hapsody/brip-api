@@ -109,8 +109,7 @@ export const appleSubscriptionHook = asyncWrapper(
 
     const payload = await decodeNotificationPayload(signedPayload);
 
-    const payloadData = payload.data;
-    if (isNil(payload) || isNil(payloadData)) {
+    if (isNil(payload) || isNil(payload.data)) {
       throw new IBError({
         type: 'INVALIDPARAMS',
         message:
@@ -118,7 +117,7 @@ export const appleSubscriptionHook = asyncWrapper(
       });
     }
 
-    if (payloadData.bundleId !== process.env.APPLE_APP_BUNDLE_ID) {
+    if (payload.data.bundleId !== process.env.APPLE_APP_BUNDLE_ID) {
       throw new IBError({
         type: 'INVALIDPARAMS',
         message: "this is not a brip's app bundle id",
@@ -126,14 +125,14 @@ export const appleSubscriptionHook = asyncWrapper(
     }
 
     const transactionInfo = await decodeTransaction(
-      payloadData.signedTransactionInfo,
+      payload.data.signedTransactionInfo,
     );
-    const renewalInfo = await decodeRenewalInfo(payloadData.signedRenewalInfo);
+    const renewalInfo = await decodeRenewalInfo(payload.data.signedRenewalInfo);
 
     const { transactionId, originalTransactionId } = transactionInfo;
     console.log(`[appleSubsHook] payload:`, {
       ...payload,
-      data: omit(payloadData, ['signedRenewalInfo', 'signedTransactionInfo']),
+      data: omit(payload.data, ['signedRenewalInfo', 'signedTransactionInfo']),
     });
     console.log(`[appleSubsHook] transactionInfo: `, {
       ...transactionInfo,
@@ -157,89 +156,67 @@ export const appleSubscriptionHook = asyncWrapper(
     if (isNil(parentPurchaseLog)) {
       await prisma.appleInAppPurchaseAutoHookLog.create({
         data: {
-          notificationType: payload.notificationType,
-          subType: payload.subtype,
-          notificationUUID: payload.notificationUUID,
-          version: payload.version,
-          signedDate: new Date(payload.signedDate).toISOString(),
-          data: {
-            create: {
-              appAppleId: payloadData.appAppleId,
-              bundleId: payloadData.bundleId,
-              bundleVersion: payloadData.bundleVersion,
-              environment: payloadData.environment,
-              status: payloadData.status,
-              decodedTransactionInfo: {
-                create: {
-                  appAccountToken: transactionInfo.appAccountToken,
-                  bundleId: transactionInfo.bundleId,
-                  environment: transactionInfo.environment,
-                  expiresDate: !isNil(transactionInfo.expiresDate)
-                    ? Math.ceil(transactionInfo.expiresDate / 1000)
-                    : undefined,
-                  inAppOwnershipType: transactionInfo.inAppOwnershipType,
-                  isUpgraded: transactionInfo.isUpgraded,
-                  offerIdentifier: transactionInfo.offerIdentifier,
-                  offerType: transactionInfo.offerType,
-                  originalPurchaseDate: Math.ceil(
-                    transactionInfo.originalPurchaseDate / 1000,
-                  ),
-                  originalTransactionId: transactionInfo.originalTransactionId,
-                  productId: transactionInfo.productId,
-                  purchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
-                  quantity: transactionInfo.quantity,
-                  revocationDate: !isNil(transactionInfo.revocationDate)
-                    ? Math.ceil(transactionInfo.revocationDate / 1000)
-                    : undefined,
-                  revocationReason: transactionInfo.revocationReason,
-                  signedDate: Math.ceil(transactionInfo.signedDate / 1000),
-                  storefront: transactionInfo.storefront,
-                  storefrontId: transactionInfo.storefrontId,
-                  subscriptionGroupIdentifier:
-                    transactionInfo.subscriptionGroupIdentifier,
-                  transactionId: transactionInfo.transactionId,
-                  transactionReason: transactionInfo.transactionReason,
-                  type: transactionInfo.type,
-                  webOrderLineItemId: transactionInfo.webOrderLineItemId,
-                },
-              },
-              decodedRenewalInfo: {
-                create: {
-                  autoRenewProductId: renewalInfo.autoRenewProductId,
-                  autoRenewStatus: renewalInfo.autoRenewStatus,
-                  environment: renewalInfo.environment,
-                  expirationIntent: renewalInfo.expirationIntent,
-                  gracePeriodExpiresDate: !isNil(
-                    renewalInfo.gracePeriodExpiresDate,
-                  )
-                    ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
-                    : undefined,
-                  isInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
-                  offerIdentifier: renewalInfo.offerIdentifier,
-                  offerType: renewalInfo.offerType,
-                  originalTransactionId: renewalInfo.originalTransactionId,
-                  priceIncreaseStatus: renewalInfo.priceIncreaseStatus,
-                  productId: renewalInfo.productId,
-                  recentSubscriptionStartDate: Math.ceil(
-                    renewalInfo.recentSubscriptionStartDate / 1000,
-                  ),
-                  renewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
-                  signedDate: Math.ceil(renewalInfo.signedDate / 1000),
-                },
-              },
-            },
-          },
+          TIappAccountToken: transactionInfo.appAccountToken,
+          TIbundleId: transactionInfo.bundleId,
+          TIenvironment: transactionInfo.environment,
+          TIexpiresDate: !isNil(transactionInfo.expiresDate)
+            ? Math.ceil(transactionInfo.expiresDate / 1000)
+            : undefined,
+          TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
+          TIisUpgraded: transactionInfo.isUpgraded,
+          TIofferIdentifier: transactionInfo.offerIdentifier,
+          TIofferType: transactionInfo.offerType,
+          TIoriginalPurchaseDate: Math.ceil(
+            transactionInfo.originalPurchaseDate / 1000,
+          ),
+          TIoriginalTransactionId: transactionInfo.originalTransactionId,
+          TIproductId: transactionInfo.productId,
+          TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
+          TIquantity: transactionInfo.quantity,
+          TIrevocationDate: !isNil(transactionInfo.revocationDate)
+            ? Math.ceil(transactionInfo.revocationDate / 1000)
+            : undefined,
+          TIrevocationReason: transactionInfo.revocationReason,
+          TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
+          TIstorefront: transactionInfo.storefront,
+          TIstorefrontId: transactionInfo.storefrontId,
+          TIsubscriptionGroupIdentifier:
+            transactionInfo.subscriptionGroupIdentifier,
+          TItransactionId: transactionInfo.transactionId,
+          TItransactionReason: transactionInfo.transactionReason,
+          TItype: transactionInfo.type,
+          TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
+
+          RIautoRenewProductId: renewalInfo.autoRenewProductId,
+          RIautoRenewStatus: renewalInfo.autoRenewStatus,
+          RIenvironment: renewalInfo.environment,
+          RIexpirationIntent: renewalInfo.expirationIntent,
+          RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
+            ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
+            : undefined,
+          RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
+          RIofferIdentifier: renewalInfo.offerIdentifier,
+          RIofferType: renewalInfo.offerType,
+          RIoriginalTransactionId: renewalInfo.originalTransactionId,
+          RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
+          RIproductId: renewalInfo.productId,
+          RIrecentSubscriptionStartDate: Math.ceil(
+            renewalInfo.recentSubscriptionStartDate / 1000,
+          ),
+          RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
+          RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
         },
       });
       res.status(200).send();
       return;
     }
 
-    const alreadyExistLog = await prisma.appleTransactionInfo.findUnique({
-      where: {
-        transactionId,
-      },
-    });
+    const alreadyExistLog =
+      await prisma.appleInAppPurchaseAutoHookLog.findUnique({
+        where: {
+          TItransactionId: transactionId,
+        },
+      });
 
     if (!isNil(alreadyExistLog)) {
       /// 같은 transactionId가 존재하면 subscribe 상태만 변경하고 끝냄
@@ -247,13 +224,10 @@ export const appleSubscriptionHook = asyncWrapper(
         tx: prisma,
         adPlaceId: parentPurchaseLog?.adPlaceId,
       });
-      console.log('this transactionId already exists');
-      res.status(200).send();
-      return;
-      // throw new IBError({
-      //   type: 'DUPLICATEDDATA',
-      //   message: 'this transactionId already exists',
-      // });
+      throw new IBError({
+        type: 'DUPLICATEDDATA',
+        message: 'this transactionId already exists',
+      });
     }
 
     await prisma.$transaction(async tx => {
@@ -272,80 +246,59 @@ export const appleSubscriptionHook = asyncWrapper(
       });
 
       await updateSubsStatus({ tx, adPlaceId: parentPurchaseLog?.adPlaceId });
-      await prisma.appleInAppPurchaseAutoHookLog.create({
+
+      await tx.appleInAppPurchaseAutoHookLog.create({
         data: {
-          notificationType: payload.notificationType,
-          subType: payload.subtype,
-          notificationUUID: payload.notificationUUID,
-          version: payload.version,
-          signedDate: new Date(payload.signedDate).toISOString(),
-          data: {
-            create: {
-              appAppleId: payloadData.appAppleId,
-              bundleId: payloadData.bundleId,
-              bundleVersion: payloadData.bundleVersion,
-              environment: payloadData.environment,
-              status: payloadData.status,
-              decodedTransactionInfo: {
-                create: {
-                  appAccountToken: transactionInfo.appAccountToken,
-                  bundleId: transactionInfo.bundleId,
-                  environment: transactionInfo.environment,
-                  expiresDate: !isNil(transactionInfo.expiresDate)
-                    ? Math.ceil(transactionInfo.expiresDate / 1000)
-                    : undefined,
-                  inAppOwnershipType: transactionInfo.inAppOwnershipType,
-                  isUpgraded: transactionInfo.isUpgraded,
-                  offerIdentifier: transactionInfo.offerIdentifier,
-                  offerType: transactionInfo.offerType,
-                  originalPurchaseDate: Math.ceil(
-                    transactionInfo.originalPurchaseDate / 1000,
-                  ),
-                  originalTransactionId: transactionInfo.originalTransactionId,
-                  productId: transactionInfo.productId,
-                  purchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
-                  quantity: transactionInfo.quantity,
-                  revocationDate: !isNil(transactionInfo.revocationDate)
-                    ? Math.ceil(transactionInfo.revocationDate / 1000)
-                    : undefined,
-                  revocationReason: transactionInfo.revocationReason,
-                  signedDate: Math.ceil(transactionInfo.signedDate / 1000),
-                  storefront: transactionInfo.storefront,
-                  storefrontId: transactionInfo.storefrontId,
-                  subscriptionGroupIdentifier:
-                    transactionInfo.subscriptionGroupIdentifier,
-                  transactionId: transactionInfo.transactionId,
-                  transactionReason: transactionInfo.transactionReason,
-                  type: transactionInfo.type,
-                  webOrderLineItemId: transactionInfo.webOrderLineItemId,
-                },
-              },
-              decodedRenewalInfo: {
-                create: {
-                  autoRenewProductId: renewalInfo.autoRenewProductId,
-                  autoRenewStatus: renewalInfo.autoRenewStatus,
-                  environment: renewalInfo.environment,
-                  expirationIntent: renewalInfo.expirationIntent,
-                  gracePeriodExpiresDate: !isNil(
-                    renewalInfo.gracePeriodExpiresDate,
-                  )
-                    ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
-                    : undefined,
-                  isInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
-                  offerIdentifier: renewalInfo.offerIdentifier,
-                  offerType: renewalInfo.offerType,
-                  originalTransactionId: renewalInfo.originalTransactionId,
-                  priceIncreaseStatus: renewalInfo.priceIncreaseStatus,
-                  productId: renewalInfo.productId,
-                  recentSubscriptionStartDate: Math.ceil(
-                    renewalInfo.recentSubscriptionStartDate / 1000,
-                  ),
-                  renewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
-                  signedDate: Math.ceil(renewalInfo.signedDate / 1000),
-                },
-              },
-            },
-          },
+          TIappAccountToken: transactionInfo.appAccountToken,
+          TIbundleId: transactionInfo.bundleId,
+          TIenvironment: transactionInfo.environment,
+          TIexpiresDate: !isNil(transactionInfo.expiresDate)
+            ? Math.ceil(transactionInfo.expiresDate / 1000)
+            : undefined,
+          TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
+          TIisUpgraded: transactionInfo.isUpgraded,
+          TIofferIdentifier: transactionInfo.offerIdentifier,
+          TIofferType: transactionInfo.offerType,
+          TIoriginalPurchaseDate: Math.ceil(
+            transactionInfo.originalPurchaseDate / 1000,
+          ),
+          TIoriginalTransactionId: transactionInfo.originalTransactionId,
+          TIproductId: transactionInfo.productId,
+          TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
+          TIquantity: transactionInfo.quantity,
+          TIrevocationDate: !isNil(transactionInfo.revocationDate)
+            ? Math.ceil(transactionInfo.revocationDate / 1000)
+            : undefined,
+          TIrevocationReason: transactionInfo.revocationReason,
+          TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
+          TIstorefront: transactionInfo.storefront,
+          TIstorefrontId: transactionInfo.storefrontId,
+          TIsubscriptionGroupIdentifier:
+            transactionInfo.subscriptionGroupIdentifier,
+          TItransactionId: transactionInfo.transactionId,
+          TItransactionReason: transactionInfo.transactionReason,
+          TItype: transactionInfo.type,
+          TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
+
+          RIautoRenewProductId: renewalInfo.autoRenewProductId,
+          RIautoRenewStatus: renewalInfo.autoRenewStatus,
+          RIenvironment: renewalInfo.environment,
+          RIexpirationIntent: renewalInfo.expirationIntent,
+          RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
+            ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
+            : undefined,
+          RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
+          RIofferIdentifier: renewalInfo.offerIdentifier,
+          RIofferType: renewalInfo.offerType,
+          RIoriginalTransactionId: renewalInfo.originalTransactionId,
+          RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
+          RIproductId: renewalInfo.productId,
+          RIrecentSubscriptionStartDate: Math.ceil(
+            renewalInfo.recentSubscriptionStartDate / 1000,
+          ),
+          RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
+          RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
+
           appleInAppPurchaseLog: {
             connect: {
               id: parentPurchaseLog.id,
@@ -1870,48 +1823,24 @@ export const appleSubscribeAdPlace = asyncWrapper(
             });
 
             /// 이하 hookLog와 appleInAppPurchaseLog 연결과정
-            // const appleHookLog =
-            //   await tx.appleInAppPurchaseAutoHookLog.findUnique({
-            //     where: {
-            //       TItransactionId: transactionInfo.transactionId,
-            //     },
-            //     select: {
-            //       appleInAppPurchaseLogId: true,
-            //     },
-            //   });
-            const appleTransactionInfo =
-              await tx.appleTransactionInfo.findUnique({
+            const appleHookLog =
+              await tx.appleInAppPurchaseAutoHookLog.findUnique({
                 where: {
-                  transactionId: transactionInfo.transactionId,
+                  TItransactionId: transactionInfo.transactionId,
                 },
                 select: {
-                  appleHookLogData: {
-                    select: {
-                      appleInAppPurchaseAutoHookLog: {
-                        select: {
-                          id: true,
-                          appleInAppPurchaseLogId: true,
-                        },
-                      },
-                    },
-                  },
+                  appleInAppPurchaseLogId: true,
                 },
               });
 
             /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
             if (
-              !isNil(appleTransactionInfo) &&
-              isNil(
-                appleTransactionInfo.appleHookLogData
-                  .appleInAppPurchaseAutoHookLog.appleInAppPurchaseLogId,
-              )
-              //   !isNil(appleHookLog) &&
-              //   isNil(appleHookLog.appleInAppPurchaseLogId)
+              !isNil(appleHookLog) &&
+              isNil(appleHookLog.appleInAppPurchaseLogId)
             ) {
               await tx.appleInAppPurchaseAutoHookLog.update({
                 where: {
-                  id: appleTransactionInfo.appleHookLogData
-                    .appleInAppPurchaseAutoHookLog.id,
+                  TItransactionId: transactionInfo.transactionId,
                 },
                 data: {
                   appleInAppPurchaseLogId: createdLog.id,
