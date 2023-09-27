@@ -1119,9 +1119,9 @@ model AppleHookLogData {
   id                              Int                           @id @default(autoincrement())
   createdAt                       DateTime                      @default(now())
   updatedAt                       DateTime                      @default(now()) @updatedAt
-  appAppleId                      String
+  appAppleId                      Int
   bundleId                        String
-  bundleVersion                   Int
+  bundleVersion                   String
   environment                     String
   decodedTransactionInfo          AppleTransactionInfo?
   decodedRenewalInfo              AppleRenewalInfo?
