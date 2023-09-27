@@ -1075,6 +1075,9 @@ model GoogleInAppPurchaseAutoHookLog {
   googleInAppPurchaseLogId Int?
 }
 
+/// apple 인앱 구매후 영수증 로그를 저장하는 모델 
+/// server notification 으로 오는 이벤트 관련 메시지와는 다른 최초 결제시 생성되는 로그이며, 
+/// 이때 생성되는 originalTransactionId를 중심으로 애플 서버로부터 날아오는 이벤트 로그들은 AutoHook에 쌓인다.
 model AppleInAppPurchaseLog {
   id                            Int                             @id @default(autoincrement())
   createdAt                     DateTime                        @default(now())
@@ -1091,57 +1094,99 @@ model AppleInAppPurchaseLog {
   appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]
 }
 
-/// 애플서버로부터 직접 appleSubscriptionHook api를 통해 들어온 자동 갱신 및 취소 등 transaction 로그들
+/// 애플서버로부터 직접 server notification으로 전달된(appleSubscriptionHook api를 통해 들어온) 자동 갱신 및 취소 등 transaction 로그들
 /// AppleInAppPurchaseLog 모델에 1:N으로 종속되며 originaTransactionId를 통해 구분된다.
-/// https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+/// notification decoded signed payload Type: https://developer.apple.com/documentation/appstoreservernotifications/responsebodyv2decodedpayload
 model AppleInAppPurchaseAutoHookLog {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id               Int               @id @default(autoincrement())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
+  /// responseBodyV2DecodedPayload
+  notificationType String /// DID_CHANGE_RENEWAL_STATUS
+  subType          String? /// AUTO_RENEW_DISABLED
+  notificationUUID String ///   4508f6e9-3eca-4289-a242-5e8ecda3dfa6
+  version          String ///'2.0'
+  signedDate       DateTime
+  data             AppleHookLogData?
 
-  /// apple JWSTransactionDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
-  TIappAccountToken             String?
-  TIbundleId                    String
-  TIenvironment                 String ///ex) Sandbox or Production
-  TIexpiresDate                 Int? /// 단위 sec
-  TIinAppOwnershipType          String ///ex)  PURCHASED or FAMILY_SHARED
-  TIisUpgraded                  Boolean?
-  TIofferIdentifier             String?
-  TIofferType                   Int? /// ex) 1 An introductory offer. 2 A promotional offer. 3 An offer with a subscription offer code.
-  TIoriginalPurchaseDate        Int /// 단위 초
-  TIoriginalTransactionId       String
-  TIproductId                   String
-  TIpurchaseDate                Int /// 단위 초
-  TIquantity                    Int
-  TIrevocationDate              Int? ///  단위 초
-  TIrevocationReason            Int?
-  TIsignedDate                  Int /// 단위 초
-  TIstorefront                  String /// 국가 코드 ex) KOR, https://developer.apple.com/documentation/storekit/storefront/3792000-countrycode 
-  TIstorefrontId                String
-  TIsubscriptionGroupIdentifier String?
-  TItransactionId               String   @unique
-  TItransactionReason           String /// ex) PURCHASE or RENEWAL
-  TItype                        String /// ex) Auto-Renewable Subscription, Non-Consumable, Consumable, Non-Renewing Subscription
-  TIwebOrderLineItemId          String
-
-  /// apple JWSRenewalInfoDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwsrenewalinfodecodedpayload
-  RIautoRenewProductId          String
-  RIautoRenewStatus             Int ///  0: Automatic renewal is off. The customer has turned off automatic renewal for the subscription, and it won’t renew at the end of the current subscription period., 1: Automatic renewal is on. The subscription renews at the end of the current subscription period.
-  RIenvironment                 String /// Sandbox or Production
-  RIexpirationIntent            Int? /// 1: The customer canceled their subscription., 2: Billing error; for example, the customer’s payment information is no longer valid., 3: The customer didn’t consent to an auto-renewable subscription price increase that requires customer consent, allowing the subscription to expire., 4: The product wasn’t available for purchase at the time of renewal., 5: The subscription expired for some other reason.
-  RIgracePeriodExpiresDate      Int? /// 단위 초
-  RIisInBillingRetryPeriod      Boolean?
-  RIofferIdentifier             String?
-  RIofferType                   Int? /// 1: An introductory offer., 2: A promotional offer., 3: An offer with a subscription offer code.
-  RIoriginalTransactionId       String
-  RIpriceIncreaseStatus         Int? /// 0: The customer hasn’t yet responded to an auto-renewable subscription price increase that requires customer consent., 1: The customer consented to an auto-renewable subscription price increase that requires customer consent, or the App Store has notified the customer of an auto-renewable subscription price increase that doesn’t require consent.
-  RIproductId                   String
-  RIrecentSubscriptionStartDate Int /// 단위 초
-  RIrenewalDate                 Int /// 단위 초
-  RIsignedDate                  Int /// 단위 초
-
-  appleInAppPurchaseLog   AppleInAppPurchaseLog? @relation(fields: [appleInAppPurchaseLogId], references: [id])
+  appleInAppPurchaseLog   AppleInAppPurchaseLog? @relation(fields: [appleInAppPurchaseLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   appleInAppPurchaseLogId Int?
+}
+
+/// apple 결제 server notification으로 전달된 payload의 data 포맷
+/// https://developer.apple.com/documentation/appstoreservernotifications/data
+model AppleHookLogData {
+  id                              Int                           @id @default(autoincrement())
+  createdAt                       DateTime                      @default(now())
+  updatedAt                       DateTime                      @default(now()) @updatedAt
+  appAppleId                      String
+  bundleId                        String
+  bundleVersion                   Int
+  environment                     String
+  decodedTransactionInfo          AppleTransactionInfo?
+  decodedRenewalInfo              AppleRenewalInfo?
+  status                          Int? //  1:The auto-renewable subscription is active.
+  // 2: The auto-renewable subscription is expired.
+  // 3: The auto-renewable subscription is in a billing retry period.
+  // 4: The auto-renewable subscription is in a Billing Grace Period.
+  // 5: The auto-renewable subscription is revoked.
+  appleInAppPurchaseAutoHookLog   AppleInAppPurchaseAutoHookLog @relation(fields: [appleInAppPurchaseAutoHookLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appleInAppPurchaseAutoHookLogId Int                           @unique
+}
+
+/// apple JWSTransactionDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+model AppleTransactionInfo {
+  id                          Int              @id @default(autoincrement())
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @default(now()) @updatedAt
+  appAccountToken             String?
+  bundleId                    String
+  environment                 String ///ex) Sandbox or Production
+  expiresDate                 Int? /// 단위 sec
+  inAppOwnershipType          String ///ex)  PURCHASED or FAMILY_SHARED
+  isUpgraded                  Boolean?
+  offerIdentifier             String?
+  offerType                   Int? /// ex) 1 An introductory offer. 2 A promotional offer. 3 An offer with a subscription offer code.
+  originalPurchaseDate        Int /// 단위 초
+  originalTransactionId       String
+  productId                   String
+  purchaseDate                Int /// 단위 초
+  quantity                    Int
+  revocationDate              Int? ///  단위 초
+  revocationReason            Int?
+  signedDate                  Int /// 단위 초
+  storefront                  String /// 국가 코드 ex) KOR, https://developer.apple.com/documentation/storekit/storefront/3792000-countrycode 
+  storefrontId                String
+  subscriptionGroupIdentifier String?
+  transactionId               String           @unique
+  transactionReason           String /// ex) PURCHASE or RENEWAL
+  type                        String /// ex) Auto-Renewable Subscription, Non-Consumable, Consumable, Non-Renewing Subscription
+  webOrderLineItemId          String
+  appleHookLogData            AppleHookLogData @relation(fields: [appleHookLogDataId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appleHookLogDataId          Int              @unique
+}
+
+/// apple JWSRenewalInfoDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwsrenewalinfodecodedpayload
+model AppleRenewalInfo {
+  id                          Int              @id @default(autoincrement())
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @default(now()) @updatedAt
+  autoRenewProductId          String
+  autoRenewStatus             Int ///  0: Automatic renewal is off. The customer has turned off automatic renewal for the subscription, and it won’t renew at the end of the current subscription period., 1: Automatic renewal is on. The subscription renews at the end of the current subscription period.
+  environment                 String /// Sandbox or Production
+  expirationIntent            Int? /// 1: The customer canceled their subscription., 2: Billing error; for example, the customer’s payment information is no longer valid., 3: The customer didn’t consent to an auto-renewable subscription price increase that requires customer consent, allowing the subscription to expire., 4: The product wasn’t available for purchase at the time of renewal., 5: The subscription expired for some other reason.
+  gracePeriodExpiresDate      Int? /// 단위 초
+  isInBillingRetryPeriod      Boolean?
+  offerIdentifier             String?
+  offerType                   Int? /// 1: An introductory offer., 2: A promotional offer., 3: An offer with a subscription offer code.
+  originalTransactionId       String
+  priceIncreaseStatus         Int? /// 0: The customer hasn’t yet responded to an auto-renewable subscription price increase that requires customer consent., 1: The customer consented to an auto-renewable subscription price increase that requires customer consent, or the App Store has notified the customer of an auto-renewable subscription price increase that doesn’t require consent.
+  productId                   String
+  recentSubscriptionStartDate Int /// 단위 초
+  renewalDate                 Int /// 단위 초
+  signedDate                  Int /// 단위 초
+  appleHookLogData            AppleHookLogData @relation(fields: [appleHookLogDataId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appleHookLogDataId          Int              @unique
 }
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
