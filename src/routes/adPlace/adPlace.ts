@@ -224,10 +224,13 @@ export const appleSubscriptionHook = asyncWrapper(
         tx: prisma,
         adPlaceId: parentPurchaseLog?.adPlaceId,
       });
-      throw new IBError({
-        type: 'DUPLICATEDDATA',
-        message: 'this transactionId already exists',
-      });
+      console.log('this transactionId already exists');
+      res.status(200).send();
+      return;
+      // throw new IBError({
+      //   type: 'DUPLICATEDDATA',
+      //   message: 'this transactionId already exists',
+      // });
     }
 
     await prisma.$transaction(async tx => {
