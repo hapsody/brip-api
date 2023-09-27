@@ -11,7 +11,9 @@ import {
 } from 'app-store-server-api';
 
 import prisma from '@src/prisma';
+
 import {
+  PrismaClient,
   AdPlace,
   IBPhotos,
   IBTravelTag,
@@ -57,6 +59,45 @@ export const appleSubscriptionHook = asyncWrapper(
   async (req: Request, res: Response): Promise<void> => {
     // console.log(req);
 
+    const updateSubsStatus = async (params: {
+      tx: Partial<PrismaClient>;
+      adPlaceId: number;
+    }) => {
+      const { tx, adPlaceId } = params;
+      const lastPurchaseLog = await tx.appleInAppPurchaseLog!.findFirst({
+        where: {
+          adPlaceId,
+        },
+        orderBy: {
+          id: 'desc',
+        },
+        select: {
+          // expiresDate: true,
+          expireDateFormat: true,
+          adPlaceId: true,
+        },
+      });
+
+      console.log(`now: `, moment().format('YYYY-MM-D hh:mm:ss'));
+      console.log(
+        `expireDateFormat:`,
+        moment(lastPurchaseLog!.expireDateFormat).format('YYYY-MM-D hh:mm:ss'),
+      );
+
+      /// adPlace 구독 상태 업데이트 로직
+      /// lastPurchaseLog는 최소 방금 생성한 GoogleInAppPurchaseLog 데이터가 있기 때문에 null일수 없음
+      await prisma.adPlace.update({
+        where: {
+          id: lastPurchaseLog?.adPlaceId,
+        },
+        data: {
+          subscribe:
+            moment().diff(moment(lastPurchaseLog!.expireDateFormat)) < 0,
+          // moment().diff(moment(lastPurchaseLog!.expiresDate * 1000)) < 0,
+        },
+      });
+    };
+
     // // Your signed payload from Apple
     const { signedPayload } = req.body as { signedPayload: string };
     if (isNil(signedPayload)) {
@@ -89,6 +130,86 @@ export const appleSubscriptionHook = asyncWrapper(
     const renewalInfo = await decodeRenewalInfo(payload.data.signedRenewalInfo);
 
     const { transactionId, originalTransactionId } = transactionInfo;
+    console.log(`[appleSubsHook] payload:`, {
+      ...payload,
+      data: omit(payload.data, ['signedRenewalInfo', 'signedTransactionInfo']),
+    });
+    console.log(`[appleSubsHook] transactionInfo: `, {
+      ...transactionInfo,
+      expiresDateFormat: moment(transactionInfo.expiresDate).format(
+        'YYYY-MM-D hh:mm:ss',
+      ),
+    });
+    console.log(`[appleSubsHook] renewalInfo: `, {
+      ...renewalInfo,
+      renewalDateFormat: moment(renewalInfo.renewalDate).format(
+        'YYYY-MM-D hh:mm:ss',
+      ),
+    });
+
+    const parentPurchaseLog = await prisma.appleInAppPurchaseLog.findUnique({
+      where: {
+        originalTransactionId,
+      },
+    });
+
+    if (isNil(parentPurchaseLog)) {
+      await prisma.appleInAppPurchaseAutoHookLog.create({
+        data: {
+          TIappAccountToken: transactionInfo.appAccountToken,
+          TIbundleId: transactionInfo.bundleId,
+          TIenvironment: transactionInfo.environment,
+          TIexpiresDate: !isNil(transactionInfo.expiresDate)
+            ? Math.ceil(transactionInfo.expiresDate / 1000)
+            : undefined,
+          TIinAppOwnershipType: transactionInfo.inAppOwnershipType,
+          TIisUpgraded: transactionInfo.isUpgraded,
+          TIofferIdentifier: transactionInfo.offerIdentifier,
+          TIofferType: transactionInfo.offerType,
+          TIoriginalPurchaseDate: Math.ceil(
+            transactionInfo.originalPurchaseDate / 1000,
+          ),
+          TIoriginalTransactionId: transactionInfo.originalTransactionId,
+          TIproductId: transactionInfo.productId,
+          TIpurchaseDate: Math.ceil(transactionInfo.purchaseDate / 1000),
+          TIquantity: transactionInfo.quantity,
+          TIrevocationDate: !isNil(transactionInfo.revocationDate)
+            ? Math.ceil(transactionInfo.revocationDate / 1000)
+            : undefined,
+          TIrevocationReason: transactionInfo.revocationReason,
+          TIsignedDate: Math.ceil(transactionInfo.signedDate / 1000),
+          TIstorefront: transactionInfo.storefront,
+          TIstorefrontId: transactionInfo.storefrontId,
+          TIsubscriptionGroupIdentifier:
+            transactionInfo.subscriptionGroupIdentifier,
+          TItransactionId: transactionInfo.transactionId,
+          TItransactionReason: transactionInfo.transactionReason,
+          TItype: transactionInfo.type,
+          TIwebOrderLineItemId: transactionInfo.webOrderLineItemId,
+
+          RIautoRenewProductId: renewalInfo.autoRenewProductId,
+          RIautoRenewStatus: renewalInfo.autoRenewStatus,
+          RIenvironment: renewalInfo.environment,
+          RIexpirationIntent: renewalInfo.expirationIntent,
+          RIgracePeriodExpiresDate: !isNil(renewalInfo.gracePeriodExpiresDate)
+            ? Math.ceil(renewalInfo.gracePeriodExpiresDate / 1000)
+            : undefined,
+          RIisInBillingRetryPeriod: renewalInfo.isInBillingRetryPeriod,
+          RIofferIdentifier: renewalInfo.offerIdentifier,
+          RIofferType: renewalInfo.offerType,
+          RIoriginalTransactionId: renewalInfo.originalTransactionId,
+          RIpriceIncreaseStatus: renewalInfo.priceIncreaseStatus,
+          RIproductId: renewalInfo.productId,
+          RIrecentSubscriptionStartDate: Math.ceil(
+            renewalInfo.recentSubscriptionStartDate / 1000,
+          ),
+          RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
+          RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
+        },
+      });
+      res.status(200).send();
+      return;
+    }
 
     const alreadyExistLog =
       await prisma.appleInAppPurchaseAutoHookLog.findUnique({
@@ -98,60 +219,33 @@ export const appleSubscriptionHook = asyncWrapper(
       });
 
     if (!isNil(alreadyExistLog)) {
+      /// 같은 transactionId가 존재하면 subscribe 상태만 변경하고 끝냄
+      await updateSubsStatus({
+        tx: prisma,
+        adPlaceId: parentPurchaseLog?.adPlaceId,
+      });
       throw new IBError({
         type: 'DUPLICATEDDATA',
         message: 'this transactionId already exists',
       });
     }
 
-    const parentPurchaseLog = await prisma.appleInAppPurchaseLog.findUnique({
-      where: {
-        originalTransactionId,
-      },
-    });
-
     await prisma.$transaction(async tx => {
       /// parentPurchaseLog가 존재하지 않는 경우는 최초 결제 이후 brip 앱에서 appleSubscribeAdPlace를 호출한것보다 먼저 본 hook함수가 실행된 경우다.
-      if (!isNil(parentPurchaseLog)) {
-        await tx.appleInAppPurchaseLog.update({
-          where: {
-            id: parentPurchaseLog?.id,
-          },
-          data: {
-            // expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
-            expireDateFormat: new Date(
-              Number(transactionInfo.expiresDate),
-            ).toISOString(),
-          },
-        });
 
-        const lastPurchaseLog = await prisma.appleInAppPurchaseLog.findFirst({
-          where: {
-            adPlaceId: parentPurchaseLog?.adPlaceId,
-          },
-          orderBy: {
-            id: 'desc',
-          },
-          select: {
-            // expiresDate: true,
-            expireDateFormat: true,
-            adPlaceId: true,
-          },
-        });
+      await tx.appleInAppPurchaseLog.update({
+        where: {
+          id: parentPurchaseLog?.id,
+        },
+        data: {
+          // expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
+          expireDateFormat: new Date(
+            Number(transactionInfo.expiresDate),
+          ).toISOString(),
+        },
+      });
 
-        /// adPlace 구독 상태 업데이트 로직
-        /// lastPurchaseLog는 최소 방금 생성한 GoogleInAppPurchaseLog 데이터가 있기 때문에 null일수 없음
-        await prisma.adPlace.update({
-          where: {
-            id: lastPurchaseLog?.adPlaceId,
-          },
-          data: {
-            subscribe:
-              moment().diff(moment(lastPurchaseLog!.expireDateFormat)) < 0,
-            // moment().diff(moment(lastPurchaseLog!.expiresDate * 1000)) < 0,
-          },
-        });
-      }
+      await updateSubsStatus({ tx, adPlaceId: parentPurchaseLog?.adPlaceId });
 
       await tx.appleInAppPurchaseAutoHookLog.create({
         data: {
@@ -204,13 +298,12 @@ export const appleSubscriptionHook = asyncWrapper(
           ),
           RIrenewalDate: Math.ceil(renewalInfo.renewalDate / 1000),
           RIsignedDate: Math.ceil(renewalInfo.signedDate / 1000),
-          ...(!isNil(parentPurchaseLog) && {
-            appleInAppPurchaseLog: {
-              connect: {
-                id: parentPurchaseLog.id,
-              },
+
+          appleInAppPurchaseLog: {
+            connect: {
+              id: parentPurchaseLog.id,
             },
-          }),
+          },
         },
       });
     });
@@ -1433,8 +1526,8 @@ export const googleSubscribeAdPlace = asyncWrapper(
 
       const {
         orderId,
-        packageName,
-        productId,
+        // packageName,
+        // productId,
         purchaseState,
         purchaseTime,
         purchaseToken,
@@ -1503,8 +1596,8 @@ export const googleSubscribeAdPlace = asyncWrapper(
                 Number(validationResult.expiryTimeMillis),
               ).toISOString(),
               orderId,
-              packageName,
-              productId,
+              // packageName,
+              // productId,
               purchaseTime,
               purchaseState: Number(purchaseState),
               purchaseToken,
@@ -1648,6 +1741,7 @@ export const appleSubscribeAdPlace = asyncWrapper(
         });
       }
 
+      console.log(`[appleSubsAdPlace]: `, req.body);
       const adPlace = await prisma.adPlace.findUnique({
         where: {
           id: Number(adPlaceId),
