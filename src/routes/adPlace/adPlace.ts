@@ -11,7 +11,6 @@ import {
 } from 'app-store-server-api';
 
 import prisma from '@src/prisma';
-
 import {
   PrismaClient,
   AdPlace,
@@ -130,6 +129,11 @@ export const appleSubscriptionHook = asyncWrapper(
     const renewalInfo = await decodeRenewalInfo(payload.data.signedRenewalInfo);
 
     const { transactionId, originalTransactionId } = transactionInfo;
+
+    const { transactionInfo: latestTransactionInfo } =
+      await retrieveLastSubscriptionReceipt(
+        transactionInfo.originalTransactionId,
+      );
     console.log(`[appleSubsHook] payload:`, {
       ...payload,
       data: omit(payload.data, ['signedRenewalInfo', 'signedTransactionInfo']),
@@ -243,7 +247,7 @@ export const appleSubscriptionHook = asyncWrapper(
         data: {
           // expiresDate: Math.ceil(Number(transactionInfo.expiresDate) / 1000),
           expireDateFormat: new Date(
-            Number(transactionInfo.expiresDate),
+            Number(latestTransactionInfo.expiresDate),
           ).toISOString(),
         },
       });
@@ -1859,7 +1863,8 @@ export const appleSubscribeAdPlace = asyncWrapper(
               id: Number(adPlaceId),
             },
             data: {
-              subscribe: true,
+              subscribe: moment().diff(moment(transactionInfo.expiresDate)) < 0,
+              // subscribe: true,
             },
           });
 

@@ -1,4 +1,4 @@
-import prisma from '@src/prisma';
+// import prisma from '@src/prisma';
 import express, { Express } from 'express';
 import multer from 'multer';
 import { isNil } from 'lodash';
@@ -21,6 +21,7 @@ import {
   // doSuperTreeTraversal,
   // getPartialMatchedPathTags,
   getValidUrl,
+  retrieveLastSubscriptionReceipt,
 } from '@src/utils';
 
 const upload = multer();
@@ -255,7 +256,7 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
  * https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.io.idealbloom.brip/purchases/subscriptions/brip_business_subscribe/tokens/eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
  */
 export interface PrismaTestRequestType {
-  nowTimestamp: number;
+  originalTransacionId: string;
 }
 export interface PrismaTestSuccessResType {}
 
@@ -269,27 +270,15 @@ export const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<PrismaTestResType>,
   ) => {
     try {
-      const { nowTimestamp } = req.body;
+      const { originalTransacionId } = req.body;
 
-      /// 지금보다 과거의 만료일을 가지고 있는것 = 만료일이 지난것
-      const result = await prisma.googleInAppPurchaseLog.groupBy({
-        by: ['adPlaceId', 'id'],
-        where: {
-          expireDateFormat: {
-            lt: new Date(nowTimestamp).toISOString(),
-          },
-          // expire: {
-          //   lt: Math.ceil(nowTimestamp / 1000),
-          // },
-        },
-        orderBy: {
-          id: 'desc',
-        },
-      });
+      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+        originalTransacionId,
+      );
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: result,
+        IBparams: transactionInfo,
       });
     } catch (err) {
       if (err instanceof IBError) {
