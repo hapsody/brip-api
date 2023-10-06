@@ -34,6 +34,119 @@ const authRouter: express.Application = express();
 
 let gIamportAccessKey = '';
 
+interface IiamportCerificationAnotationType {
+  code: number;
+  message: string | null;
+  response: {
+    /// https://developers.portone.io/api/rest-v1/type-def#CertificationAnnotation
+    /// 포트원 인증 고유번호 (필수)
+    imp_uid: string;
+    /// 본인인증 결과건의 포트원 인증 고유번호
+
+    /// 가맹점 주문번호 (선택)
+    merchant_uid: string;
+    // 본인인증 결과건의 포트원 가맹점 주문번호
+
+    // PG사 본인인증결과 고유번호 (선택)
+    pg_tid: string;
+    // 본인인증 결과건의 PG사 본인인증결과 고유번호
+
+    // pg사 구분코드 (필수)
+    pg_provider: string;
+    // 본인인증 제공 PG사의 명칭
+
+    // 성명 (선택)
+    name: string;
+    // 인증된 사용자의 성명
+
+    // 성별 (선택)
+    gender: string;
+    // 인증된 사용자의 성별
+
+    // 생년월일 (선택)
+    birthday: string;
+    // 인증된 사용자의 생년월일 ISO8601 형식의 문자열. YYYY-MM-DD 10자리 문자열
+
+    // 외국인 여부 (필수)
+    foreigner: boolean;
+    // 인증된 사용자의 외국인 여부
+
+    // 휴대폰번호 (선택)
+    phone: string;
+    // 인증에 사용된 휴대폰 번호 (신용카드 본인인증의 경우 해당사항 없음
+
+    // 통신사 (선택)
+    carrier: string;
+    // 인증에 사용된 휴대폰번호의 통신사 (신용카드 본인인증의 경우 해당사항없음)
+
+    // 인증성공여부 (선택)
+    certified: boolean;
+    // 본인인증 성공여부
+
+    // 인증처리시각 (선택)
+    certified_at: number;
+    // 본인인증 처리시각 UNIX timestamp
+
+    // 개인 고유구분 식별키 (선택)
+    unique_key: string;
+    // 개인별로 고유하게 부여하는 개인 식별키(CI)
+
+    // 가맹점 내 개인 고유구분 식별키 (선택)
+    unique_in_site: string;
+    // 가맹점 내 개인별로 고유하게 부여하는 개인 식별키(DI)
+
+    // 웹 페이지 URL (선택)
+    origin: string;
+    // 본인인증 프로세스가 진행된 웹 페이지의 URL
+
+    // 외국인 여부(nullable) (선택)
+    foreigner_v2: boolean;
+    // 본인인증 결과 외국인 여부(nullable)
+  };
+}
+
+/// iamport로 본인인증 여부를 조회하는 함수
+const reqAuthenticateResultToIamport = async (impUid: string) => {
+  try {
+    /// 본인인증 여부 조회
+    const r = await axios.get<IiamportCerificationAnotationType>(
+      `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
+    );
+    return r.data.response;
+  } catch (e) {
+    /// Unauthorized - iamport access 토큰 에러
+    if ((e as AxiosError).response?.status === 401) {
+      /// iamport accesskey 획득
+      /// api 문서: https://api.iamport.kr/#/
+      const authResult = await axios.post<{
+        code: number;
+        message: string | null;
+        response: {
+          access_token: string;
+          expired_at: number;
+          now: number;
+        };
+      }>(`https://api.iamport.kr/users/getToken`, {
+        imp_key: process.env.IAMPORT_API_KEY as string,
+        imp_secret: process.env.IAMPORT_API_SECRET as string,
+      });
+
+      const { access_token: accessToken } = authResult.data.response;
+      gIamportAccessKey = accessToken;
+
+      const r = await axios.get<IiamportCerificationAnotationType>(
+        `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
+      );
+      return r.data.response;
+    }
+
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: 'iamport 본인인증 조회중 예기치 못한 에러가 발생했습니다.',
+    });
+  }
+};
+
 export interface SaveScheduleResponsePayload {
   token: string;
   refreshToken: string;
@@ -2227,119 +2340,6 @@ export const addServerVersion = asyncWrapper(
     }
   },
 );
-
-interface IiamportCerificationAnotationType {
-  code: number;
-  message: string | null;
-  response: {
-    /// https://developers.portone.io/api/rest-v1/type-def#CertificationAnnotation
-    /// 포트원 인증 고유번호 (필수)
-    imp_uid: string;
-    /// 본인인증 결과건의 포트원 인증 고유번호
-
-    /// 가맹점 주문번호 (선택)
-    merchant_uid: string;
-    // 본인인증 결과건의 포트원 가맹점 주문번호
-
-    // PG사 본인인증결과 고유번호 (선택)
-    pg_tid: string;
-    // 본인인증 결과건의 PG사 본인인증결과 고유번호
-
-    // pg사 구분코드 (필수)
-    pg_provider: string;
-    // 본인인증 제공 PG사의 명칭
-
-    // 성명 (선택)
-    name: string;
-    // 인증된 사용자의 성명
-
-    // 성별 (선택)
-    gender: string;
-    // 인증된 사용자의 성별
-
-    // 생년월일 (선택)
-    birthday: string;
-    // 인증된 사용자의 생년월일 ISO8601 형식의 문자열. YYYY-MM-DD 10자리 문자열
-
-    // 외국인 여부 (필수)
-    foreigner: boolean;
-    // 인증된 사용자의 외국인 여부
-
-    // 휴대폰번호 (선택)
-    phone: string;
-    // 인증에 사용된 휴대폰 번호 (신용카드 본인인증의 경우 해당사항 없음
-
-    // 통신사 (선택)
-    carrier: string;
-    // 인증에 사용된 휴대폰번호의 통신사 (신용카드 본인인증의 경우 해당사항없음)
-
-    // 인증성공여부 (선택)
-    certified: boolean;
-    // 본인인증 성공여부
-
-    // 인증처리시각 (선택)
-    certified_at: number;
-    // 본인인증 처리시각 UNIX timestamp
-
-    // 개인 고유구분 식별키 (선택)
-    unique_key: string;
-    // 개인별로 고유하게 부여하는 개인 식별키(CI)
-
-    // 가맹점 내 개인 고유구분 식별키 (선택)
-    unique_in_site: string;
-    // 가맹점 내 개인별로 고유하게 부여하는 개인 식별키(DI)
-
-    // 웹 페이지 URL (선택)
-    origin: string;
-    // 본인인증 프로세스가 진행된 웹 페이지의 URL
-
-    // 외국인 여부(nullable) (선택)
-    foreigner_v2: boolean;
-    // 본인인증 결과 외국인 여부(nullable)
-  };
-}
-
-/// iamport로 본인인증 여부를 조회하는 함수
-const reqAuthenticateResultToIamport = async (impUid: string) => {
-  try {
-    /// 본인인증 여부 조회
-    const r = await axios.get<IiamportCerificationAnotationType>(
-      `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
-    );
-    return r.data.response;
-  } catch (e) {
-    /// Unauthorized - iamport access 토큰 에러
-    if ((e as AxiosError).response?.status === 401) {
-      /// iamport accesskey 획득
-      /// api 문서: https://api.iamport.kr/#/
-      const authResult = await axios.post<{
-        code: number;
-        message: string | null;
-        response: {
-          access_token: string;
-          expired_at: number;
-          now: number;
-        };
-      }>(`https://api.iamport.kr/users/getToken`, {
-        imp_key: process.env.IAMPORT_API_KEY as string,
-        imp_secret: process.env.IAMPORT_API_SECRET as string,
-      });
-
-      const { access_token: accessToken } = authResult.data.response;
-      gIamportAccessKey = accessToken;
-
-      const r = await axios.get<IiamportCerificationAnotationType>(
-        `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
-      );
-      return r.data.response;
-    }
-
-    throw new IBError({
-      type: 'EXTERNALAPI',
-      message: 'iamport 본인인증 조회중 예기치 못한 에러가 발생했습니다.',
-    });
-  }
-};
 
 export type SubmitIdVerificationResultRequestType = {
   impUid: string;
