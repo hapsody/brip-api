@@ -22,7 +22,7 @@ import {
   ServerVersion,
   ClientVersion,
 } from '@prisma/client';
-import axios, { Method } from 'axios';
+import axios, { Method, AxiosError } from 'axios';
 import CryptoJS from 'crypto-js';
 import moment from 'moment';
 import 'moment/locale/ko';
@@ -31,6 +31,8 @@ import randomstring from 'randomstring';
 import redis from '@src/redis';
 
 const authRouter: express.Application = express();
+
+let gIamportAccessKey = '';
 
 export interface SaveScheduleResponsePayload {
   token: string;
@@ -186,6 +188,7 @@ export type SignUpRequestType = {
   password: string;
   phone?: string;
   // phoneAuthCode?: string;
+  impUid: string;
   nickName: string;
   cc: string;
   // userToken: string;
@@ -214,6 +217,7 @@ export const signUp = asyncWrapper(
         password,
         phone,
         // phoneAuthCode,
+        impUid,
         nickName,
         cc: countryCode,
         // userToken,
@@ -238,6 +242,7 @@ export const signUp = asyncWrapper(
     if (isEmpty(password)) emptyCheckArr.push('password');
     if (isEmpty(phone)) emptyCheckArr.push('phone');
     // if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
+    if (isEmpty(impUid)) emptyCheckArr.push('impUid');
     if (isEmpty(nickName)) emptyCheckArr.push('nickName');
     if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
     // if (isEmpty(userToken)) emptyCheckArr.push('userToken');
@@ -264,6 +269,24 @@ export const signUp = asyncWrapper(
     if (locals && locals.grade === 'member') {
       res.status(409).json({ ...ibDefs.NOTAUTHORIZED });
       return;
+    }
+
+    /// +82-1012345678
+    if (
+      !isNil(phone) &&
+      !isEmpty(phone) &&
+      !isNil(impUid) &&
+      !isEmpty(impUid)
+    ) {
+      const identityVerificationResult = await reqAuthenticateResultToIamport(
+        impUid,
+      );
+      if (`0${phone.split('-')[1]}` !== identityVerificationResult.phone) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: '제출한 전화번호와 본인인증한 전화번호가 일치하지 않습니다.',
+        });
+      }
     }
 
     /// 통신사 번호인증으로 SMS 번호인증은 제거함
@@ -2205,6 +2228,195 @@ export const addServerVersion = asyncWrapper(
   },
 );
 
+interface IiamportCerificationAnotationType {
+  code: number;
+  message: string | null;
+  response: {
+    /// https://developers.portone.io/api/rest-v1/type-def#CertificationAnnotation
+    /// 포트원 인증 고유번호 (필수)
+    imp_uid: string;
+    /// 본인인증 결과건의 포트원 인증 고유번호
+
+    /// 가맹점 주문번호 (선택)
+    merchant_uid: string;
+    // 본인인증 결과건의 포트원 가맹점 주문번호
+
+    // PG사 본인인증결과 고유번호 (선택)
+    pg_tid: string;
+    // 본인인증 결과건의 PG사 본인인증결과 고유번호
+
+    // pg사 구분코드 (필수)
+    pg_provider: string;
+    // 본인인증 제공 PG사의 명칭
+
+    // 성명 (선택)
+    name: string;
+    // 인증된 사용자의 성명
+
+    // 성별 (선택)
+    gender: string;
+    // 인증된 사용자의 성별
+
+    // 생년월일 (선택)
+    birthday: string;
+    // 인증된 사용자의 생년월일 ISO8601 형식의 문자열. YYYY-MM-DD 10자리 문자열
+
+    // 외국인 여부 (필수)
+    foreigner: boolean;
+    // 인증된 사용자의 외국인 여부
+
+    // 휴대폰번호 (선택)
+    phone: string;
+    // 인증에 사용된 휴대폰 번호 (신용카드 본인인증의 경우 해당사항 없음
+
+    // 통신사 (선택)
+    carrier: string;
+    // 인증에 사용된 휴대폰번호의 통신사 (신용카드 본인인증의 경우 해당사항없음)
+
+    // 인증성공여부 (선택)
+    certified: boolean;
+    // 본인인증 성공여부
+
+    // 인증처리시각 (선택)
+    certified_at: number;
+    // 본인인증 처리시각 UNIX timestamp
+
+    // 개인 고유구분 식별키 (선택)
+    unique_key: string;
+    // 개인별로 고유하게 부여하는 개인 식별키(CI)
+
+    // 가맹점 내 개인 고유구분 식별키 (선택)
+    unique_in_site: string;
+    // 가맹점 내 개인별로 고유하게 부여하는 개인 식별키(DI)
+
+    // 웹 페이지 URL (선택)
+    origin: string;
+    // 본인인증 프로세스가 진행된 웹 페이지의 URL
+
+    // 외국인 여부(nullable) (선택)
+    foreigner_v2: boolean;
+    // 본인인증 결과 외국인 여부(nullable)
+  };
+}
+
+/// iamport로 본인인증 여부를 조회하는 함수
+const reqAuthenticateResultToIamport = async (impUid: string) => {
+  try {
+    /// 본인인증 여부 조회
+    const r = await axios.get<IiamportCerificationAnotationType>(
+      `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
+    );
+    return r.data.response;
+  } catch (e) {
+    /// Unauthorized - iamport access 토큰 에러
+    if ((e as AxiosError).response?.status === 401) {
+      /// iamport accesskey 획득
+      /// api 문서: https://api.iamport.kr/#/
+      const authResult = await axios.post<{
+        code: number;
+        message: string | null;
+        response: {
+          access_token: string;
+          expired_at: number;
+          now: number;
+        };
+      }>(`https://api.iamport.kr/users/getToken`, {
+        imp_key: process.env.IAMPORT_API_KEY as string,
+        imp_secret: process.env.IAMPORT_API_SECRET as string,
+      });
+
+      const { access_token: accessToken } = authResult.data.response;
+      gIamportAccessKey = accessToken;
+
+      const r = await axios.get<IiamportCerificationAnotationType>(
+        `https://api.iamport.kr/certifications/${impUid}?_token=${gIamportAccessKey}`,
+      );
+      return r.data.response;
+    }
+
+    throw new IBError({
+      type: 'EXTERNALAPI',
+      message: 'iamport 본인인증 조회중 예기치 못한 에러가 발생했습니다.',
+    });
+  }
+};
+
+export type SubmitIdVerificationResultRequestType = {
+  impUid: string;
+};
+export type SubmitIdVerificationResultSuccessResType = ServerVersion & {
+  pairClientVersion: ClientVersion | null;
+};
+export type SubmitIdVerificationResultResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: SubmitIdVerificationResultSuccessResType | {};
+};
+
+/**
+ * 클라이언트의 통신사 본인인증 결과를 brip 서버로 알리는 api
+ * brip 서버는 iamport api를 요청하여 본인인증이 이루어졌는지 확인한다.
+ */
+export const submitIdVerificationResult = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<SubmitIdVerificationResultRequestType>,
+    res: Express.IBTypedResponse<SubmitIdVerificationResultResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (!isNil(locals) && locals.grade === 'member' && locals.user?.admin)
+          return locals?.user?.userTokenId;
+        return locals?.tokenId;
+        // throw new IBError({
+        //   type: 'NOTAUTHORIZED',
+        //   message: 'admin member 등급만 접근 가능합니다.',
+        // });
+      })();
+      if (!userTokenId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+      const params = req.body;
+      const { impUid } = params;
+
+      const { phone } = await reqAuthenticateResultToIamport(impUid);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: phone,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'DUPLICATEDDATA') {
+          console.error(err);
+          res.status(409).json({
+            ...ibDefs.DUPLICATEDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 // export const somethingFunc = asyncWrapper(
 //   async (req: Request, res: Response, next: NextFunction) => {
 //     /**
@@ -2264,5 +2476,9 @@ authRouter.get(
   getServerNClientVersion,
 );
 authRouter.post('/addServerVersion', accessTokenValidCheck, addServerVersion);
-
+authRouter.post(
+  '/submitIdVerificationResult',
+  accessTokenValidCheck,
+  submitIdVerificationResult,
+);
 export default authRouter;
