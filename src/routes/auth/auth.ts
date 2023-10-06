@@ -2284,8 +2284,28 @@ export const addServerVersion = asyncWrapper(
         });
       }
 
-      const usingVersion = await prisma.serverVersion.create({
-        data: {
+      const usingVersion = await prisma.serverVersion.upsert({
+        where: {
+          versionName,
+        },
+        update: {
+          ...(!isNil(clientVersionNames) &&
+            !isEmpty(clientVersionNames) && {
+              pairClientVersion: {
+                connectOrCreate: clientVersionNames.map(v => {
+                  return {
+                    where: {
+                      versionName: v,
+                    },
+                    create: {
+                      versionName: v,
+                    },
+                  };
+                }),
+              },
+            }),
+        },
+        create: {
           isUsing: false,
           versionName,
           ...(!isNil(clientVersionNames) &&
