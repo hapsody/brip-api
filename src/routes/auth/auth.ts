@@ -185,7 +185,7 @@ export type SignUpRequestType = {
   id: string;
   password: string;
   phone?: string;
-  phoneAuthCode?: string;
+  // phoneAuthCode?: string;
   nickName: string;
   cc: string;
   // userToken: string;
@@ -213,7 +213,7 @@ export const signUp = asyncWrapper(
         id: email,
         password,
         phone,
-        phoneAuthCode,
+        // phoneAuthCode,
         nickName,
         cc: countryCode,
         // userToken,
@@ -236,7 +236,7 @@ export const signUp = asyncWrapper(
     const emptyCheckArr: string[] = [];
     if (isEmpty(email)) emptyCheckArr.push('id');
     if (isEmpty(password)) emptyCheckArr.push('password');
-    // if (isEmpty(phone)) emptyCheckArr.push('phone');
+    if (isEmpty(phone)) emptyCheckArr.push('phone');
     // if (isEmpty(phoneAuthCode)) emptyCheckArr.push('phoneAuthCode');
     if (isEmpty(nickName)) emptyCheckArr.push('nickName');
     if (isEmpty(countryCode)) emptyCheckArr.push('countryCode');
@@ -266,58 +266,60 @@ export const signUp = asyncWrapper(
       return;
     }
 
-    if (
-      !isNil(phone) &&
-      !isEmpty(phone) &&
-      !isNil(phoneAuthCode) &&
-      !isEmpty(phoneAuthCode)
-    ) {
-      const interCode = phone.split('-')[0].slice(1);
-      const formattedPhone = phone.split('-').reduce((acc, cur) => {
-        if (cur.includes('+')) return acc;
-        return `${acc}${cur}`;
-      }, '');
+    /// 통신사 번호인증으로 SMS 번호인증은 제거함
+    // if (
+    //   !isNil(phone) &&
+    //   !isEmpty(phone) &&
+    //   !isNil(phoneAuthCode) &&
+    //   !isEmpty(phoneAuthCode)
+    // ) {
+    //   const interCode = phone.split('-')[0].slice(1);
+    //   const formattedPhone = phone.split('-').reduce((acc, cur) => {
+    //     if (cur.includes('+')) return acc;
+    //     return `${acc}${cur}`;
+    //   }, '');
 
-      const smsAuthCode = await prisma.sMSAuthCode.findMany({
-        where: {
-          phone: `+${interCode}-${formattedPhone}`,
-          // code: phoneAuthCode,
-          userTokenId,
-        },
-        orderBy: {
-          id: 'desc',
-        },
-      });
+    //   const smsAuthCode = await prisma.sMSAuthCode.findMany({
+    //     where: {
+    //       phone: `+${interCode}-${formattedPhone}`,
+    //       // code: phoneAuthCode,
+    //       userTokenId,
+    //     },
+    //     orderBy: {
+    //       id: 'desc',
+    //     },
+    //   });
 
-      if (smsAuthCode.length === 0) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message:
-            '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
-        });
-      }
+    //   if (smsAuthCode.length === 0) {
+    //     throw new IBError({
+    //       type: 'NOTEXISTDATA',
+    //       message:
+    //         '해당 번호와 코드가 일치하는 문자 인증 요청 내역이 존재하지 않습니다.',
+    //     });
+    //   }
 
-      if (smsAuthCode[0].code !== phoneAuthCode) {
-        throw new IBError({
-          type: 'EXPIREDDATA',
-          message: '가장 마지막으로 발송된 인증번호가 아닙니다.',
-        });
-      }
-    }
+    //   if (smsAuthCode[0].code !== phoneAuthCode) {
+    //     throw new IBError({
+    //       type: 'EXPIREDDATA',
+    //       message: '가장 마지막으로 발송된 인증번호가 아닙니다.',
+    //     });
+    //   }
+    // }
 
     const userWithoutPw = await prisma.$transaction(async tx => {
-      if (
-        !isNil(phone) &&
-        !isEmpty(phone) &&
-        !isNil(phoneAuthCode) &&
-        !isEmpty(phoneAuthCode)
-      ) {
-        await tx.sMSAuthCode.deleteMany({
-          where: {
-            OR: [{ phone }, { userTokenId }],
-          },
-        });
-      }
+      /// 통신사 번호인증으로 SMS 번호인증은 제거함
+      // if (
+      //   !isNil(phone) &&
+      //   !isEmpty(phone) &&
+      //   !isNil(phoneAuthCode) &&
+      //   !isEmpty(phoneAuthCode)
+      // ) {
+      //   await tx.sMSAuthCode.deleteMany({
+      //     where: {
+      //       OR: [{ phone }, { userTokenId }],
+      //     },
+      //   });
+      // }
 
       const createdUser = await tx.user.create({
         data: {
@@ -325,10 +327,14 @@ export const signUp = asyncWrapper(
           password: hash,
           pwLastUpdateDate: moment().toISOString(),
           pwExpireDate: null,
+          // ...(!isNil(phone) &&
+          //   !isEmpty(phone) &&
+          //   !isNil(phoneAuthCode) &&
+          //   !isEmpty(phoneAuthCode) && {
+          //     phone,
+          //   }),
           ...(!isNil(phone) &&
-            !isEmpty(phone) &&
-            !isNil(phoneAuthCode) &&
-            !isEmpty(phoneAuthCode) && {
+            !isEmpty(phone) && {
               phone,
             }),
           nickName,
