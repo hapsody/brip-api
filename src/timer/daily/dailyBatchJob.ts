@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 
 async function batchJob(): Promise<void> {
   // await registTPFromAdPlace();
-  const nowTimestamp = new Date().getTime();
+  // const nowTimestamp = new Date().getTime();
   // /adPlace/googleSubscriptionHook api 추가로 인해 (구글 RTDN) 실시간 상태 업데이트가 되어 구글은 별도의 batch 과정이 필요없음
   // const googleExpiredSubscriptions =
   //   await prisma.googleInAppPurchaseLog.findMany({
@@ -24,9 +24,12 @@ async function batchJob(): Promise<void> {
   const appleExpiredSubscriptions = await prisma.appleInAppPurchaseLog.findMany(
     {
       where: {
-        expiresDate: {
-          lt: Math.ceil(nowTimestamp / 1000),
+        expireDateFormat: {
+          lt: new Date(),
         },
+        // expiresDate: {
+        //   lt: Math.ceil(nowTimestamp / 1000),
+        // },
       },
     },
   );
@@ -91,9 +94,12 @@ async function batchJob(): Promise<void> {
           id: v.id,
         },
         data: {
-          expiresDate: Math.ceil(
-            Number(validationResult.transactionInfo.expiresDate) / 1000,
-          ),
+          expireDateFormat: moment(
+            Number(validationResult.transactionInfo.expiresDate),
+          ).toISOString(),
+          // expiresDate: Math.ceil(
+          //   Number(validationResult.transactionInfo.expiresDate) / 1000,
+          // ),
         },
       });
     }
