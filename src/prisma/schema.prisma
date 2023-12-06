@@ -1041,7 +1041,7 @@ model GoogleInAppPurchaseLog {
   quantity          Int /// ex) 1
   autoRenewing      Boolean /// ex) true
   acknowledged      Boolean /// ex) false
-  adPlace           AdPlace                          @relation(fields: [adPlaceId], references: [id])
+  adPlace           AdPlace                          @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adPlaceId         Int
   googleAutoHookLog GoogleInAppPurchaseAutoHookLog[]
 }
@@ -1086,7 +1086,7 @@ model AppleInAppPurchaseLog {
   transactionId                 String /// '2000000416416016';
   // expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
   expireDateFormat              DateTime
-  adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id])
+  adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adPlaceId                     Int
   appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]
 }
