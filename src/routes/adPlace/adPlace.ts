@@ -536,7 +536,9 @@ export const getAdPlace = asyncWrapper(
 
       const adPlaces = await prisma.adPlace.findMany({
         where: {
-          status: 'IN_USE',
+          status: {
+            in: ['IN_USE', 'STOP'],
+          },
           ...(!isNil(adPlaceId) &&
             !isEmpty(adPlaceId) &&
             !isNaN(Number(adPlaceId)) && {
@@ -547,6 +549,7 @@ export const getAdPlace = asyncWrapper(
             !isNaN(Number(userId)) && {
               userId: Number(userId),
             }),
+          mainTourPlaceId: { not: null },
         },
         include: {
           mainPhoto: true,
