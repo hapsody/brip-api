@@ -43,6 +43,7 @@ import {
   getImgUrlListFromIBPhotos,
   validateSubscriptionReceipt,
   retrieveLastSubscriptionReceipt,
+  retrieveReceiptHistory,
 } from '@src/utils';
 import moment from 'moment';
 import { isNil, isEmpty, isNaN, omit } from 'lodash';
@@ -231,10 +232,6 @@ export const appleSubscriptionHook = asyncWrapper(
       console.log('this transactionId already exists');
       res.status(200).send();
       return;
-      // throw new IBError({
-      //   type: 'DUPLICATEDDATA',
-      //   message: 'this transactionId already exists',
-      // });
     }
 
     await prisma.$transaction(async tx => {
@@ -1784,11 +1781,26 @@ export const appleSubscribeAdPlace = asyncWrapper(
         },
       });
 
-      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+      // const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+      //   originalTransactionIdentifierIOS,
+      // );
+
+      // if (transactionInfo.transactionId !== transactionId) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message:
+      //       'apple 서버에 해당 originalTranssactionId와 transactionId로 결제 내역이 조회되지 않습니다.',
+      //   });
+      // }
+      const { history } = await retrieveReceiptHistory(
         originalTransactionIdentifierIOS,
       );
 
-      if (transactionInfo.transactionId !== transactionId) {
+      const transactionInfo = history.find(
+        v => v.transactionId === transactionId,
+      );
+
+      if (isNil(transactionInfo)) {
         throw new IBError({
           type: 'INVALIDSTATUS',
           message:

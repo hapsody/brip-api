@@ -72,7 +72,10 @@ import {
 } from './appPush';
 import { checkURLAccessibility, getValidUrl } from './exConnection';
 import { validateSubscriptionReceipt } from './google';
-import { retrieveLastSubscriptionReceipt } from './apple';
+import {
+  retrieveLastSubscriptionReceipt,
+  retrieveReceiptHistory,
+} from './apple';
 
 export {
   ibDefs,
@@ -139,4 +142,5 @@ export {
   getTourPlaceInfoFromCacheNDB,
   validateSubscriptionReceipt,
   retrieveLastSubscriptionReceipt,
+  retrieveReceiptHistory,
 };

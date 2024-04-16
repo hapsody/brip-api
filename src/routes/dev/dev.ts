@@ -23,6 +23,7 @@ import {
   getValidUrl,
   retrieveLastSubscriptionReceipt,
 } from '@src/utils';
+import { retrieveReceiptHistory } from '@src/utils/apple';
 
 const upload = multer();
 
@@ -276,9 +277,21 @@ export const prismaTest = asyncWrapper(
         originalTransacionId,
       );
 
+      const result = {
+        ...(transactionInfo && {
+          transactionInfo,
+          expireDates: new Date(transactionInfo.expiresDate!).toISOString(),
+        }),
+      };
+
+      const { history } = await retrieveReceiptHistory(originalTransacionId);
+
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: transactionInfo,
+        IBparams: {
+          lastTransactionInfo: result,
+          history,
+        },
       });
     } catch (err) {
       if (err instanceof IBError) {
