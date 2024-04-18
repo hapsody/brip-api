@@ -75,6 +75,7 @@ import { validateSubscriptionReceipt } from './google';
 import {
   retrieveLastSubscriptionReceipt,
   retrieveReceiptHistory,
+  retrievePurchaseNotiHistory,
 } from './apple';
 
 export {
@@ -143,4 +144,5 @@ export {
   validateSubscriptionReceipt,
   retrieveLastSubscriptionReceipt,
   retrieveReceiptHistory,
+  retrievePurchaseNotiHistory,
 };

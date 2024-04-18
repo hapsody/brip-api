@@ -129,12 +129,6 @@ export const appleSubscriptionHook = asyncWrapper(
     );
     const renewalInfo = await decodeRenewalInfo(payload.data.signedRenewalInfo);
 
-    const { transactionId, originalTransactionId } = transactionInfo;
-
-    const { transactionInfo: latestTransactionInfo } =
-      await retrieveLastSubscriptionReceipt(
-        transactionInfo.originalTransactionId,
-      );
     console.log(`[appleSubsHook] payload:`, {
       ...payload,
       data: omit(payload.data, ['signedRenewalInfo', 'signedTransactionInfo']),
@@ -152,6 +146,17 @@ export const appleSubscriptionHook = asyncWrapper(
       ),
     });
 
+    const retreiveSubsResult = await retrieveLastSubscriptionReceipt(
+      transactionInfo.originalTransactionId,
+    );
+
+    /// 애플 서버로부터 noti된 transactionId가 속하는 거래원점(originalTransaction)이 새로운 구독으로 대체되면 기존 originalTransactionId로는 애플서버 조회 안됨
+    if (retreiveSubsResult === null) res.status(200).send();
+
+    const { transactionInfo: latestTransactionInfo } = retreiveSubsResult;
+    const { originalTransactionId } = transactionInfo;
+
+    /// DB에 transaction 로그 기록 - original 구매기록(parentPurchaseLog) 확인
     const parentPurchaseLog = await prisma.appleInAppPurchaseLog.findUnique({
       where: {
         originalTransactionId,
@@ -216,23 +221,23 @@ export const appleSubscriptionHook = asyncWrapper(
       return;
     }
 
-    const alreadyExistLog =
-      await prisma.appleInAppPurchaseAutoHookLog.findUnique({
-        where: {
-          TItransactionId: transactionId,
-        },
-      });
+    // const alreadyExistLog =
+    //   await prisma.appleInAppPurchaseAutoHookLog.findUnique({
+    //     where: {
+    //       TItransactionId: transactionId,
+    //     },
+    //   });
 
-    if (!isNil(alreadyExistLog)) {
-      /// 같은 transactionId가 존재하면 subscribe 상태만 변경하고 끝냄
-      await updateSubsStatus({
-        tx: prisma,
-        adPlaceId: parentPurchaseLog?.adPlaceId,
-      });
-      console.log('this transactionId already exists');
-      res.status(200).send();
-      return;
-    }
+    // if (!isNil(alreadyExistLog)) {
+    //   /// 같은 transactionId가 존재하면 subscribe 상태만 변경하고 끝냄
+    //   await updateSubsStatus({
+    //     tx: prisma,
+    //     adPlaceId: parentPurchaseLog?.adPlaceId,
+    //   });
+    //   console.log('this transactionId already exists');
+    //   res.status(200).send();
+    //   return;
+    // }
 
     await prisma.$transaction(async tx => {
       /// parentPurchaseLog가 존재하지 않는 경우는 최초 결제 이후 brip 앱에서 appleSubscribeAdPlace를 호출한것보다 먼저 본 hook함수가 실행된 경우다.
@@ -1696,6 +1701,44 @@ export type AppleSubscribeAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
 };
 
 /**
+ * transactionId에 해당하는 HookLog와 AppleInAppPurchaseLog를 연결해주는 함수
+ * @param params
+ */
+const connectApplePurchaseLogAndHookLog = async (params: {
+  tx: Partial<PrismaClient>;
+  // transactionId: string;
+  originalTransactionId: string;
+  appleInAppPurchaseLogId: number;
+}) => {
+  const { tx, appleInAppPurchaseLogId, originalTransactionId } = params;
+  /// 이하 hookLog와 appleInAppPurchaseLog 연결과정
+  const appleHookLogs = await tx.appleInAppPurchaseAutoHookLog!.findMany({
+    where: {
+      // TItransactionId: transactionId,
+      TIoriginalTransactionId: originalTransactionId,
+      NOT: { appleInAppPurchaseLogId: null },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
+  if (!isEmpty(appleHookLogs)) {
+    await tx.appleInAppPurchaseAutoHookLog!.updateMany({
+      where: {
+        id: {
+          in: appleHookLogs.map(v => v.id),
+        },
+      },
+      data: {
+        appleInAppPurchaseLogId,
+      },
+    });
+  }
+};
+
+/**
  * 애플 인앱 결제후 adPlce 구독 요청 api
  */
 export const appleSubscribeAdPlace = asyncWrapper(
@@ -1818,6 +1861,12 @@ export const appleSubscribeAdPlace = asyncWrapper(
         > => {
           const log = await (async () => {
             if (!isNil(alreadyExistLog)) {
+              await connectApplePurchaseLogAndHookLog({
+                tx,
+                // transactionId: transactionInfo.transactionId!,
+                originalTransactionId: transactionInfo.originalTransactionId!,
+                appleInAppPurchaseLogId: alreadyExistLog.id,
+              });
               return alreadyExistLog;
             }
 
@@ -1844,32 +1893,11 @@ export const appleSubscribeAdPlace = asyncWrapper(
               },
             });
 
-            /// 이하 hookLog와 appleInAppPurchaseLog 연결과정
-            const appleHookLog =
-              await tx.appleInAppPurchaseAutoHookLog.findUnique({
-                where: {
-                  TItransactionId: transactionInfo.transactionId,
-                },
-                select: {
-                  appleInAppPurchaseLogId: true,
-                },
-              });
-
-            /// brip 앱에서 호출하는 /adPlace/appleSubscribeAdPlace api 보다 apple 서버에서 hook으로 호출하는 /adPlace/appleSubscriptionHook가 먼저 호출될 경우 AppleInAppPurchase 데이터가 생성되어있지 않았기 때문에 appleSubscriptionHook 호출시점에는 AppleInAppPurchaseAutoHookLog와 AppleInAppPurchase 테이블간 관계를 형성하지 못했기 때문에 관계를 형성해준다.
-            if (
-              !isNil(appleHookLog) &&
-              isNil(appleHookLog.appleInAppPurchaseLogId)
-            ) {
-              await tx.appleInAppPurchaseAutoHookLog.update({
-                where: {
-                  TItransactionId: transactionInfo.transactionId,
-                },
-                data: {
-                  appleInAppPurchaseLogId: createdLog.id,
-                },
-              });
-            }
-
+            await connectApplePurchaseLogAndHookLog({
+              tx,
+              originalTransactionId: transactionInfo.originalTransactionId!,
+              appleInAppPurchaseLogId: createdLog.id,
+            });
             return createdLog;
           })();
 

@@ -4,6 +4,13 @@ import multer from 'multer';
 import { isNil } from 'lodash';
 import fbAdmin from '@src/firebase';
 import {
+  decodeNotificationPayload,
+  // DecodedNotificationPayload,
+  decodeTransaction,
+  decodeRenewalInfo,
+  // SendAttempt,
+} from 'app-store-server-api';
+import {
   ibDefs,
   asyncWrapper,
   IBResFormat,
@@ -22,6 +29,7 @@ import {
   // getPartialMatchedPathTags,
   getValidUrl,
   retrieveLastSubscriptionReceipt,
+  retrievePurchaseNotiHistory,
 } from '@src/utils';
 import { retrieveReceiptHistory } from '@src/utils/apple';
 
@@ -328,6 +336,171 @@ export const prismaTest = asyncWrapper(
   },
 );
 
+export interface RetrieveTransactionAndHistoryRequestType {
+  originalTransacionId: string;
+}
+export interface RetrieveTransactionAndHistorySuccessResType {}
+
+export type RetrieveTransactionAndHistoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: RetrieveTransactionAndHistorySuccessResType | {};
+};
+export const retriveLastTransactionAndHistory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RetrieveTransactionAndHistoryRequestType>,
+    res: Express.IBTypedResponse<RetrieveTransactionAndHistoryResType>,
+  ) => {
+    try {
+      const { originalTransacionId } = req.body;
+
+      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+        originalTransacionId,
+      );
+
+      const result = {
+        ...(transactionInfo && {
+          transactionInfo,
+          expireDates: new Date(transactionInfo.expiresDate!).toISOString(),
+        }),
+      };
+
+      const { history } = await retrieveReceiptHistory(originalTransacionId);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          lastTransactionInfo: result,
+          history,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface RetrievePurchaseNotiHistoryRequestType {
+  startDate: string;
+  endDate: string;
+}
+
+export type RetrievePurchaseNotiHistoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: {};
+};
+export const retrivePurchaseNotiHistory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RetrievePurchaseNotiHistoryRequestType>,
+    res: Express.IBTypedResponse<RetrievePurchaseNotiHistoryResType>,
+  ) => {
+    try {
+      const { startDate, endDate } = req.body;
+
+      const result = await retrievePurchaseNotiHistory({
+        startDate: new Date(startDate),
+        ...(endDate && { endDate: new Date(endDate) }),
+      });
+      const decodedHistoryPromises = result.notificationHistory.map(
+        async (v, i) => {
+          const decodedPayload = await decodeNotificationPayload(
+            v.signedPayload,
+          );
+
+          const signedTransactionInfo = await decodeTransaction(
+            decodedPayload.data!.signedTransactionInfo,
+          );
+          const signedRenewalInfo = await decodeRenewalInfo(
+            decodedPayload.data!.signedRenewalInfo,
+          );
+
+          return {
+            index: i,
+            ...v,
+            signedPayload: {
+              ...decodedPayload,
+              data: {
+                ...decodedPayload.data,
+                signedTransactionInfo,
+                signedRenewalInfo,
+              },
+            },
+          };
+        },
+      );
+
+      const decodedHistories = await Promise.all(decodedHistoryPromises);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: decodedHistories,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 export interface AppPushTestRequestType {
   fcmDeviceToken: string;
 }
@@ -583,7 +756,17 @@ settingRouter.post(
   accessTokenValidCheck,
   getPresignedUrlFromS3File,
 );
-settingRouter.post('/prismaTest', prismaTest);
+settingRouter.post('/prismaTest', accessTokenValidCheck, prismaTest);
+settingRouter.post(
+  '/retriveLastTransactionAndHistory',
+  accessTokenValidCheck,
+  retriveLastTransactionAndHistory,
+);
+settingRouter.post(
+  '/retrivePurchaseNotiHistory',
+  accessTokenValidCheck,
+  retrivePurchaseNotiHistory,
+);
 settingRouter.post(
   '/reqUriForPutObjectToS3',
   accessTokenValidCheck,

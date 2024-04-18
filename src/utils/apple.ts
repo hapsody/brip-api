@@ -8,6 +8,7 @@ import {
   decodeRenewalInfo,
   JWSRenewalInfoDecodedPayload,
   JWSTransactionDecodedPayload,
+  NotificationHistoryResponse,
 } from 'app-store-server-api';
 // import { google } from 'googleapis';
 
@@ -93,4 +94,29 @@ export const retrieveReceiptHistory = async (
   return {
     history: decoded,
   };
+};
+
+/**
+ * 애플 결제관련 noti 내역들 조회 (실시간성을 보장하진 않는다.. 최근 15분~30분 가량은 반영이 안되어 안올수도 있는것 같음)
+ * https://www.npmjs.com/package/app-store-server-api#notification-history
+ * @returns
+ */
+export const retrievePurchaseNotiHistory = async (params: {
+  startDate: Date;
+  endDate?: Date;
+}): Promise<NotificationHistoryResponse> => {
+  const { startDate, endDate = new Date() } = params;
+  // Start and end date are required.
+  // The earliest supported start date is June 6th (the start of WWDC 2022).
+  const response = await api.getNotificationHistory({
+    startDate: startDate.getTime(), // June 6th 2022
+    endDate: endDate.getTime(),
+  });
+
+  // Check if there are more items.
+  if (response.hasMore) {
+    // Use history.paginationToken to fetch additional items.
+  }
+
+  return response;
 };
