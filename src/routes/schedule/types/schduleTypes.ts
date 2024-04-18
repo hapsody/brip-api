@@ -524,7 +524,7 @@ export type ReqScheduleRETParam = Omit<IBResFormat, 'IBparams'> & {
  * makeSchedule (reqSchedule 변경스펙)
  */
 export interface MakeScheduleREQParam {
-  isNow: string;
+  ingNow: string;
   companion: string;
   familyOpt: string[];
   minFriend: string;
@@ -620,10 +620,13 @@ export interface ContextMakeSchedule extends IBContext {
   travelDays?: number; /// 여행 일정중 '박'수
   hotelTransition?: number; /// 여행일정중 숙소 변경횟수
   visitSchedules?: IVisitDaySchedule[];
+  recommendedRegion?: string;
+  exclusiveRegion?: string[]; /// destination이 recommend일 경우 추천지역 후보지(getRecommendRegion의 randCandRegion 배열항목중) 중에 배제하고 싶은 리스트가 있다면 해당 파라미터로 보낸다. 클라이언트가 사용하는 파라미터는 아니고 서버 시스템 내부적으로 makeSchedule 반복 호출시에 사용
 }
 
 export interface MakeScheduleRETParamPayload {
   queryParamsId: number;
+  recommendedRegion?: string; /// 유저가 추천지역을 요청 경우에는 반환값에 자동추천된 지역키워드가 반환된다.
   spotPerDay?: number;
   calibUserLevel?: {
     min: number;
@@ -1091,3 +1094,12 @@ export interface GetEstimatedCostRETParamPayload {
 export type GetEstimatedCostRETParam = Omit<IBResFormat, 'IBparams'> & {
   IBparams: RefreshScheduleRETParamPayload | {};
 };
+
+export interface RegionalCodeType {
+  regionCode1?: number;
+  regionCode2?: number;
+}
+export interface ScheduleScanType {
+  type: string;
+  regionalCodes?: RegionalCodeType[];
+}

@@ -5,14 +5,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch via NPM",
-      "request": "launch",
-      "runtimeArgs": ["run-script", "debug"],
-      "runtimeExecutable": "npm",
-      "skipFiles": ["<node_internals>/**"],
-      "type": "node"
-    },
-    {
       "command": "yarn stop;yarn start:dev",
       "name": "terminal debug",
       "request": "launch",
@@ -34,56 +26,14 @@
     },
 
     {
-      "command": "yarn batch",
-      "name": "test batch",
+      "command": "yarn batch:daily",
+      "name": "test batch:daily",
       "request": "launch",
       "type": "node-terminal"
     },
     {
-      "command": "yarn seed:tripMemoryCategory",
-      "name": "test seed:tripMemoryCategory",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn seed:shareTripMemory",
-      "name": "test seed:shareTripMemory",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn seed:tourPlace",
-      "name": "test seed:tourPlace",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn seed:adPlace",
-      "name": "test seed:adPlace",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn batch:dupCheck",
-      "name": "test batch:dupCheck",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn batch:areaCodeAsign",
-      "name": "test batch:areaCodeAsign",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn test reqSchedule-stress",
-      "name": "yarn test reqSchedule-stress.test.ts",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
-      "command": "yarn batch:registTPFromAdPlace",
-      "name": "yarn batch:registTPFromAdPlace",
+      "command": "yarn seed:iBTravelTag",
+      "name": "test seed:iBTravelTag",
       "request": "launch",
       "type": "node-terminal"
     }

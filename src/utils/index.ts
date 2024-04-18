@@ -24,7 +24,21 @@ import { getToday, getTomorrow, getNDaysLater } from './time';
 import {
   IBTravelTagList,
   ibTravelTagCategorize,
-} from './ibTravelTagCategorize';
+  getSubTags,
+  getSuperTags,
+  getRootTags,
+  getLeafTags,
+  doAllTagTreeTraversal,
+  doSubTreeTraversal,
+  doSuperTreeTraversal,
+  getPartialMatchedPathTags,
+  getMatchedAllPathTags,
+  categoryToIBTravelTag,
+  ibTravelTagToTourPlaceType,
+  getSuperTagsOfPath,
+  addTagPath,
+  addTagWithParentPath,
+} from './ibTravelTag';
 import {
   degreeToMeter,
   estGeoLocFromMeter,
@@ -34,17 +48,35 @@ import {
 } from './geoLocation';
 import { searchKRJuso, geoCodeToAddr, addrToGeoCode } from './externalApi';
 import sendEmail from './sendEmail';
-import {
-  categoryToIBTravelTag,
-  ibTravelTagToTourPlaceType,
-} from './categoryToIBTravelTag';
+// import {
+//   categoryToIBTravelTag,
+//   ibTravelTagToTourPlaceType,
+// } from './categoryToIBTravelTag';
 import {
   getUserProfileUrl,
   getAccessableUrl,
   getIBPhotoUrl,
   getThumbnailUrlFromIBPhotos,
   getImgUrlListFromIBPhotos,
+  // getUserSmallProfileUrl,
 } from './iBPhotos';
+import {
+  sendAppPush,
+  sendAppPushToBookingCustomer,
+  sendAppPushToBookingCompany,
+  sendNotiMsgAppPush,
+  getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  getTourPlaceInfoFromCacheNDB,
+  ToUserInfoType,
+} from './appPush';
+import { checkURLAccessibility, getValidUrl } from './exConnection';
+import { validateSubscriptionReceipt } from './google';
+import {
+  retrieveLastSubscriptionReceipt,
+  retrieveReceiptHistory,
+  retrievePurchaseNotiHistory,
+} from './apple';
 
 export {
   ibDefs,
@@ -86,4 +118,31 @@ export {
   getAccessableUrl,
   getThumbnailUrlFromIBPhotos,
   getImgUrlListFromIBPhotos,
+  sendAppPush,
+  sendAppPushToBookingCustomer,
+  sendAppPushToBookingCompany,
+  sendNotiMsgAppPush,
+  checkURLAccessibility,
+  getValidUrl,
+  getSubTags,
+  getSuperTags,
+  getRootTags,
+  getLeafTags,
+  doAllTagTreeTraversal,
+  doSubTreeTraversal,
+  doSuperTreeTraversal,
+  getPartialMatchedPathTags,
+  getMatchedAllPathTags,
+  // getUserSmallProfileUrl,
+  getSuperTagsOfPath,
+  addTagPath,
+  addTagWithParentPath,
+  getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  ToUserInfoType,
+  getTourPlaceInfoFromCacheNDB,
+  validateSubscriptionReceipt,
+  retrieveLastSubscriptionReceipt,
+  retrieveReceiptHistory,
+  retrievePurchaseNotiHistory,
 };

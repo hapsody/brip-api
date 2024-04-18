@@ -21,6 +21,7 @@ import {
   sendEmail,
 } from '@src/utils';
 import { omit, isEmpty, isNil, isNaN } from 'lodash';
+import redis from '@src/redis';
 
 const upload = multer();
 
@@ -102,7 +103,8 @@ export const reqTicket = asyncWrapper(
 
       await sendEmail({
         from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        to: `idealbloom@idealbloom.io`,
+        bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
         subject: 'BRiP System - User Question Notification',
         html: `<b>${createdTicket.user.email}</b> 에 의해 문의된 항목입니다. 
         <br><br>
@@ -251,7 +253,8 @@ export const reqBusinessTicket = asyncWrapper(
 
       await sendEmail({
         from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-        to: `${createdTicket.user.email}, hapsody@gmail.com`,
+        to: `idealbloom@idealbloom.io`,
+        bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
         subject: 'BRiP System - Business Question Notification',
         html: `<b>${
           createdTicket.user.email
@@ -529,7 +532,8 @@ export const reqTripCreator = asyncWrapper(
 
         await sendEmail({
           from: `BRiP Admin" <${process.env.SYSTEM_EMAIL_SENDER as string}>`,
-          to: `${user.email}, hapsody@gmail.com`,
+          to: `idealbloom@idealbloom.io`,
+          bcc: 'hapsody@gmail.com, hjkang@idealbloom.io, jhoon@idealbloom.io, jhahn_ceo@idealbloom.io',
           subject: 'BRiP System - Trip Creator Proposal Notification',
           html: `<b>${
             user.email
@@ -1424,6 +1428,200 @@ export const changePhoneNum = asyncWrapper(
   },
 );
 
+export type ChangePushAlarmSetRequestType = {
+  deviceToken: string;
+  sysNotiPushAlarm?: string; /// boolean
+  bookingChatPushAlarm?: string; /// boolean
+};
+export type ChangePushAlarmSetSuccessResType = {
+  token: string;
+  pushAlarm: boolean;
+};
+export type ChangePushAlarmSetResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangePushAlarmSetSuccessResType | {};
+};
+
+/**
+ * 해당 기기에 push 알림을 허용할지 여부를 저장하는 api
+ */
+export const changePushAlarmSet = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangePushAlarmSetRequestType>,
+    res: Express.IBTypedResponse<ChangePushAlarmSetResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userTokenId = (() => {
+        if (locals && locals?.grade === 'member')
+          return locals?.user?.userTokenId;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userTokenId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { deviceToken, sysNotiPushAlarm, bookingChatPushAlarm } = req.body;
+      if (isNil(deviceToken) || isEmpty(deviceToken)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'deviceToken 파라미터는 필수 파라미터입니다.',
+        });
+      }
+      if (
+        (isNil(sysNotiPushAlarm) ||
+          isEmpty(sysNotiPushAlarm) ||
+          !(
+            sysNotiPushAlarm.toLowerCase() === 'true' ||
+            sysNotiPushAlarm.toLowerCase() === 'false'
+          )) &&
+        (isNil(bookingChatPushAlarm) ||
+          isEmpty(bookingChatPushAlarm) ||
+          !(
+            bookingChatPushAlarm.toLowerCase() === 'true' ||
+            bookingChatPushAlarm.toLowerCase() === 'false'
+          ))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message:
+            'sysNotiPushAlarm, bookingChatPushAlarm 파라미터중 둘중 하나는 반드시 포함되어야합니다.',
+        });
+      }
+
+      const userFCMToken = await prisma.userFCMToken.findUnique({
+        where: {
+          token: deviceToken,
+        },
+        select: {
+          id: true,
+          userTokenId: true,
+          token: true,
+        },
+      });
+
+      if (isNil(userFCMToken)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 token입니다.',
+        });
+      }
+
+      if (userFCMToken.userTokenId !== userTokenId) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '요청 멤버 유저에게 변경권한이 없는 디바이스입니다.',
+        });
+      }
+
+      const updatedRes = await prisma.userFCMToken.update({
+        where: {
+          id: userFCMToken.id,
+        },
+        data: {
+          ...(!isNil(sysNotiPushAlarm) && {
+            sysNotiPushAlarm: sysNotiPushAlarm.toLowerCase() === 'true',
+          }),
+          ...(!isNil(bookingChatPushAlarm) && {
+            bookingChatPushAlarm: bookingChatPushAlarm.toLowerCase() === 'true',
+          }),
+          token: userFCMToken.token,
+        },
+        select: {
+          token: true,
+          sysNotiPushAlarm: true,
+          bookingChatPushAlarm: true,
+        },
+      });
+
+      const dbUserInfo = await prisma.user.findUnique({
+        where: {
+          userTokenId,
+        },
+        select: {
+          id: true,
+          nickName: true,
+          // email: true,
+          // profileImg: true,
+          // phone: true,
+          userFCMToken: {
+            select: {
+              token: true,
+              sysNotiPushAlarm: true,
+              bookingChatPushAlarm: true,
+            },
+          },
+        },
+      });
+
+      await redis.set(`userInfo:${dbUserInfo!.id}`, JSON.stringify(dbUserInfo));
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updatedRes,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'EXPIREDDATA') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.EXPIREDDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
+
 settingRouter.post('/reqTicket', accessTokenValidCheck, reqTicket);
 settingRouter.post(
   '/reqBusinessTicket',
@@ -1452,5 +1650,10 @@ settingRouter.post(
 );
 settingRouter.get('/getRandomMainImg', accessTokenValidCheck, getRandomMainImg);
 settingRouter.post('/changePhoneNum', accessTokenValidCheck, changePhoneNum);
+settingRouter.post(
+  '/changePushAlarmSet',
+  accessTokenValidCheck,
+  changePushAlarmSet,
+);
 
 export default settingRouter;

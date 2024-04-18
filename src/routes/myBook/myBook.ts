@@ -1,6 +1,11 @@
 import express from 'express';
 import prisma from '@src/prisma';
-import { BookingInfo, AdPlace } from '@prisma/client';
+import {
+  BookingInfo,
+  AdPlace,
+  BookingInfoStatus,
+  BookingChatActionType,
+} from '@prisma/client';
 import {
   ibDefs,
   asyncWrapper,
@@ -10,7 +15,19 @@ import {
   // getS3SignedUrl,
   getUserProfileUrl,
 } from '@src/utils';
-import { isNil, isEmpty } from 'lodash';
+import redis from '@src/redis';
+import { isNil, isEmpty, isNaN } from 'lodash';
+import {
+  SysNotiMessageType,
+  BookingChatMessageType,
+} from '@src/routes/noti/types';
+import {
+  pubNotiPush,
+  putInSysNotiMessage,
+  putInBookingMsg,
+  pubChatPush,
+} from '@src/routes/noti/noti';
+import moment from 'moment';
 
 const myBookRouter: express.Application = express();
 
@@ -163,5 +180,354 @@ export const getMyBookingInfo = asyncWrapper(
     }
   },
 );
+
+export type ChangeBookingInfoStatusRequestType = {
+  role: 'company' | 'customer';
+  bookingInfoStatus: BookingInfoStatus;
+  bookingInfoId: string;
+};
+export type ChangeBookingInfoStatusSuccessResType = BookingInfo;
+export type ChangeBookingInfoStatusResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: ChangeBookingInfoStatusSuccessResType[] | {};
+};
+
+/**
+ * BookingInfoStatus 를 수정하고 변경된 status에 맞게 system noti를 발송함
+ * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=5732-1968&mode=design&t=nrkIGB9SSxifdtJ0-4
+ */
+export const changeBookingInfoStatus = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<ChangeBookingInfoStatusRequestType>,
+    res: Express.IBTypedResponse<ChangeBookingInfoStatusResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member') return locals?.user?.id;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (!userId) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { role, bookingInfoStatus, bookingInfoId } = req.body;
+      if (isNil(role) || isEmpty(role)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'role 파라미터가(company | customer) 제공되어야 합니다.',
+        });
+      }
+
+      if (isNil(bookingInfoStatus) || isEmpty(bookingInfoStatus)) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'bookingInfoStatus 파라미터가 제공되어야 합니다.',
+        });
+      }
+
+      if (
+        isNil(bookingInfoId) ||
+        isEmpty(bookingInfoId) ||
+        isNaN(Number(bookingInfoId))
+      ) {
+        throw new IBError({
+          type: 'INVALIDPARAMS',
+          message: 'bookingInfoId 파라미터가 제공되어야 합니다.',
+        });
+      }
+
+      const bookingInfo = await prisma.bookingInfo.findUnique({
+        where: {
+          id: Number(bookingInfoId),
+        },
+        include: {
+          company: {
+            select: {
+              // id: true,
+              nickName: true,
+            },
+          },
+          customer: {
+            select: {
+              // id:true,
+              nickName: true,
+            },
+          },
+          adPlace: {
+            select: {
+              // id: true,
+              title: true,
+              mainTourPlaceId: true,
+            },
+          },
+        },
+      });
+
+      if (isNil(bookingInfo)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '존재하지 않는 bookingInfoId입니다.',
+        });
+      }
+
+      if (
+        (role === 'customer' && bookingInfo.customerId !== userId) ||
+        (role === 'company' && bookingInfo.companyId !== userId)
+      ) {
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: '해당 bookingInfoStatus를 변경할 권한이 없습니다.',
+        });
+      }
+
+      if (role === 'customer') {
+        if (
+          bookingInfoStatus === 'COMPANYCANCEL' ||
+          bookingInfoStatus === 'NOSHOW' ||
+          bookingInfoStatus === 'VISITED'
+        )
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message:
+              'customer role이 변경할수 없는 status로 변경을 시도하였습니다.',
+          });
+      }
+
+      if (role === 'company') {
+        if (bookingInfoStatus === 'CUSTOMERCANCEL') {
+          throw new IBError({
+            type: 'INVALIDSTATUS',
+            message:
+              'company role이 변경할수 없는 status로 변경을 시도하였습니다.',
+          });
+        }
+      }
+
+      const updateResult = await prisma.bookingInfo.update({
+        where: {
+          id: Number(bookingInfoId),
+        },
+        data: {
+          status: bookingInfoStatus,
+        },
+      });
+
+      await (async () => {
+        const now = moment().toISOString();
+        if (bookingInfoStatus === 'CUSTOMERCANCEL') {
+          /// 시스템 알림
+          const cusNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.customerId!.toString(), // 고객
+            userRole: 'customer',
+            createdAt: now,
+            type: 'BOOKINGCUSTOMERCANCEL',
+            message: `${bookingInfo.adPlace.title}의 ${moment(
+              bookingInfo.date,
+            ).format('MM월 DD일 HH시')} 예약이 취소되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                // bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
+          };
+          const compNotiMsg: SysNotiMessageType = {
+            ...cusNotiMsg,
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 취소되었어요`,
+          };
+          await putInSysNotiMessage(cusNotiMsg);
+          await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
+
+          const redisLastMsgBuffer = await redis.hget(
+            `lastMsg:customer:${bookingInfo.customerId!.toString()}`,
+            `${bookingInfo.companyId!.toString()}`,
+          );
+          if (isNil(redisLastMsgBuffer) || isEmpty(redisLastMsgBuffer)) {
+            throw new IBError({
+              type: 'INVALIDSTATUS',
+              message: 'redis 데이터가 유효하지 않습니다.',
+            });
+          }
+          const lastMsgObj = JSON.parse(
+            redisLastMsgBuffer,
+          ) as BookingChatMessageType;
+
+          /// 채팅창 업데이트
+          const cusChatMsg: BookingChatMessageType = {
+            adPlaceId: bookingInfo.adPlaceId.toString(),
+            isUnread: true,
+            customerId: bookingInfo.customerId!.toString(),
+            companyId: bookingInfo.companyId!.toString(),
+            from: bookingInfo.customerId!.toString(), /// 고객
+            to: bookingInfo.companyId!.toString(), /// 사업자
+            subjectGroupId: bookingInfo.subjectGroupId.toString(),
+            createdAt: new Date().toISOString(),
+            type: 'USERCANCELAFTERBOOKINGCHK' as BookingChatActionType,
+            order: `${Number(lastMsgObj.order) + 1}`,
+            message: `${bookingInfo.customer!.nickName}님이 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format('M월 D일 HH시')} ${
+              bookingInfo.numOfPeople
+            }명 예정된 예약을 취소했어요`,
+          };
+
+          await putInBookingMsg(cusChatMsg);
+          await pubChatPush(cusChatMsg);
+
+          return;
+        }
+
+        if (bookingInfoStatus === 'NOSHOW') {
+          const compNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            createdAt: now,
+            type: 'BOOKINGCUSTOMERNOSHOW',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 노쇼처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                // bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
+          };
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
+          return;
+        }
+
+        if (bookingInfoStatus === 'VISITED') {
+          /// 방문처리
+          const cusNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.customerId!.toString(), // 고객
+            userRole: 'customer',
+            createdAt: now,
+            type: 'BOOKINGVISITED',
+            message: `${bookingInfo.adPlace.title}의 ${moment(
+              bookingInfo.date,
+            ).format('M월 D일 HH시')} 예약이 방문처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                // bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
+          };
+          const compNotiMsg: SysNotiMessageType = {
+            userId: bookingInfo.companyId!.toString(), // 사업주
+            userRole: 'company',
+            createdAt: now,
+            type: 'BOOKINGVISITED',
+            message: `${bookingInfo.customer!.nickName}님의 ${
+              bookingInfo.adPlace.title
+            }의 ${moment(bookingInfo.date).format(
+              'MM월 DD일 HH시',
+            )} 예약이 방문처리 되었어요`,
+            additionalInfo: {
+              bookingChat: {
+                customerId: bookingInfo.customerId!.toString(),
+                companyId: bookingInfo.companyId!.toString(),
+                adPlaceId: bookingInfo.adPlaceId.toString(),
+                tourPlaceId: bookingInfo.adPlace.mainTourPlaceId!.toString(),
+                // bookingInfoId: bookingInfo.id.toString(),
+                bookingInfo,
+                subjectGroupId: bookingInfo.subjectGroupId.toString(),
+              },
+            },
+          };
+          await putInSysNotiMessage(cusNotiMsg);
+          await pubNotiPush({ ...cusNotiMsg, pushType: 'SYSTEMNOTI' });
+          await putInSysNotiMessage(compNotiMsg);
+          await pubNotiPush({ ...compNotiMsg, pushType: 'SYSTEMNOTI' });
+        }
+      })();
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: updateResult,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'INVALIDPARAMS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDPARAMS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+
+      throw err;
+    }
+  },
+);
 myBookRouter.get('/getMyBookingInfo', accessTokenValidCheck, getMyBookingInfo);
+myBookRouter.post(
+  '/changeBookingInfoStatus',
+  accessTokenValidCheck,
+  changeBookingInfoStatus,
+);
 export default myBookRouter;

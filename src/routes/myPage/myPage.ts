@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '@src/prisma';
 import {
   AdPlace,
+  AdPlaceDraft,
   IBPhotos,
   TourPlace,
   Prisma,
@@ -20,6 +21,8 @@ import {
   ibTravelTagCategorize,
   getIBPhotoUrl,
   addrToGeoCode,
+  getValidUrl,
+  IBContext,
 } from '@src/utils';
 import { isNil, isEmpty, omit, isNaN } from 'lodash';
 
@@ -36,6 +39,7 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
     secondary: string;
   }[];
   adPlaceId?: number; /// modify일 경우 수정할 대상 adPlaceId
+  adPlaceDraftId?: number; /// modify일 경우 수정할 대상 adPlaceDraftId
   /// modify일 경우
   // tx?: Omit<
   //   PrismaClient<
@@ -47,23 +51,44 @@ export const adPlaceCategoryToIBTravelTag = async (param: {
   // >;
   tx?: Omit<PrismaClient, runtime.ITXClientDenyList>;
 }): Promise<{ connect: { id: number }[] }> => {
-  const { category, adPlaceId, tx } = param;
+  const { category, adPlaceId, adPlaceDraftId, tx } = param;
 
-  /// modify일 경우 기존에 adPlace <=> IBtravelTag와 관계를 끊어주고(reset) 입력된 category와의 관계로 덮어씌운다.
-  const prevTags = await prisma.iBTravelTag.findMany({
-    where: {
-      AdPlace: {
-        some: {
-          id: adPlaceId,
+  /// adPlaceId가 제공된 modify일 경우 기존에 adPlace <=> IBtravelTag와 관계를 끊어주고(reset) 입력된 category와의 관계로 덮어씌운다.
+  if (!isNil(tx) && !isNil(adPlaceId)) {
+    const prevTags = await prisma.iBTravelTag.findMany({
+      where: {
+        AdPlace: {
+          some: {
+            id: adPlaceId,
+          },
         },
       },
-    },
-  });
-  if (!isNil(tx) && !isNil(adPlaceId) && !isEmpty(prevTags)) {
-    const a = Prisma.sql`delete from _AdPlaceToIBTravelTag where A = ${adPlaceId} and B in (${Prisma.join(
-      prevTags.map(v => v.id),
-    )});`;
-    await prisma.$queryRaw(a);
+    });
+    if (!isEmpty(prevTags)) {
+      const a = Prisma.sql`delete from _AdPlaceToIBTravelTag where A = ${adPlaceId} and B in (${Prisma.join(
+        prevTags.map(v => v.id),
+      )});`;
+      await prisma.$queryRaw(a);
+    }
+  }
+
+  /// adPlaceDraftId가 제공된 modify일 경우 기존에 adPlaceDraft <=> IBtravelTag와 관계를 끊어주고(reset) 입력된 category와의 관계로 덮어씌운다.
+  if (!isNil(tx) && !isNil(adPlaceDraftId)) {
+    const draftPrevTags = await prisma.iBTravelTag.findMany({
+      where: {
+        AdPlaceDraft: {
+          some: {
+            id: adPlaceDraftId,
+          },
+        },
+      },
+    });
+    if (!isEmpty(draftPrevTags)) {
+      const a = Prisma.sql`delete from _AdPlaceDraftToIBTravelTag where A = ${adPlaceDraftId} and B in (${Prisma.join(
+        draftPrevTags.map(v => v.id),
+      )});`;
+      await prisma.$queryRaw(a);
+    }
   }
 
   return {
@@ -151,11 +176,11 @@ export type RegistAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
 
 /**
  * 업체측에서 관광지로 등록하기위해 식당, 호텔, 매장, 관광지 등을 장소로 등록신청하는 api.
- * 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다
+ * 해당 API 요청으로 adPlaceDraft가 생성되며, 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.(adPlace 생성)
  * https://www.figma.com/file/Tdpp5Q2J3h19NyvBvZMM2m/brip?type=design&node-id=3279-2978&t=e8DwiRk4nm91ziEk-4
  */
 
-export const registAdPlace = asyncWrapper(
+export const addAdPlaceDraft = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<RegistAdPlaceRequestType>,
     res: Express.IBTypedResponse<RegistAdPlaceResType>,
@@ -253,10 +278,10 @@ export const registAdPlace = asyncWrapper(
         });
       }
 
-      const createdOne = await prisma.adPlace.create({
+      const createdDraft = await prisma.adPlaceDraft.create({
         data: {
-          status: 'NEW',
-          subscribe: false,
+          // status: 'NEW',
+          // subscribe: false,
           title,
           mainPhoto: {
             create: {
@@ -278,7 +303,7 @@ export const registAdPlace = asyncWrapper(
           openWeek,
           closedDay,
           contact,
-          siteUrl,
+          siteUrl: await getValidUrl(siteUrl),
           businessNumber,
           businessRegImgKey,
           nationalCode,
@@ -298,10 +323,9 @@ export const registAdPlace = asyncWrapper(
           }),
         },
       });
-
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: createdOne,
+        IBparams: createdDraft,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -430,6 +454,7 @@ export const getMyAdPlace = asyncWrapper(
           mainPhoto: true,
           photos: true,
           category: true,
+          AdPlaceDraft: true,
         },
       });
 
@@ -532,13 +557,13 @@ export type ModifyAdPlaceResType = Omit<IBResFormat, 'IBparams'> & {
 
 photos는 전달하는 파라미터로 기존 저장된 사진 정보를 덮어쓰는것이 아니다. 추가하는것이다.
 
-때문에 사진 삭제를 위해서는 별도로 delAdPlacePhoto api를 이용해야 한다.
+때문에 사진 삭제를 위해서는 별도로 delAdPlaceDraftPhoto api를 이용해야 한다.
 
 Photo 수정
 photos 프로퍼티로 대표되는 서브 사진을 변경하는 예시
 기존 사진을 변경하는것은 새로 사진을 등록하고 기존것을 삭제해야한다. subPhoto 2,3번 사진이 등록되어 있을때 이중 3번을 4번으로 교체하고 5번을 등록한다고 하면
 a. /myPage/modifyAdPlace의 photos 파라미터는 4,5번의 키를 배열로 실어 호출한다.
-b. /myPage/delAdPlacePhoto로 3번을 삭제.
+b. /myPage/delAdPlaceDraftPhoto로 3번을 삭제.
 
 mainPhoto는 subPhoto와 다르게 추가의 개념이 없고 그냥 mainPhotoKey로 전달되는 사진으로 덮어써진다. (기존것은 삭제된다.)
 
@@ -608,6 +633,7 @@ export const modifyAdPlace = asyncWrapper(
             },
           },
           category: true,
+          AdPlaceDraft: true,
         },
       });
 
@@ -631,17 +657,56 @@ export const modifyAdPlace = asyncWrapper(
         async (
           tx,
         ): Promise<
-          AdPlace & {
+          AdPlaceDraft & {
             photos: IBPhotos[];
             category: IBTravelTag[];
-            tourPlace: TourPlace | undefined;
+            // tourPlace: TourPlace | undefined;
           }
         > => {
-          const adPlaceUpdatedResult = await tx.adPlace.update({
+          const adPlaceDraftUpdatedResult = await tx.adPlaceDraft.upsert({
             where: {
-              id: existCheck.id,
+              id: existCheck.AdPlaceDraft?.id ?? -1,
             },
-            data: {
+            create: {
+              status: 'STAGING',
+              title: title!,
+              mainPhoto: {
+                create: {
+                  key: mainPhotoKey,
+                },
+              },
+              category: await adPlaceCategoryToIBTravelTag({
+                category: category!,
+                tx,
+              }),
+              photos: {
+                createMany: {
+                  data: photos!,
+                },
+              },
+              desc,
+              address,
+              roadAddress,
+              detailAddress,
+              openWeek,
+              closedDay,
+              contact,
+              siteUrl: await getValidUrl(siteUrl),
+              businessNumber,
+              businessRegImgKey,
+              user: {
+                connect: {
+                  userTokenId,
+                },
+              },
+              adPlace: {
+                connect: {
+                  id: existCheck.id,
+                },
+              },
+            },
+            update: {
+              status: 'STAGING',
               title,
               ...(!isNil(mainPhotoKey) &&
                 !isEmpty(mainPhotoKey) && {
@@ -654,22 +719,17 @@ export const modifyAdPlace = asyncWrapper(
               ...(!isNil(category) && {
                 category: await adPlaceCategoryToIBTravelTag({
                   category,
-                  adPlaceId: Number(adPlaceId),
+                  ...(!isNil(existCheck.AdPlaceDraft) && {
+                    adPlaceDraftId: Number(existCheck.AdPlaceDraft!.id),
+                  }),
                   tx,
                 }),
               }),
               ...(!isNil(photos) &&
                 (() => {
-                  /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
-                  // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
-                  // /// 추가 todo: s3에 해당 key를 삭제까지 구현할것.
-                  // await prisma.iBPhotos.deleteMany({
-                  //   where: {
-                  //     adPlaceId: Number(adPlaceId),
-                  //   },
-                  // });
                   return {
                     photos: {
+                      set: [],
                       createMany: {
                         data: photos,
                       },
@@ -683,108 +743,95 @@ export const modifyAdPlace = asyncWrapper(
               openWeek,
               closedDay,
               contact,
-              siteUrl,
+              siteUrl: await getValidUrl(siteUrl),
               businessNumber,
               businessRegImgKey,
             },
+
             include: {
               photos: true,
               category: true,
             },
           });
 
-          /// 메인 사진을 변경하려 한다면 기존 메인 사진은 photos에서 삭제한다.
-          if (!isNil(mainPhotoKey) && !isEmpty(mainPhotoKey)) {
-            await tx.iBPhotos.delete({
-              where: {
-                id: existCheck.mainPhotoId,
-              },
-            });
-          }
+          // /// 메인 사진을 변경하려 한다면 기존 메인 사진은 photos에서 삭제한다.
+          // if (!isNil(mainPhotoKey) && !isEmpty(mainPhotoKey)) {
+          //   await tx.iBPhotos.delete({
+          //     where: {
+          //       id: existCheck.AdPlaceDraft!.mainPhotoId,
+          //     },
+          //   });
+          // }
 
-          /// 포토 수정이 있는데 tourPlace가 생성되어 있는 adPlace라면 IBPhotos가 위에서 deleteMany로 모두 삭제되고 재연결되었으므로 tourPlace의 IBPhotos connect도 수정해줘야한다.
-          let tpUpdateResult: TourPlace | undefined;
-          if (!isNil(adPlaceUpdatedResult.mainTourPlaceId) && !isNil(photos)) {
-            tpUpdateResult = await tx.tourPlace.update({
-              where: {
-                id: adPlaceUpdatedResult.mainTourPlaceId,
-              },
-              data: {
-                title,
-                // ...(!isNil(category) && {
-                //   category: await adPlaceCategoryToIBTravelTag({
-                //     category,
-                //     adPlaceId: Number(adPlaceId),
-                //     tx,
-                //   }),
-                // }),
+          // /// 포토 수정이 있는데 tourPlace가 생성되어 있는 adPlace라면 IBPhotos가 위에서 deleteMany로 모두 삭제되고 재연결되었으므로 tourPlace의 IBPhotos connect도 수정해줘야한다.
+          // let tpUpdateResult: TourPlace | undefined;
+          // if (
+          //   !isNil(adPlaceDraftUpdatedResult.mainTourPlaceId) &&
+          //   !isNil(photos)
+          // ) {
+          //   tpUpdateResult = await tx.tourPlace.update({
+          //     where: {
+          //       id: adPlaceDraftUpdatedResult.mainTourPlaceId,
+          //     },
+          //     data: {
+          //       title,
+          //       ...(!isNil(category) &&
+          //         (await (async () => {
+          //           const tags = await Promise.all(
+          //             category.map(v => {
+          //               return ibTravelTagCategorize(
+          //                 {
+          //                   ibType: {
+          //                     typePath: `${v.primary}>${v.secondary}`,
+          //                     minDifficulty: 1,
+          //                     maxDifficulty: 1,
+          //                   },
+          //                 },
+          //                 tx,
+          //               );
+          //             }),
+          //           );
 
-                ...(!isNil(category) &&
-                  (await (async () => {
-                    const tags = await Promise.all(
-                      category.map(v => {
-                        return ibTravelTagCategorize(
-                          {
-                            ibType: {
-                              typePath: `${v.primary}>${v.secondary}`,
-                              minDifficulty: 1,
-                              maxDifficulty: 1,
-                            },
-                          },
-                          tx,
-                        );
-                      }),
-                    );
+          //           return {
+          //             ibTravelTag: {
+          //               connect: tags.map(v => {
+          //                 return {
+          //                   id: v,
+          //                 };
+          //               }),
+          //             },
+          //           };
+          //         })())),
 
-                    return {
-                      ibTravelTag: {
-                        connect: tags.map(v => {
-                          return {
-                            id: v,
-                          };
-                        }),
-                      },
-                    };
-                  })())),
+          //       ...((!isNil(photos) || !isNil(mainPhotoKey)) &&
+          //         (() => {
+          //           const subPhotos = !isNil(photos) ? photos : [];
+          //           const mainPhoto = !isNil(mainPhotoKey)
+          //             ? [{ key: mainPhotoKey }]
+          //             : [];
+          //           const combinedPhotos = [...mainPhoto, ...subPhotos];
 
-                ...((!isNil(photos) || !isNil(mainPhotoKey)) &&
-                  (() => {
-                    /// delAdPlacePhoto로 사전에 별도로 삭제하는 시나리오로 변경함.
-                    // /// photos 수정이 있다면 기존에 연결되어 있던 IBPhotos는 삭제한다.
-                    // /// 추가 todo: s3에 해당 key를 삭제까지 구현할것.
-                    // await prisma.iBPhotos.deleteMany({
-                    //   where: {
-                    //     adPlaceId: Number(adPlaceId),
-                    //   },
-                    // });
-
-                    const subPhotos = !isNil(photos) ? photos : [];
-                    const mainPhoto = !isNil(mainPhotoKey)
-                      ? [{ key: mainPhotoKey }]
-                      : [];
-                    const combinedPhotos = [...mainPhoto, ...subPhotos];
-
-                    return {
-                      photos: {
-                        createMany: {
-                          data: combinedPhotos,
-                        },
-                      },
-                    };
-                  })()),
-                desc,
-                address,
-                roadAddress,
-                detailAddress,
-                openWeek,
-                contact,
-              },
-            });
-          }
+          //           return {
+          //             photos: {
+          //               createMany: {
+          //                 data: combinedPhotos,
+          //               },
+          //             },
+          //           };
+          //         })()),
+          //       desc,
+          //       address,
+          //       roadAddress,
+          //       detailAddress,
+          //       openWeek,
+          //       contact,
+          //     },
+          //   });
+          // }
 
           const ret = {
-            ...adPlaceUpdatedResult,
-            tourPlace: tpUpdateResult,
+            ...adPlaceDraftUpdatedResult,
+            // tourPlace: tpUpdateResult,
           };
           return ret;
         },
@@ -832,24 +879,129 @@ export const modifyAdPlace = asyncWrapper(
 
 export type DelAdPlacePhotoRequestType = {
   adPlaceId: string; /// 수정할 adPlace의 Id
-  delPhotoList: string[]; /// 삭제할 photoId
+  delPhotoListFromDB: string[]; /// DB에서 삭제할 IBPhotos photoId
+  delPhotoListFromS3?: string[]; /// S3에서 삭제할 key를 검색할 photoId
 };
-// export type DelAdPlacePhotoSuccessResType = Omit<
-//   AdPlace & {
-//     photos: IBPhotos[];
-//     category: AdPlaceCategory[];
-//   },
-//   'userId'
-// >;
+export type DelAdPlacePhotoSuccessResType = {
+  count: number; ///  DB에서 삭제 성공한 숫자
+};
 export type DelAdPlacePhotoResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams:
-    | {
-        count: number; ///  DB에서 삭제 성공한 숫자
-      }
-    | {};
+  IBparams: DelAdPlacePhotoSuccessResType | {};
 };
 
-export const delAdPlacePhoto = asyncWrapper(
+export const delAdPlacePhoto = async (
+  params: DelAdPlacePhotoRequestType,
+  ctx: IBContext,
+): Promise<DelAdPlacePhotoSuccessResType> => {
+  const { adPlaceId, delPhotoListFromDB, delPhotoListFromS3 } = params;
+
+  if (
+    isNil(adPlaceId) ||
+    isNil(delPhotoListFromDB) ||
+    isEmpty(delPhotoListFromDB)
+    // isNil(delPhotoListFromS3) ||
+    // isEmpty(delPhotoListFromS3)
+  ) {
+    throw new IBError({
+      type: 'INVALIDPARAMS',
+      message: 'adPlaceId, delPhotoListFromDB는 필수 파라미터입니다.',
+    });
+  }
+
+  const existCheck = await prisma.adPlace.findFirst({
+    where: {
+      id: Number(adPlaceId),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          userTokenId: true,
+        },
+      },
+      photos: true,
+    },
+  });
+
+  if (isNil(existCheck)) {
+    throw new IBError({
+      type: 'NOTEXISTDATA',
+      message: '존재하지 않는 AdPlace입니다.',
+    });
+  }
+  /// admin 권한이 아닌데 다른 유저의 사진을 삭제하려는 경우 방지
+  if (
+    (isNil(ctx.admin) || ctx.admin === false) &&
+    !isNil(existCheck.user) &&
+    existCheck.user.userTokenId !== ctx.userTokenId!
+  ) {
+    throw new IBError({
+      type: 'NOTAUTHORIZED',
+      message: '변경 권한이 없는 항목의 adPlace입니다.',
+    });
+  }
+
+  const targetPhotos = await prisma.iBPhotos.findMany({
+    where: {
+      id: { in: delPhotoListFromDB.map(v => Number(v)) },
+    },
+  });
+
+  if (targetPhotos.length !== delPhotoListFromDB.length) {
+    throw new IBError({
+      type: 'NOTMATCHEDDATA',
+      message: '존재하지 않는 photoId가 포함되었습니다.',
+    });
+  }
+
+  const s3TargetPhotos = await (async () => {
+    if (!isNil(delPhotoListFromS3) && !isEmpty(delPhotoListFromS3)) {
+      const targetP = await prisma.iBPhotos.findMany({
+        where: {
+          id: { in: delPhotoListFromS3.map(v => Number(v)) },
+        },
+      });
+      return targetP;
+    }
+
+    if (!isNil(delPhotoListFromS3) && isEmpty(delPhotoListFromS3)) return [];
+
+    return targetPhotos;
+  })();
+
+  /// admin 권한이 아닐 경우에만 체크, 어드민일때는 adPlaceAsSubId가 없어도 지울수 있음
+  if (isNil(ctx.admin) || ctx.admin === false) {
+    const notAuthorizedPhoto = targetPhotos.find(
+      v => v.adPlaceAsSubId !== Number(adPlaceId),
+    );
+
+    if (!isNil(notAuthorizedPhoto)) {
+      throw new IBError({
+        type: 'NOTAUTHORIZED',
+        message: `id:${notAuthorizedPhoto.id}는 해당 유저에게 삭제 권한이 없는 IBPhoto 항목입니다.`,
+      });
+    }
+  }
+
+  const prismaDelResult = await prisma.iBPhotos.deleteMany({
+    where: {
+      id: { in: targetPhotos.map(v => v.id) },
+    },
+  });
+
+  /// delete 요청이 들어온 리스트중 현재 수정된 adPlace에 존재하는 사진이면 DB에서는 모두 지워도 되지만(IBPhotos가 새로 생성되었기 때문) s3에는 다시 올리지 않기 때문에 지워서는 안된다.
+  if (!isEmpty(s3TargetPhotos)) {
+    const deleteFromS3Result = await delObjectsFromS3(
+      s3TargetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+    );
+
+    console.log(deleteFromS3Result);
+  }
+
+  return prismaDelResult;
+};
+
+export const delAdPlacePhotoWrapper = asyncWrapper(
   async (
     req: Express.IBTypedReqBody<DelAdPlacePhotoRequestType>,
     res: Express.IBTypedResponse<DelAdPlacePhotoResType>,
@@ -871,84 +1023,16 @@ export const delAdPlacePhoto = asyncWrapper(
           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
         });
       }
-      const { adPlaceId, delPhotoList } = req.body;
 
-      if (isNil(adPlaceId) || isNil(delPhotoList || isEmpty(delPhotoList))) {
-        throw new IBError({
-          type: 'INVALIDPARAMS',
-          message: 'adPlaceId, delPhotoList는 필수 파라미터입니다.',
-        });
-      }
+      const ctx: IBContext = {
+        userTokenId,
+      };
 
-      const existCheck = await prisma.adPlace.findFirst({
-        where: {
-          id: Number(adPlaceId),
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              userTokenId: true,
-            },
-          },
-        },
-      });
-
-      if (isNil(existCheck)) {
-        throw new IBError({
-          type: 'NOTEXISTDATA',
-          message: '존재하지 않는 AdPlace입니다.',
-        });
-      }
-      if (
-        !isNil(existCheck.user) &&
-        existCheck.user.userTokenId !== userTokenId
-      ) {
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: '변경 권한이 없는 항목의 adPlace입니다.',
-        });
-      }
-
-      const targetPhotos = await prisma.iBPhotos.findMany({
-        where: {
-          id: { in: delPhotoList.map(v => Number(v)) },
-        },
-      });
-
-      if (targetPhotos.length !== delPhotoList.length) {
-        throw new IBError({
-          type: 'NOTMATCHEDDATA',
-          message: '존재하지 않는 photoId가 포함되었습니다.',
-        });
-      }
-
-      const notAuthorizedPhoto = targetPhotos.find(
-        v => v.adPlaceAsSubId !== Number(adPlaceId),
-      );
-
-      if (!isNil(notAuthorizedPhoto)) {
-        throw new IBError({
-          type: 'NOTAUTHORIZED',
-          message: `id:${notAuthorizedPhoto.id}는 해당 유저에게 삭제 권한이 없는 IBPhoto 항목입니다.`,
-        });
-      }
-
-      const prismaDelResult = await prisma.iBPhotos.deleteMany({
-        where: {
-          id: { in: targetPhotos.map(v => v.id) },
-        },
-      });
-
-      const deleteFromS3Result = await delObjectsFromS3(
-        targetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
-      );
-
-      console.log(deleteFromS3Result);
+      const result = await delAdPlacePhoto(req.body, ctx);
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: prismaDelResult,
+        IBparams: result,
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -994,6 +1078,191 @@ export const delAdPlacePhoto = asyncWrapper(
     }
   },
 );
+
+// export type DelAdPlaceDraftPhotoRequestType = {
+//   adPlaceDraftId: string; /// 수정할 adPlace의 Id
+//   delPhotoList: string[]; /// 삭제할 photoId
+// };
+// // export type DelAdPlaceDraftPhotoSuccessResType = Omit<
+// //   AdPlace & {
+// //     photos: IBPhotos[];
+// //     category: AdPlaceCategory[];
+// //   },
+// //   'userId'
+// // >;
+// export type DelAdPlaceDraftPhotoResType = Omit<IBResFormat, 'IBparams'> & {
+//   IBparams:
+//     | {
+//         count: number; ///  DB에서 삭제 성공한 숫자
+//       }
+//     | {};
+// };
+
+// export const delAdPlaceDraftPhoto = asyncWrapper(
+//   async (
+//     req: Express.IBTypedReqBody<DelAdPlaceDraftPhotoRequestType>,
+//     res: Express.IBTypedResponse<DelAdPlaceDraftPhotoResType>,
+//   ) => {
+//     try {
+//       const { locals } = req;
+//       const userTokenId = (() => {
+//         if (locals && locals?.grade === 'member')
+//           return locals?.user?.userTokenId;
+//         // return locals?.tokenId;
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: 'member 등급만 접근 가능합니다.',
+//         });
+//       })();
+//       if (!userTokenId) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+//         });
+//       }
+//       const { adPlaceDraftId, delPhotoList } = req.body;
+
+//       if (
+//         isNil(adPlaceDraftId) ||
+//         isNil(delPhotoList || isEmpty(delPhotoList))
+//       ) {
+//         throw new IBError({
+//           type: 'INVALIDPARAMS',
+//           message: 'adPlaceDraftId, delPhotoList는 필수 파라미터입니다.',
+//         });
+//       }
+
+//       const existCheck = await prisma.adPlace.findFirst({
+//         where: {
+//           id: Number(adPlaceDraftId),
+//         },
+//         include: {
+//           user: {
+//             select: {
+//               id: true,
+//               userTokenId: true,
+//             },
+//           },
+//         },
+//       });
+
+//       if (isNil(existCheck)) {
+//         throw new IBError({
+//           type: 'NOTEXISTDATA',
+//           message: '존재하지 않는 AdPlace입니다.',
+//         });
+//       }
+//       if (
+//         !isNil(existCheck.user) &&
+//         existCheck.user.userTokenId !== userTokenId
+//       ) {
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: '변경 권한이 없는 항목의 adPlace입니다.',
+//         });
+//       }
+
+//       const targetPhotos = await prisma.iBPhotos.findMany({
+//         where: {
+//           id: { in: delPhotoList.map(v => Number(v)) },
+//         },
+//       });
+
+//       if (targetPhotos.length !== delPhotoList.length) {
+//         throw new IBError({
+//           type: 'NOTMATCHEDDATA',
+//           message: '존재하지 않는 photoId가 포함되었습니다.',
+//         });
+//       }
+
+//       const notAuthorizedPhoto = targetPhotos.find(
+//         v =>
+//           !isNil(v.adPlaceDraftAsSubId) &&
+//           v.adPlaceDraftAsSubId !== Number(adPlaceDraftId),
+//       );
+
+//       if (!isNil(notAuthorizedPhoto)) {
+//         throw new IBError({
+//           type: 'NOTAUTHORIZED',
+//           message: `id:${notAuthorizedPhoto.id}는 해당 유저에게 삭제 권한이 없는 IBPhoto 항목입니다.`,
+//         });
+//       }
+
+//       const result = await prisma.$transaction(
+//         targetPhotos.map(v => {
+//           return prisma.iBPhotos.update({
+//             where: {
+//               id: v.id,
+//             },
+//             data: {
+//               adPlaceAsSub: {
+//                 disconnect: true,
+//               },
+//             },
+//           });
+//         }),
+//       );
+
+//       // const prismaDelResult = await prisma.iBPhotos.deleteMany({
+//       //   where: {
+//       //     id: { in: targetPhotos.map(v => v.id) },
+//       //   },
+//       // });
+
+//       // const deleteFromS3Result = await delObjectsFromS3(
+//       //   targetPhotos.map(v => v.key).filter((v): v is string => !isNil(v)),
+//       // );
+
+//       // console.log(deleteFromS3Result);
+
+//       res.json({
+//         ...ibDefs.SUCCESS,
+//         IBparams: result,
+//       });
+//     } catch (err) {
+//       if (err instanceof IBError) {
+//         if (err.type === 'INVALIDPARAMS') {
+//           console.error(err);
+//           res.status(400).json({
+//             ...ibDefs.INVALIDPARAMS,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'DUPLICATEDDATA') {
+//           console.error(err);
+//           res.status(409).json({
+//             ...ibDefs.DUPLICATEDDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'NOTAUTHORIZED') {
+//           console.error(err);
+//           res.status(403).json({
+//             ...ibDefs.NOTAUTHORIZED,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//         if (err.type === 'NOTMATCHEDDATA') {
+//           console.error(err);
+//           res.status(404).json({
+//             ...ibDefs.NOTMATCHEDDATA,
+//             IBdetail: (err as Error).message,
+//             IBparams: {} as object,
+//           });
+//           return;
+//         }
+//       }
+
+//       throw err;
+//     }
+//   },
+// );
 
 export type GetTourPlaceListByAddrRequestType = {
   address?: string; /// 위경도나 주소 둘중 하나는 제공되어야 함.
@@ -1198,7 +1467,7 @@ export const getTourPlaceListByAddr = asyncWrapper(
   },
 );
 
-myPageRouter.post('/registAdPlace', accessTokenValidCheck, registAdPlace);
+myPageRouter.post('/addAdPlaceDraft', accessTokenValidCheck, addAdPlaceDraft);
 myPageRouter.get('/getMyAdPlace', accessTokenValidCheck, getMyAdPlace);
 myPageRouter.post('/modifyAdPlace', accessTokenValidCheck, modifyAdPlace);
 myPageRouter.get(
@@ -1206,5 +1475,14 @@ myPageRouter.get(
   accessTokenValidCheck,
   getTourPlaceListByAddr,
 );
-myPageRouter.post('/delAdPlacePhoto', accessTokenValidCheck, delAdPlacePhoto);
+myPageRouter.post(
+  '/delAdPlacePhoto',
+  accessTokenValidCheck,
+  delAdPlacePhotoWrapper,
+);
+// myPageRouter.post(
+//   '/delAdPlaceDraftPhoto',
+//   accessTokenValidCheck,
+//   delAdPlaceDraftPhoto,
+// );
 export default myPageRouter;

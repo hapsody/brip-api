@@ -7,3 +7,6 @@ category_result.txt
 .DS_Store
 *.pem
 mongodb/*
+src/firebase/key/*
+brip-*.json
+keys/*

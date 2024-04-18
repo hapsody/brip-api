@@ -4,6 +4,10 @@ import {
   BookingChatLog,
   BookingChatActionInputParam,
   User,
+  BookingChatActionType,
+  AdPlace,
+  BookingInfo,
+  BookingInfoStatus,
 } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -14,87 +18,43 @@ import {
   accessTokenValidCheck,
   // getS3SignedUrl,
   getUserProfileUrl,
+  // sendAppPush,
+  sendNotiMsgAppPush,
+  sendAppPushToBookingCustomer,
+  sendAppPushToBookingCompany,
+  getAdPlaceInfoFromCacheNDB,
+  getUserInfoFromCacheNDB,
+  ToUserInfoType,
+  getTourPlaceInfoFromCacheNDB,
 } from '@src/utils';
 import redis from '@src/redis';
 import moment from 'moment';
 import { isNil, isNaN, isEmpty } from 'lodash';
 // import 'moment/locale/ko';
+import {
+  BookingActionInputParam,
+  BookingChatMessageType,
+  // SysNotiActionType,
+  SysNotiMessageType,
+  BookingRejectReasonType,
+  RetrieveBookingMessageParamType,
+  LastBookingMessageType,
+  SysNotiAppPushType,
+  BookingAppPushType,
+  AdPlaceInfoType,
+  TourPlaceInfoType,
+} from './types';
 
 const notiRouter: express.Application = express();
 
-type SSEClientType = {
-  [userId: string]: express.Response | null;
-};
+// type SSEClientType = {
+//   [userId: string]: express.Response | null;
+// };
 
-const sseClients: SSEClientType = {
-  '0': null,
-};
+// const sseClients: SSEClientType = {
+//   '0': null,
+// };
 
-type BookingChatMessageActionType =
-  | 'ASKBOOKINGWELCOME' /// 예약문의 첫 환영 인사 ex) 안녕하세요!궁금하신 내용을 보내주세요.가게에서 내용에 대한 답변을 드려요.
-  | 'NEWBOOKINGMSG' /// ex) 예약하기
-  | 'ANSNEWBOOKINGMSG' /// ex) 원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!
-  | 'ASKBOOKINGAVAILABLE' /// 예약문의 고객 => 사업자 ex) 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
-  | 'ANSBOOKINGAVAILABLE' /// 예약문의답변 사업자 => 고객 ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
-  | 'ASKBOOKINGCANCEL' /// 예약 문의 취소 ex) 예약 취소
-  | 'ASKBOOKINGCANCELCHK' /// 예약문의 취소 system 확인 메시지 ex) 예약이 취소 되었어요.
-  | 'CONFIRMBOOKING' /// 예약확정 고객 => 사업자 ex) 네, 확정할게요
-  | 'ANSCONFIRMBOOKING' /// 예약확정 system 확인 메시지 ex) 예약 확정을 위해 연락처가 가게에 전달돼요.
-  | 'PRIVACYAGREE' /// 정보동의 고객 => 사업자 ex) 동의
-  | 'FINALBOOKINGCHECK' /// 예약 확정 system 확인 메시지 ex) 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
-  | 'TEXT'; /// 일반 유저 채팅 메시지
-
-type BookingActionInputParam = {
-  // askBookingAvailable
-  date?: string; /// 예약일(문의일x)
-  numOfPeople?: string; /// 예약 인원
-
-  /// ansBookingAvailable
-  answer?: 'APPROVE' | 'REJECT'; /// 예약문의 응답
-  rejectReason?: BookingRejectReasonType; /// 예약문의가 거절일경우 거절사유
-
-  /// askBookingCancel
-  customerCancel?: 'TRUE' | 'FALSE'; /// 유저측 예약문의 취소여부
-
-  /// confirmBooking
-  confirmAnswer?: 'CONFIRM' | 'CANCEL'; /// 예약 확정 여부
-
-  /// privacyAgree
-  agreeAnswer?: 'TRUE' | 'FALSE'; /// 개인정보 이용동의
-
-  /// finalBookingCheck
-  reqUserNickname?: string;
-  reqUserContact: string | null;
-  /// date?: string;
-  /// numOfPeople?: string;
-};
-type ChatMessageType = {
-  adPlaceId: string; /// 문의 업체,장소(adPlace) id, 사실상 예약문의 대화에서는 필수이다.
-  from: string; /// 보내는 UserId
-  to: string; /// 보낼 UserId
-  createdAt: string; /// 메시지 전송된 시각
-  order: string; /// 채팅방에서의 메시지 순번
-  message: string; /// 메시지 본문
-  bookingActionInputParams?: BookingActionInputParam;
-  type: BookingChatMessageActionType; /// 메시지 타입
-};
-type BookingChatMessageType = ChatMessageType & {
-  customerId: string; /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
-  companyId: string; /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
-};
-
-export type SysNotiActionType =
-  | 'REPLYFORMYSHARETRIPMEM'
-  | 'REPLYFORMYREPLY'
-  | 'BOOKINGCOMPLETE';
-export type SysNotiMessageType = {
-  userId: string; /// 수신인 UserId
-  userRole?: string; /// 수신인 유저의 역할( 크리에이터, 광고주, 일반유저) 추후 추가예정
-  createdAt: string; /// 메시지 전송된 시각
-  message: string; /// 메시지 본문
-  type: SysNotiActionType; /// 메시지 타입
-  // bookingActionInputParams?: BookingActionInputParam;
-};
 export const putInSysNotiMessage = async (
   params: SysNotiMessageType,
 ): Promise<number> => {
@@ -113,12 +73,21 @@ export const putInSysNotiMessage = async (
 
 export const takeOutSysNotiMessage = async (params: {
   userId: string;
-  startCursor: string;
+  startCursor?: string;
 }): Promise<{
   messages: SysNotiMessageType[];
   nextCursor: number;
 }> => {
-  const { userId, startCursor } = params;
+  const { userId } = params;
+  const cursorKey = `unreadSysNotiStartCursorIdx:${userId}`;
+  const startCursor = await (async () => {
+    const { startCursor: inputCursor } = params;
+    if (isNil(inputCursor) || isEmpty(inputCursor)) {
+      const storedStartCursor = await redis.get(cursorKey);
+      return storedStartCursor;
+    }
+    return inputCursor;
+  })();
 
   const key = `sysNoti:${userId}`;
   const rawSysNotiMsgs = await redis.lrange(key, Number(startCursor), -1);
@@ -126,9 +95,12 @@ export const takeOutSysNotiMessage = async (params: {
   const sysNotiMsgs = rawSysNotiMsgs.map(v => {
     return JSON.parse(v) as SysNotiMessageType;
   });
+
+  const nextCursor = Number(startCursor) + rawSysNotiMsgs.length;
+  await redis.set(cursorKey, nextCursor);
   return {
     messages: sysNotiMsgs,
-    nextCursor: Number(startCursor) + rawSysNotiMsgs.length,
+    nextCursor,
   };
 };
 
@@ -136,38 +108,47 @@ export const takeOutSysNotiMessage = async (params: {
  * 메시지 송신시에 보내고자 하는 상대(to)의 메시지 큐 중(실제는 redis Lists 데이터타입에 저장) from으로부터의 메시지 큐에
  * 보내고자 하는 메시지 data를 등록해두는 함수
  */
-const putInBookingMsg = async (params: BookingChatMessageType) => {
+export const putInBookingMsg = async (
+  params: BookingChatMessageType,
+): Promise<{ nextCursor: number; nextOrder: number }> => {
   const data = params;
 
   const { customerId, companyId } = data;
   const key = `${customerId}=>${companyId}`;
 
+  /// adPlace 정보를 조회해서 추가
+  const adPlace = await getAdPlaceInfoFromCacheNDB(data.adPlaceId);
   const msgData = JSON.stringify({
     uuid: uuidv4(),
     ...data,
+    adPlace,
   });
-  await redis.rpush(key, msgData);
+
+  const nextCursor = await redis.rpush(key, msgData);
   await redis.hset(`lastMsg:customer:${customerId}`, `${companyId}`, msgData);
   await redis.hset(`lastMsg:company:${companyId}`, `${customerId}`, msgData);
-  return data.order;
+  return { nextCursor, nextOrder: Number(data.order) + 1 };
 };
 
 const bookingChatLogToBookingChatMsg = (
   params: BookingChatLog & {
     bookingActionInputParam: BookingChatActionInputParam | null;
-    user: User | null;
+    customer: User | null;
+    adPlace: AdPlace | null;
   },
 ): BookingChatMessageType => {
   return {
-    adPlaceId: `${params.adPlaceId ?? 'unknown'}`,
+    adPlaceId: `${params.adPlaceId ?? 'deleted'}`,
+    adPlace: params.adPlace ?? undefined,
+    isUnread: false, /// 추가 테스트 필요. 읽지 않았는데 DB에 저장되는 경우도 있을것임
     createdAt: new Date(params.date).toISOString(),
-    customerId: `${params.customerId}`,
-    companyId: `${params.companyId}`,
-    from: `${params.userId ?? 'unknown'}`,
-    to: `${params.toUserId ?? 'unknown'}`,
+    customerId: `${params.customerId ?? 'deleted'}`,
+    companyId: `${params.companyId ?? 'deleted'}`,
+    from: `${params.userId ?? 'deleted'}`,
+    to: `${params.toUserId ?? 'deleted'}`,
     order: `${params.order}`,
     message: params.message,
-    type: params.bookingActionType as BookingChatMessageActionType,
+    type: params.bookingActionType,
     ...(!isNil(params.bookingActionInputParam) && {
       bookingActionInputParams: {
         // askBookingAvailable
@@ -204,8 +185,8 @@ const bookingChatLogToBookingChatMsg = (
         }),
 
         /// finalBookingCheck
-        reqUserNickname: params.user?.nickName ?? 'unknown',
-        reqUserContact: params.user?.phone ?? 'unknown',
+        reqUserNickname: params.customer?.nickName ?? 'deleted',
+        reqUserContact: params.customer?.phone ?? 'deleted',
       },
     }),
   };
@@ -341,7 +322,9 @@ const getMyLastBookingMsgs = async (params: {
     },
     include: {
       bookingActionInputParam: true,
-      user: true,
+      customer: true,
+      adPlace: true,
+      // user: true,
     },
   });
 
@@ -349,7 +332,8 @@ const getMyLastBookingMsgs = async (params: {
   const lastMsgsGroupByOthers = mysqlMsgs.reduce<
     (BookingChatLog & {
       bookingActionInputParam: BookingChatActionInputParam | null;
-      user: User | null;
+      customer: User | null;
+      adPlace: AdPlace | null;
     })[]
   >((acc, cur) => {
     const alreadyExist = acc.find(v => {
@@ -391,15 +375,6 @@ const getMyLastBookingMsgs = async (params: {
   return [...redisLastMsgs, ...dbLastMsgs];
 };
 
-type RetrieveBookingMessageParamType = {
-  // from: string; /// userId 기준
-  // userId: string; /// userId 기준
-  startOrder: string; /// redis에서 내가 받고자 하는 메시지가 삭제됐을 경우(DB sync하면 redis에서는 삭제됨.) DB에서 메시지를 찾기 위한 메시지 순번
-  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
-  customerId: string;
-  companyId: string;
-};
-
 const retrieveFromDb = async (
   params: RetrieveBookingMessageParamType,
 ): Promise<{
@@ -417,7 +392,8 @@ const retrieveFromDb = async (
     },
     include: {
       bookingActionInputParam: true,
-      user: true,
+      customer: true,
+      adPlace: true,
     },
   });
   if (isNil(targetMsgsFromDB) || isEmpty(targetMsgsFromDB)) {
@@ -456,8 +432,39 @@ const takeOutBookingMsg = async (
   nextOrder: number;
   nextCursor: number;
 }> => {
-  const { customerId, companyId, startCursor, startOrder } = params;
+  const { myRole, customerId, companyId, startCursor, startOrder } = params;
 
+  /// takeOutBookingMsg를 호출하는 주체의 lastMsg 중 상대방과의 마지막 메시지를 '읽음' 표시하는 함수
+  const updateUnreadStatusOfLastMsg = async () => {
+    const redisLastMsgBuffer = await (myRole === 'company'
+      ? redis.hgetall(`lastMsg:company:${companyId}`)
+      : redis.hgetall(`lastMsg:customer:${customerId}`));
+
+    const other = myRole === 'company' ? 'customer' : 'company';
+    const serializedLastMsg =
+      redisLastMsgBuffer[`${other === 'company' ? companyId : customerId}`];
+
+    if (isNil(serializedLastMsg) || isEmpty(serializedLastMsg)) return;
+
+    const lastMsg = JSON.parse(serializedLastMsg) as BookingChatMessageType;
+    lastMsg.isUnread = false;
+    const updatedSerializedLastMsg = JSON.stringify(lastMsg);
+
+    if (myRole === 'customer') {
+      await redis.hset(
+        `lastMsg:customer:${customerId}`,
+        `${companyId}`,
+        updatedSerializedLastMsg,
+      );
+      return;
+    }
+
+    await redis.hset(
+      `lastMsg:company:${companyId}`,
+      `${customerId}`,
+      updatedSerializedLastMsg,
+    );
+  };
   // /// redis 에서 나와 그와의(n=>m) 대화 메시지큐 key값 찾기
   // const { key, len } = await (async () => {
   //   /// candKey1 아니면 candKey2 둘중 하나만 존재한다.
@@ -474,12 +481,14 @@ const takeOutBookingMsg = async (
 
   //   return {};
   // })();
+
   const key = `${customerId}=>${companyId}`;
   const len = await redis.llen(key);
 
   if (isNil(len) || len === 0) {
     const msgsFromDB = await retrieveFromDb(params);
 
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return {
       ...msgsFromDB,
       nextCursor: 0,
@@ -495,6 +504,7 @@ const takeOutBookingMsg = async (
 
     if (len > 0) {
       /// 테스트 필요 부분
+      if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
       return {
         messages: [],
         nextCursor: Number(startCursor),
@@ -504,6 +514,7 @@ const takeOutBookingMsg = async (
 
     /// 후자의 경우는 DB도 뒤져봐야한다. 만약 DB에서도 찾을수 없다면 정말로 메시지 전송이 된적이 없는것이다.
     const msgsFromDB = await retrieveFromDb(params);
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return msgsFromDB;
   }
 
@@ -516,6 +527,7 @@ const takeOutBookingMsg = async (
     const messages = rawMsgsFromRedis.map(
       v => JSON.parse(v) as BookingChatMessageType,
     );
+    if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
     return {
       messages,
       nextOrder: Number(messages[messages.length - 1].order) + 1,
@@ -532,6 +544,7 @@ const takeOutBookingMsg = async (
     v => JSON.parse(v) as BookingChatMessageType,
   );
 
+  if (!isNil(myRole)) await updateUnreadStatusOfLastMsg();
   return {
     messages: [
       ...msgsFromDB.messages,
@@ -548,8 +561,9 @@ const bookingChatSyncToDB = async (params: {
   // to: string; /// 사업자
   customerId: string;
   companyId: string;
-}) => {
-  const { adPlaceId, customerId, companyId } = params;
+  actionType: BookingChatActionType;
+}): Promise<BookingInfo> => {
+  const { adPlaceId, customerId, companyId, actionType } = params;
 
   if (
     isNil(adPlaceId) ||
@@ -560,9 +574,13 @@ const bookingChatSyncToDB = async (params: {
     isNaN(customerId) ||
     isNil(companyId) ||
     isEmpty(companyId) ||
-    isNaN(companyId)
+    isNaN(companyId) ||
+    isNil(actionType)
   ) {
-    return false;
+    throw new IBError({
+      type: 'INVALIDSTATUS',
+      message: '내부 상태값이 잘못되어 예약채팅을 DB로 sync할수 없습니다.',
+    });
   }
 
   const key = `${customerId}=>${companyId}`;
@@ -595,7 +613,7 @@ const bookingChatSyncToDB = async (params: {
     return bookingChatLog.subjectGroupId + 1;
   })();
 
-  await prisma.$transaction(async tx => {
+  const result = await prisma.$transaction(async tx => {
     /// 직전에 sync했던곳 이후부터 DB sync
     await Promise.all(
       messages.map(v => {
@@ -613,7 +631,9 @@ const bookingChatSyncToDB = async (params: {
             toUserId: Number(data.to),
             userId: Number(data.from),
             bookingActionType: data.type,
-            subjectGroupId: nextSubjectGroupId,
+            subjectGroupId: !isNil(data.subjectGroupId)
+              ? Number(data.subjectGroupId)
+              : nextSubjectGroupId,
             // redisKey: key,
             customerId: Number(customerId),
             companyId: Number(companyId),
@@ -676,7 +696,7 @@ const bookingChatSyncToDB = async (params: {
     }
 
     /// move bookingInfo from redis to mysql
-    await (async () => {
+    const res = await (async () => {
       const bookingInfo = await redis.hget(
         `bookingInfo:${key}`,
         `${adPlaceId}`,
@@ -685,10 +705,20 @@ const bookingChatSyncToDB = async (params: {
       const date = bookingInfo?.split(',')[0]!;
       const numOfPeople = Number(bookingInfo?.split(',')[1]);
 
-      await tx.bookingInfo.create({
+      const createdBookingInfo = await tx.bookingInfo.create({
         data: {
           date,
           numOfPeople,
+          status: ((): BookingInfoStatus => {
+            switch (actionType) {
+              case 'ASKBOOKINGCANCEL':
+                return 'CUSTOMERPRECANCEL';
+              case 'ANSBOOKINGAVAILABLEREJECT':
+                return 'COMPANYPRECANCEL';
+              default:
+                return 'RESERVED';
+            }
+          })(),
           subjectGroupId: nextSubjectGroupId,
           customerId: Number(customerId),
           companyId: Number(companyId),
@@ -698,71 +728,170 @@ const bookingChatSyncToDB = async (params: {
 
       // await redis.del(`bookingInfo:${key}`);
       await redis.hdel(`bookingInfo:${key}`, `${adPlaceId}`);
+      return createdBookingInfo;
     })();
+    return res;
   });
-  return true;
+  return result;
 };
 
-export type SSESubscribeRequestType = {};
-// export type SSESubscribeSuccessResType = {};
-export type SSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
-  IBparams: {};
-};
+// export const pubSSEvent = (params: { from: string; to: string }): void => {
+//   const { from, to } = params;
 
-export const sseSubscribe = (
-  req: Express.IBTypedReqQuery<SSESubscribeRequestType>,
-  res: Express.IBTypedResponse<SSESubscribeResType>,
-): void => {
-  try {
-    const { locals } = req;
-    const userId = (() => {
-      if (locals && locals?.grade === 'member')
-        return locals?.user?.id.toString();
-      // return locals?.tokenId;
-      throw new IBError({
-        type: 'NOTAUTHORIZED',
-        message: 'member 등급만 접근 가능합니다.',
-      });
-    })();
-    if (isNil(userId)) {
-      throw new IBError({
-        type: 'NOTEXISTDATA',
-        message: '정상적으로 부여된 userId 가지고 있지 않습니다.',
-      });
-    }
+//   if (isNil(sseClients[to])) {
+//     // throw new IBError({
+//     //   type: 'INVALIDSTATUS',
+//     //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+//     // });
+//     // console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
+//     return;
+//   }
+//   sseClients[to]!.write(`id: 00\n`);
+//   if (from.toUpperCase().includes('SYSTEM')) {
+//     sseClients[to]!.write(`event: noti:userId${to}\n`);
+//   } else {
+//     sseClients[to]!.write(`event: chat:userId${to}\n`);
+//   }
 
-    const headers = {
-      'Access-Control-Allow-Origin': '*',
-      'Content-Type': 'text/event-stream',
-      Connection: 'keep-alive',
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
+//   sseClients[to]!.write(
+//     `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
+//   );
+// };
+
+// export const pubChatPush = async (
+//   params: BookingChatMessageType,
+// ): Promise<void> => {
+//   const { from, to, message, customerId, companyId } = params;
+
+//   /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보낸다.
+//   if (isNil(sseClients[to])) {
+//     if (!isNil(message)) {
+//       if (customerId === to) await sendAppPushToBookingCustomer(params);
+//       else if (companyId === to) await sendAppPushToBookingCompany(params);
+//     }
+
+//     return; /// 보내고자 하는 유저의 sse connection 즉 sseClients[to]가 존재하지 않으면 app push를 보내고 sseEvent를 보내지 않는다.
+//   }
+
+//   sseClients[to]!.write(`id: 00\n`);
+//   if (from.toUpperCase().includes('SYSTEM')) {
+//     sseClients[to]!.write(`event: noti:userId${to}\n`);
+//   } else {
+//     sseClients[to]!.write(`event: chat:userId${to}\n`);
+//   }
+
+//   sseClients[to]!.write(
+//     `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
+//   );
+// };
+
+export const pubChatPush = async (
+  params: BookingChatMessageType,
+): Promise<void> => {
+  const { to, message, customerId, companyId, adPlaceId } = params;
+
+  const adPlace = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+  const tourPlace = await getTourPlaceInfoFromCacheNDB(
+    adPlace!.mainTourPlaceId!.toString(),
+  );
+
+  if (!isNil(message) && !isNil(adPlace)) {
+    const messageInfo: BookingAppPushType = {
+      ...params,
+      adPlace,
+      adPlaceId,
+      tourPlace: tourPlace!,
+      tourPlaceId: tourPlace!.id.toString(),
+      pushType: 'BOOKINGCHAT',
     };
-    res.set(headers);
-    res.write(`userId:${userId} connected`);
-    console.log(`userId: ${userId} is connected to sse`);
+    if (customerId === to) await sendAppPushToBookingCustomer(messageInfo);
+    else if (companyId === to) await sendAppPushToBookingCompany(messageInfo);
+  }
+};
 
-    sseClients[userId] = res;
-    // console.log(sseClients);
+/// SysNotiAppPushType 데이터중에서 서버 조회가 추가적으로 필요한부분을 찾아(adPlace, tourPlace, shareTripMemory ...) 푸시 전송 데이터를 완성하는 함수
+export const completeSysNotiAppPushMsgData = async (
+  params: SysNotiAppPushType,
+): Promise<SysNotiAppPushType> => {
+  const {
+    additionalInfo: { bookingChat },
+  } = params;
 
-    req.on('close', () => {
-      console.log(`userId: ${userId} closed `);
-      //   delete clients[Number(sseKey)];
-      delete sseClients[userId];
-    });
-  } catch (err) {
-    if (err instanceof IBError) {
-      if (err.type === 'INVALIDPARAMS') {
-        res.status(400).json({
-          ...ibDefs.INVALIDPARAMS,
-          IBdetail: (err as Error).message,
-          IBparams: {} as object,
-        });
-        return;
+  console.log('[sendNotiMsgAppPush]: ');
+
+  /// booking Chat 관련 시스템 노티일 경우 부가정보 검색
+  const { adPlaceInfo, tourPlaceInfo, customerNickName, companyNickName } =
+    await (async (): Promise<{
+      adPlaceInfo: AdPlaceInfoType | null;
+      tourPlaceInfo: TourPlaceInfoType | null;
+      customerNickName: string | null;
+      companyNickName: string | null;
+    }> => {
+      if (!isNil(bookingChat) && !isEmpty(bookingChat)) {
+        const { adPlaceId, customerId, companyId } = bookingChat;
+        const adPlaceData = await getAdPlaceInfoFromCacheNDB(adPlaceId);
+        const tourPlaceData = await getTourPlaceInfoFromCacheNDB(
+          adPlaceData!.mainTourPlaceId!.toString(),
+        );
+
+        const customer = await getUserInfoFromCacheNDB<ToUserInfoType>(
+          customerId,
+        );
+        const company = await getUserInfoFromCacheNDB<ToUserInfoType>(
+          companyId,
+        );
+
+        return {
+          adPlaceInfo: adPlaceData,
+          tourPlaceInfo: tourPlaceData,
+          customerNickName: customer!.nickName,
+          companyNickName: company!.nickName,
+        };
       }
-    }
 
-    throw err;
+      return {
+        adPlaceInfo: null,
+        tourPlaceInfo: null,
+        customerNickName: null,
+        companyNickName: null,
+      };
+    })();
+
+  /// 부가정보를 결합한 완성된 sysNotiPushApp 타입의 데이터 생성
+  const messageInfo: SysNotiAppPushType = {
+    ...params,
+
+    /// bookingChat 관련 시스템 노티일 경우 위에서 마련한 부가정보를 추가한다.
+    ...(!isNil(bookingChat) && {
+      ...(!isNil(adPlaceInfo) && {
+        adPlace: adPlaceInfo,
+        adPlaceId: adPlaceInfo.id.toString(),
+      }),
+      ...(!isNil(tourPlaceInfo) && {
+        tourPlace: tourPlaceInfo,
+        tourPlaceId: tourPlaceInfo.id.toString(),
+      }),
+      ...(!isNil(customerNickName) && {
+        customerNickName,
+      }),
+      ...(!isNil(companyNickName) && {
+        companyNickName,
+      }),
+    }),
+
+    pushType: 'SYSTEMNOTI',
+  };
+  return messageInfo;
+};
+
+export const pubNotiPush = async (
+  params: SysNotiAppPushType,
+): Promise<void> => {
+  const { message } = params;
+
+  if (!isNil(message)) {
+    const messageInfo = await completeSysNotiAppPushMsgData(params);
+    await sendNotiMsgAppPush(messageInfo);
   }
 };
 
@@ -772,47 +901,6 @@ export type TestSSESubscribeRequestType = {
 // export type TestSSESubscribeSuccessResType = {};
 export type TestSSESubscribeResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
-};
-
-export const testSSESubscribe = (
-  req: Express.IBTypedReqQuery<TestSSESubscribeRequestType>,
-  res: Express.IBTypedResponse<TestSSESubscribeResType>,
-): void => {
-  try {
-    const { userId } = req.query;
-    const headers = {
-      'Access-Control-Allow-Origin': '*',
-      'Content-Type': 'text/event-stream',
-      Connection: 'keep-alive',
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
-    };
-    res.set(headers);
-    res.write(`userId:${userId} connected`);
-
-    console.log(`userId: ${userId} is connected to sse`);
-    sseClients[userId] = res;
-    // console.log(sseClients);
-
-    req.on('close', () => {
-      console.log(`userId: ${userId} closed `);
-      //   delete clients[Number(sseKey)];
-      delete sseClients[userId];
-    });
-  } catch (err) {
-    if (err instanceof IBError) {
-      if (err.type === 'INVALIDPARAMS') {
-        res.status(400).json({
-          ...ibDefs.INVALIDPARAMS,
-          IBdetail: (err as Error).message,
-          IBparams: {} as object,
-        });
-        return;
-      }
-    }
-
-    throw err;
-  }
 };
 
 // export type StoreChatLogRequestType = {
@@ -941,44 +1029,20 @@ export const testSSESubscribe = (
 //   },
 // );
 
-export type BookingRejectReasonType =
-  | 'CLOSEDTIME'
-  | 'INVALIDTIME'
-  | 'FULLBOOKINGATDATE'
-  | 'FULLBOOKINGONTIME'
-  | 'INVALIDNUMOFPERSON';
-
-export const pubSSEvent = (params: { from: string; to: string }): void => {
-  const { from, to } = params;
-
-  if (isNil(sseClients[to])) {
-    // throw new IBError({
-    //   type: 'INVALIDSTATUS',
-    //   message: 'to 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-    // });
-    console.error('to 해당하는 유저의 sse 연결이 존재하지 않습니다. ');
-    return;
-  }
-  sseClients[to]!.write(`id: 00\n`);
-  if (from.toUpperCase().includes('SYSTEM')) {
-    sseClients[to]!.write(`event: noti:userId${to}\n`);
-  } else {
-    sseClients[to]!.write(`event: chat:userId${to}\n`);
-  }
-
-  sseClients[to]!.write(
-    `data: {"message" : "[sse meesage][${new Date().toISOString()}]: from:${from}, lastOrderId:"}\n\n`,
-  );
-};
-
-export type SendMessageRequestType = (BookingChatMessageType & {
+export type SendMessageRequestType = (Omit<
+  BookingChatMessageType,
+  'isUnread'
+> & {
   bookingActionInputParams?: Omit<
     BookingActionInputParam,
     'reqUserNickname' | 'reqUserContact'
   >;
 })[]; /// 보낼 메시지
 
-// export type SendMessageSuccessResType = {};
+export type SendMessageSuccessResType = {
+  nextCursor: string;
+  nextOrder: string;
+};
 export type SendMessageResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: {};
 };
@@ -1081,308 +1145,419 @@ export const sendBookingMsg = asyncWrapper(
         return false;
       });
 
-      await Promise.all(
-        data.map(async d => {
-          const { type, bookingActionInputParams } = d;
+      const nextIdxes = await Promise.all(
+        data.map(
+          async (
+            inputMsg,
+          ): Promise<{
+            nextCursor: number;
+            nextOrder: number;
+          }> => {
+            const d: BookingChatMessageType = { ...inputMsg, isUnread: true };
+            const { type, bookingActionInputParams } = d;
+            let nextCursorNOrder: { nextCursor: number; nextOrder: number };
+            switch (type) {
+              case 'TEXT':
+                nextCursorNOrder = await (() => {
+                  return putInBookingMsg(d);
+                })();
+                break;
+              case 'ASKBOOKINGAVAILABLE':
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 bookingAactionInputParams는 필수입니다.`,
+                    });
+                  }
 
-          switch (type) {
-            case 'TEXT':
-              await (() => {
-                return putInBookingMsg(d);
-              })();
-              break;
-            case 'ASKBOOKINGAVAILABLE':
-              await (async () => {
-                if (
-                  isNil(bookingActionInputParams) ||
-                  isEmpty(bookingActionInputParams)
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 bookingAactionInputParams는 필수입니다.`,
-                  });
-                }
+                  const { date, numOfPeople } = bookingActionInputParams;
 
-                const { date, numOfPeople } = bookingActionInputParams;
+                  if (isNil(date) || isEmpty(date) || !moment(date).isValid()) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 date string(ISO string)은 필수입니다.`,
+                    });
+                  }
 
-                if (isNil(date) || isEmpty(date) || !moment(date).isValid()) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 유효한 date string(ISO string)은 필수입니다.`,
-                  });
-                }
+                  if (
+                    isNil(numOfPeople) ||
+                    isEmpty(numOfPeople) ||
+                    isNaN(numOfPeople)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 numOfPeople은 필수입니다.`,
+                    });
+                  }
 
-                if (
-                  isNil(numOfPeople) ||
-                  isEmpty(numOfPeople) ||
-                  isNaN(numOfPeople)
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 numOfPeople은 필수입니다.`,
-                  });
-                }
+                  // 문의 booking Info 임시저장
+                  await redis.hset(
+                    `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
+                    `${d.adPlaceId}`,
+                    `${date},${numOfPeople}`,
+                  );
 
-                // 문의 booking Info 임시저장
-                await redis.hset(
-                  `bookingInfo:${userId}=>${d.to}`, /// userId는 고객, d.to는 사업자
-                  `${d.adPlaceId}`,
-                  `${date},${numOfPeople}`,
-                );
+                  const result = await putInBookingMsg(d);
+                  return result;
+                })();
 
-                await putInBookingMsg(d);
-              })();
+                break;
+              case 'ANSBOOKINGAVAILABLE':
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                    });
+                  }
 
-              break;
-            case 'ANSBOOKINGAVAILABLE':
-              await (() => {
-                if (
-                  isNil(bookingActionInputParams) ||
-                  isEmpty(bookingActionInputParams)
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
-                  });
-                }
+                  const { answer } = bookingActionInputParams;
 
-                const { answer, rejectReason } = bookingActionInputParams;
+                  if (isNil(answer) || isEmpty(answer)) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 actionInputParams의 answer 파라미터는 필수입니다.`,
+                    });
+                  }
 
-                if (isNil(answer) || isEmpty(answer)) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 유효한 actionInputParams의 answer 파라미터는 필수입니다.`,
-                  });
-                }
+                  const result = await putInBookingMsg(d);
+                  return result;
+                })();
+                break;
+              case 'ANSBOOKINGAVAILABLEREJECT':
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                    });
+                  }
 
-                if (
-                  answer === 'REJECT' &&
-                  (isNil(rejectReason) || isEmpty(rejectReason))
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 actionInputParams의 rejectReason은 필수입니다.`,
-                  });
-                }
+                  const { answer, rejectReason } = bookingActionInputParams;
 
-                return putInBookingMsg(d);
-              })();
-              break;
-            case 'ASKBOOKINGCANCEL':
-              await (async () => {
-                await putInBookingMsg(d);
-                const systemGuideMsg: BookingChatMessageType = {
+                  if (isNil(answer) || isEmpty(answer)) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 actionInputParams의 answer 파라미터는 필수입니다.`,
+                    });
+                  }
+
+                  if (
+                    answer === 'REJECT' &&
+                    (isNil(rejectReason) || isEmpty(rejectReason))
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams의 rejectReason은 필수입니다.`,
+                    });
+                  }
+
+                  const { nextOrder } = await putInBookingMsg(d);
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
+                })();
+                await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
-                  customerId: d.from,
-                  companyId: d.to,
-                  from: d.to, /// 사업자
-                  to: d.from, /// 고객
-                  createdAt: new Date().toISOString(),
-                  type: 'ASKBOOKINGCANCELCHK',
-                  order: `${Number(d.order) + 1}`,
-                  message: '예약이 취소 되었어요',
-                };
-
-                await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
-              })();
-              await bookingChatSyncToDB({
-                adPlaceId: d.adPlaceId,
-                customerId: d.from,
-                companyId: d.to,
-              });
-              break;
-            case 'CONFIRMBOOKING':
-              await (async () => {
-                if (
-                  isNil(bookingActionInputParams) ||
-                  isEmpty(bookingActionInputParams)
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
-                  });
-                }
-
-                const { confirmAnswer } = bookingActionInputParams;
-
-                if (isNil(confirmAnswer) || isEmpty(confirmAnswer)) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 유효한 confirmAnswer은 필수입니다.`,
-                  });
-                }
-                await putInBookingMsg(d);
-
-                /// 확정했을 경우
-                if (
-                  d.bookingActionInputParams?.confirmAnswer &&
-                  d.bookingActionInputParams?.confirmAnswer === 'CONFIRM'
-                ) {
+                  customerId: d.to,
+                  companyId: d.from,
+                  actionType: 'ANSBOOKINGAVAILABLEREJECT',
+                });
+                break;
+              case 'ASKBOOKINGCANCEL':
+                nextCursorNOrder = await (async () => {
+                  await putInBookingMsg(d);
                   const systemGuideMsg: BookingChatMessageType = {
                     adPlaceId: d.adPlaceId,
+                    isUnread: true,
                     customerId: d.from,
                     companyId: d.to,
                     from: d.to, /// 사업자
                     to: d.from, /// 고객
                     createdAt: new Date().toISOString(),
-                    type: 'ANSCONFIRMBOOKING',
+                    type: 'ASKBOOKINGCANCELCHK',
                     order: `${Number(d.order) + 1}`,
-                    message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
+                    message: '예약이 취소 되었어요',
                   };
-                  await putInBookingMsg(systemGuideMsg);
-                  pubSSEvent(systemGuideMsg);
-                  return;
-                }
 
-                /// 확정하지 않았을 경우
-                const systemGuideMsg: BookingChatMessageType = {
-                  adPlaceId: d.adPlaceId,
-                  customerId: d.from,
-                  companyId: d.to,
-                  from: d.to, /// 사업자
-                  to: d.from, /// 고객
-                  createdAt: new Date().toISOString(),
-                  type: 'ASKBOOKINGCANCELCHK',
-                  order: `${Number(d.order) + 1}`,
-                  message: '예약이 취소 되었어요',
-                };
-
-                await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
+                  const { nextOrder } = await putInBookingMsg(systemGuideMsg);
+                  await pubChatPush(systemGuideMsg);
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
+                })();
                 await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
                   customerId: d.from,
                   companyId: d.to,
+                  actionType: 'ASKBOOKINGCANCEL',
                 });
-              })();
-              break;
-            case 'PRIVACYAGREE':
-              await (async () => {
-                if (
-                  isNil(bookingActionInputParams) ||
-                  isEmpty(bookingActionInputParams)
-                ) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
-                  });
-                }
-
-                const { agreeAnswer } = bookingActionInputParams;
-
-                if (isNil(agreeAnswer) || isEmpty(agreeAnswer)) {
-                  throw new IBError({
-                    type: 'INVALIDPARAMS',
-                    message: `type이 ${type} 이면 유효한 agreeAnswer 필수입니다.`,
-                  });
-                }
-
-                const adPlace = await prisma.adPlace.findUnique({
-                  where: {
-                    id: Number(d.adPlaceId),
-                  },
-                });
-
-                if (isNil(adPlace)) {
-                  throw new IBError({
-                    type: 'INVALIDSTATUS',
-                    message:
-                      'adPlaceId에 해당하는 adPlace가 존재하지 않습니다.',
-                  });
-                }
-
-                await putInBookingMsg(d);
-
-                /// 동의했을 경우
-                if (
-                  d.bookingActionInputParams?.agreeAnswer &&
-                  d.bookingActionInputParams.agreeAnswer === 'TRUE'
-                ) {
-                  const bookingInfo = await redis.hget(
-                    `bookingInfo:${d.customerId}=>${d.companyId}`,
-                    `${d.adPlaceId}`,
-                  );
-                  if (isNil(bookingInfo)) {
+                break;
+              case 'CONFIRMBOOKING':
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
                     throw new IBError({
-                      type: 'INVALIDSTATUS',
-                      message: `bookingInfo 데이터가 유실되었습니다.`,
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
                     });
                   }
 
-                  const [date, numOfPeople] = bookingInfo.split(',');
+                  const { confirmAnswer } = bookingActionInputParams;
 
-                  const finalBookingCheckMsgData: BookingChatMessageType = {
+                  if (isNil(confirmAnswer) || isEmpty(confirmAnswer)) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 confirmAnswer은 필수입니다.`,
+                    });
+                  }
+                  await putInBookingMsg(d);
+
+                  /// 확정했을 경우
+                  if (
+                    d.bookingActionInputParams?.confirmAnswer &&
+                    d.bookingActionInputParams?.confirmAnswer === 'CONFIRM'
+                  ) {
+                    const systemGuideMsg: BookingChatMessageType = {
+                      adPlaceId: d.adPlaceId,
+                      isUnread: true,
+                      customerId: d.from,
+                      companyId: d.to,
+                      from: d.to, /// 사업자
+                      to: d.from, /// 고객
+                      createdAt: new Date().toISOString(),
+                      type: 'ANSCONFIRMBOOKING',
+                      order: `${Number(d.order) + 1}`,
+                      message: '예약 확정을 위해 연락처가 가게에 전달돼요.',
+                    };
+                    const result = await putInBookingMsg(systemGuideMsg);
+                    await pubChatPush(systemGuideMsg);
+                    return result;
+                  }
+
+                  /// 확정하지 않았을 경우
+                  const systemGuideMsg: BookingChatMessageType = {
                     adPlaceId: d.adPlaceId,
-                    from: d.to, /// 사업자
-                    to: d.from, /// 고객
+                    isUnread: true,
                     customerId: d.from,
                     companyId: d.to,
+                    from: d.to, /// 사업자
+                    to: d.from, /// 고객
                     createdAt: new Date().toISOString(),
-                    type: 'FINALBOOKINGCHECK',
+                    type: 'ASKBOOKINGCANCELCHK',
                     order: `${Number(d.order) + 1}`,
-                    message:
-                      '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
-                    bookingActionInputParams: {
-                      reqUserNickname: locals.user!.nickName,
-                      reqUserContact: locals.user!.phone,
-                      date,
-                      numOfPeople,
-                    },
+                    message: '예약이 취소 되었어요',
                   };
-                  await putInBookingMsg(finalBookingCheckMsgData);
-                  pubSSEvent(finalBookingCheckMsgData);
 
-                  await putInSysNotiMessage({
-                    userId: finalBookingCheckMsgData.to, // 고객
-                    createdAt: finalBookingCheckMsgData.createdAt,
-                    type: 'BOOKINGCOMPLETE',
-                    message: `${adPlace.title}에 예약이 확정되었어요.`,
+                  const { nextOrder } = await putInBookingMsg(systemGuideMsg);
+                  await pubChatPush(systemGuideMsg);
+                  await bookingChatSyncToDB({
+                    adPlaceId: d.adPlaceId,
+                    customerId: d.from,
+                    companyId: d.to,
+                    actionType: 'CONFIRMBOOKING',
                   });
-                  pubSSEvent({
-                    from: 'system',
-                    to: finalBookingCheckMsgData.to,
-                  });
-                  return;
-                }
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
+                })();
+                break;
+              case 'PRIVACYAGREE':
+                nextCursorNOrder = await (async () => {
+                  if (
+                    isNil(bookingActionInputParams) ||
+                    isEmpty(bookingActionInputParams)
+                  ) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 actionInputParams는 필수입니다.`,
+                    });
+                  }
 
-                /// 동의하지 않았을 경우
-                const systemGuideMsg: BookingChatMessageType = {
+                  const { agreeAnswer } = bookingActionInputParams;
+
+                  if (isNil(agreeAnswer) || isEmpty(agreeAnswer)) {
+                    throw new IBError({
+                      type: 'INVALIDPARAMS',
+                      message: `type이 ${type} 이면 유효한 agreeAnswer 필수입니다.`,
+                    });
+                  }
+
+                  const adPlace = await prisma.adPlace.findUnique({
+                    where: {
+                      id: Number(d.adPlaceId),
+                    },
+                  });
+
+                  if (isNil(adPlace)) {
+                    throw new IBError({
+                      type: 'INVALIDSTATUS',
+                      message:
+                        'adPlaceId에 해당하는 adPlace가 존재하지 않습니다.',
+                    });
+                  }
+
+                  await putInBookingMsg(d);
+
+                  /// 동의했을 경우
+                  if (
+                    d.bookingActionInputParams?.agreeAnswer &&
+                    d.bookingActionInputParams.agreeAnswer === 'TRUE'
+                  ) {
+                    const bookingInfo = await redis.hget(
+                      `bookingInfo:${d.customerId}=>${d.companyId}`,
+                      `${d.adPlaceId}`,
+                    );
+                    if (isNil(bookingInfo)) {
+                      throw new IBError({
+                        type: 'INVALIDSTATUS',
+                        message: `bookingInfo 데이터가 유실되었습니다.`,
+                      });
+                    }
+
+                    const [date, numOfPeople] = bookingInfo.split(',');
+                    // const { date, numOfPeople } = bookingInfo;
+
+                    const finalBookingCheckMsgData: BookingChatMessageType = {
+                      adPlaceId: d.adPlaceId,
+                      isUnread: true,
+                      from: d.to, /// 사업자
+                      to: d.from, /// 고객
+                      customerId: d.from,
+                      companyId: d.to,
+                      createdAt: new Date().toISOString(),
+                      type: 'FINALBOOKINGCHECK',
+                      order: `${Number(d.order) + 1}`,
+                      message:
+                        '예약이 확정되었어요!\n확정된 예약은 마이북에서 볼 수 있어요.\n잊지 않고 예약일에 봬요!',
+                      bookingActionInputParams: {
+                        reqUserNickname: locals.user!.nickName,
+                        reqUserContact: locals.user!.phone,
+                        date: moment(date).toISOString(),
+                        numOfPeople: numOfPeople.toString(),
+                      },
+                    };
+                    const { nextOrder } = await putInBookingMsg(
+                      finalBookingCheckMsgData,
+                    );
+                    await pubChatPush(finalBookingCheckMsgData);
+                    const cusNotiMsg: SysNotiMessageType = {
+                      userId: finalBookingCheckMsgData.to, // 고객
+                      createdAt: finalBookingCheckMsgData.createdAt,
+                      type: 'BOOKINGCOMPLETE',
+                      message: `${moment(
+                        finalBookingCheckMsgData.bookingActionInputParams!.date,
+                      ).format('M월 D일 HH시')} ${
+                        adPlace.title
+                      }에 예약이 확정되었어요.`,
+                      additionalInfo: {
+                        bookingChat: {
+                          adPlaceId: finalBookingCheckMsgData.adPlaceId,
+                          customerId:
+                            finalBookingCheckMsgData.customerId.toString(),
+                          companyId:
+                            finalBookingCheckMsgData.companyId.toString(),
+                          bookingInfo: {
+                            numOfPeople: Number(numOfPeople),
+                            date: new Date(date),
+                          },
+                        },
+                      },
+                    };
+                    await putInSysNotiMessage(cusNotiMsg);
+                    await pubNotiPush({
+                      ...cusNotiMsg,
+                      pushType: 'SYSTEMNOTI',
+                    });
+
+                    const compNotiMsg: SysNotiMessageType = {
+                      ...cusNotiMsg,
+                      userId: finalBookingCheckMsgData.from, // 사업주
+                      message: `${finalBookingCheckMsgData.bookingActionInputParams!
+                        .reqUserNickname!} 님의 ${moment(
+                        finalBookingCheckMsgData.bookingActionInputParams!.date,
+                      ).format('M월 D일 HH시')} ${
+                        adPlace.title
+                      }의 예약이 확정되었어요.`, /// 갸라도스님의 9월 5일 13시 주야장천의 예약이 확정되었어요
+                    };
+                    await putInSysNotiMessage(compNotiMsg);
+                    await pubNotiPush({
+                      ...compNotiMsg,
+                      pushType: 'SYSTEMNOTI',
+                    });
+                    return {
+                      nextCursor: 0,
+                      nextOrder,
+                    };
+                  }
+
+                  /// 동의하지 않았을 경우
+                  const systemGuideMsg: BookingChatMessageType = {
+                    adPlaceId: d.adPlaceId,
+                    isUnread: true,
+                    customerId: d.to,
+                    companyId: d.from,
+                    from: d.to, /// 사업자
+                    to: d.from, /// 고객
+                    createdAt: new Date().toISOString(),
+                    type: 'ASKBOOKINGCANCELCHK',
+                    order: `${Number(d.order) + 1}`,
+                    message: '예약이 취소 되었어요',
+                  };
+
+                  const { nextOrder } = await putInBookingMsg(systemGuideMsg);
+                  await pubChatPush(systemGuideMsg);
+                  return {
+                    nextCursor: 0,
+                    nextOrder,
+                  };
+                })();
+                await bookingChatSyncToDB({
                   adPlaceId: d.adPlaceId,
-                  customerId: d.to,
-                  companyId: d.from,
-                  from: d.to, /// 사업자
-                  to: d.from, /// 고객
-                  createdAt: new Date().toISOString(),
-                  type: 'ASKBOOKINGCANCELCHK',
-                  order: `${Number(d.order) + 1}`,
-                  message: '예약이 취소 되었어요',
-                };
+                  customerId: d.customerId, /// 고객
+                  companyId: d.companyId, /// 사업자
+                  actionType: 'PRIVACYAGREE',
+                });
 
-                await putInBookingMsg(systemGuideMsg);
-                pubSSEvent(systemGuideMsg);
-              })();
-              await bookingChatSyncToDB({
-                adPlaceId: d.adPlaceId,
-                customerId: d.customerId, /// 고객
-                companyId: d.companyId, /// 사업자
-              });
-              break;
+                break;
 
-            default:
-              throw new IBError({
-                type: 'INVALIDPARAMS',
-                message: 'ChatMessageActionType에 정의되지 않은 type입니다.',
-              });
-          }
+              default:
+                throw new IBError({
+                  type: 'INVALIDPARAMS',
+                  message: 'ChatMessageActionType에 정의되지 않은 type입니다.',
+                });
+            }
 
-          pubSSEvent(d);
-        }),
+            await pubChatPush(d);
+            return nextCursorNOrder;
+          },
+        ),
       );
 
+      console.log(`sendBookingMsg:`, nextIdxes);
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: {},
+        IBparams: nextIdxes.map(v => {
+          return {
+            nextOrder: v.nextOrder.toString(),
+            nextCursor: v.nextCursor.toString(),
+          };
+        }),
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -1499,22 +1674,24 @@ export const getBookingMsg = asyncWrapper(
         });
       }
 
-      if (isNil(sseClients[from])) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'from 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
-        });
-      }
+      // if (isNil(sseClients[from])) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'from 해당하는 유저의 sse 연결이 존재하지 않습니다. ',
+      //   });
+      // }
 
       const result = await takeOutBookingMsg({
         // from,
         // userId,
+        myRole,
         customerId: myRole === 'customer' ? userId : from,
         companyId: myRole === 'customer' ? from : userId,
         startCursor,
         startOrder,
       });
 
+      console.log(`getBookingMsg:`, result);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: result,
@@ -1552,7 +1729,11 @@ export type ReqNewBookingRequestType = {
   startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
   startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
 };
-export type ReqNewBookingSuccessResType = {};
+export type ReqNewBookingSuccessResType = {
+  toUserId: string;
+  nextCursor: string;
+  nextOrder: string;
+};
 export type ReqNewBookingResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqNewBookingSuccessResType | {};
 };
@@ -1628,10 +1809,11 @@ export const reqNewBooking = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `예약하기`,
         order: `${result.nextOrder}`,
-        type: 'NEWBOOKINGMSG' as BookingChatMessageActionType,
+        type: 'NEWBOOKINGMSG' as BookingChatActionType,
       };
       const forwardData: BookingChatMessageType = {
         ...bookingData,
+        isUnread: true,
         customerId: userId,
         companyId: toUserId,
         from: userId, /// 고객
@@ -1651,25 +1833,29 @@ export const reqNewBooking = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!`,
         order: `${result.nextOrder + 1}`,
-        type: 'ANSNEWBOOKINGMSG' as BookingChatMessageActionType,
+        type: 'ANSNEWBOOKINGMSG' as BookingChatActionType,
       };
 
       const reverseData: BookingChatMessageType = {
         ...ansBookingData,
-        customerId: toUserId,
-        companyId: userId,
+        isUnread: true,
+        customerId: userId,
+        companyId: toUserId,
         from: toUserId, /// 사업자
         to: userId, /// 고객
       };
-      await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
+      const nextCursorNOrder = await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
 
-      pubSSEvent(forwardData);
-      pubSSEvent(reverseData);
+      await pubChatPush(forwardData);
+      await pubChatPush(reverseData);
 
+      console.log(`reqNewBooking:`, nextCursorNOrder);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
           toUserId,
+          nextCursor: nextCursorNOrder.nextCursor.toString(),
+          nextOrder: nextCursorNOrder.nextOrder.toString(),
         },
       });
     } catch (err) {
@@ -1705,7 +1891,11 @@ export type ReqBookingChatWelcomeRequestType = {
   startCursor: string; /// 본 메시지가 redis의 메시지 리스트에서 위치할 index. 최초 대화 시작이라면 0
   startOrder: string; /// 보내는 메시지 order. 최초 대화 시작이라면 0
 };
-export type ReqBookingChatWelcomeSuccessResType = {};
+export type ReqBookingChatWelcomeSuccessResType = {
+  toUserId: string;
+  nextCursor: string;
+  nextOrder: string;
+};
 export type ReqBookingChatWelcomeResType = Omit<IBResFormat, 'IBparams'> & {
   IBparams: ReqBookingChatWelcomeSuccessResType | {};
 };
@@ -1783,10 +1973,11 @@ export const reqBookingChatWelcome = asyncWrapper(
         createdAt: new Date().toISOString(),
         message: `안녕하세요!\n궁금하신 내용을 보내주세요.\n가게에서 내용에 대한 답변을 드려요.`,
         order: `${result.nextOrder}`,
-        type: 'ASKBOOKINGWELCOME' as BookingChatMessageActionType,
+        type: 'ASKBOOKINGWELCOME' as BookingChatActionType,
       };
       const forwardData: BookingChatMessageType = {
         ...data,
+        isUnread: true,
         companyId: toUserId,
         customerId: userId,
         from: userId, /// 고객
@@ -1794,21 +1985,25 @@ export const reqBookingChatWelcome = asyncWrapper(
       };
       const reverseData: BookingChatMessageType = {
         ...data,
+        isUnread: true,
         companyId: toUserId,
         customerId: userId,
         from: toUserId, /// 사업자
         to: userId, /// 고객
       };
 
-      await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
+      const nextCursorNOrder = await putInBookingMsg(reverseData); /// 사업자 => 고객 메시지 전송
       /// 양측에 같이 날린다.
-      pubSSEvent(forwardData);
-      pubSSEvent(reverseData);
+      await pubChatPush(forwardData);
+      await pubChatPush(reverseData);
 
+      console.log(`reqBookingChatWelcome`, nextCursorNOrder);
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
           toUserId,
+          nextCursor: nextCursorNOrder.nextCursor.toString(),
+          nextOrder: nextCursorNOrder.nextOrder.toString(),
         },
       });
     } catch (err) {
@@ -1949,11 +2144,6 @@ export const reqBookingChatWelcome = asyncWrapper(
 //   },
 // );
 
-type LastBookingMessageType = {
-  lastMsg: BookingChatMessageType;
-  me: string | null;
-  other: string | null;
-};
 export type GetLastBookingMsgListRequestType = {
   role: 'company' | 'customer'; /// api를 요청한 유저의 역할. company이면 해당 사업자 유저한테 온 문의메시지 리스트들을 모두 보여주고, customer이면 해당 고객 유저가 문의했었던 메시지 리스트들을 모두 보여준다.
   adPlaceId?: string; /// company 일 경우 조회하려는 특정 사업장이 있다면
@@ -2084,7 +2274,7 @@ export const getLastBookingMsgList = asyncWrapper(
 );
 
 export type GetSysNotiMessageRequestType = {
-  startCursor: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
+  startCursor?: string; /// redis에서 해당 인덱스를 포함한 이후의 메시지를 모두 읽는다.
 };
 export type GetSysNotiMessageSuccessResType = {
   nextCursor: string;
@@ -2124,16 +2314,16 @@ export const getSysNotiMessage = asyncWrapper(
 
       const params = req.body;
       const { startCursor } = params;
-      if (
-        isNil(startCursor) ||
-        isEmpty(startCursor) ||
-        isNaN(Number(startCursor))
-      ) {
-        throw new IBError({
-          type: 'INVALIDSTATUS',
-          message: 'startCursor가 제공되어야 합니다.',
-        });
-      }
+      // if (
+      //   isNil(startCursor) ||
+      //   isEmpty(startCursor) ||
+      //   isNaN(Number(startCursor))
+      // ) {
+      //   throw new IBError({
+      //     type: 'INVALIDSTATUS',
+      //     message: 'startCursor가 제공되어야 합니다.',
+      //   });
+      // }
 
       const result = await takeOutSysNotiMessage({
         userId,
@@ -2171,8 +2361,8 @@ export const getSysNotiMessage = asyncWrapper(
   },
 );
 
-notiRouter.get('/testSSESubscribe', testSSESubscribe);
-notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
+// notiRouter.get('/testSSESubscribe', testSSESubscribe);
+// notiRouter.get('/sseSubscribe', accessTokenValidCheck, sseSubscribe);
 // notiRouter.post('/storeChatLog', accessTokenValidCheck, storeChatLog);
 notiRouter.post('/getBookingMsg', accessTokenValidCheck, getBookingMsg);
 

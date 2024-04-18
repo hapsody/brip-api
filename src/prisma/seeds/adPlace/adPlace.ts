@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   if (isNil(existCheck)) {
     const result = await prisma.adPlace.create({
       data: {
-        status: 'NEW',
+        status: 'STOP',
         subscribe: false,
         title: '테스트 비즈니스 스토어',
         mainPhoto: {

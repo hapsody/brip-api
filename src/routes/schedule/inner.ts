@@ -112,6 +112,8 @@ import {
   GetEstimatedCostRETParamPayload,
   ChangeScheduleTitleREQParam,
   ChangeScheduleTitleRETParamPayload,
+  RegionalCodeType,
+  ScheduleScanType,
 } from './types/schduleTypes';
 
 /**
@@ -794,7 +796,7 @@ export const getAllPlaceByGglTxtSrch = async (
   param: GetPlaceByGglTxtSrchREQParam,
 ): Promise<GglPlaceResultRawData[]> => {
   let retry = 1;
-  const retryLimit = 5;
+  const retryLimit = 6;
 
   console.log(param);
 
@@ -1174,17 +1176,21 @@ export const getVisitJejuData = async (
 ): Promise<GetPlaceDataFromVJRETParamPayload> => {
   const { locale, page, cid } = param;
 
-  const option = `http://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
+  const option = `https://api.visitjeju.net/vsjApi/contents/searchList?apiKey=${
     process.env.VISITJEJU_API_KEY as string
   }${`&locale=${locale ?? 'kr'}`}${page ? `&page=${page}` : '1'}${
     cid ? `&cid=${cid ?? ''}` : ''
   }`;
-  const jejuRawRes = await axios.get(option);
-  console.log(option);
+  try {
+    const jejuRawRes = await axios.get(option);
+    console.log(option);
+    const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
 
-  const jejuRes = jejuRawRes.data as GetPlaceDataFromVJRETParamPayload;
-
-  return jejuRes;
+    return jejuRes;
+  } catch (err) {
+    console.error(JSON.stringify((err as Error).message, null, 2));
+    return {};
+  }
 };
 
 /**
@@ -2211,6 +2217,113 @@ export const nearestWithBaseLoc = (
   };
 };
 
+export const scanKeywordToRegionalCode = (
+  keyword: string,
+): RegionalCodeType | undefined => {
+  const keywordArr = keyword.split(' ');
+
+  /// ex) 전라남도, 서울특별시, 제주특별자치도
+  if (keywordArr.length === 1) {
+    if (
+      keywordArr[0].match(
+        /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원특별자치도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
+      )
+    ) {
+      const superRegion = keywordArr[0];
+      const regionCode1 =
+        krRegionToCode[superRegion as keyof typeof krRegionToCode];
+      return {
+        regionCode1,
+      };
+    }
+
+    /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
+    if (keywordArr[0].match(/.+[시|군|구]$/)) {
+      const subRegion = keywordArr[0];
+      const regionCode2 =
+        krRegionToCode[subRegion as keyof typeof krRegionToCode];
+      return {
+        regionCode2,
+      };
+    }
+  }
+  /// ex) 전라남도 순천시, 서울특별시 중구
+  if (keywordArr.length > 1) {
+    const superRegion = keywordArr[0];
+    const subRegion = keywordArr[1];
+
+    let regionCode1: number | undefined;
+    let regionCode2: number | undefined;
+    if (!isNil(superRegion.match(/.+[도|시]$/))) {
+      regionCode1 = krRegionToCode[superRegion as keyof typeof krRegionToCode];
+    }
+
+    if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
+      regionCode2 =
+        krRegionToCode[
+          `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
+        ];
+    }
+
+    return {
+      regionCode1,
+      regionCode2,
+    };
+  }
+
+  return undefined;
+};
+
+export const getRecommendRegion = (exclusiveRegion?: string[]): string => {
+  const randCandRegion = (() => {
+    const candidateRegion = [
+      /// regionCode1
+      '강원특별자치도',
+      '경기도',
+      '경상남도',
+      '경상북도',
+      '광주광역시',
+      '대구광역시',
+      '대전광역시',
+      '부산광역시',
+      '서울특별시',
+      '세종특별자치시',
+      '울산광역시',
+      '인천광역시',
+      '전라남도',
+      '전라북도',
+      '제주특별자치도',
+      '충청남도',
+      '충청북도',
+      /// regionCode1 + regionCode2
+      '강원특별자치도 양양군',
+      '전라남도 목포시',
+      '전라남도 여수시',
+      '경상남도 거제시',
+    ];
+    if (!isNil(exclusiveRegion) && !isEmpty(exclusiveRegion)) {
+      /// 제외지역 배제
+      exclusiveRegion.forEach(exRegion => {
+        const idx = candidateRegion.findIndex(
+          candRegion => candRegion === exRegion,
+        );
+
+        candidateRegion.splice(idx, 1);
+      });
+    }
+
+    return candidateRegion;
+  })();
+
+  const maxNum = randCandRegion.length;
+  const randNum = Math.floor(maxNum * Math.random());
+  const randIdx = randNum === maxNum ? randNum - 1 : randNum;
+
+  const keyword = randCandRegion[randIdx];
+  console.log(`추천지역: ${keyword}`);
+  return keyword;
+};
+
 /**
  * 일정 생성 요청을 하는 makeSchedule 구현부 함수. (reqSchedule 역할의 변경 스펙)
  */
@@ -2220,7 +2333,7 @@ export const makeSchedule = async (
   ctx: ContextMakeSchedule,
 ): Promise<MakeScheduleRETParamPayload> => {
   const {
-    isNow,
+    ingNow,
     companion,
     familyOpt,
     minFriend,
@@ -2326,17 +2439,23 @@ export const makeSchedule = async (
 
   console.log(calibUserLevel);
 
-  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다.
-  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있어야 한다.
+  /// 1. 임시적으로 scanRange 파라미터는 위경도값으로 제공된 데이터만 유효한 데이터가 제공된것으로 간주한다. => keyword 또는 regionalCodes 검색모드도 추가됨 min max geocode 또는 keyword 또는 regionCodes
+  /// 2. 배열의 모든 항목은 minLat ... maxLng 값 네가지를 모두 가지고 있거나 keyword 또는 regionCodes를 제공해야함
   /// 3. 유효하지 않다면 기본 default값인 제주도 범위로 한다.
   /// 향후 도시 코드가 정의되면 해당 조건도 추가할것
-  const scanType: {
-    type: string;
-    regionalCodes?: {
-      regionCode1?: number;
-      regionCode2?: number;
-    }[];
-  } | null = (() => {
+
+  const scanType: ScheduleScanType | null = (() => {
+    if (destination === 'recommend') {
+      /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
+      const recommendRegionKeyword = getRecommendRegion(ctx.exclusiveRegion);
+      const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
+      ctx.recommendedRegion = recommendRegionKeyword;
+      return {
+        type: 'keyword',
+        regionalCodes: [regionalCode!],
+      };
+    }
+
     const isRegionCodeType =
       !isNil(scanRange) &&
       scanRange.every(range => {
@@ -2401,64 +2520,17 @@ export const makeSchedule = async (
           | undefined
         >(range => {
           const { keyword } = range;
-          const keywordArr = keyword!.split(' ');
-
-          /// ex) 전라남도, 서울특별시, 제주특별자치도
-          if (keywordArr.length === 1) {
-            if (
-              keywordArr[0].match(
-                /.+[서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도]$/,
-              )
-            ) {
-              const superRegion = keywordArr[0];
-              const regionCode1 =
-                krRegionToCode[superRegion as keyof typeof krRegionToCode];
-              return {
-                regionCode1,
-              };
-            }
-
-            /// 순천시, 천안시, <= 전국에 유일한 이름의 subRegion일 경우다. 동구, 서구와 같은 subRegion은 전국으로 보면 중복이 있기 때문에 풀네임으로 주어야하며 보다 더 아래의 분기문에서 처리한다. 만약 그냥 동구, 서구와 같은 식으로 주어진다면 전국에 subRegion중 '동구'가 있는 모든 데이터가 대상이된다.
-            if (keywordArr[0].match(/.+[시|군|구]$/)) {
-              const subRegion = keywordArr[0];
-              const regionCode2 =
-                krRegionToCode[subRegion as keyof typeof krRegionToCode];
-              return {
-                regionCode2,
-              };
-            }
-          }
-          /// ex) 전라남도 순천시, 서울특별시 중구
-          if (keywordArr.length > 1) {
-            const superRegion = keywordArr[0];
-            const subRegion = keywordArr[1];
-
-            let regionCode1: number | undefined;
-            let regionCode2: number | undefined;
-            if (!isNil(superRegion.match(/.+[도|시]$/))) {
-              regionCode1 =
-                krRegionToCode[superRegion as keyof typeof krRegionToCode];
-            }
-
-            if (!isNil(subRegion.match(/.+[시|군|구]$/))) {
-              regionCode2 =
-                krRegionToCode[
-                  `${superRegion} ${subRegion}` as keyof typeof krRegionToCode
-                ];
-            }
-
-            return {
-              regionCode1,
-              regionCode2,
-            };
-          }
-
-          return undefined;
+          return scanKeywordToRegionalCode(keyword!);
         })
         .filter(
           (v): v is { regionCode1?: number; regionCode2?: number } =>
             v !== undefined,
         );
+
+      const keywords = scanRange
+        ?.map(v => v.keyword)
+        .filter((v): v is string => !isNil(v));
+      ctx.recommendedRegion = isNil(keywords) ? undefined : keywords.toString();
 
       return {
         type: 'keyword',
@@ -2482,10 +2554,17 @@ export const makeSchedule = async (
 
     if (isGeocodeType) return { type: 'geocode' };
 
-    return null;
+    /// destination이 recommend이면 추천지역 뽑기 or scanRange에 아무 조건도 주어지지 않았을때 => 추천지역 뽑기
+    const recommendRegionKeyword = getRecommendRegion(ctx.exclusiveRegion);
+    const regionalCode = scanKeywordToRegionalCode(recommendRegionKeyword);
+    ctx.recommendedRegion = recommendRegionKeyword;
+    return {
+      type: 'keyword',
+      regionalCodes: [regionalCode!],
+    };
   })();
 
-  console.log(scanType);
+  console.log(`scanType`, scanType);
 
   const spots = await prisma.tourPlace.findMany({
     where: {
@@ -2547,6 +2626,15 @@ export const makeSchedule = async (
             };
           });
           console.log(condition);
+          ctx.recommendedRegion = condition
+            .map(v => {
+              let result = !isNil(v.regionCode1) ? `${v.regionCode1}` : '';
+              result = !isNil(v.regionCode2)
+                ? `${result} ${v.regionCode2}`
+                : result;
+              return result;
+            })
+            .toString();
           return {
             OR: condition,
           };
@@ -3449,7 +3537,7 @@ export const makeSchedule = async (
 
   trackRecord = moment().diff(stopWatch, 'ms').toString();
   console.log(
-    `[!!! determining visit order End !!!]: duration: ${trackRecord}ms`,
+    `[!!! 7. determining visit order End !!!]: duration: ${trackRecord}ms`,
   );
 
   console.log(`\n\n[8. visitSchedule 데이터 생성 (DB x)]`);
@@ -3552,8 +3640,14 @@ export const makeSchedule = async (
                       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1]
                         .nearbyFoods,
                     )
-                  )
-                    return null;
+                  ) {
+                    /// 더이상 다음 클러스터링에서도 빌려올 식당이 없을 경우
+                    throw new IBError({
+                      type: 'NOTEXISTDATA',
+                      message: '더이상 채워넣을 식당이 존재하지 않습니다.',
+                    });
+                    // return null;
+                  }
 
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
@@ -3633,8 +3727,14 @@ export const makeSchedule = async (
                     isUndefined(
                       ctx.spotClusterRes!.validCentNSpots![clusterNo + 1],
                     )
-                  )
-                    return null;
+                  ) {
+                    /// 더이상 다음 클러스터링에서도 빌려올 방문지가 없을 경우
+                    throw new IBError({
+                      type: 'NOTEXISTDATA',
+                      message: '더이상 채워넣을 방문지가 존재하지 않습니다.',
+                    });
+                  }
+
                   clusterNo += 1;
                   /// 만약 해당 클러스터 내에서 방문할 여행지가 더이상 없을 경우에는
                   /// 다음날 이동해야 할 클러스터의 여행지에서 하나를 빌려온다.
@@ -3697,6 +3797,7 @@ export const makeSchedule = async (
       id: true,
       ibTravelTag: {
         select: {
+          id: true,
           value: true,
           minDifficulty: true,
           maxDifficulty: true,
@@ -3729,7 +3830,7 @@ export const makeSchedule = async (
     async tx => {
       const createdQueryParams = await tx.queryParams.create({
         data: {
-          ingNow: isNow,
+          ingNow,
           companion,
           familyOpt: familyOpt.toString(),
           minFriend: Number(minFriend),
@@ -3739,6 +3840,10 @@ export const makeSchedule = async (
           adult: Number(adultsNumber),
           travelHard: Number(travelHard),
           destination,
+          ...(!isNil(ctx.recommendedRegion) && {
+            recommendedRegion: ctx.recommendedRegion,
+          }),
+
           // /// 성능이슈로 필수가 아닌 queryParams_tourPlace 관계 데이터 생성은 제거
           // tourPlace: {
           //   connect: [
@@ -3914,6 +4019,17 @@ export const makeSchedule = async (
 
   return {
     queryParamsId: queryParams.id,
+    recommendedRegion: (() => {
+      if (!isNil(ctx.recommendedRegion)) {
+        return ctx.recommendedRegion;
+      }
+
+      const keywords = scanRange
+        ?.map(v => v.keyword)
+        .filter((v): v is string => !isNil(v));
+      return isNil(keywords) ? undefined : keywords.toString();
+    })(),
+
     spotPerDay: ctx.spotPerDay,
     calibUserLevel,
     spotClusterRes: ctx.spotClusterRes,
@@ -5504,7 +5620,7 @@ export const fixHotel = async (
 
   if (
     isNil(hotelPerDay) ||
-    isEmpty(hotelPerDay) ||
+    // isEmpty(hotelPerDay) ||
     hotelPerDay.length < queryParams.period! - 1
   ) {
     throw new IBError({
@@ -5534,7 +5650,10 @@ export const fixHotel = async (
   /// 마지막 날 숙소는 사용하지 않기 때문에 의미가 없지만 프론트에서 편의상 일괄적으로 여행 마지막날을 전날의 숙소와 동일하게 맞춰달라는 요구가 있어서 처리함
   if (hotelPerDay.length === queryParams.period!) {
     hotelPerDay[hotelPerDay.length - 1] = hotelPerDay[hotelPerDay.length - 2];
-  } else if (hotelPerDay.length === queryParams.period! - 1) {
+  } else if (
+    hotelPerDay.length === queryParams.period! - 1 &&
+    hotelPerDay.length >= 1
+  ) {
     hotelPerDay.push(hotelPerDay[hotelPerDay.length - 1]);
   }
 
@@ -5561,67 +5680,74 @@ export const fixHotel = async (
   const updateList = await prisma.$transaction(async tx => {
     let estimatedCost = 0;
     let validClusterId = -1;
-    const retList = await Promise.all(
-      hotelPerDay.map((hotelId, dayNo) => {
-        const promise = new Promise<VisitSchedule>(resolve => {
-          // eslint-disable-next-line no-void
-          void (async () => {
-            const [vs] = await tx.visitSchedule.findMany({
-              where: {
-                queryParamsId: Number(queryParamsId),
-                dayNo,
-                placeType: {
-                  contains: 'HOTEL',
-                },
-              },
-              select: {
-                id: true,
-                validCluster: true,
-              },
-            });
-
-            const transitionNo = removedDup.findIndex(
-              v => v === Number(hotelId),
-            );
-            const updateRes = await tx.visitSchedule.update({
-              where: {
-                id: vs.id,
-              },
-              data: {
-                hotelId: Number(hotelId),
-                transitionNo, /// -1은 존재할수 없는 상태값이다.
-              },
-            });
-
-            if (validClusterId !== vs.validCluster!.id) {
-              validClusterId = vs.validCluster!.id;
-              await tx.validCluster.update({
+    const retList = await (async () => {
+      if (isEmpty(hotelPerDay)) {
+        return [];
+      }
+      const result = await Promise.all(
+        hotelPerDay.map((hotelId, dayNo) => {
+          const promise = new Promise<VisitSchedule>(resolve => {
+            // eslint-disable-next-line no-void
+            void (async () => {
+              const [vs] = await tx.visitSchedule.findMany({
                 where: {
-                  id: validClusterId,
+                  queryParamsId: Number(queryParamsId),
+                  dayNo,
+                  placeType: {
+                    contains: 'HOTEL',
+                  },
                 },
-                data: {
-                  transitionNo,
+                select: {
+                  id: true,
+                  validCluster: true,
                 },
               });
-            }
 
-            const hotel = await tx.hotel.findUnique({
-              where: {
-                id: Number(hotelId),
-              },
-            });
+              const transitionNo = removedDup.findIndex(
+                v => v === Number(hotelId),
+              );
+              const updateRes = await tx.visitSchedule.update({
+                where: {
+                  id: vs.id,
+                },
+                data: {
+                  hotelId: Number(hotelId),
+                  transitionNo, /// -1은 존재할수 없는 상태값이다.
+                },
+              });
 
-            if (dayNo !== queryParams.period! - 1) {
-              estimatedCost += hotel?.bkc_gross_amount_per_night ?? 0;
-            }
+              if (validClusterId !== vs.validCluster!.id) {
+                validClusterId = vs.validCluster!.id;
+                await tx.validCluster.update({
+                  where: {
+                    id: validClusterId,
+                  },
+                  data: {
+                    transitionNo,
+                  },
+                });
+              }
 
-            resolve(updateRes);
-          })();
-        });
+              const hotel = await tx.hotel.findUnique({
+                where: {
+                  id: Number(hotelId),
+                },
+              });
 
-        return promise;
-      }),
-    );
+              if (dayNo !== queryParams.period! - 1) {
+                estimatedCost += hotel?.bkc_gross_amount_per_night ?? 0;
+              }
+
+              resolve(updateRes);
+            })();
+          });
+
+          return promise;
+        }),
+      );
+      return result;
+    })();
+
     await tx.metaScheduleInfo.update({
       where: {
         queryParamsId: Number(queryParamsId),

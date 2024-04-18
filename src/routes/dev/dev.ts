@@ -1,6 +1,15 @@
+// import prisma from '@src/prisma';
 import express, { Express } from 'express';
 import multer from 'multer';
 import { isNil } from 'lodash';
+import fbAdmin from '@src/firebase';
+import {
+  decodeNotificationPayload,
+  // DecodedNotificationPayload,
+  decodeTransaction,
+  decodeRenewalInfo,
+  // SendAttempt,
+} from 'app-store-server-api';
 import {
   ibDefs,
   asyncWrapper,
@@ -10,8 +19,19 @@ import {
   s3FileUpload,
   getS3SignedUrl,
   putS3SignedUrl,
-  getS3ClientViaAssumeRole,
+  // getS3ClientViaAssumeRole,
+  // getSubTags,
+  // getSuperTags,
+  // getLeafTags,
+  // doAllTagTreeTraversal,
+  // doSubTreeTraversal,
+  // doSuperTreeTraversal,
+  // getPartialMatchedPathTags,
+  getValidUrl,
+  retrieveLastSubscriptionReceipt,
+  retrievePurchaseNotiHistory,
 } from '@src/utils';
+import { retrieveReceiptHistory } from '@src/utils/apple';
 
 const upload = multer();
 
@@ -241,8 +261,11 @@ export const reqUriForPutObjectToS3 = asyncWrapper(
   },
 );
 
+/**
+ * https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.io.idealbloom.brip/purchases/subscriptions/brip_business_subscribe/tokens/eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+ */
 export interface PrismaTestRequestType {
-  key: string;
+  originalTransacionId: string;
 }
 export interface PrismaTestSuccessResType {}
 
@@ -256,25 +279,286 @@ export const prismaTest = asyncWrapper(
     res: Express.IBTypedResponse<PrismaTestResType>,
   ) => {
     try {
-      const param = req.body;
-      const { key } = param;
-      const s3 = await getS3ClientViaAssumeRole();
-      if (isNil(s3)) {
-        throw new IBError({
-          type: 'EXTERNALAPI',
-          message: 'AWS S3 엑세스에 문제가 있습니다.',
-        });
-      }
-      const s3Resp = await s3
-        .getObject({
-          Bucket: process.env.AWS_S3_BUCKET ?? '',
-          Key: key,
-        })
-        .promise();
+      const { originalTransacionId } = req.body;
+
+      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+        originalTransacionId,
+      );
+
+      const result = {
+        ...(transactionInfo && {
+          transactionInfo,
+          expireDates: new Date(transactionInfo.expiresDate!).toISOString(),
+        }),
+      };
+
+      const { history } = await retrieveReceiptHistory(originalTransacionId);
 
       res.json({
         ...ibDefs.SUCCESS,
-        IBparams: s3Resp,
+        IBparams: {
+          lastTransactionInfo: result,
+          history,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface RetrieveTransactionAndHistoryRequestType {
+  originalTransacionId: string;
+}
+export interface RetrieveTransactionAndHistorySuccessResType {}
+
+export type RetrieveTransactionAndHistoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: RetrieveTransactionAndHistorySuccessResType | {};
+};
+export const retriveLastTransactionAndHistory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RetrieveTransactionAndHistoryRequestType>,
+    res: Express.IBTypedResponse<RetrieveTransactionAndHistoryResType>,
+  ) => {
+    try {
+      const { originalTransacionId } = req.body;
+
+      const { transactionInfo } = await retrieveLastSubscriptionReceipt(
+        originalTransacionId,
+      );
+
+      const result = {
+        ...(transactionInfo && {
+          transactionInfo,
+          expireDates: new Date(transactionInfo.expiresDate!).toISOString(),
+        }),
+      };
+
+      const { history } = await retrieveReceiptHistory(originalTransacionId);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {
+          lastTransactionInfo: result,
+          history,
+        },
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface RetrievePurchaseNotiHistoryRequestType {
+  startDate: string;
+  endDate: string;
+}
+
+export type RetrievePurchaseNotiHistoryResType = Omit<
+  IBResFormat,
+  'IBparams'
+> & {
+  IBparams: {};
+};
+export const retrivePurchaseNotiHistory = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<RetrievePurchaseNotiHistoryRequestType>,
+    res: Express.IBTypedResponse<RetrievePurchaseNotiHistoryResType>,
+  ) => {
+    try {
+      const { startDate, endDate } = req.body;
+
+      const result = await retrievePurchaseNotiHistory({
+        startDate: new Date(startDate),
+        ...(endDate && { endDate: new Date(endDate) }),
+      });
+      const decodedHistoryPromises = result.notificationHistory.map(
+        async (v, i) => {
+          const decodedPayload = await decodeNotificationPayload(
+            v.signedPayload,
+          );
+
+          const signedTransactionInfo = await decodeTransaction(
+            decodedPayload.data!.signedTransactionInfo,
+          );
+          const signedRenewalInfo = await decodeRenewalInfo(
+            decodedPayload.data!.signedRenewalInfo,
+          );
+
+          return {
+            index: i,
+            ...v,
+            signedPayload: {
+              ...decodedPayload,
+              data: {
+                ...decodedPayload.data,
+                signedTransactionInfo,
+                signedRenewalInfo,
+              },
+            },
+          };
+        },
+      );
+
+      const decodedHistories = await Promise.all(decodedHistoryPromises);
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: decodedHistories,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'EXTERNALAPI') {
+          console.error(err);
+          res.status(500).json({
+            ...ibDefs.EXTERNALAPI,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
+export interface AppPushTestRequestType {
+  fcmDeviceToken: string;
+}
+export interface AppPushTestSuccessResType {}
+
+export type AppPushTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: AppPushTestSuccessResType | {};
+};
+
+export const appPushTest = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<AppPushTestRequestType>,
+    res: Express.IBTypedResponse<AppPushTestResType>,
+  ) => {
+    try {
+      const { locals } = req;
+      const userId = (() => {
+        if (locals && locals?.grade === 'member') return locals?.user?.id;
+        // return locals?.tokenId;
+        throw new IBError({
+          type: 'NOTAUTHORIZED',
+          message: 'member 등급만 접근 가능합니다.',
+        });
+      })();
+      if (isNil(userId)) {
+        throw new IBError({
+          type: 'NOTEXISTDATA',
+          message: '정상적으로 부여된 userTokenId를 가지고 있지 않습니다.',
+        });
+      }
+
+      const { fcmDeviceToken } = req.body;
+
+      const fcmToken = fcmDeviceToken;
+      const message = {
+        notification: {
+          title: '시범 데이터 발송',
+          body: '클라우드 메시지 전송이 잘 되는지 확인하기 위한, 메시지 입니다.',
+        },
+        token: fcmToken,
+      };
+
+      // admin
+      //   .messaging()
+      //   .sendToDevice(registrationTokens, payload, options)
+      //   .then(response => {
+      //     // Response is a message ID string.
+      //     console.log('Successfully sent message:', response);
+      //   })
+      //   .catch(error => {
+      //     console.log('Error sending message:', error);
+      //   });
+
+      await fbAdmin.messaging().send(message);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: {},
       });
     } catch (err) {
       if (err instanceof IBError) {
@@ -370,6 +654,97 @@ settingRouter.post('/sseEvents', (req, res) => {
   // res.json(200);
 });
 
+export interface GetValidUrlTestRequestType {
+  siteUrl?: string;
+}
+export type GetValidUrlTestSuccessResType = string | undefined;
+
+export type GetValidUrlTestResType = Omit<IBResFormat, 'IBparams'> & {
+  IBparams: GetValidUrlTestSuccessResType | {};
+};
+
+export const getValidUrlTest = asyncWrapper(
+  async (
+    req: Express.IBTypedReqBody<GetValidUrlTestRequestType>,
+    res: Express.IBTypedResponse<GetValidUrlTestResType>,
+  ) => {
+    try {
+      const { siteUrl } = req.body;
+      /// https://로 접속하여 유효한 url일 경우에만 https://xxx.xxxx.com 등의 url을 반환한다. 유효하지 않을경우 undefined
+      // const formattedHttpsUrl = await (async () => {
+      //   const checkURLAccessibility = async (url: string) => {
+      //     try {
+      //       // HEAD 메소드를 사용하여 자원의 헤더만 가져옵니다.
+      //       const response = await axios.head(url);
+
+      //       // 요청이 성공적이고 응답 코드가 2xx 또는 3xx인 경우 접속 가능한 것으로 간주합니다.
+      //       if (response.status >= 200 && response.status < 400) return true;
+
+      //       return false;
+      //     } catch {
+      //       return false;
+      //     }
+      //   };
+
+      //   let httpsUrl: string | undefined;
+      //   /// 1.  유저입력 siteUrl이 없으면 undefined
+      //   if (isNil(siteUrl) || isEmpty(siteUrl)) return 'undefined';
+
+      //   /// 2.  유저입력 siteUrl이 http://로 시작하면
+      //   if (validUrl.isHttpUri(siteUrl)) {
+      //     ///  http:// 만 써있으면 undefined
+      //     if (siteUrl.split('http://').length < 2) return 'undefined';
+
+      //     /// http:// 뒤에 url이 써있으면
+      //     const url = siteUrl.split('http://')[1];
+      //     /// 앞을 https://로 바꿈
+      //     httpsUrl = `https://${url}`;
+      //     const accessibilityCheck = await checkURLAccessibility(httpsUrl);
+      //     return accessibilityCheck ? httpsUrl : 'undefined';
+      //   }
+
+      //   /// 3. 유저입력 siteUrl이 존재하고 http://가 아니라 https://로 시작하면 그대로 반환
+      //   if (validUrl.isHttpsUri(siteUrl)) {
+      //     const accessibilityCheck = await checkURLAccessibility(siteUrl);
+      //     return accessibilityCheck ? siteUrl : 'undefined';
+      //   }
+
+      //   /// 4. 유저입력 siteUrl이 존재하는데 http:// 또는 https://로 시작하지 않으면 DB 저장안함(undefined)
+      //   return 'undefined';
+      // })();
+
+      const formattedHttpsUrl = await getValidUrl(siteUrl);
+
+      res.json({
+        ...ibDefs.SUCCESS,
+        IBparams: formattedHttpsUrl,
+      });
+    } catch (err) {
+      if (err instanceof IBError) {
+        if (err.type === 'NOTAUTHORIZED') {
+          console.error(err);
+          res.status(403).json({
+            ...ibDefs.NOTAUTHORIZED,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'NOTEXISTDATA') {
+          console.error(err);
+          res.status(404).json({
+            ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  },
+);
+
 settingRouter.post(
   '/s3FileUpload',
   accessTokenValidCheck,
@@ -381,11 +756,23 @@ settingRouter.post(
   accessTokenValidCheck,
   getPresignedUrlFromS3File,
 );
-settingRouter.post('/prismaTest', prismaTest);
+settingRouter.post('/prismaTest', accessTokenValidCheck, prismaTest);
+settingRouter.post(
+  '/retriveLastTransactionAndHistory',
+  accessTokenValidCheck,
+  retriveLastTransactionAndHistory,
+);
+settingRouter.post(
+  '/retrivePurchaseNotiHistory',
+  accessTokenValidCheck,
+  retrivePurchaseNotiHistory,
+);
 settingRouter.post(
   '/reqUriForPutObjectToS3',
   accessTokenValidCheck,
   reqUriForPutObjectToS3,
 );
+settingRouter.post('/appPushTest', accessTokenValidCheck, appPushTest);
+settingRouter.post('/getValidUrlTest', getValidUrlTest);
 
 export default settingRouter;

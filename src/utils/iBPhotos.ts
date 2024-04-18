@@ -24,7 +24,22 @@ export const getUserProfileUrl = async (
   return ret;
 };
 
-export const getAccessableUrl = async (url: string): Promise<string> => {
+// export const getUserSmallProfileUrl = async (
+//   user: Partial<User> | null | undefined,
+// ): Promise<string | null> => {
+//   if (isNil(user)) return null;
+//   if (isEmpty(user)) return null;
+//   if (isNil(user.smallProfileImg)) return null;
+//   if (isEmpty(user.smallProfileImg)) return null;
+
+//   if (user.smallProfileImg!.toLowerCase().includes('http'))
+//     return user.smallProfileImg;
+//   const ret = await getS3SignedUrl(user.smallProfileImg!);
+//   return ret;
+// };
+
+export const getAccessableUrl = async (url: string | null): Promise<string> => {
+  if (isNil(url)) return 'null';
   if (url.includes('http')) return url;
   const result = await getS3SignedUrl(url);
   return result;
@@ -117,6 +132,21 @@ export const getImgUrlListFromIBPhotos = async (
           }
           return 'none';
         })(),
+        // smallUrl: await (async (): Promise<string> => {
+        //   if (photos.length > 0) {
+        //     if (!isNil(p.smallUrl) && !isEmpty(p.smallUrl)) {
+        //       /// 직접접근 링크 smallUrl이 존재하는 경우
+        //       return p.smallUrl;
+        //     }
+
+        //     if (!isNil(p.smallKey) && !isEmpty(p.smallKey)) {
+        //       /// s3 smallKey가 존재하는 경우
+        //       const signedUrl = await getS3SignedUrl(p.smallKey);
+        //       return signedUrl;
+        //     }
+        //   }
+        //   return 'none';
+        // })(),
       } as Partial<IBPhotos>;
     }),
   );

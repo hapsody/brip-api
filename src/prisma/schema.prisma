@@ -18,18 +18,20 @@ enum UserType {
 }
 
 model User {
-  id                              Int                               @id @default(autoincrement())
-  email                           String                            @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
-  password                        String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
-  pwLastUpdateDate                DateTime                          @default(now()) /// 비밀번호 변경 주기를 확인하기 위해 가장 마지막 비밀번호 업데이트일을 기록한다.
-  pwExpireDate                    DateTime? /// 임시비밀번호로 리셋된 경우 해당 필드에 만료일 값을 갖는다. 
-  phone                           String? /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
-  nickName                        String                            @unique /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
-  countryCode                     String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
-  userTokenId                     String                            @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
+  id               Int       @id @default(autoincrement())
+  email            String    @unique /// 로그인시 사용될 email 형태의 id ex) "hawaii@gmail.com"
+  password         String /// 로그인시 사용될 비밀번호, 조합 규칙은 영문자/숫자+특수기호 20자리까지, 영문자/숫자는 반드시 포함되어야 하며, '₩'와 '\'와 공백을 제외한 특수기호는 인정은 하지만 반드시 포함은 아님. ex) "qwer1234"
+  pwLastUpdateDate DateTime  @default(now()) /// 비밀번호 변경 주기를 확인하기 위해 가장 마지막 비밀번호 업데이트일을 기록한다.
+  pwExpireDate     DateTime? /// 임시비밀번호로 리셋된 경우 해당 필드에 만료일 값을 갖는다. 
+  phone            String? /// 국제번호를 포함하고 '-' 기호를 제외한 문자 형태의 숫자 , ex) +821012345678
+  nickName         String    @unique /// 사용할 닉네임, 20자 제한 ex) 유쾌한인어
+  countryCode      String /// 두글자 ISO Country Code 기준 https://countrycode.org/ 대문자로 한정 ex) KR, US
+  userTokenId      String    @unique /// 비회원이었을 시절의 유저 토큰 payload중 tokenId 값, 이것으로 비회원 이었을때의 데이터가 회원 데이터로 승계된다. ex) 2, 727
   // queryParams QueryParams[]
-  profileImg                      String?
-  admin                           Boolean                           @default(false)
+  profileImg       String?
+  // smallProfileImg  String? /// small size profileImg
+  admin            Boolean   @default(false)
+
   questionTicket                  QuestionTicket[]
   businessQuestionTicket          BusinessQuestionTicket[]
   tripCreator                     TripCreator[]
@@ -54,6 +56,10 @@ model User {
   asCompanyBI                     BookingInfo[]                     @relation("asCustomer")
   asCustomerBI                    BookingInfo[]                     @relation("asCompany")
   notiMessages                    NotificationMessage[]
+  userFCMToken                    UserFCMToken[] /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
+  asCustomerBookingChatLog        BookingChatLog[]                  @relation("AsCustomerBookingChat")
+  asCompanyBookingChatLog         BookingChatLog[]                  @relation("AsCompanyBookingChat")
+  AdPlaceDraft                    AdPlaceDraft[]
 }
 
 model FavoriteTravelType {
@@ -85,8 +91,10 @@ model IBPhotos {
   id                Int              @id @default(autoincrement())
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @default(now()) @updatedAt
-  key               String? /// s3 key path
+  key               String? /// 원본사진 s3 key path 
+  // smallKey          String? /// small size s3 key path
   url               String?          @db.Text /// 직접접근이 가능한 url이 있을 경우
+  // smallUrl          String? /// 직접접근이 가능하며 url과 동일한 사진인 small 사이즈 사진 url이 있을 경우
   tourPlace         TourPlace?       @relation(fields: [tourPlaceId], references: [id])
   tourPlaceId       Int?
   Hotel             Hotel?           @relation(fields: [hotelId], references: [id])
@@ -97,9 +105,12 @@ model IBPhotos {
   tripMemory        TripMemory?      @relation(fields: [tripMemoryId], references: [id])
   tripMemoryId      Int?
 
-  adPlaceAsMain  AdPlace? @relation(name: "mainPhoto")
-  adPlaceAsSub   AdPlace? @relation(name: "subPhoto", fields: [adPlaceAsSubId], references: [id])
-  adPlaceAsSubId Int?
+  adPlaceAsMain       AdPlace?      @relation(name: "mainPhoto")
+  adPlaceAsSub        AdPlace?      @relation(name: "subPhoto", fields: [adPlaceAsSubId], references: [id])
+  adPlaceAsSubId      Int?
+  adPlaceDraftAsMain  AdPlaceDraft? @relation(name: "DraftMainPhoto")
+  adPlaceDraftAsSub   AdPlaceDraft? @relation(name: "DraftSubPhoto", fields: [adPlaceDraftAsSubId], references: [id])
+  adPlaceDraftAsSubId Int?
 }
 
 enum IBPhotoMetaInfoType {
@@ -244,16 +255,19 @@ model TourPlace {
   shareTripMemory      ShareTripMemory[]
   likeFrom             User[]
 
-  good      Int      @default(0) /// 적극 추천해요를 받은 누적 숫자
-  notBad    Int      @default(0) /// 괜찮아요를 받은 누적 숫자
-  bad       Int      @default(0) /// 추천하지 않아요를 받은 누적 숫자
-  like      Int      @default(0) /// 장소 좋아요를 받은 누적 숫자.
+  good           Int           @default(0) /// 적극 추천해요를 받은 누적 숫자
+  notBad         Int           @default(0) /// 괜찮아요를 받은 누적 숫자
+  bad            Int           @default(0) /// 추천하지 않아요를 받은 누적 숫자
+  like           Int           @default(0) /// 장소 좋아요를 받은 누적 숫자.
   // @@index([gl_place_id, vj_contentsid])
   // GglNearbySearchResType   GglNearbySearchResType? @relation(fields: [gglNearbySearchResTypeId], references: [id])
   // gglNearbySearchResTypeId Int?
-  adPlace   AdPlace? @relation(fields: [adPlaceId], references: [id])
-  adPlaceId Int?
+  adPlace        AdPlace?      @relation(fields: [adPlaceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceId      Int?
+  AdPlaceDraft   AdPlaceDraft? @relation(fields: [adPlaceDraftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceDraftId Int?
 
+  @@unique([title, lat, lng, status])
   @@index([lat, lng, id])
   @@index([nationalCode, regionCode1, id])
   @@index([nationalCode, regionCode1, regionCode2, id])
@@ -379,10 +393,11 @@ model QueryParams {
   minFriend Int? ///  친구 동반자 최소인원 ex) "5"
   maxFriend Int? /// 친구 동반자 최대 인원 ex) "7"
 
-  period      Int? /// 여행기간 ex) '3'
-  travelType  String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
-  destination String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
-  travelHard  Int? /// 여행강도 ex) "5"
+  period            Int? /// 여행기간 ex) '3'
+  travelType        String? /// 여행의 컨셉, 타입 ex) ['rest', 'healing', 'natureEx', 'learnEx', 'seeing', 'meeting', 'activity', 'food', 'explore']
+  destination       String? ///  이미 정해진 여행지의 여부 ex) "recommend", "alreadyDecided"
+  recommendedRegion String? /// destination에서 유저가 추천지역을 요구하는 경우 추천된 지역을 기록
+  travelHard        Int? /// 여행강도 ex) "5"
 
   tourPlace        TourPlace[] /// 일쩡에 대응하는 주변 관광지와 식당 후보지 검색 결과 검색 결과
   hotel            Hotel[] /// 일정에 대응되어 검색된 호텔 
@@ -404,6 +419,7 @@ model ScheduleBank {
   updatedAt     DateTime      @default(now()) @updatedAt
   title         String /// 생성한 일정을 '저장까지' 완료하면 유저가 작성한 title이 부여된다, null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
   thumbnail     String /// 생성한 일정을 '저장까지' 완료하면 유저에게 보여질 대표 썸네일 null 값이라면 일정은 생성은 요청되어 생성되었으나 유저가 저장을 결정하지 않은 상태다.
+  // smallThumbnail String? /// small size Thumbnail
   planType      PlanType
   hashTag       ScheduleTag[] /// 일정 저장시 해시태그 ex) 가족여행, 한달살기..
   // scheduleHash  String        @unique /// 스케쥴 생성 후 스케쥴마다 1:1로 부여된 고유한 토큰 값
@@ -457,6 +473,7 @@ model CardNewsContent {
   title           String /// 카드 컨텐츠의 타이틀
   content         String ///  카드 컨텐츠의 내용
   bgPicUri        String        @db.Text /// 카드 컨텐츠의 배경 이미지
+  // smallBgPicUri    String?       @db.Text /// small size Background Picture Uri
   cardNewsGroup   CardNewsGroup @relation(fields: [cardNewsGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   cardNewsGroupId Int
   cardTag         CardTag[]
@@ -469,6 +486,7 @@ model CardNewsGroup {
   updatedAt       DateTime          @default(now()) @updatedAt
   title           String /// 카드 뉴스 그룹 타이틀
   thumbnailUri    String            @db.Text /// 카드 뉴스 그룹 썸네일 이미지
+  // smallThumbnailUri String?           @db.Text /// small size 카드 뉴스 그룹 썸네일 이미지
   cardNewsContent CardNewsContent[] /// 그룹에 속하는 카드 컨텐츠들
   no              Int /// 카드 뉴스 그룹의 번호. 그룹이 연작 시리즈일경우 사용
   // user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -657,11 +675,12 @@ model IBTravelTag {
   updatedAt     DateTime                  @default(now()) @updatedAt
   minDifficulty Int? /// 본 타입이 갖는 여행강도 레벨
   maxDifficulty Int?
-  value         String                    @unique
+  value         String
   related       RModelBetweenTravelType[] @relation("Sub")
   noPtr         RModelBetweenTravelType[] @relation("Super") /// super 관계로는 IBTravelTag 쪽에서 접근하지 않는것을 원칙으로 한다.RModelBetweenTravelType 쪽에서만 접근 가능한 단방향 관계이다.
   tourPlace     TourPlace[]
   AdPlace       AdPlace[]
+  AdPlaceDraft  AdPlaceDraft[]
 
   @@index([minDifficulty, maxDifficulty, id])
 }
@@ -699,13 +718,23 @@ model ValidCluster {
   visitSchedule           VisitSchedule[]
 }
 
-/// 일정 생성 요청에 의해 형성된 클러스터 결과를 저장하는 모델
+/// 문자인증 코드를 인증하기전까지 임시저장하는 모델
 model SMSAuthCode {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
   code        String
   phone       String
+  userTokenId String
+}
+
+/// 이메일 인증 코드를 인증하기전까지 임시저장하는 모델
+model EmailAuthCode {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  code        String
+  email       String
   userTokenId String
 }
 
@@ -737,22 +766,23 @@ model TripMemoryGroup {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다.
 model TripMemory {
-  id          Int             @id @default(autoincrement())
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  id          Int              @id @default(autoincrement())
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
   title       String /// 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 이름으로 나타난다.
-  comment     String          @db.Text
+  comment     String           @db.Text
   lat         Float /// tourPlace가 가지는 latitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   lng         Float /// tourPlace가 가지는 longitude와 동일한 값이다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address     String?         @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address     String?          @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
   tag         TripMemoryTag[] /// 기억에 태그한 해시태그들.
   img         String /// 기억 사진
-  group       TripMemoryGroup @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
-  groupId     Int
-  TourPlace   TourPlace?      @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
+  // smallImg    String? /// 기억 사진 small size
+  group       TripMemoryGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// '기억'이 속한 그룹. 하나의 그룹은 여러 기억을 갖고 하나의 기억은 하나의 그룹에만 속한수 있다. 1:N관계
+  groupId     Int?
+  TourPlace   TourPlace?       @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId Int?
   // tripMemoryCategory TripMemoryCategory[] /// 하나의 기억은 여러 카테고리에 속할수 있다.
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId      Int
 
   ShareTripMemory ShareTripMemory?
@@ -765,17 +795,17 @@ model TripMemory {
 
 /// 유저는 장소를 방문하고 개인적인 기록을 '기억'으로 남길수 있다. 이중 '공유'한 데이터는 별도로 네트워크에 공유되어 불특정다수에게 보여지고 개인 기억에서 삭제되어도 별도로 보관된다.
 model ShareTripMemory {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id                              Int                               @id @default(autoincrement())
+  createdAt                       DateTime                          @default(now())
+  updatedAt                       DateTime                          @default(now()) @updatedAt
   // isShare   Boolean  @default(false) /// 공유 하려면 true, false일 경우 shareTripMemory를 생성해놓긴 하지만 노출되지 않음
-  title     String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
-  lat       Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  lng       Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  address   String?  @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
-  comment   String   @db.Text
-  img       String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
-
+  title                           String /// 공유 기억 타이틀. 스팟 데이터에 존재 하지 않던 위치를 잡을 경우 해당 타이틀이 공유 기억장소의 위치 이름으로 나타난다.
+  lat                             Float /// tourPlace가 가지는 latitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  lng                             Float /// tourPlace가 가지는 longitude와 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  address                         String?                           @db.Text /// tourPlace가 주소값과 동일해야한다. 그러나 tourPlace의 데이터가 업데이트됨에 따라 기존 저장하였던 위치를 따로 기억할 필요가 있다.
+  comment                         String                            @db.Text
+  img                             String /// s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크. shareTripMemory의 mainImg
+  // smallImg                        String? /// small size 이미지 url
   like                            Int                               @default(0) /// 공유기억 자체 like 여부
   TourPlace                       TourPlace?                        @relation(fields: [tourPlaceId], references: [id]) /// 기억이 위치 정보를 가질 경우 그 위치정보에 해당하는 tourPlace가 관계된다. 위치정보가 없을 경우도 있을수 있어 nullable
   tourPlaceId                     Int?
@@ -919,6 +949,7 @@ model MainBackgroundImg {
   createdAt DateTime              @default(now())
   updatedAt DateTime              @default(now()) @updatedAt
   key       String? /// s3 key path
+  // smallKey  String? ///  small size s3 key path
   url       String?               @db.Text /// 직접접근이 가능한 url이 있을 경우
   title     String?
   type      MainBackgroundImgType
@@ -939,25 +970,193 @@ model ContentGrpExposedHistory {
 }
 
 enum AdPlaceStatus {
-  NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
-  APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
+  // NEW /// 새로 등록 신청된 데이터, 이후 승인이(APPROVED) 나야 IN_USE 상태로 넘어감
+  // APPROVED /// 등록 승인됨. 이후 시스템 Batch 작업을 통해 TourPlace에 등록되면 IN_USE 상태가 된다.
   IN_USE /// TourPlace에 복사되어 일정 서비스에 장소로 노출된 상태
   STOP /// 사용하다가 여러가지 이유로 TourPlace에서 사용중지 되어 현재는 서비스에 노출되지 않는 상태
-  REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
+  // REOPEN_WAIT /// 사용중지인 UNEXPOSED 상태였지만 다시 IN_USE 되기 위해  대기열에 들어간상태
+}
+
+enum AdPlaceDraftStatus {
+  STAGING /// 새로 등록 신청되거나 수정 요청된 상태 향후 idealbloom 관리자가 확인하면 APPLIED 상태로 변경되고 AdPlace에 데이터가 반영됨
+  APPLIED /// Draft 내용이 AdPlace에 반영된 상태
 }
 
 /// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
 model AdPlace {
+  id                     Int                      @id @default(autoincrement())
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
+  status                 AdPlaceStatus            @default(STOP)
+  subscribe              Boolean                  @default(false) /// 구독상태인지 아닌지
+  title                  String /// 상호명
+  // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
+  mainPhoto              IBPhotos                 @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhotoId            Int                      @unique
+  photos                 IBPhotos[]               @relation("subPhoto") ///  기타 매장 사진 
+  // category          AdPlaceCategory[]
+  category               IBTravelTag[]
+  desc                   String? /// 소개글
+  address                String? /// 지번주소. 도로명주소와 지번주소중 둘중 하나는 반드시 가져야함
+  roadAddress            String? /// 도로명주소
+  detailAddress          String? /// 있는 경우 상세주소 nullable
+  openWeek               String?                  @db.Text /// 영업시간, 영업요일 ex) Mon: 09:00~20:00, Tue: 09:00~20:00, ...
+  closedDay              String?                  @db.Text /// 휴무일, 정기휴무 날짜 혹은 요일 ex) 'SAT, SUN' ...
+  contact                String? /// 대표번호
+  siteUrl                String?                  @db.Text /// 홈페이지 또는 소셜 계정
+  businessNumber         String?                  @unique /// 사업자 등록번호, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다.
+  businessRegImgKey      String? /// 사업자 등록증 첨부사진 s3 key, 사업자번호 또는 사업자 등록증 둘중 하나는 반드시 가져야 한다. 
+  nationalCode           String                   @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
+  tourPlace              TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
+  mainTourPlaceId        Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
+  user                   User?                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId                 Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
+  BookingChatLog         BookingChatLog[] /// 문의 메시지들
+  BookingInfo            BookingInfo[]
+  adPlaceStatistics      AdPlaceStatistics? /// 통계들..(년,월,일)
+  AdPlaceDraft           AdPlaceDraft?
+  googleInAppPurchaseLog GoogleInAppPurchaseLog[]
+  AppleInAppPurchaseLog  AppleInAppPurchaseLog[]
+}
+
+/// 구글 subscribe 결제 내역
+/// https://adapty.io/ko/blog/android-in-app-purchases-part-5-server-side-purchase-validation/
+/// https://googleapis.dev/nodejs/googleapis/latest/androidpublisher/classes/Androidpublisher-3.html
+// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions?hl=ko
+// https://developer.android.com/google/play/billing/rtdn-reference?hl=ko&authuser=1 결제 상태 13가지
+// https://developer.android.com/google/play/billing/subscriptions?authuser=1&hl=ko#lifecycle
+model GoogleInAppPurchaseLog {
+  id                Int                              @id @default(autoincrement())
+  createdAt         DateTime                         @default(now())
+  updatedAt         DateTime                         @default(now()) @updatedAt
+  startTime         Int /// ecochTime / 1000 => 단위 초
+  // expiryTime        Int /// ecochTime / 1000 => 단위 초
+  expireDateFormat  DateTime
+  orderId           String                           @unique /// ex) google: GPA.3362-9672-9861-44566,
+  // packageName       String /// ex) google: com.io.idealbloom.brip,
+  // productId         String ///  ex) google: brip_business_subscribe
+  purchaseTime      String? /// ex) google: 1694760310759
+  purchaseState     Int /// ex) 0
+  purchaseToken     String                           @unique @db.VarChar(255) /// ex google: eilgmemiflcnncbdbpkhjphj.AO-J1OwOO0bFvRUp8ryNSBLgVP0hQn1TgOoWirUrMDCKoGWTFy0jkVZomMpO6sSH9u7bRDk3Vmj_HKANZzTF6RybSPVWKjUBUodni-qM2ZKN-VnTq0omCf0
+  quantity          Int /// ex) 1
+  autoRenewing      Boolean /// ex) true
+  acknowledged      Boolean /// ex) false
+  adPlace           AdPlace                          @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceId         Int
+  googleAutoHookLog GoogleInAppPurchaseAutoHookLog[]
+}
+
+model GoogleInAppPurchaseAutoHookLog {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+  // packageName      String
+  /// data.subscriptionNotification
+  notificationType Int
+  //   (1) SUBSCRIPTION_RECOVERED: 정기 결제가 계정 보류에서 복구되었습니다.
+  // (2) SUBSCRIPTION_RENEWED: 활성 정기 결제가 갱신되었습니다.
+  // (3) SUBSCRIPTION_CANCELED - 정기 결제가 자발적으로 또는 비자발적으로 취소되었습니다. 자발적 취소의 경우 사용자가 취소할 때 전송됩니다.
+  // (4) SUBSCRIPTION_PURCHASED: 새로운 정기 결제가 구매되었습니다.
+  // (5) SUBSCRIPTION_ON_HOLD - 정기 결제가 계정 보류 상태가 되었습니다(사용 설정된 경우).
+  // (6) SUBSCRIPTION_IN_GRACE_PERIOD: 정기 결제가 유예 기간 상태로 전환되었습니다(사용 설정된 경우).
+  // (7) SUBSCRIPTION_RESTARTED: 사용자가 Play > 계정 > 정기 결제에서 정기 결제를 복원했습니다. 정기 결제가 취소되었지만 사용자가 복원할 때 아직 만료되지 않았습니다. 자세한 내용은 복원을 참고하세요.
+  // (8) SUBSCRIPTION_PRICE_CHANGE_CONFIRMED: 사용자가 정기 결제 가격 변경을 확인했습니다.
+  // (9) SUBSCRIPTION_DEFERRED: 구독 갱신 기한이 연장되었습니다.
+  // (10) SUBSCRIPTION_PAUSED - 구독이 일시중지되었습니다.
+  // (11) SUBSCRIPTION_PAUSE_SCHEDULE_CHANGED - 정기 결제 일시중지 일정이 변경되었습니다.
+  // (12) SUBSCRIPTION_REVOKED - 정기 결제가 만료 시간 전에 사용자에 의해 취소되었습니다.
+  // (13) SUBSCRIPTION_EXPIRED: 정기 결제가 만료되었습니다.
+  purchaseToken    String   @db.Char(255)
+  // subscriptionId   String
+
+  messageId                String
+  publishTime              String
+  GoogleInAppPurchaseLog   GoogleInAppPurchaseLog? @relation(fields: [googleInAppPurchaseLogId], references: [id])
+  googleInAppPurchaseLogId Int?
+}
+
+/// https://developer.apple.com/documentation/appstoreserverapi
+model AppleInAppPurchaseLog {
+  id                            Int                             @id @default(autoincrement())
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @default(now()) @updatedAt
+  originalTransactionDate       Int /// ex) 단위 초 1695021683;
+  originalTransactionId         String                          @unique /// ex) '2000000415594125';
+  productId                     String /// 'brip.adplace.subscribe.default';
+  transactionDate               Int // ex) 단위 초 1695096993;
+  transactionId                 String /// '2000000416416016';
+  // expiresDate                   Int                             @default(0) /// 단위 초,  대표 만료일. AppleInAppPurchaseAutoHookLog로 트랜잭션 영수증이 올때마다 가장 최신의 만료일로 업데이트된다.  마이그레이션을 위해서 default(0)을 추가함 운영상 default값이 적용되는 케이스는 있을수 없음
+  expireDateFormat              DateTime
+  adPlace                       AdPlace                         @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  adPlaceId                     Int
+  appleInAppPurchaseAutoHookLog AppleInAppPurchaseAutoHookLog[]
+}
+
+/// 애플서버로부터 직접 appleSubscriptionHook api를 통해 들어온 자동 갱신 및 취소 등 transaction 로그들
+/// AppleInAppPurchaseLog 모델에 1:N으로 종속되며 originaTransactionId를 통해 구분된다.
+/// https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+/// https://developer.apple.com/documentation/appstoreserverapi
+model AppleInAppPurchaseAutoHookLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  /// apple JWSTransactionDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+  TIappAccountToken             String?
+  TIbundleId                    String
+  TIenvironment                 String ///ex) Sandbox or Production
+  TIexpiresDate                 Int? /// 단위 sec
+  TIinAppOwnershipType          String ///ex)  PURCHASED or FAMILY_SHARED
+  TIisUpgraded                  Boolean?
+  TIofferIdentifier             String?
+  TIofferType                   Int? /// ex) 1 An introductory offer. 2 A promotional offer. 3 An offer with a subscription offer code.
+  TIoriginalPurchaseDate        Int /// 단위 초
+  TIoriginalTransactionId       String
+  TIproductId                   String
+  TIpurchaseDate                Int /// 단위 초
+  TIquantity                    Int
+  TIrevocationDate              Int? ///  단위 초
+  TIrevocationReason            Int?
+  TIsignedDate                  Int /// 단위 초
+  TIstorefront                  String /// 국가 코드 ex) KOR, https://developer.apple.com/documentation/storekit/storefront/3792000-countrycode 
+  TIstorefrontId                String
+  TIsubscriptionGroupIdentifier String?
+  TItransactionId               String
+  TItransactionReason           String /// ex) PURCHASE or RENEWAL
+  TItype                        String /// ex) Auto-Renewable Subscription, Non-Consumable, Consumable, Non-Renewing Subscription
+  TIwebOrderLineItemId          String
+
+  /// apple JWSRenewalInfoDecodedPayload type  https://developer.apple.com/documentation/appstoreserverapi/jwsrenewalinfodecodedpayload
+  RIautoRenewProductId          String
+  RIautoRenewStatus             Int ///  0: Automatic renewal is off. The customer has turned off automatic renewal for the subscription, and it won’t renew at the end of the current subscription period., 1: Automatic renewal is on. The subscription renews at the end of the current subscription period.
+  RIenvironment                 String /// Sandbox or Production
+  RIexpirationIntent            Int? /// 1: The customer canceled their subscription., 2: Billing error; for example, the customer’s payment information is no longer valid., 3: The customer didn’t consent to an auto-renewable subscription price increase that requires customer consent, allowing the subscription to expire., 4: The product wasn’t available for purchase at the time of renewal., 5: The subscription expired for some other reason.
+  RIgracePeriodExpiresDate      Int? /// 단위 초
+  RIisInBillingRetryPeriod      Boolean?
+  RIofferIdentifier             String?
+  RIofferType                   Int? /// 1: An introductory offer., 2: A promotional offer., 3: An offer with a subscription offer code.
+  RIoriginalTransactionId       String
+  RIpriceIncreaseStatus         Int? /// 0: The customer hasn’t yet responded to an auto-renewable subscription price increase that requires customer consent., 1: The customer consented to an auto-renewable subscription price increase that requires customer consent, or the App Store has notified the customer of an auto-renewable subscription price increase that doesn’t require consent.
+  RIproductId                   String
+  RIrecentSubscriptionStartDate Int /// 단위 초
+  RIrenewalDate                 Int /// 단위 초
+  RIsignedDate                  Int /// 단위 초
+
+  appleInAppPurchaseLog   AppleInAppPurchaseLog? @relation(fields: [appleInAppPurchaseLogId], references: [id])
+  appleInAppPurchaseLogId Int?
+}
+
+/// 업체측에서 관광지로 등록하기위해 신청된 식당, 호텔, 매장, 관광지 등. 담당자 확인후 승인이 되면 TourPlace에 이전 등록되게 된다.
+model AdPlaceDraft {
   id                Int                @id @default(autoincrement())
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now()) @updatedAt
-  status            AdPlaceStatus      @default(NEW)
-  subscribe         Boolean            @default(false) /// 구독상태인지 아닌지
+  status            AdPlaceDraftStatus @default(STAGING)
   title             String /// 상호명
   // mainImgUrl        String? /// 대표사진 s3 key 형태의 url 또는 직접접근가능한 http 접두어가 포함된 사진링크.
-  mainPhoto         IBPhotos           @relation(name: "mainPhoto", fields: [mainPhotoId], references: [id])
+  mainPhoto         IBPhotos           @relation(name: "DraftMainPhoto", fields: [mainPhotoId], references: [id])
   mainPhotoId       Int                @unique
-  photos            IBPhotos[]         @relation("subPhoto") ///  기타 매장 사진 
+  photos            IBPhotos[]         @relation("DraftSubPhoto") ///  기타 매장 사진 
   // category          AdPlaceCategory[]
   category          IBTravelTag[]
   desc              String? /// 소개글
@@ -973,11 +1172,10 @@ model AdPlace {
   nationalCode      String             @default("82") @db.Char(7) /// 국가 코드. 국제전화번호의 코드이다. 한국 => ex) 82
   tourPlace         TourPlace[] /// 해당 광고 장소와 연관된 tourPlace는 모두 관계가 된다. 실제 AdPlace 등록할때 생성되는 tourPlace는 myTourPlaceId이다.
   mainTourPlaceId   Int? /// adPlace를 등록하는 시점에 생성할 tourPlace. 해당 tourPlace가 광고주가 직접 등록한 tourPlace가 된다. 
-  user              User?              @relation(fields: [userId], references: [id])
-  userId            Int? /// null인 경우는 광고비즈니스 서비스를 사용하던 업주회원이 탈퇴한 경우다.
-  BookingChatLog    BookingChatLog[] /// 문의 메시지들
-  BookingInfo       BookingInfo[]
-  adPlaceStatistics AdPlaceStatistics? /// 통계들..(년,월,일)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId            Int
+  adPlace           AdPlace?           @relation(fields: [adPlaceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  adPlaceId         Int?               @unique
 }
 
 /// 통계 집계와 관련한 유저 액션이 타입
@@ -1118,14 +1316,17 @@ enum BookingChatActionType {
   NEWBOOKINGMSG /// ex) 예약하기
   ANSNEWBOOKINGMSG /// ex) '원하는 일자와 시간에 예약문의를 남겨주시면 가게에서 예약 가능여부를 확인해드려요!)
   ASKBOOKINGAVAILABLE /// 예약문의 고객 => 사업자 ex) 유쾌한인어님이7/3 월 14시 2명예약 가능여부를 문의했어요!
-  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객  ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
+  ANSBOOKINGAVAILABLE /// 예약문의답변 사업자 => 고객  ex) 예약이 가능해요. 예약을 확정하시겠어요?
+  ANSBOOKINGAVAILABLEREJECT /// 예약문의 사업자 거절 사업자 => 고객  ex) 예약이 불가능해요.같은 날짜에 예약이 꽉찼어요.
   ASKBOOKINGCANCEL ///  예약 문의 취소 ex) 예약 취소
   ASKBOOKINGCANCELCHK /// 예약문의 취소 system 확인 메시지 ex) 예약이 취소 되었어요.
   CONFIRMBOOKING /// 예약확정 고객 => 사업자, ex) 네 확정할게요
   ANSCONFIRMBOOKING /// 예약확정 system 확인 메시지 ex) 예약 확정을 위해 연락처가 가게에 전달돼요.
   PRIVACYAGREE /// 정보동의 고객 => 사업자 ex) 동의
   FINALBOOKINGCHECK /// 예약 확정 system 확인 메시지 ex) 예약이 확정되었어요!확정된 예약은 마이북에서 볼 수 있어요.잊지 않고 예약일에 봬요!
-  TEXT /// 일반 채팅 메시지
+  USERCANCELAFTERBOOKING /// 예약 확정이후 유저 켄슬 ex) 예약 취소
+  USERCANCELAFTERBOOKINGCHK /// 예약 확정이후 유저 켄슬에 대한 사업자 확인 답변 ex) 사용자명님이 2023년 9월 15일 15시 2명 예정된 예약을 취소했어요.
+  TEXT /// 일반 채팅 메시지 
 }
 
 /// 예약 문의 관련 채팅 기록
@@ -1140,11 +1341,13 @@ model BookingChatLog {
   bookingActionInputParam BookingChatActionInputParam?
   subjectGroupId          Int? /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
   // redisKey         String                    @db.Char(27)
-  customerId              Int /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람
-  companyId               Int /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람
-  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id]) /// 해당 메시지 보낸 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  customer                User?                        @relation(name: "AsCustomerBookingChat", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  customerId              Int? /// 이 대화스레드의 고객 userId. 즉 문의를 시작한 사람, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  company                 User?                        @relation(name: "AsCompanyBookingChat", fields: [companyId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  companyId               Int? /// 이 대화스레드의 업주 userId, 즉 문의를 받은 사람, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  user                    User?                        @relation(name: "FromBookingChat", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// 해당 메시지 보낸 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   userId                  Int?
-  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id]) /// 해당 메시지를 받은 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
+  toUser                  User?                        @relation(name: "ToBookingChat", fields: [toUserId], references: [id], onDelete: SetNull, onUpdate: Cascade) /// 해당 메시지를 받은 유저, null인 경우는 대화를 나누던 회원이 탈퇴한 경우다.
   toUserId                Int?
   adPlace                 AdPlace?                     @relation(fields: [adPlaceId], references: [id])
   adPlaceId               Int?
@@ -1177,18 +1380,83 @@ model BookingChatActionInputParam {
   bookingChatLogId Int            @unique
 }
 
+enum BookingInfoStatus {
+  RESERVED /// 예약완료
+  CUSTOMERPRECANCEL /// 예약문의 프로세스중 유저취소 (예약확정하지 않고 취소할경우 ASKBOOKINGCANCEL)
+  COMPANYPRECANCEL /// 예약문의 프로세스중 사업주 취소 (사업주 거절사유 ANSBOOKINGAVAILABLEREJECT )
+  CUSTOMERCANCEL /// 예약완료후 유저 취소
+  COMPANYCANCEL /// 예약완료후 사업주 취소
+  NOSHOW /// 유저 예약완료 후 노쇼
+  VISITED /// 예약완료후 정상 방문
+}
+
 // /// 예약문의 관련 정보
 model BookingInfo {
-  id             Int      @id @default(autoincrement())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  id             Int               @id @default(autoincrement())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
   date           DateTime
   numOfPeople    Int
   subjectGroupId Int /// 채팅 메시지 주제 그룹 번호, 만약 예약에 관한것이라면 한건의 예약에 관련된 대화 일체를 하나의 GroupId를 부여해서 어떤 대화주제에 대한 것이었는지를 나타낸다.
-  customer       User?    @relation(name: "asCustomer", fields: [customerId], references: [id])
+  status         BookingInfoStatus @default(RESERVED)
+  customer       User?             @relation(name: "asCustomer", fields: [customerId], references: [id])
   customerId     Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
-  company        User?    @relation(name: "asCompany", fields: [companyId], references: [id])
+  company        User?             @relation(name: "asCompany", fields: [companyId], references: [id])
   companyId      Int? /// null인 경우는 예약문의를 하던 회원이 탈퇴한 경우다.
-  adPlace        AdPlace  @relation(fields: [adPlaceId], references: [id])
+  adPlace        AdPlace           @relation(fields: [adPlaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adPlaceId      Int
+}
+
+// enum OSType {
+//   IOS
+//   ANDROID
+//   WINDOWS
+//   MACOS
+// }
+
+// enum DeviceType {
+//   SMARTPHONE
+//   TABLET
+//   DESKTOP
+// }
+
+/// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값을 저장하는 모델
+model UserFCMToken {
+  id                   Int      @id @default(autoincrement())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+  // modelName  String?
+  // os         OSType?
+  // deviceType DeviceType?
+  token                String   @unique /// FCM을 통해 앱 푸시를 하기위해 필요한 각 디바이스 토큰값
+  sysNotiPushAlarm     Boolean  @default(true) /// 유저가 시스템 노티관련 푸시 알림을 받기로 했는지 여부. 이게 true이면 알림이 왔을때 유저의 해당 token을 가진 디바이스의 푸시알람이 뜬다. 
+  bookingChatPushAlarm Boolean  @default(true) /// 유저가 예약문의 채팅관련 푸시 알림을 받기로 했는지 여부. 이게 true이면 채팅 메시지이 왔을때 유저의 해당 token을 가진 디바이스의 푸시알람이 뜬다. 
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId               Int?
+  userTokenId          String /// 비회원일 경우에는 user는 null이고 userTokenId값만 가질것이다.
+}
+
+// enum VersionType {
+//   SERVER
+//   MOBILEAPP
+// }
+
+/// 서버 버전 리스트
+model ServerVersion {
+  id                Int             @id @default(autoincrement())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
+  versionName       String          @unique /// SP0.2.2, CD-i1.0.21에서 SP, CD등의 접두어(CD:Client dev, SD: Server dev, CP:Client Production, SP:Server Production)
+  pairClientVersion ClientVersion[]
+  isUsing           Boolean         @default(false) /// 현재 사용중인 버전인가. 롤백을 하는경우가 있다면 가장 큰 id가 항상 사용중이진 않을것이다
+}
+
+/// 서버 버전 리스트
+model ClientVersion {
+  id                  Int            @id @default(autoincrement())
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+  versionName         String         @unique /// SP0.2.2, CD-i1.0.21에서 SP, CD등의 접두어(CD:Client dev, SD: Server dev, CP:Client Production, SP:Server Production)
+  pairServerVersion   ServerVersion? @relation(fields: [pairServerVersionId], references: [id])
+  pairServerVersionId Int?
 }

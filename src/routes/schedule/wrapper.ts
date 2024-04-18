@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import express from 'express';
+import { isNil } from 'lodash';
 import { ibDefs, asyncWrapper, IBError, IBContext } from '@src/utils';
 import {
   GetHotelDataFromBKCREQParam,
@@ -224,24 +225,84 @@ export const reqScheduleWrapper = asyncWrapper(
         });
       }
 
-      const ctx: ContextMakeSchedule = {
-        userTokenId,
+      const retryLoop = async () => {
+        const retryLimit = 5;
+        let retry = 0;
+
+        const exclusiveRegion: string[] = [];
+        const param = req.body;
+        let ctx: ContextMakeSchedule = {};
+        while (retry < retryLimit) {
+          try {
+            ctx = {
+              userTokenId,
+              exclusiveRegion, /// destination이 recommend일 경우 추천지역 후보지(getRecommendRegion의 randCandRegion 배열항목중) 중에 배제하고 싶은 리스트가 있다면 해당 파라미터로 보낸다. 클라이언트가 사용하는 파라미터는 아니고 서버 시스템 내부적으로 makeSchedule 반복 호출시에 사용
+            };
+            // eslint-disable-next-line no-await-in-loop
+            const result = await makeSchedule(
+              {
+                ...param,
+                familyOpt: param.familyOpt ?? [],
+                minFriend: param.minFriend ?? '0',
+                maxFriend: param.maxFriend ?? '0',
+              },
+              ctx,
+            );
+            return result;
+          } catch (err) {
+            /// 지역 추천을 선택한 경우에만 재시도
+            if (
+              param.destination !== 'recommend' ||
+              !(err instanceof IBError) ||
+              err.type !== 'NOTEXISTDATA'
+            ) {
+              throw err;
+            }
+
+            if (
+              !err.message.includes(
+                '조건에 맞고 여행일수에 필요한만큼 충분한 수의 관광 spot이 없습니다.',
+              ) &&
+              !err.message.includes(
+                '충분한 수의 여행지 클러스터가 형성되지 못하였습니다.',
+              ) &&
+              !err.message.includes(
+                '충분한 수의 식당 클러스터가 형성되지 못하였습니다.',
+              ) &&
+              !err.message.includes(
+                '더이상 채워넣을 식당이 존재하지 않습니다.',
+              ) &&
+              !err.message.includes(
+                '더이상 채워넣을 방문지가 존재하지 않습니다.',
+              )
+            ) {
+              throw err;
+            }
+
+            retry += 1;
+            if (!isNil(ctx.recommendedRegion)) {
+              exclusiveRegion.push(ctx.recommendedRegion);
+            }
+            console.log(err);
+            console.log(`retry\nretry\nretry\nretry ${retry}`);
+            console.log(
+              `exclusiveRegion: [${ctx.exclusiveRegion?.toString() ?? ''}]`,
+            );
+          }
+        }
+        throw new IBError({
+          type: 'INVALIDSTATUS',
+          message: `재시도 횟수(${retryLimit})를 초과하였습니다.`,
+        });
       };
-      const param = req.body;
-      const scheduleResult = await makeSchedule(
-        {
-          ...param,
-          familyOpt: param.familyOpt ?? [],
-          minFriend: param.minFriend ?? '0',
-          maxFriend: param.maxFriend ?? '0',
-        },
-        ctx,
-      );
+
+      const scheduleResult = await retryLoop();
 
       res.json({
         ...ibDefs.SUCCESS,
         IBparams: {
           queryParamsId: scheduleResult.queryParamsId,
+          recommendedRegion: scheduleResult.recommendedRegion,
           plan: scheduleResult.visitSchedules,
         },
       });
@@ -260,6 +321,15 @@ export const reqScheduleWrapper = asyncWrapper(
           console.error(err);
           res.status(404).json({
             ...ibDefs.NOTEXISTDATA,
+            IBdetail: (err as Error).message,
+            IBparams: {} as object,
+          });
+          return;
+        }
+        if (err.type === 'INVALIDSTATUS') {
+          console.error(err);
+          res.status(400).json({
+            ...ibDefs.INVALIDSTATUS,
             IBdetail: (err as Error).message,
             IBparams: {} as object,
           });

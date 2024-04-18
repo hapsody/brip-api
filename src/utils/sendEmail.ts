@@ -1,36 +1,53 @@
 import nodemailer from 'nodemailer';
+import { isNil, isEmpty } from 'lodash';
 import { IBError } from '@src/utils/IBDefinitions';
 
 const sendEmail = async (params: {
   from: string;
   to: string;
+  bcc?: string;
   subject: string;
   html: string;
 }): Promise<void> => {
   try {
-    const { from, to, subject, html } = params;
+    const {
+      // from,
+      to,
+      bcc,
+      subject,
+      html,
+    } = params;
+
     const transporter = nodemailer.createTransport({
-      service: 'gmail', // 메일 보내는 곳
-      port: 587,
-      host: 'smtp.gmlail.com',
-      secure: true,
+      service: (process.env.SYSTEM_EMAIL_SERVICE as string) || 'gmail', // 메일 보내는 곳
+      port: !isNil(process.env.SYSTEM_EMAIL_PORT)
+        ? Number(process.env.SYSTEM_EMAIL_PORT)
+        : 587,
+      host: (process.env.SYSTEM_EMAIL_HOST as string) || 'smtp.gmail.com',
+      secure: false,
       requireTLS: true,
       auth: {
-        user: process.env.SYSTEM_EMAIL_SENDER, // 보내는 메일의 주소
-        pass: process.env.SYSTEM_EMAIL_APPPASS, // 보내는 메일의 비밀번호
+        user: process.env.SYSTEM_EMAIL_SENDER as string, // 보내는 메일의 주소
+        pass: process.env.SYSTEM_EMAIL_APPPASS as string, // 보내는 메일의 비밀번호
         // type: 'OAuth2',
         // user: process.env.OAUTH_USER as string,
         // clientId: process.env.OAUTH_CLIENT_ID as string,
         // clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
         // refreshToken: process.env.OAUTH_REFRESH_TOKEN as string,
       },
+      // debug: true,
+      // logger: true,
     });
 
     // send mail with defined transport object
     // const info = await transporter.sendMail({
     await transporter.sendMail({
-      from, // sender address
+      from: 'Brip Admin <idealbloom@idealbloom.io>', // sender address
       to, // list of receivers
+      ...(!isNil(bcc) &&
+        !isEmpty(bcc) && {
+          bcc,
+        }),
       subject, // Subject line
       // text: '', // plain text body
       html, // html body
