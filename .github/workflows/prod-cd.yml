@@ -7,7 +7,7 @@ on:
   # pull_request:
   #   branches: [master]
   push:
-    branches: [prod]
+    branches: [disable_prod]
 
 jobs:
   build:
