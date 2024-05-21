@@ -1377,9 +1377,9 @@ async function injectTPDataToDB(params: {
         photos: (() => {
           /// 둘다 존재할경우
           if (
-            !isNil(v.firstimage) &&
+            !isNil(v.firstimage) && /// 원본 이미지
             !isEmpty(v.firstimage) &&
-            !isNil(v.firstimage2) &&
+            !isNil(v.firstimage2) && /// 썸네일
             !isEmpty(v.firstimage2)
           ) {
             return {

@@ -36,6 +36,19 @@
       "name": "test seed:iBTravelTag",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "yarn batch:tourApiImageMigrationToS3",
+      "name": "batch:tourApiImageMigrationToS3",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+
+    {
+      "command": "yarn batch:areaCodeAsign",
+      "name": "batch:areaCodeAsign",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

@@ -222,7 +222,7 @@ export const s3FileUpload = async (params: {
     .promise();
   console.log('uploaded at location', s3Resp.Location);
 
-  const uploadedBinaryURL = s3Resp.Location;
-  console.log(`uploaded binary url ${uploadedBinaryURL}`);
+  // const uploadedBinaryURL = s3Resp.Location;
+  // console.log(`uploaded binary url ${uploadedBinaryURL}`);
   return s3Resp;
 };
