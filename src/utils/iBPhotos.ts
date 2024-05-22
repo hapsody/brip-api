@@ -85,15 +85,15 @@ export const getThumbnailUrlFromIBPhotos = async (
   photos: IBPhotos[],
 ): Promise<string> => {
   if (photos.length > 0) {
-    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
-      /// 직접접근 링크 url이 존재하는 경우
-      return photos[0].url;
-    }
-
     if (!isNil(photos[0].key) && !isEmpty(photos[0].key)) {
       /// s3 key가 존재하는 경우
       const signedUrl = await getS3SignedUrl(photos[0].key);
       return signedUrl;
+    }
+
+    if (!isNil(photos[0].url) && !isEmpty(photos[0].url)) {
+      /// 직접접근 링크 url이 존재하는 경우
+      return photos[0].url;
     }
   }
   return 'none';
@@ -119,15 +119,15 @@ export const getImgUrlListFromIBPhotos = async (
         id: p.id,
         url: await (async (): Promise<string> => {
           if (photos.length > 0) {
-            if (!isNil(p.url) && !isEmpty(p.url)) {
-              /// 직접접근 링크 url이 존재하는 경우
-              return p.url;
-            }
-
             if (!isNil(p.key) && !isEmpty(p.key)) {
               /// s3 key가 존재하는 경우
               const signedUrl = await getS3SignedUrl(p.key);
               return signedUrl;
+            }
+
+            if (!isNil(p.url) && !isEmpty(p.url)) {
+              /// 직접접근 링크 url이 존재하는 경우
+              return p.url;
             }
           }
           return 'none';
