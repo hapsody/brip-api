@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-loop-func */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-continue */
 import { PrismaClient } from '@prisma/client';
@@ -27,6 +28,12 @@ async function movePhotoFromTourAPI4ToS3(uri: string): Promise<string | null> {
       return s3Key;
     } catch (err) {
       console.log(`img download error.. retrying... ${index + 1}`);
+      // interval for low computing power
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      });
       console.error(JSON.stringify(err, null, 2));
     }
   }
@@ -56,7 +63,7 @@ async function tourApiImageMigrationToS3BatchJob(): Promise<void> {
           console.log(
             `data from ${cursor.id} to ${iBPhotos[iBPhotos.length - 1].id}`,
           );
-          if (isEmpty(iBPhotos)) {
+          if (isEmpty(iBPhotos) || iBPhotos.length === 1) {
             return { done: true, value: iBPhotos };
           }
 
@@ -69,20 +76,55 @@ async function tourApiImageMigrationToS3BatchJob(): Promise<void> {
       };
     },
   };
+  // // parallel processing(for speed)
+  // for await (const photoPage of getNextPhotos) {
+  //   const updatePhotoPromises = photoPage.map(async photo => {
+  //     if (isNil(photo.url) || isEmpty(photo.url) || !isEmpty(photo.key)) {
+  //       console.log(`${photo.id} skipped..`);
+  //       skipped += 1;
+  //       return Promise.resolve();
+  //     }
 
+  //     const s3Key = await movePhotoFromTourAPI4ToS3(photo.url);
+  //     failedToStoreS3 += 1;
+  //     if (isNil(s3Key)) {
+  //       return Promise.resolve();
+  //     }
+  //     await prisma.iBPhotos.update({
+  //       where: {
+  //         id: photo.id,
+  //       },
+  //       data: {
+  //         key: s3Key,
+  //       },
+  //     });
+  //     console.log(`${photo.id} updated!! (${s3Key})`);
+  //     updated += 1;
+  //     return Promise.resolve();
+  //   });
+
+  //   await Promise.all(updatePhotoPromises);
+  // }
+
+  // sequential processing (for low resource usage)
   for await (const photoPage of getNextPhotos) {
-    // eslint-disable-next-line @typescript-eslint/no-loop-func
-    const updatePhotoPromises = photoPage.map(async photo => {
+    // const updatePhotoPromises = photoPage.map(async photo => {
+    for await (const photo of photoPage) {
       if (isNil(photo.url) || isEmpty(photo.url) || !isEmpty(photo.key)) {
+        // 1. 이미 s3key로 변환되었거나
+        // 2. url이 없는 경우는 skip
+
         console.log(`${photo.id} skipped..`);
         skipped += 1;
-        return Promise.resolve();
+        continue;
+        // return Promise.resolve();
       }
 
       const s3Key = await movePhotoFromTourAPI4ToS3(photo.url);
       failedToStoreS3 += 1;
       if (isNil(s3Key)) {
-        return Promise.resolve();
+        // return Promise.resolve();
+        continue;
       }
       await prisma.iBPhotos.update({
         where: {
@@ -92,19 +134,20 @@ async function tourApiImageMigrationToS3BatchJob(): Promise<void> {
           key: s3Key,
         },
       });
+
+      // interval for low computing power
+      await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      });
+
       console.log(`${photo.id} updated!! (${s3Key})`);
       updated += 1;
-      return Promise.resolve();
-    });
-
-    await Promise.all(updatePhotoPromises);
-    // for await (const photo of photoPage) {
-    // if (isNil(photo.url) || isEmpty(photo.url)) continue;
-    //   const s3Key = await movePhotoFromTourAPI4ToS3(photo.url);
-    //   if (isNil(s3Key)) continue;
-    //   console.log(res);
-    // }
+      // return Promise.resolve();
+    }
   }
+
   const updatedDoubleCheckCount = await prisma.iBPhotos.count({
     where: {
       key: { not: null },
