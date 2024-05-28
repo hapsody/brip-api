@@ -1977,7 +1977,7 @@ export const getNrbyPlaceListWithGeoLoc = async (
   param: GetNrbyPlaceListWithGeoLocRequestType,
   ctx: ContextGetNrbyPlaceListWithGeoLoc,
 ): Promise<GetNrbyPlaceListWithGeoLocSuccessResType> => {
-  const { minLat, minLng, maxLat, maxLng, take = '10', lastId = '1' } = param;
+  const { minLat, minLng, maxLat, maxLng, take = '10', lastId } = param;
   const { memberId, userTokenId } = ctx;
 
   if (!userTokenId || !memberId) {
@@ -2050,9 +2050,11 @@ export const getNrbyPlaceListWithGeoLoc = async (
       ],
     },
     take: Number(take),
-    cursor: {
-      id: Number(lastId) + 1,
-    },
+    ...(!isEmpty(lastId) && {
+      cursor: {
+        id: Number(lastId) + 1,
+      },
+    }),
   });
   return {
     // eslint-disable-next-line no-underscore-dangle
