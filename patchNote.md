@@ -14,6 +14,7 @@
 - 클라이언트 이슈로 인해 한국 관광공사 TourAPI4 이미지를 brip s3로 이관하는 스크립트 작성 [#221](https://github.com/idealbloom/TravelIt-RN/issues/221)
 - 이관한 사진의 경우 IBPhotos 데이터의 url과 key를 모두 갖게 되는데 이 경우 s3 key를 우선하여 접근가능한 url로 변환후 반환하도록 함
 - getNrbyPlaceListWithGeoLoc의 페이지네이션 디폴트 cursor 값 오류 수정
+- 로그인시 정보 반환값에 크리에이터 정보는 심사까지 완료되어야 반환되도록 수정함
 - 이하 이전 버전과 호환성 문제 없음.
 
 ---

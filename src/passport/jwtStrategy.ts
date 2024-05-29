@@ -59,7 +59,11 @@ export default (passport: PassportStatic): void => {
             const user = await prisma.user.findFirst({
               where: { email },
               include: {
-                tripCreator: true,
+                tripCreator: {
+                  where: {
+                    status: 'APPROVED',
+                  },
+                },
               },
             });
             if (!user) {

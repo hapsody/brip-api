@@ -30,7 +30,11 @@ export default (passport: PassportStatic): void => {
             email: id,
           },
           include: {
-            tripCreator: true,
+            tripCreator: {
+              where: {
+                status: 'APPROVED',
+              },
+            },
             adPlace: {
               include: {
                 tourPlace: true,
